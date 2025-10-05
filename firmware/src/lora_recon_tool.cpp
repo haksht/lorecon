@@ -29,7 +29,11 @@ void IRAM_ATTR onPacketReceived() {
 LoRaReconTool::LoRaReconTool()
     : radio(new Module(LORA_NSS, LORA_DIO1, LORA_RST, LORA_BUSY))
     , commandHandler(nullptr)
+    , oledDisplay(nullptr)
     , packetReceived(false)
+    , buttonPressed(false)
+    , buttonPressStart(0)
+    , shutdownInitiated(false)
 #ifdef ENABLE_STRESS_TESTING
     , stressTester(nullptr)
 #endif
@@ -44,6 +48,11 @@ bool LoRaReconTool::initialize() {
     
     // Initialize error handler first
     ErrorHandler::initialize();
+    
+    // Initialize user button
+    pinMode(USER_BUTTON, INPUT_PULLUP);
+    Serial.printf("[BUTTON] User button configured on GPIO %d\n", USER_BUTTON);
+    Serial.println("[BUTTON] Short press = Toggle display | Long press (3s) = Shutdown");
     
     // Initialize watchdog timer for stability (30 second timeout)
     // This will reset the ESP32 if the main loop hangs
@@ -80,6 +89,15 @@ bool LoRaReconTool::initialize() {
     // Initialize reconnaissance system
     reconState.initialize();
     
+    // Initialize OLED display
+    oledDisplay = new OLEDDisplay();
+    if (oledDisplay->initialize()) {
+        oledDisplay->showWelcome();
+        delay(2000);  // Show welcome screen
+    } else {
+        Serial.println("[WARNING] Display initialization failed - continuing without display");
+    }
+    
     displayReconStartMessage();
     
     // Apply initial configuration and start receiving
@@ -106,8 +124,21 @@ bool LoRaReconTool::initialize() {
 void LoRaReconTool::update() {
     uint32_t now = millis();
     
+    // Handle button press (must be first to catch shutdown)
+    handleButtonPress(now);
+    
+    // If shutdown initiated, don't process anything else
+    if (shutdownInitiated) {
+        return;
+    }
+    
     // Pet the watchdog
     esp_task_wdt_reset();
+    
+    // Update display
+    if (oledDisplay && oledDisplay->isOn()) {
+        oledDisplay->update();
+    }
     
     // Handle serial input for mode switching and commands
     if (Serial.available()) {
@@ -206,6 +237,16 @@ void LoRaReconTool::handleReconnaissanceMode(uint32_t now) {
         
         if (applyConfig(reconState.scanState.currentConfig)) {
             radio.startReceive();
+            
+            // Update display with new scanning config
+            if (oledDisplay && oledDisplay->isOn()) {
+                const ScanConfig& cfg = reconState.getScanConfig(reconState.scanState.currentConfig);
+                char freqStr[16];
+                snprintf(freqStr, sizeof(freqStr), "%.3f", cfg.frequency);
+                oledDisplay->showScanningStatus(freqStr, cfg.spreadingFactor, 
+                                                reconState.scanState.currentConfig, 
+                                                reconState.getNumConfigs());
+            }
         }
     }
     
@@ -283,6 +324,11 @@ void LoRaReconTool::handlePacketReception() {
                 Serial.printf("[RECON] Packet #%d: %s, %d bytes, %.1f dBm, %.1f dB SNR\n",
                               reconState.scanState.totalPackets, info.protocol, length, rssi, snr);
                 
+                // Update display with packet info
+                if (oledDisplay && oledDisplay->isOn()) {
+                    oledDisplay->showPacketReceived(rssi, snr, info.protocol, info.nodeId);
+                }
+                
                 // Track RF activity (for situational awareness)
                 trackRFActivity(reconState.scanState.currentConfig, rssi);
                 
@@ -295,6 +341,11 @@ void LoRaReconTool::handlePacketReception() {
                 Serial.printf("[CAPTURE] Packet #%d: %s, %d bytes, %.1f dBm, %.1f dB SNR\n",
                               reconState.scanState.totalPackets, info.protocol, length, rssi, snr);
                 Serial.println("         Press 'c' to capture this packet for replay");
+                
+                // Update display with packet info in targeting mode
+                if (oledDisplay && oledDisplay->isOn()) {
+                    oledDisplay->showPacketReceived(rssi, snr, info.protocol, info.nodeId);
+                }
                 
                 // Enhanced SF8 analysis for encrypted message detection
                 if (reconState.scanState.currentConfig == 6) {  // SF8 configuration
@@ -770,5 +821,78 @@ void LoRaReconTool::replayPacket(uint8_t slotIndex) {
     radio.startReceive();
     
     showReplayMenu();
+}
+
+// Handle button press for display toggle and power off
+void LoRaReconTool::handleButtonPress(uint32_t now) {
+    bool currentButtonState = (digitalRead(USER_BUTTON) == LOW);  // Active low
+    
+    // Detect button press (transition from not pressed to pressed)
+    if (currentButtonState && !buttonPressed) {
+        buttonPressed = true;
+        buttonPressStart = now;
+        Serial.println("[BUTTON] Button pressed");
+    }
+    
+    // Button is being held down
+    if (currentButtonState && buttonPressed) {
+        uint32_t pressDuration = now - buttonPressStart;
+        
+        // Long press (3 seconds) = shutdown
+        if (pressDuration >= 3000 && !shutdownInitiated) {
+            shutdownInitiated = true;
+            Serial.println("\n🔴 SHUTDOWN INITIATED (3s press detected)");
+            Serial.println("===========================================");
+            
+            // Show shutdown on display
+            if (oledDisplay) {
+                oledDisplay->showShutdown();
+                delay(100);  // Ensure display updates
+            }
+            
+            // Stop radio safely
+            Serial.print("[RADIO] Stopping radio... ");
+            radio.standby();
+            radio.sleep();
+            Serial.println("OK");
+            
+            // Optional: Save state to flash
+            // reconState.saveToFlash();
+            
+            Serial.println("✅ Safe to remove power");
+            Serial.println("Device will enter deep sleep in 2 seconds...");
+            Serial.flush();
+            
+            delay(2000);
+            
+            // Enter deep sleep (effectively powered off until reset)
+            Serial.println("[SLEEP] Entering deep sleep mode");
+            Serial.flush();
+            esp_deep_sleep_start();
+        }
+    }
+    
+    // Button released
+    if (!currentButtonState && buttonPressed) {
+        uint32_t pressDuration = now - buttonPressStart;
+        buttonPressed = false;
+        
+        // Short press (< 3 seconds) = toggle display
+        if (pressDuration < 3000 && !shutdownInitiated) {
+            Serial.println("[BUTTON] Short press detected - toggling display");
+            if (oledDisplay) {
+                oledDisplay->toggle();
+                if (oledDisplay->isOn()) {
+                    // Refresh display with current info
+                    const ScanConfig& cfg = reconState.getScanConfig(reconState.scanState.currentConfig);
+                    char freqStr[16];
+                    snprintf(freqStr, sizeof(freqStr), "%.3f", cfg.frequency);
+                    oledDisplay->showScanningStatus(freqStr, cfg.spreadingFactor, 
+                                                    reconState.scanState.currentConfig, 
+                                                    reconState.getNumScanConfigs());
+                }
+            }
+        }
+    }
 }
 

@@ -8,11 +8,13 @@
 
 // Forward declarations
 class CommandHandler;
+class OLEDDisplay;
 
 #include "recon_state.h"
 #include "protocol_analyzer.h"
 #include "geo_intelligence.h"
 #include "command_handler.h"
+#include "oled_display.h"
 
 #ifdef ENABLE_STRESS_TESTING
 #include "hardware_stress_tester.h"
@@ -23,6 +25,7 @@ class CommandHandler;
 #define LORA_DIO1   14
 #define LORA_RST    12
 #define LORA_BUSY   13
+#define USER_BUTTON 0   // PRG button (active low)
 
 // Scanning configuration
 #define SCAN_DWELL_TIME     12000  // 12 seconds per frequency
@@ -66,6 +69,9 @@ public:
     // Packet received flag for interrupt handler
     void markPacketReceived() { packetReceived.store(true, std::memory_order_release); }
     
+    // Display access
+    OLEDDisplay* getDisplay() { return oledDisplay; }
+    
 #ifdef ENABLE_STRESS_TESTING
     HardwareStressTester* getStressTester() { return stressTester; }
 #endif
@@ -75,13 +81,22 @@ private:
     SX1262 radio;
     ProtocolAnalyzer protocolAnalyzer;
     CommandHandler* commandHandler;
+    OLEDDisplay* oledDisplay;
     
     // Interrupt flag
     std::atomic<bool> packetReceived;
     
+    // Button state tracking
+    bool buttonPressed;
+    uint32_t buttonPressStart;
+    bool shutdownInitiated;
+    
 #ifdef ENABLE_STRESS_TESTING
     HardwareStressTester* stressTester;
 #endif
+    
+    // Button handler
+    void handleButtonPress(uint32_t now);
     
     // Radio configuration
     bool applyConfig(uint8_t configIndex);
