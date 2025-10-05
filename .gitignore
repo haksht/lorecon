@@ -1,0 +1,76 @@
+# PlatformIO
+.pio/
+.pioenvs/
+.piolibdeps/
+.pio/build/
+.pio/libdeps/
+
+# VS Code
+.vscode/
+*.code-workspace
+
+# ESP32 / Arduino
+*.bin
+*.elf
+*.hex
+*.map
+*.o
+*.d
+*.su
+
+# Build directories
+build/
+dist/
+out/
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+*~
+
+# IDE files
+*.swp
+*.swo
+*~
+
+# Node.js (for webapp)
+webapp/frontend/node_modules/
+webapp/frontend/package-lock.json
+webapp/backend/node_modules/
+webapp/backend/package-lock.json
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Temporary files
+*.tmp
+*.temp
+*.log
+
+# Third party libraries (already compiled)
+thirdparty/
+
+# React Native (if any)
+ReactNativeiPhone/
+
+# Agent state files
+.agent_state*/
+
+# Firmware libraries (compiled)
+firmware/lib/
+
+

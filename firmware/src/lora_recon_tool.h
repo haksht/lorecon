@@ -1,0 +1,113 @@
+#ifndef LORA_RECON_TOOL_H
+#define LORA_RECON_TOOL_H
+
+#include <Arduino.h>
+#include <RadioLib.h>
+#include <atomic>
+#include "data_structures.h"
+
+// Forward declarations
+class CommandHandler;
+
+#include "recon_state.h"
+#include "protocol_analyzer.h"
+#include "geo_intelligence.h"
+#include "command_handler.h"
+
+#ifdef ENABLE_STRESS_TESTING
+#include "hardware_stress_tester.h"
+#endif
+
+// Hardware configuration for Heltec WiFi LoRa 32 V3
+#define LORA_NSS    8
+#define LORA_DIO1   14
+#define LORA_RST    12
+#define LORA_BUSY   13
+
+// Scanning configuration
+#define SCAN_DWELL_TIME     12000  // 12 seconds per frequency
+#define PACKET_BUFFER_SIZE  256
+#define SERIAL_TIMEOUT_MS   30000  // 30 second timeout for user input
+
+/**
+ * LoRa Reconnaissance Tool - Main application class
+ * 
+ * Encapsulates all reconnaissance logic, radio control, and state management.
+ * Eliminates global variables and provides clean interface for the application.
+ */
+class LoRaReconTool {
+public:
+    LoRaReconTool();
+    
+    // Lifecycle methods
+    bool initialize();
+    void update();
+    
+    // User interaction
+    void handleUserInput(char cmd);
+    
+    // Device targeting (public for UI module access)
+    void startTargetedCapture(uint8_t deviceIndex);
+    void startFrequencyTargeting(uint8_t configIndex);
+    
+    // Packet replay (public for command handler)
+    void showReplayMenu();
+    void replayPacket(uint8_t slotIndex);
+    
+    // Access to radio for external needs (like stress testing)
+    SX1262& getRadio() { return radio; }
+    
+    // Public config application for command handler
+    bool applyConfigPublic(uint8_t configIndex) { return applyConfig(configIndex); }
+    
+    // Public receiver start for command handler
+    void startReceiving() { radio.startReceive(); }
+    
+    // Packet received flag for interrupt handler
+    void markPacketReceived() { packetReceived.store(true, std::memory_order_release); }
+    
+#ifdef ENABLE_STRESS_TESTING
+    HardwareStressTester* getStressTester() { return stressTester; }
+#endif
+
+private:
+    // Hardware instances
+    SX1262 radio;
+    ProtocolAnalyzer protocolAnalyzer;
+    CommandHandler* commandHandler;
+    
+    // Interrupt flag
+    std::atomic<bool> packetReceived;
+    
+#ifdef ENABLE_STRESS_TESTING
+    HardwareStressTester* stressTester;
+#endif
+    
+    // Radio configuration
+    bool applyConfig(uint8_t configIndex);
+    
+    // Mode handlers
+    void handleReconnaissanceMode(uint32_t now);
+    void handleTargetedCaptureMode(uint32_t now);
+    void handleReconActivityMonitoring(uint32_t now);
+    
+    // Packet processing
+    void handlePacketReception();
+    
+    // Tracking functions
+    void trackNode(uint32_t nodeId, const char* protocol, float rssi);
+    void trackRFActivity(uint8_t configIndex, float rssi);
+    void trackTargetableDevice(uint32_t nodeId, uint8_t configIndex, float rssi, 
+                               const char* protocol, const uint8_t* packetData, size_t packetLength);
+    
+    // Logging
+    void logPacket(const uint8_t* data, size_t length, float rssi, float snr, const char* protocol);
+    
+    // Stress testing
+    void initializeStressTesting();
+};
+
+// Global interrupt handler needs access to tool instance
+extern LoRaReconTool* g_reconTool;
+
+#endif // LORA_RECON_TOOL_H
