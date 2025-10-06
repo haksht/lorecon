@@ -1,5 +1,6 @@
 #include "oled_display.h"
 #include <Wire.h>
+#include <esp_task_wdt.h>  // For watchdog reset during init
 
 OLEDDisplay::OLEDDisplay()
     : display(U8G2_R0, OLED_RST, OLED_SCL, OLED_SDA)
@@ -12,16 +13,142 @@ OLEDDisplay::OLEDDisplay()
 }
 
 bool OLEDDisplay::initialize() {
-    Serial.print("[DISPLAY] Initializing OLED... ");
+    Serial.println("[DISPLAY] Initializing OLED...");
+    
+    // Try Vext LOW first (most common for Heltec V3)
+    Serial.printf("[DISPLAY] Configuring Vext pin %d (trying LOW first)...\n", OLED_VEXT);
+    pinMode(OLED_VEXT, OUTPUT);
+    digitalWrite(OLED_VEXT, LOW);  // Turn on power to display
+    delay(200);  // Longer delay for power stabilization
+    
+    // Reset watchdog before potentially long I2C operations
+    esp_task_wdt_reset();
     
     // Initialize I2C with custom pins
+    Serial.printf("[DISPLAY] Initializing I2C: SDA=%d, SCL=%d\n", OLED_SDA, OLED_SCL);
     Wire.begin(OLED_SDA, OLED_SCL);
+    Wire.setClock(100000);  // Try slower 100kHz first for reliability
+    delay(50);
+    
+    // Reset watchdog again
+    esp_task_wdt_reset();
+    
+    // Comprehensive I2C scan
+    Serial.println("[DISPLAY] Scanning I2C bus...");
+    bool displayFound = false;
+    uint8_t foundAddr = 0;
+    
+    for (uint8_t addr = 0x3C; addr <= 0x3D; addr++) {
+        Wire.beginTransmission(addr);
+        uint8_t error = Wire.endTransmission();
+        Serial.printf("[DISPLAY]   Address 0x%02X: ", addr);
+        if (error == 0) {
+            Serial.println("FOUND!");
+            displayFound = true;
+            foundAddr = addr;
+            break;
+        } else {
+            Serial.printf("not found (error %d)\n", error);
+        }
+    }
+    
+    // If not found, try with Vext HIGH
+    if (!displayFound) {
+        Serial.println("[DISPLAY] Not found with Vext=LOW, trying Vext=HIGH...");
+        digitalWrite(OLED_VEXT, HIGH);
+        delay(200);
+        
+        for (uint8_t addr = 0x3C; addr <= 0x3D; addr++) {
+            Wire.beginTransmission(addr);
+            uint8_t error = Wire.endTransmission();
+            Serial.printf("[DISPLAY]   Address 0x%02X: ", addr);
+            if (error == 0) {
+                Serial.println("FOUND!");
+                displayFound = true;
+                foundAddr = addr;
+                break;
+            } else {
+                Serial.printf("not found (error %d)\n", error);
+            }
+        }
+    }
+    
+    // If still not found, try V2 pins (SDA=4, SCL=15)
+    if (!displayFound) {
+        Serial.println("[DISPLAY] Not found on V3 pins, trying V2 configuration...");
+        Serial.println("[DISPLAY] Testing V2 pins: SDA=4, SCL=15, Vext=21");
+        
+        // Try V2 Vext pin
+        pinMode(21, OUTPUT);
+        digitalWrite(21, LOW);  // V2 Vext active LOW
+        delay(200);
+        
+        // Reinitialize I2C with V2 pins
+        Wire.end();
+        Wire.begin(4, 15);  // V2: SDA=4, SCL=15
+        Wire.setClock(100000);
+        delay(50);
+        
+        for (uint8_t addr = 0x3C; addr <= 0x3D; addr++) {
+            Wire.beginTransmission(addr);
+            uint8_t error = Wire.endTransmission();
+            Serial.printf("[DISPLAY]   Address 0x%02X: ", addr);
+            if (error == 0) {
+                Serial.println("FOUND on V2 pins!");
+                displayFound = true;
+                foundAddr = addr;
+                Serial.println("[DISPLAY] ⚠️  WARNING: Using V2 pin configuration!");
+                Serial.println("[DISPLAY] ⚠️  Please update oled_display.h with V2 pins:");
+                Serial.println("[DISPLAY] ⚠️  #define OLED_SDA 4");
+                Serial.println("[DISPLAY] ⚠️  #define OLED_SCL 15");
+                Serial.println("[DISPLAY] ⚠️  #define OLED_VEXT 21");
+                break;
+            } else {
+                Serial.printf("not found (error %d)\n", error);
+            }
+        }
+    }
+    
+    if (!displayFound) {
+        Serial.println("[DISPLAY] ❌ No OLED detected on I2C bus");
+        Serial.printf("[DISPLAY] Tried V3 pins: SDA=%d, SCL=%d\n", OLED_SDA, OLED_SCL);
+        Serial.println("[DISPLAY] Tried V2 pins: SDA=4, SCL=15");
+        
+        // Full I2C scan to help diagnose
+        Serial.println("[DISPLAY] Running full I2C scan (0x01-0x7F)...");
+        bool anyDeviceFound = false;
+        for (uint8_t addr = 1; addr < 127; addr++) {
+            Wire.beginTransmission(addr);
+            if (Wire.endTransmission() == 0) {
+                Serial.printf("[DISPLAY]   ✓ Device found at 0x%02X\n", addr);
+                anyDeviceFound = true;
+            }
+        }
+        
+        if (!anyDeviceFound) {
+            Serial.println("[DISPLAY]   No I2C devices found on any address");
+            Serial.println("[DISPLAY] Possible causes:");
+            Serial.println("[DISPLAY]   - OLED not physically present on this board variant");
+            Serial.println("[DISPLAY]   - Wrong I2C pins for your board model");
+            Serial.println("[DISPLAY]   - Hardware defect or poor connection");
+        }
+        
+        return false;
+    }
+    
+    Serial.printf("[DISPLAY] ✓ Display found at 0x%02X, initializing... ", foundAddr);
+    
+    // Reset watchdog before display init
+    esp_task_wdt_reset();
     
     // Initialize display
     if (!display.begin()) {
-        Serial.println("FAILED");
+        Serial.println("INIT FAILED");
         return false;
     }
+    
+    // Reset watchdog after init
+    esp_task_wdt_reset();
     
     display.clearBuffer();
     display.setFont(u8g2_font_6x10_tf);
@@ -31,7 +158,8 @@ bool OLEDDisplay::initialize() {
     lastActivityTime = millis();
     
     Serial.println("OK");
-    Serial.printf("[DISPLAY] OLED ready (128x64, I2C: SDA=%d, SCL=%d)\n", OLED_SDA, OLED_SCL);
+    Serial.printf("[DISPLAY] OLED ready (128x64, I2C: SDA=%d, SCL=%d, Vext=%d)\n", 
+                  OLED_SDA, OLED_SCL, OLED_VEXT);
     
     return true;
 }
@@ -198,7 +326,7 @@ void OLEDDisplay::renderScanning() {
     display.drawStr(0, 48, buffer);
     
     // Packet count
-    snprintf(buffer, sizeof(buffer), "Pkts: %lu", info.totalPackets);
+    snprintf(buffer, sizeof(buffer), "Pkts: %u", info.totalPackets);
     display.drawStr(64, 48, buffer);
     
     drawFooter("Press for menu");
@@ -217,7 +345,7 @@ void OLEDDisplay::renderPacketInfo() {
     
     // Node ID (if available)
     if (info.lastNodeId != 0) {
-        snprintf(buffer, sizeof(buffer), "Node: %08lX", info.lastNodeId);
+        snprintf(buffer, sizeof(buffer), "Node: %08X", info.lastNodeId);
         display.drawStr(0, 36, buffer);
     }
     
@@ -260,7 +388,7 @@ void OLEDDisplay::renderTargeting() {
     char buffer[32];
     
     // Current stats
-    snprintf(buffer, sizeof(buffer), "Packets: %lu", info.totalPackets);
+    snprintf(buffer, sizeof(buffer), "Packets: %u", info.totalPackets);
     display.drawStr(0, 44, buffer);
     
     snprintf(buffer, sizeof(buffer), "RSSI: %.1f dBm", info.lastRSSI);

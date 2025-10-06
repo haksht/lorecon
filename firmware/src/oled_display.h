@@ -8,9 +8,11 @@
 
 // OLED Display configuration for Heltec WiFi LoRa 32 V3
 // 128x64 OLED connected via I2C
-#define OLED_SDA    17
-#define OLED_SCL    18
-#define OLED_RST    21
+// Note: V3 uses different pins than V2!
+#define OLED_SDA    17  // GPIO 17 for V3
+#define OLED_SCL    18  // GPIO 18 for V3
+#define OLED_RST    21  // GPIO 21 (RST)
+#define OLED_VEXT   36  // GPIO 36 (Vext - power control, active LOW)
 
 /**
  * OLED Display Manager
