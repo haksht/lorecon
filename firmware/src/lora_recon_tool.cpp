@@ -889,7 +889,7 @@ void LoRaReconTool::handleButtonPress(uint32_t now) {
                     snprintf(freqStr, sizeof(freqStr), "%.3f", cfg.frequency);
                     oledDisplay->showScanningStatus(freqStr, cfg.spreadingFactor, 
                                                     reconState.scanState.currentConfig, 
-                                                    reconState.getNumScanConfigs());
+                                                    reconState.getNumConfigs());
                 }
             }
         }
