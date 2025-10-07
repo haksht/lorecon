@@ -3,7 +3,7 @@
 #include <esp_task_wdt.h>  // For watchdog reset during init
 
 OLEDDisplay::OLEDDisplay()
-    : display(U8G2_R0, OLED_RST, OLED_SCL, OLED_SDA)
+    : display(U8G2_R0, OLED_RST)  // HW I2C: rotation, reset - uses Wire object we configure
     , displayOn(false)
     , lastActivityTime(0)
     , autoOffTimeout(30000)  // 30 seconds default
@@ -15,135 +15,99 @@ OLEDDisplay::OLEDDisplay()
 bool OLEDDisplay::initialize() {
     Serial.println("[DISPLAY] Initializing OLED...");
     
-    // Try Vext LOW first (most common for Heltec V3)
-    Serial.printf("[DISPLAY] Configuring Vext pin %d (trying LOW first)...\n", OLED_VEXT);
+    // Step 1: Enable Vext power (always, regardless of previous state)
+    Serial.printf("[DISPLAY] Configuring Vext pin %d (active LOW)...\n", OLED_VEXT);
     pinMode(OLED_VEXT, OUTPUT);
     digitalWrite(OLED_VEXT, LOW);  // Turn on power to display
-    delay(200);  // Longer delay for power stabilization
+    delay(100);  // Wait for power stabilization
+    
+    // Step 2: Send reset pulse to OLED (ALWAYS do this - handles unknown states)
+    // This is critical after power cycling, brownouts, or undefined states
+    Serial.printf("[DISPLAY] Sending reset pulse on pin %d...\n", OLED_RST);
+    pinMode(OLED_RST, OUTPUT);
+    digitalWrite(OLED_RST, LOW);   // Assert reset (active LOW)
+    delay(20);                      // Hold reset for 20ms (conservative)
+    digitalWrite(OLED_RST, HIGH);  // De-assert reset
+    delay(50);                      // Wait for OLED to finish reset sequence
     
     // Reset watchdog before potentially long I2C operations
     esp_task_wdt_reset();
     
-    // Initialize I2C with custom pins
+    // Step 3: Initialize I2C with custom pins
     Serial.printf("[DISPLAY] Initializing I2C: SDA=%d, SCL=%d\n", OLED_SDA, OLED_SCL);
     Wire.begin(OLED_SDA, OLED_SCL);
-    Wire.setClock(100000);  // Try slower 100kHz first for reliability
+    Wire.setClock(100000);  // 100kHz for reliability
     delay(50);
     
     // Reset watchdog again
     esp_task_wdt_reset();
     
-    // Comprehensive I2C scan
-    Serial.println("[DISPLAY] Scanning I2C bus...");
-    bool displayFound = false;
-    uint8_t foundAddr = 0;
+    // Step 4: Scan I2C to confirm device presence (with retry)
+    Serial.println("[DISPLAY] Scanning for OLED at 0x3C...");
+    bool deviceFound = false;
     
-    for (uint8_t addr = 0x3C; addr <= 0x3D; addr++) {
-        Wire.beginTransmission(addr);
+    // Try up to 3 times with increasing delays
+    for (int attempt = 1; attempt <= 3; attempt++) {
+        Wire.beginTransmission(0x3C);
         uint8_t error = Wire.endTransmission();
-        Serial.printf("[DISPLAY]   Address 0x%02X: ", addr);
+        
         if (error == 0) {
-            Serial.println("FOUND!");
-            displayFound = true;
-            foundAddr = addr;
+            deviceFound = true;
+            Serial.printf("[DISPLAY] ✓ OLED found at 0x3C (attempt %d)\n", attempt);
             break;
+        }
+        
+        if (attempt < 3) {
+            Serial.printf("[DISPLAY]   Attempt %d: Not found (error %d), retrying...\n", attempt, error);
+            delay(50 * attempt);  // Progressive delay: 50ms, 100ms
         } else {
-            Serial.printf("not found (error %d)\n", error);
+            Serial.printf("[DISPLAY] ❌ No device found at 0x3C after %d attempts (error %d)\n", attempt, error);
         }
     }
     
-    // If not found, try with Vext HIGH
-    if (!displayFound) {
-        Serial.println("[DISPLAY] Not found with Vext=LOW, trying Vext=HIGH...");
-        digitalWrite(OLED_VEXT, HIGH);
-        delay(200);
-        
-        for (uint8_t addr = 0x3C; addr <= 0x3D; addr++) {
-            Wire.beginTransmission(addr);
-            uint8_t error = Wire.endTransmission();
-            Serial.printf("[DISPLAY]   Address 0x%02X: ", addr);
-            if (error == 0) {
-                Serial.println("FOUND!");
-                displayFound = true;
-                foundAddr = addr;
-                break;
-            } else {
-                Serial.printf("not found (error %d)\n", error);
-            }
-        }
-    }
-    
-    // If still not found, try V2 pins (SDA=4, SCL=15)
-    if (!displayFound) {
-        Serial.println("[DISPLAY] Not found on V3 pins, trying V2 configuration...");
-        Serial.println("[DISPLAY] Testing V2 pins: SDA=4, SCL=15, Vext=21");
-        
-        // Try V2 Vext pin
-        pinMode(21, OUTPUT);
-        digitalWrite(21, LOW);  // V2 Vext active LOW
-        delay(200);
-        
-        // Reinitialize I2C with V2 pins
-        Wire.end();
-        Wire.begin(4, 15);  // V2: SDA=4, SCL=15
-        Wire.setClock(100000);
-        delay(50);
-        
-        for (uint8_t addr = 0x3C; addr <= 0x3D; addr++) {
-            Wire.beginTransmission(addr);
-            uint8_t error = Wire.endTransmission();
-            Serial.printf("[DISPLAY]   Address 0x%02X: ", addr);
-            if (error == 0) {
-                Serial.println("FOUND on V2 pins!");
-                displayFound = true;
-                foundAddr = addr;
-                Serial.println("[DISPLAY] ⚠️  WARNING: Using V2 pin configuration!");
-                Serial.println("[DISPLAY] ⚠️  Please update oled_display.h with V2 pins:");
-                Serial.println("[DISPLAY] ⚠️  #define OLED_SDA 4");
-                Serial.println("[DISPLAY] ⚠️  #define OLED_SCL 15");
-                Serial.println("[DISPLAY] ⚠️  #define OLED_VEXT 21");
-                break;
-            } else {
-                Serial.printf("not found (error %d)\n", error);
-            }
-        }
-    }
-    
-    if (!displayFound) {
-        Serial.println("[DISPLAY] ❌ No OLED detected on I2C bus");
-        Serial.printf("[DISPLAY] Tried V3 pins: SDA=%d, SCL=%d\n", OLED_SDA, OLED_SCL);
-        Serial.println("[DISPLAY] Tried V2 pins: SDA=4, SCL=15");
-        
-        // Full I2C scan to help diagnose
-        Serial.println("[DISPLAY] Running full I2C scan (0x01-0x7F)...");
-        bool anyDeviceFound = false;
-        for (uint8_t addr = 1; addr < 127; addr++) {
-            Wire.beginTransmission(addr);
-            if (Wire.endTransmission() == 0) {
-                Serial.printf("[DISPLAY]   ✓ Device found at 0x%02X\n", addr);
-                anyDeviceFound = true;
-            }
-        }
-        
-        if (!anyDeviceFound) {
-            Serial.println("[DISPLAY]   No I2C devices found on any address");
-            Serial.println("[DISPLAY] Possible causes:");
-            Serial.println("[DISPLAY]   - OLED not physically present on this board variant");
-            Serial.println("[DISPLAY]   - Wrong I2C pins for your board model");
-            Serial.println("[DISPLAY]   - Hardware defect or poor connection");
-        }
-        
+    if (!deviceFound) {
+        Serial.println("[DISPLAY] OLED initialization failed - continuing without display");
+        Serial.println("[DISPLAY] This is normal if:");
+        Serial.println("[DISPLAY]   - Board variant without OLED");
+        Serial.println("[DISPLAY]   - OLED hardware fault");
+        Serial.println("[DISPLAY] Tool will continue to work via serial monitor.");
         return false;
     }
     
-    Serial.printf("[DISPLAY] ✓ Display found at 0x%02X, initializing... ", foundAddr);
+    // Step 5: Initialize U8g2 display (with retry)
+    Serial.println("[DISPLAY] Initializing U8g2 library...");
     
-    // Reset watchdog before display init
-    esp_task_wdt_reset();
+    bool initSuccess = false;
+    for (int attempt = 1; attempt <= 2; attempt++) {
+        // Reset watchdog before display init
+        esp_task_wdt_reset();
+        
+        // Set I2C clock for U8g2
+        display.setBusClock(100000);
+        
+        // Initialize display
+        if (display.begin()) {
+            initSuccess = true;
+            Serial.printf("[DISPLAY] ✓ U8g2 initialized successfully (attempt %d)\n", attempt);
+            break;
+        }
+        
+        if (attempt < 2) {
+            Serial.printf("[DISPLAY]   Attempt %d: U8g2 begin() failed, retrying...\n", attempt);
+            delay(100);
+            
+            // Try another reset pulse before retry
+            digitalWrite(OLED_RST, LOW);
+            delay(10);
+            digitalWrite(OLED_RST, HIGH);
+            delay(50);
+        } else {
+            Serial.println("[DISPLAY] ❌ U8g2 begin() failed after retries");
+        }
+    }
     
-    // Initialize display
-    if (!display.begin()) {
-        Serial.println("INIT FAILED");
+    if (!initSuccess) {
+        Serial.println("[DISPLAY] Could not initialize display library - continuing without display");
         return false;
     }
     
@@ -200,6 +164,39 @@ void OLEDDisplay::update() {
     }
     
     display.sendBuffer();
+}
+
+bool OLEDDisplay::reinitialize() {
+    Serial.println("[DISPLAY] Attempting to reinitialize OLED...");
+    
+    // Turn off display first
+    if (displayOn) {
+        display.setPowerSave(1);
+        displayOn = false;
+    }
+    
+    // Power cycle the OLED
+    digitalWrite(OLED_VEXT, HIGH);  // Power OFF
+    delay(100);
+    digitalWrite(OLED_VEXT, LOW);   // Power ON
+    delay(100);
+    
+    // Send reset pulse
+    digitalWrite(OLED_RST, LOW);
+    delay(20);
+    digitalWrite(OLED_RST, HIGH);
+    delay(50);
+    
+    // Try to reinit U8g2
+    display.setBusClock(100000);
+    if (display.begin()) {
+        Serial.println("[DISPLAY] ✓ Reinitialize successful!");
+        displayOn = false;  // Start in off state
+        return true;
+    }
+    
+    Serial.println("[DISPLAY] ✗ Reinitialize failed");
+    return false;
 }
 
 void OLEDDisplay::turnOn() {
