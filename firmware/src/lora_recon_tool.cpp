@@ -5,6 +5,8 @@
 #include <ArduinoJson.h>
 #include <SPI.h>
 #include <esp_task_wdt.h>
+#include <mbedtls/base64.h>
+#include <mbedtls/aes.h>
 #include "text_packet_diagnostic.h"  // For packet diagnostic analysis
 
 #ifdef ENABLE_PSK_TESTING
@@ -126,6 +128,28 @@ bool LoRaReconTool::initialize() {
     
     // Initialize optional modules
     initializeStressTesting();
+    
+    // Initialize session key manager with channel PSK
+    #ifdef ENABLE_PSK_TESTING
+    uint8_t channelPSK[16];
+    size_t pskLen = 0;
+    // Decode channel PSK - replace with your actual PSK!
+    const char* myChannelPSK = "AQ==";  // Default LongFast PSK
+    
+    int result = mbedtls_base64_decode(channelPSK, sizeof(channelPSK), &pskLen,
+                                       (const unsigned char*)myChannelPSK, 
+                                       strlen(myChannelPSK));
+    
+    if (result == 0 && pskLen > 0) {
+        sessionKeyManager.initialize(&radio, channelPSK, pskLen);
+        Serial.println("\n📊 SESSION KEY HARVESTING ENABLED");
+        Serial.println("   Press 'q' in menu to request session keys");
+        Serial.println("   Press 'Q' to show session key status");
+        Serial.println("   Or wait for passive key announcements\n");
+    } else {
+        Serial.println("[WARNING] Failed to decode channel PSK for session key manager");
+    }
+    #endif
     
     // Initialize command handler
     commandHandler = new CommandHandler(this);
@@ -362,6 +386,19 @@ void LoRaReconTool::processQueuedPackets() {
         
         // Analyze packet using ProtocolAnalyzer (skip verbose diagnostics for speed)
         PacketInfo info = protocolAnalyzer.analyze(data, length, rssi);
+        
+        #ifdef ENABLE_PSK_TESTING
+        // Check if this is a session key announcement
+        if (sessionKeyManager.processKeyAnnouncement(packetBuffer, packetLength)) {
+            Serial.println("[HARVEST] 🎉 Session key harvested from announcement!");
+            sessionKeyManager.printStatus();
+        }
+        
+        // Try session key decryption for large packets
+        if (packetLength >= 40 && strcmp(info.protocol, "Meshtastic") == 0) {
+            trySessionKeyDecryption(packetBuffer, packetLength, info.nodeId, qp.timestamp);
+        }
+        #endif
     
         // Enhanced packet analysis for Meshtastic (minimal output for speed)
         if (strcmp(info.protocol, "Meshtastic") == 0) {
@@ -936,6 +973,118 @@ void LoRaReconTool::handleButtonPress(uint32_t now) {
                     oledDisplay->showScanningStatus(freqStr, cfg.spreadingFactor, 
                                                     reconState.scanState.currentConfig, 
                                                     reconState.getNumConfigs());
+                }
+            }
+        }
+    }
+}
+
+// Try decrypting with session key
+void LoRaReconTool::trySessionKeyDecryption(const uint8_t* data, size_t length,
+                                            uint32_t nodeId, uint32_t packetId) {
+    // Check if we have a session key for primary channel
+    const SessionKey* sessionKey = sessionKeyManager.getSessionKey(0);
+    if (!sessionKey) {
+        return;  // No session key yet
+    }
+    
+    // Extract encrypted payload
+    if (length < 20) return;
+    
+    bool hasHeader = (data[0] == 0xFF && data[1] == 0xFF && 
+                      data[2] == 0xFF && data[3] == 0xFF);
+    
+    if (!hasHeader) return;
+    
+    const uint8_t* encryptedData = data + 14;
+    size_t encryptedLen = length - 14;
+    
+    // Construct nonce (same as channel PSK decryption)
+    uint8_t nonce[16];
+    memset(nonce, 0, sizeof(nonce));
+    nonce[0] = (packetId) & 0xFF;
+    nonce[1] = (packetId >> 8) & 0xFF;
+    nonce[2] = (packetId >> 16) & 0xFF;
+    nonce[3] = (packetId >> 24) & 0xFF;
+    nonce[8] = (nodeId >> 24) & 0xFF;
+    nonce[9] = (nodeId >> 16) & 0xFF;
+    nonce[10] = (nodeId >> 8) & 0xFF;
+    nonce[11] = nodeId & 0xFF;
+    
+    // Decrypt with session key (256-bit)
+    uint8_t decrypted[256];
+    if (encryptedLen > sizeof(decrypted)) return;
+    
+    mbedtls_aes_context aes;
+    mbedtls_aes_init(&aes);
+    
+    // Session keys are 256-bit (32 bytes)
+    if (mbedtls_aes_setkey_enc(&aes, sessionKey->keyBytes, 256) != 0) {
+        mbedtls_aes_free(&aes);
+        return;
+    }
+    
+    uint8_t nonce_counter[16];
+    uint8_t stream_block[16];
+    memcpy(nonce_counter, nonce, 16);
+    memset(stream_block, 0, 16);
+    size_t nc_off = 0;
+    
+    int result = mbedtls_aes_crypt_ctr(&aes, encryptedLen, &nc_off,
+                                       nonce_counter, stream_block,
+                                       encryptedData, decrypted);
+    mbedtls_aes_free(&aes);
+    
+    if (result != 0) return;
+    
+    // Check if this looks like a valid TEXT_MESSAGE_APP protobuf
+    if (decrypted[0] == 0x08 && decrypted[1] == 0x01) {
+        Serial.println("\n[SESSION] 🎯 Successfully decrypted with SESSION KEY!");
+        Serial.println("[SESSION] This is a TEXT_MESSAGE_APP packet!");
+        
+        // Extract the text message
+        if (decrypted[2] == 0x12) {
+            size_t pos = 3;
+            uint32_t payloadLen = 0;
+            uint8_t shift = 0;
+            
+            // Decode payload length (varint)
+            while (pos < encryptedLen) {
+                uint8_t byte = decrypted[pos++];
+                payloadLen |= ((uint32_t)(byte & 0x7F)) << shift;
+                if ((byte & 0x80) == 0) break;
+                shift += 7;
+            }
+            
+            // Look for text field (0x0A)
+            if (pos < encryptedLen && decrypted[pos] == 0x0A) {
+                pos++;
+                uint32_t textLen = 0;
+                shift = 0;
+                
+                // Decode text length (varint)
+                while (pos < encryptedLen) {
+                    uint8_t byte = decrypted[pos++];
+                    textLen |= ((uint32_t)(byte & 0x7F)) << shift;
+                    if ((byte & 0x80) == 0) break;
+                    shift += 7;
+                }
+                
+                if (pos + textLen <= encryptedLen && textLen > 0 && textLen < 200) {
+                    Serial.println("\n╔════════════════════════════════════════════╗");
+                    Serial.print("║  📧 TEXT MESSAGE (SESSION KEY): \"");
+                    
+                    for (uint32_t i = 0; i < textLen; i++) {
+                        char c = decrypted[pos + i];
+                        if (c >= 32 && c <= 126) {
+                            Serial.print(c);
+                        } else if (c == '\n' || c == '\r') {
+                            Serial.print(" ");  // Replace newlines with space
+                        }
+                    }
+                    
+                    Serial.println("\"");
+                    Serial.println("╚════════════════════════════════════════════╝\n");
                 }
             }
         }

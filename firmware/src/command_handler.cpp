@@ -49,6 +49,8 @@ const CommandHandler::CommandEntry CommandHandler::commands[] = {
     {'k', cmdExportKML,           "Export KML (Google Earth)",     false},
     {'K', cmdExportKML,           "Export KML (Google Earth)",     false},
     {'j', cmdExportGeoJSON,       "Export GeoJSON (web maps)",     false},
+    {'q', cmdRequestSessionKey,   "Request session key",           false},
+    {'Q', cmdSessionKeyStatus,    "Show session key status",       false},
     {'J', cmdExportGeoJSON,       "Export GeoJSON (web maps)",     false},
     {'x', cmdDiagnosticReport,    "Text packet diagnostic report", false},
     {'X', cmdDiagnosticReport,    "Text packet diagnostic report", false},
@@ -278,6 +280,35 @@ void CommandHandler::cmdToggleQuietMode(LoRaReconTool* tool) {
     }
     Serial.println();
 }
+
+#ifdef ENABLE_PSK_TESTING
+void CommandHandler::cmdRequestSessionKey(LoRaReconTool* tool) {
+    Serial.println("\n[SESSION] 🔑 Requesting session key from mesh...");
+    
+    // Use a node ID we've seen, or random
+    uint32_t nodeId = 0xDEADBEEF;  // Default random
+    
+    if (reconState.numTargetableDevices > 0) {
+        // Use ID of first discovered device
+        nodeId = reconState.getTargetableDevice(0).nodeId;
+        Serial.printf("[SESSION] Using node ID: 0x%08X\n", nodeId);
+    } else {
+        Serial.println("[SESSION] Using random node ID (no devices discovered yet)");
+    }
+    
+    if (tool->getSessionKeyManager().requestSessionKey(0, nodeId)) {
+        Serial.println("[SESSION] ✅ Request transmitted");
+        Serial.println("[SESSION] 📡 Listening for response...");
+        Serial.println("[SESSION] (Should arrive within 5-10 seconds)\n");
+    } else {
+        Serial.println("[SESSION] ❌ Request transmission failed\n");
+    }
+}
+
+void CommandHandler::cmdSessionKeyStatus(LoRaReconTool* tool) {
+    tool->getSessionKeyManager().printStatus();
+}
+#endif
 
 #ifdef ENABLE_STRESS_TESTING
 void CommandHandler::cmdStressTesting(LoRaReconTool* tool) {

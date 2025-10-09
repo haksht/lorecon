@@ -25,6 +25,7 @@ struct QueuedPacket {
 #include "geo_intelligence.h"
 #include "command_handler.h"
 #include "oled_display.h"
+#include "session_key_manager.h"
 
 #ifdef ENABLE_STRESS_TESTING
 #include "hardware_stress_tester.h"
@@ -82,6 +83,9 @@ public:
     // Display access
     OLEDDisplay* getDisplay() { return oledDisplay; }
     
+    // Session key manager access (for command handler)
+    SessionKeyManager& getSessionKeyManager() { return sessionKeyManager; }
+    
 #ifdef ENABLE_STRESS_TESTING
     HardwareStressTester* getStressTester() { return stressTester; }
 #endif
@@ -92,6 +96,9 @@ private:
     ProtocolAnalyzer protocolAnalyzer;
     CommandHandler* commandHandler;
     OLEDDisplay* oledDisplay;
+    
+    // Session key management
+    SessionKeyManager sessionKeyManager;
     
     // Interrupt flag and packet queue
     std::atomic<bool> packetReceived;
@@ -127,6 +134,10 @@ private:
     void trackRFActivity(uint8_t configIndex, float rssi);
     void trackTargetableDevice(uint32_t nodeId, uint8_t configIndex, float rssi, 
                                const char* protocol, const uint8_t* packetData, size_t packetLength);
+    
+    // Session key decryption
+    void trySessionKeyDecryption(const uint8_t* data, size_t length, 
+                                  uint32_t nodeId, uint32_t packetId);
     
     // Logging
     void logPacket(const uint8_t* data, size_t length, float rssi, float snr, const char* protocol);

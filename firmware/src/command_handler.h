@@ -53,6 +53,11 @@ private:
     static void cmdDiagnosticReport(LoRaReconTool* tool);
     static void cmdToggleQuietMode(LoRaReconTool* tool);
     
+#ifdef ENABLE_PSK_TESTING
+    static void cmdRequestSessionKey(LoRaReconTool* tool);
+    static void cmdSessionKeyStatus(LoRaReconTool* tool);
+#endif
+    
 #ifdef ENABLE_STRESS_TESTING
     static void cmdStressTesting(LoRaReconTool* tool);
 #endif
