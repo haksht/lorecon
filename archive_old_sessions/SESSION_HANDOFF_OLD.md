@@ -1,16 +1,16 @@
 # New Session Context - ESP32 LoRa Reconnaissance Tool
 
-**Version:** 1.7 Production  
-**Date:** October 4, 2025  
+**Version:** 1.8 Production  
+**Date:** October 7, 2025  
 **Status:** ✅ Fully Operational
 
 ---
 
 ## Project Overview
 
-Production-ready ESP32-S3 LoRa packet sniffer and reconnaissance tool for security research. Scans ISM band (902-928 MHz), captures Meshtastic/LoRaWAN packets, and provides geographic intelligence with KML/GeoJSON export.
+Production-ready ESP32-S3 LoRa packet sniffer and reconnaissance tool for security research. Scans ISM band (902-928 MHz), captures Meshtastic/LoRaWAN packets, and provides geographic intelligence with KML/GeoJSON export. Features OLED display with button control for standalone operation.
 
-**Hardware:** Heltec WiFi LoRa 32 V3 (ESP32-S3 + SX1262)  
+**Hardware:** Heltec WiFi LoRa 32 V3 (ESP32-S3 + SX1262 + SSD1306 OLED)  
 **Primary Use:** Security research, mesh network analysis, educational demonstrations
 
 ---
@@ -18,14 +18,16 @@ Production-ready ESP32-S3 LoRa packet sniffer and reconnaissance tool for securi
 ## Current System Status
 
 ### ✅ Working Features
-1. **Multi-frequency reconnaissance** - 16 LoRa configurations
-2. **Device targeting** - Lock onto specific nodes for capture
-3. **PSK decryption testing** - 5 default Meshtastic keys with automated test suite
-4. **Geographic intelligence** - GPS extraction from position packets
-5. **KML/GeoJSON export** - Map device locations
-6. **Packet replay** - 10-slot capture and retransmit
-7. **Hardware stress testing** - Real ESP32 temperature monitoring
-8. **Security assessment** - Vulnerability scoring for mesh networks
+1. **OLED Display** - 128x64 SSD1306 with 6 display modes (buttondisplay branch merged) 🆕
+2. **Button Control** - Short press (toggle display), long press (shutdown) 🆕
+3. **Multi-frequency reconnaissance** - 16 LoRa configurations
+4. **Device targeting** - Lock onto specific nodes for capture
+5. **PSK decryption testing** - 5 default Meshtastic keys with automated test suite
+6. **Geographic intelligence** - GPS extraction from position packets
+7. **KML/GeoJSON export** - Map device locations
+8. **Packet replay** - 10-slot capture and retransmit
+9. **Hardware stress testing** - Real ESP32 temperature monitoring
+10. **Security assessment** - Vulnerability scoring for mesh networks
 
 ### Build Status
 - ✅ Compiles with zero warnings/errors
@@ -46,6 +48,8 @@ main.cpp (35 lines)
 ├── command_handler.cpp/h (250 lines) - O(1) command dispatch
 ├── error_handler.cpp/h (400 lines) - Production error recovery
 ├── user_interface.cpp/h (800 lines) - Menu system
+├── oled_display.cpp/h (400 lines) - SSD1306 display manager 🆕
+├── button_handler.cpp/h (200 lines) - Button control & debouncing 🆕
 ├── hardware_stress_tester.cpp/h (500 lines) - Stress testing with real temp
 ├── psk_decryption_simple.cpp/h (380 lines) - PSK testing
 ├── psk_tests.h (100 lines) - Automated test suite
@@ -65,12 +69,16 @@ main.cpp (35 lines)
 
 ## Key Technical Details
 
-### Radio Configuration
+### Hardware Configuration
 - **Frequency Range:** 902-928 MHz (US ISM band)
 - **Radio IC:** SX1262 (via RadioLib 6.4.2)
-- **Pin Configuration:**
+- **Radio Pins:**
   - NSS=8, DIO1=14, RST=12, BUSY=13
   - SPI: SCK=9, MISO=11, MOSI=10
+- **OLED Display:** 🆕
+  - SSD1306 128x64 at I2C 0x3C
+  - SDA=17, SCL=18, RST=21 (REQUIRED), Vext=36
+- **Button:** GPIO 0 (BOOT button on Heltec V3) 🆕
 - **Primary Frequencies:**
   - 906.875 MHz (Meshtastic Long Fast, SF11)
   - 915.375 MHz (Meshtastic SF8, encrypted messages)
@@ -119,7 +127,36 @@ main.cpp (35 lines)
 
 ---
 
-## Recent Changes (v1.7)
+## Recent Changes (v1.8)
+
+### NEW in v1.8 (October 7, 2025) 🎉
+1. **OLED Display Implementation** (`oled_display.cpp/h`)
+   - 128x64 SSD1306 display fully operational
+   - 6 display modes: Welcome, Scanning, Packet Info, Device List, Targeting, Shutdown
+   - Auto-off timer (30 seconds configurable)
+   - Robust initialization with reset pulse (GPIO 21 REQUIRED for Heltec V3)
+   - Retry logic (3x I2C detection, 2x U8g2 init)
+   - Runtime recovery method for transient failures
+   - Graceful degradation on boards without OLED
+
+2. **Button Control** (`button_handler.cpp/h`)
+   - Hardware debouncing (50ms)
+   - Short press: Toggle display on/off
+   - Long press: Trigger shutdown sequence (3+ seconds)
+   - Non-blocking implementation
+
+3. **Critical OLED Discovery**
+   - Board variant requires RST=21 with reset pulse sequence
+   - 20ms reset hold, 50ms post-reset delay
+   - Vext power control (GPIO 36, active LOW)
+   - Hardware I2C mode (U8G2_HW_I2C)
+
+4. **Documentation**
+   - OLED_ROBUSTNESS_FINAL.md - Complete solution analysis
+   - BUTTON_DISPLAY_GUIDE.md - User guide for display features
+   - Advanced diagnostic tools (test_oled_advanced.cpp)
+
+### Previous Changes (v1.7)
 
 ### New Features
 1. **Geographic Intelligence Module** (`geo_intelligence.cpp/h`)

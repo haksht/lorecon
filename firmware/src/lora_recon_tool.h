@@ -4,11 +4,21 @@
 #include <Arduino.h>
 #include <RadioLib.h>
 #include <atomic>
+#include <queue>
 #include "data_structures.h"
 
 // Forward declarations
 class CommandHandler;
 class OLEDDisplay;
+
+// Packet queue structure for buffering received packets
+struct QueuedPacket {
+    uint8_t data[256];
+    size_t length;
+    float rssi;
+    float snr;
+    uint32_t timestamp;
+};
 
 #include "recon_state.h"
 #include "protocol_analyzer.h"
@@ -83,8 +93,10 @@ private:
     CommandHandler* commandHandler;
     OLEDDisplay* oledDisplay;
     
-    // Interrupt flag
+    // Interrupt flag and packet queue
     std::atomic<bool> packetReceived;
+    std::queue<QueuedPacket> packetQueue;
+    static const size_t MAX_QUEUE_SIZE = 10;  // Buffer up to 10 packets
     
     // Button state tracking
     bool buttonPressed;
@@ -108,6 +120,7 @@ private:
     
     // Packet processing
     void handlePacketReception();
+    void processQueuedPackets();
     
     // Tracking functions
     void trackNode(uint32_t nodeId, const char* protocol, float rssi);

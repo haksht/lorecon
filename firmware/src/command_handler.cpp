@@ -3,6 +3,11 @@
  * 
  * Clean command dispatch using function pointer table.
  * Eliminates 200+ lines of nested if/else chains.
+ * 
+ * Uses:
+ * - O(1) command lookup via dispatch table
+ * - Static handler functions
+ * - Grouped command display
  */
 
 #include "command_handler.h"
@@ -12,6 +17,7 @@
 #include "protocol_analyzer.h"
 #include "geo_intelligence.h"
 #include "ui_components.h"
+#include "text_packet_diagnostic.h"  // For diagnostic reporting
 
 #ifdef ENABLE_PSK_TESTING
 #include "psk_tests.h"
@@ -44,6 +50,10 @@ const CommandHandler::CommandEntry CommandHandler::commands[] = {
     {'K', cmdExportKML,           "Export KML (Google Earth)",     false},
     {'j', cmdExportGeoJSON,       "Export GeoJSON (web maps)",     false},
     {'J', cmdExportGeoJSON,       "Export GeoJSON (web maps)",     false},
+    {'x', cmdDiagnosticReport,    "Text packet diagnostic report", false},
+    {'X', cmdDiagnosticReport,    "Text packet diagnostic report", false},
+    {'q', cmdToggleQuietMode,     "Toggle quiet mode (faster capture)", false},
+    {'Q', cmdToggleQuietMode,     "Toggle quiet mode (faster capture)", false},
 #ifdef ENABLE_STRESS_TESTING
     {'t', cmdStressTesting,       "Hardware stress testing",       false},
     {'T', cmdStressTesting,       "Hardware stress testing",       false},
@@ -172,8 +182,12 @@ void CommandHandler::cmdPacketReplay(LoRaReconTool* tool) {
 void CommandHandler::cmdRestartRecon(LoRaReconTool* tool) {
     reconState.reset();
     
+    // Reset diagnostic counters when restarting reconnaissance
+    TextPacketDiagnostic::reset();
+    
     Serial.println("\\n=== RESTARTING RECONNAISSANCE ===");
     Serial.println("Cleared activity history and device list.");
+    Serial.println("Cleared diagnostic counters.");
     tool->applyConfigPublic(reconState.scanState.currentConfig);
     tool->startReceiving();
 }
@@ -239,6 +253,30 @@ void CommandHandler::cmdExportGeoJSON(LoRaReconTool* tool) {
     Serial.println(geojson);
     Serial.println("==========================================\n");
     Serial.println("Use with Leaflet, Mapbox, or other web mapping libraries");
+}
+
+void CommandHandler::cmdDiagnosticReport(LoRaReconTool* tool) {
+    // Print the comprehensive diagnostic report
+    TextPacketDiagnostic::printReport();
+    
+    Serial.println("💡 TIP: To reset diagnostic counters, restart reconnaissance with 'r'");
+    Serial.println("    or manually reset by restarting the device.\n");
+}
+
+void CommandHandler::cmdToggleQuietMode(LoRaReconTool* tool) {
+    bool currentMode = TextPacketDiagnostic::isVerbose();
+    TextPacketDiagnostic::enableVerbose(!currentMode);
+    
+    if (!currentMode) {
+        Serial.println("\n📢 VERBOSE MODE ENABLED");
+        Serial.println("   All packet details will be shown (slower, more gaps)");
+    } else {
+        Serial.println("\n🔇 QUIET MODE ENABLED");
+        Serial.println("   Minimal output for faster packet capture");
+        Serial.println("   Only TEXT MESSAGES will be displayed");
+        Serial.println("   Press 'x' to see statistics, 'q' to toggle back to verbose");
+    }
+    Serial.println();
 }
 
 #ifdef ENABLE_STRESS_TESTING

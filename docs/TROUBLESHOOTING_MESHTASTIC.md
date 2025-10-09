@@ -1,6 +1,26 @@
-# Meshtastic Detection Troubleshooting
+# Meshtastic Detection & PSK Decryption Troubleshooting
 
-**Problem**: ESP32 sniffer not detecting T-Deck transmissions
+**Last Updated:** January 2025  
+**Version:** 1.8 Production  
+**Status:** Packet capture ✅ | PSK decryption ⚠️ (protocol mismatch)
+
+---
+
+## 🎯 Current Project Status
+
+### What's Working
+- ✅ **Packet Capture**: Successfully capturing Meshtastic packets from 3+ nodes
+- ✅ **AES-CTR Decryption**: 100% functional with 5 default PSKs
+- ✅ **Node Detection**: Identifying unique device IDs (0x401ACD4E, 0x44D7A39E, 0xBE438E37)
+- ✅ **OLED Display**: Full display code with 6 modes (if hardware present)
+- ✅ **Button Control**: Toggle/shutdown via GPIO 0 button
+
+### What's Blocked
+- ❌ **Text Message Extraction**: No protobuf portnum field (0x08) found in decrypted packets
+- ❌ **Message Type Detection**: Cannot identify app type without portnum field
+- ❌ **Encrypted Text Recovery**: Protocol mismatch between code and device firmware
+
+**Root Cause**: Decrypted packets don't match documented Meshtastic protobuf structure. Likely firmware version or format differences.
 
 ---
 
