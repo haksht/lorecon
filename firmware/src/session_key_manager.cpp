@@ -452,7 +452,7 @@ void SessionKeyManager::printStatus() {
     
     if (numSessionKeys == 0) {
         Serial.println("   No session keys cached.");
-        Serial.println("   Use 'k' command to request session keys from network.");
+        Serial.println("   Use 'q' command to request session keys from network.");
         return;
     }
     
