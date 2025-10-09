@@ -50,6 +50,8 @@ private:
     static void cmdGeoIntelligence(LoRaReconTool* tool);
     static void cmdExportKML(LoRaReconTool* tool);
     static void cmdExportGeoJSON(LoRaReconTool* tool);
+    static void cmdDiagnosticReport(LoRaReconTool* tool);
+    static void cmdToggleQuietMode(LoRaReconTool* tool);
     
 #ifdef ENABLE_STRESS_TESTING
     static void cmdStressTesting(LoRaReconTool* tool);

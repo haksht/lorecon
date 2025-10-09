@@ -1,16 +1,34 @@
 # Feature Documentation
 
-**ESP32 LoRa Reconnaissance Tool v1.7**
+**ESP32 LoRa Reconnaissance Tool v1.8**
 
 ## 🎯 Tool Identity
 
 **Core Mission**: Recon → Sniff → Capture → Replay
 
-A focused LoRa packet capture and analysis tool for security research and RF experimentation. Designed for DefCon-quality demonstrations of LoRa security assessment techniques.
+A focused LoRa packet capture and analysis tool for security research and RF experimentation. Designed for DefCon-quality demonstrations of LoRa security assessment techniques. Features OLED display for standalone operation.
 
 ---
 
 ## ✅ Implemented Features
+
+### 📺 OLED Display & Button Control (NEW v1.8)
+**Status**: ✅ Production Ready  
+**Build Flag**: Always enabled  
+**Files**: `oled_display.cpp`, `button_handler.cpp`
+
+- **128x64 SSD1306 display** (I2C 0x3C)
+- **6 display modes** (Welcome, Scanning, Packet Info, Device List, Targeting, Shutdown)
+- **Button control** (GPIO 0: short press toggle, long press shutdown)
+- **Auto-off timer** (30 seconds default, configurable)
+- **Robust initialization** (reset pulse + 3x retry I2C, 2x retry U8g2)
+- **Runtime recovery** (reinitialize() method for transient failures)
+- **Graceful degradation** (continues without display on boards lacking OLED)
+- **Critical fix** (RST=21 with 20ms pulse REQUIRED for Heltec V3 variant)
+
+**What it does**: Provides standalone visual feedback and control without requiring serial connection. Display shows scanning status, packet info, device counts, and allows toggle/shutdown via button.
+
+---
 
 ### 🔍 Core Reconnaissance (ESSENTIAL)
 **Status**: ✅ Production Ready  

@@ -5,6 +5,7 @@
 #include <Arduino.h>
 #include <Wire.h>
 #include <U8g2lib.h>
+#include <esp_task_wdt.h>
 
 // Try multiple pin configurations
 struct PinConfig {
@@ -123,6 +124,9 @@ void testConfig(PinConfig& cfg) {
 void setup() {
     Serial.begin(115200);
     delay(2000);
+    
+    // Disable watchdog for test (intentionally testing multiple configs)
+    esp_task_wdt_delete(NULL);
     
     Serial.println("\n\n╔════════════════════════════════════════╗");
     Serial.println("║  Heltec V3 OLED Advanced Diagnostic   ║");

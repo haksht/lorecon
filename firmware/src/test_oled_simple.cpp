@@ -10,6 +10,7 @@
 #include <Wire.h>
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
+#include <esp_task_wdt.h>
 
 // Heltec WiFi LoRa 32 V3 pins
 #define I2C_SDA 17      
@@ -21,6 +22,9 @@ Adafruit_SSD1306 display(128, 64, &Wire, -1);
 void setup() {
   Serial.begin(115200);
   delay(1000);
+  
+  // Disable watchdog for test (infinite loops are intentional)
+  esp_task_wdt_delete(NULL);
   
   Serial.println("\n\n=== Heltec V3 OLED Test ===");
 

@@ -14,7 +14,7 @@ public:
   static void printStats();
   
   // Test helpers (made public for testing)
-  static bool decodeBase64(const char* input, uint8_t* output, size_t maxLen);
+  static int decodeBase64(const char* input, uint8_t* output, size_t maxLen);  // Returns decoded byte count (0 on failure)
   static uint8_t getDefaultPSKCount() { return 5; }  // NUM_DEFAULT_PSKS
 
 private:

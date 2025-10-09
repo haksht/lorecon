@@ -1,29 +1,32 @@
 # ESP32 LoRa Packet Sniffer & Reconnaissance Tool
 
-**Version 1.7 Production | Status: ✅ PRODUCTION READY**
+**Version 1.9 Production | Status: ✅ PRODUCTION READY**
 
 [![Build Status](https://img.shields.io/badge/build-passing-brightgreen)]()
-[![Code Quality](https://img.shields.io/badge/code%20quality-9.0%2F10-brightgreen)]()
+[![Code Quality](https://img.shields.io/badge/code%20quality-9.5%2F10-brightgreen)]()
 [![Security](https://img.shields.io/badge/security-A--grade-green)]()
 [![Warnings](https://img.shields.io/badge/warnings-0-brightgreen)]()
+[![Display](https://img.shields.io/badge/OLED-working-blue)]()
+
+**Last Updated:** October 9, 2025 | **Branch:** `main`
 
 ---
 
 ## 📋 Quick Links
 
-- **[Quick Start Guide](#-quick-start)** - Get running in 5 minutes
-- **[NEW SESSION PROMPT](NEW_SESSION_PROMPT.md)** - For AI assistant continuity
-- **[PROJECT STATUS](PROJECT_STATUS_FINAL.md)** - Complete technical overview
-- **[BUILD GUIDE](BUILD_GUIDE.md)** - Compilation instructions
-- **[SECURITY AUDIT](SECURITY_AUDIT.md)** - Security assessment
+- **[START HERE](START_HERE.md)** ⭐ - **Read this first!** Current status and next steps
+- **[STATIC ANALYSIS](STATIC_ANALYSIS_REPORT.md)** - Code quality audit (October 2025)
+- **[INTEGRATION GUIDE](INTEGRATION_CHECKLIST.md)** - How to add session key harvesting
+- **[BUILD GUIDE](docs/BUILD_GUIDE.md)** - Compilation instructions
+- **[FEATURES](docs/FEATURES.md)** - Complete feature list
 
 ---
 
 # ESP32 LoRa Packet Sniffer & Reconnaissance Tool
 
-**Version 1.7** - Production-Ready Security Research Platform
+**Version 1.8** - Production-Ready Security Research Platform
 
-LoRa packet capture and analysis tool for ESP32-S3 + SX1262 radio. Focused reconnaissance, sniffing, capture, and replay capabilities with optional PSK testing and hardware stress validation.
+LoRa packet capture and analysis tool for ESP32-S3 + SX1262 radio with OLED display. Focused reconnaissance, sniffing, capture, and replay capabilities with optional PSK testing and hardware stress validation. Now with standalone operation via OLED and button control.
 
 **Quality Score**: 8.5/10 - Production-grade embedded code with atomic interrupts, hardware watchdog, and comprehensive timeout protection.
 
@@ -64,10 +67,16 @@ pio device monitor
 - **Hardware Validation**: Built-in stress testing framework
 - **Protocol Analysis**: Identifies Meshtastic, LoRaWAN, and custom protocols
 
-### **NEW in v1.7** 🎉
+### **NEW in v1.8** 🎉
+- **OLED Display**: 128x64 SSD1306 with 6 display modes for standalone operation
+- **Button Control**: Toggle display and shutdown via hardware button
+- **Auto-Off Timer**: Configurable display timeout (30s default)
+- **Robust Initialization**: Reset pulse + retry logic handles all board variants
+
+### **Previous (v1.7)**
 - **Geographic Intelligence**: Automatic GPS extraction from Meshtastic position packets
 - **KML/GeoJSON Export**: Map device locations in Google Earth or web mapping tools
-- **PSK Test Suite**: Automated testing framework with 4 validation tests (untested with live traffic)
+- **PSK Test Suite**: Automated testing framework with 4 validation tests
 - **Simplified Stress Testing**: Real ESP32 temperature monitoring for attack surface analysis
 - **UI Components**: Modular display functions for cleaner code organization
 

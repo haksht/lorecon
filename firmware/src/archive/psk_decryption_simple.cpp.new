@@ -12,13 +12,6 @@
 #include <mbedtls/aes.h>
 #include <mbedtls/base64.h>
 
-// Protocol constants
-#define MIN_PACKET_LENGTH           5    // Minimum protobuf packet size
-#define MAX_TEXT_MESSAGE_LENGTH     200  // Meshtastic text message limit
-#define ASCII_PRINTABLE_MIN         32   // First printable ASCII character
-#define ASCII_PRINTABLE_MAX         126  // Last printable ASCII character
-#define MAX_VARINT_BYTES            5    // Maximum bytes in a varint encoding
-
 // Known Meshtastic default PSKs
 static const char* DEFAULT_PSKS[] = {
     "AQ==",                      // #1: Single byte (0x01) - often expanded to 16 bytes
@@ -42,7 +35,7 @@ static bool decodeVarint(const uint8_t* data, size_t dataLen, size_t pos,
     bytesRead = 0;
     uint32_t shift = 0;
     
-    while (pos + bytesRead < dataLen && bytesRead < MAX_VARINT_BYTES) {
+    while (pos + bytesRead < dataLen && bytesRead < 5) {
         uint8_t byte = data[pos + bytesRead];
         value |= ((uint32_t)(byte & 0x7F)) << shift;
         bytesRead++;
@@ -61,12 +54,12 @@ static bool extractTextField(const uint8_t* data, size_t len, size_t startPos, S
     if (!decodeVarint(data, len, startPos + 1, textLen, varintBytes)) return false;
     
     size_t textStart = startPos + 1 + varintBytes;
-    if (textStart >= len || textLen == 0 || textLen > MAX_TEXT_MESSAGE_LENGTH) return false;
+    if (textStart >= len || textLen == 0 || textLen > 200) return false;
     
     // Extract printable text
     for (uint32_t i = 0; i < textLen && (textStart + i) < len; i++) {
         uint8_t c = data[textStart + i];
-        if (c >= ASCII_PRINTABLE_MIN && c <= ASCII_PRINTABLE_MAX) {
+        if (c >= 32 && c <= 126) {
             text += (char)c;
         } else if (c == '\n' || c == '\r') {
             text += '\n';
@@ -79,7 +72,7 @@ static bool extractTextField(const uint8_t* data, size_t len, size_t startPos, S
 }
 
 static bool extractMessage(const uint8_t* data, size_t len, String& text) {
-    if (len < MIN_PACKET_LENGTH) return false;
+    if (len < 5) return false;
     
     // Pattern 1: Standard format (0x08 0x01 0x12 <len> 0x0A <textlen> <text>)
     if (data[0] == 0x08 && (data[1] == 0x01 || data[1] == 0x24) && data[2] == 0x12) {
