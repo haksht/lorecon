@@ -982,12 +982,6 @@ void LoRaReconTool::handleButtonPress(uint32_t now) {
 // Try decrypting with session key
 void LoRaReconTool::trySessionKeyDecryption(const uint8_t* data, size_t length,
                                             uint32_t nodeId, uint32_t packetId) {
-    // Check if we have a session key for primary channel
-    const SessionKey* sessionKey = sessionKeyManager.getSessionKey(0);
-    if (!sessionKey) {
-        return;  // No session key yet
-    }
-    
     // Extract encrypted payload
     if (length < 20) return;
     
@@ -1011,17 +1005,40 @@ void LoRaReconTool::trySessionKeyDecryption(const uint8_t* data, size_t length,
     nonce[10] = (nodeId >> 8) & 0xFF;
     nonce[11] = nodeId & 0xFF;
     
-    // Decrypt with session key (256-bit)
     uint8_t decrypted[256];
     if (encryptedLen > sizeof(decrypted)) return;
     
+    // Try cached session keys for this channel
+    const SessionKey* sessionKey = sessionKeyManager.getSessionKey(0);
+    if (sessionKey) {
+        if (tryDecryptWithKey(encryptedData, encryptedLen, nonce, sessionKey->keyBytes, 256, decrypted)) {
+            Serial.println("[SESSION] 🎯 Decrypted with CACHED session key!");
+            extractAndPrintTextMessage(decrypted, encryptedLen, "SESSION KEY");
+            return;
+        }
+    }
+    
+    // No valid session key available
+    // Note: Meshtastic uses PKAM (Public Key Authenticated Messaging) with Curve25519
+    // Session keys are 256-bit and cryptographically negotiated per sender-receiver pair
+    // There are no "default" session keys - they must be harvested from the network
+    
+    Serial.println("[SESSION] ⚠️  Encrypted text message detected (no valid session key)");
+    Serial.printf("[SESSION]    Node: 0x%08X, Packet: 0x%08X, Size: %d bytes\n", 
+                  nodeId, packetId, length);
+    Serial.println("[SESSION]    💡 TIP: Press 'q' to request session keys from mesh");
+}
+
+// Helper: Try to decrypt with a specific key
+bool LoRaReconTool::tryDecryptWithKey(const uint8_t* encryptedData, size_t encryptedLen,
+                                      const uint8_t* nonce, const uint8_t* key, 
+                                      uint16_t keyBits, uint8_t* decrypted) {
     mbedtls_aes_context aes;
     mbedtls_aes_init(&aes);
     
-    // Session keys are 256-bit (32 bytes)
-    if (mbedtls_aes_setkey_enc(&aes, sessionKey->keyBytes, 256) != 0) {
+    if (mbedtls_aes_setkey_enc(&aes, key, keyBits) != 0) {
         mbedtls_aes_free(&aes);
-        return;
+        return false;
     }
     
     uint8_t nonce_counter[16];
@@ -1035,59 +1052,70 @@ void LoRaReconTool::trySessionKeyDecryption(const uint8_t* data, size_t length,
                                        encryptedData, decrypted);
     mbedtls_aes_free(&aes);
     
-    if (result != 0) return;
+    if (result != 0) return false;
     
-    // Check if this looks like a valid TEXT_MESSAGE_APP protobuf
+    // Validate: Check if this looks like a TEXT_MESSAGE_APP protobuf
     if (decrypted[0] == 0x08 && decrypted[1] == 0x01) {
-        Serial.println("\n[SESSION] 🎯 Successfully decrypted with SESSION KEY!");
-        Serial.println("[SESSION] This is a TEXT_MESSAGE_APP packet!");
+        return true;
+    }
+    
+    return false;
+}
+
+// Helper: Extract and print text message from decrypted protobuf
+void LoRaReconTool::extractAndPrintTextMessage(const uint8_t* decrypted, size_t encryptedLen, const char* keyType) {
+    // Check if this is a TEXT_MESSAGE_APP packet
+    if (decrypted[0] != 0x08 || decrypted[1] != 0x01) {
+        return;
+    }
+    
+    Serial.printf("\n[SESSION] 🎯 Successfully decrypted with %s!\n", keyType);
+    Serial.println("[SESSION] This is a TEXT_MESSAGE_APP packet!");
+    
+    // Extract the text message from protobuf
+    if (decrypted[2] == 0x12) {
+        size_t pos = 3;
+        uint32_t payloadLen = 0;
+        uint8_t shift = 0;
         
-        // Extract the text message
-        if (decrypted[2] == 0x12) {
-            size_t pos = 3;
-            uint32_t payloadLen = 0;
-            uint8_t shift = 0;
+        // Decode payload length (varint)
+        while (pos < encryptedLen) {
+            uint8_t byte = decrypted[pos++];
+            payloadLen |= ((uint32_t)(byte & 0x7F)) << shift;
+            if ((byte & 0x80) == 0) break;
+            shift += 7;
+        }
+        
+        // Look for text field (0x0A)
+        if (pos < encryptedLen && decrypted[pos] == 0x0A) {
+            pos++;
+            uint32_t textLen = 0;
+            shift = 0;
             
-            // Decode payload length (varint)
+            // Decode text length (varint)
             while (pos < encryptedLen) {
                 uint8_t byte = decrypted[pos++];
-                payloadLen |= ((uint32_t)(byte & 0x7F)) << shift;
+                textLen |= ((uint32_t)(byte & 0x7F)) << shift;
                 if ((byte & 0x80) == 0) break;
                 shift += 7;
             }
             
-            // Look for text field (0x0A)
-            if (pos < encryptedLen && decrypted[pos] == 0x0A) {
-                pos++;
-                uint32_t textLen = 0;
-                shift = 0;
+            if (pos + textLen <= encryptedLen && textLen > 0 && textLen < 200) {
+                Serial.println("\n╔════════════════════════════════════════════╗");
+                Serial.printf("║  📧 TEXT MESSAGE (%s): \"", keyType);
                 
-                // Decode text length (varint)
-                while (pos < encryptedLen) {
-                    uint8_t byte = decrypted[pos++];
-                    textLen |= ((uint32_t)(byte & 0x7F)) << shift;
-                    if ((byte & 0x80) == 0) break;
-                    shift += 7;
-                }
-                
-                if (pos + textLen <= encryptedLen && textLen > 0 && textLen < 200) {
-                    Serial.println("\n╔════════════════════════════════════════════╗");
-                    Serial.print("║  📧 TEXT MESSAGE (SESSION KEY): \"");
-                    
-                    for (uint32_t i = 0; i < textLen; i++) {
-                        char c = decrypted[pos + i];
-                        if (c >= 32 && c <= 126) {
-                            Serial.print(c);
-                        } else if (c == '\n' || c == '\r') {
-                            Serial.print(" ");  // Replace newlines with space
-                        }
+                for (uint32_t i = 0; i < textLen; i++) {
+                    char c = decrypted[pos + i];
+                    if (c >= 32 && c <= 126) {
+                        Serial.print(c);
+                    } else if (c == '\n' || c == '\r') {
+                        Serial.print(" ");  // Replace newlines with space
                     }
-                    
-                    Serial.println("\"");
-                    Serial.println("╚════════════════════════════════════════════╝\n");
                 }
+                
+                Serial.println("\"");
+                Serial.println("╚════════════════════════════════════════════╝\n");
             }
         }
     }
 }
-

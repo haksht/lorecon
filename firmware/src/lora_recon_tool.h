@@ -138,6 +138,11 @@ private:
     // Session key decryption
     void trySessionKeyDecryption(const uint8_t* data, size_t length, 
                                   uint32_t nodeId, uint32_t packetId);
+    bool tryDecryptWithKey(const uint8_t* encryptedData, size_t encryptedLen,
+                           const uint8_t* nonce, const uint8_t* key, 
+                           uint16_t keyBits, uint8_t* decrypted);
+    void extractAndPrintTextMessage(const uint8_t* decrypted, size_t encryptedLen, 
+                                    const char* keyType);
     
     // Logging
     void logPacket(const uint8_t* data, size_t length, float rssi, float snr, const char* protocol);
