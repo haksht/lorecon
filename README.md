@@ -14,11 +14,11 @@
 
 ## 📋 Quick Links
 
-- **[START HERE](START_HERE.md)** ⭐ - **Read this first!** Current status and next steps
-- **[STATIC ANALYSIS](STATIC_ANALYSIS_REPORT.md)** - Code quality audit (October 2025)
-- **[INTEGRATION GUIDE](INTEGRATION_CHECKLIST.md)** - How to add session key harvesting
+- **[QUICKSTART](QUICKSTART.md)** ⭐ - **Read this first!** Getting started guide
 - **[BUILD GUIDE](docs/BUILD_GUIDE.md)** - Compilation instructions
 - **[FEATURES](docs/FEATURES.md)** - Complete feature list
+- **[TROUBLESHOOTING](docs/TROUBLESHOOTING_MESHTASTIC.md)** - Common issues and solutions
+- **[UNDERSTANDING](docs/UNDERSTANDING.md)** - Deep technical guide
 
 ---
 
@@ -190,7 +190,7 @@ Active flags:
 ## 📚 **Use Cases**
 
 ### **Personal Network Testing**
-- Monitor your own Meshtastic devices
+- Monitor Meshtastic devices
 - Test coverage and signal strength
 - Validate proper configuration
 

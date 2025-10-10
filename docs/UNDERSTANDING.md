@@ -1,12 +1,11 @@
 # Complete Understanding Guide - ESP32 LoRa Reconnaissance Tool
 
-**Your Personal Teacher for This Codebase**
+**A Personal Teacher for This Codebase**
 
-This document explains everything you need to deeply understand this project - from hardware fundamentals to advanced embedded systems concepts. Study at your own pace, revisit sections as needed, and use this as your reference guide.
+This document explains everything needed to deeply understand this project - from hardware fundamentals to advanced embedded systems concepts. Study at your own pace, revisit sections as needed, and use this as a reference guide.
 
-**Last Updated:** October 5, 2025  
-**Your Teacher:** GitHub Copilot  
-**Your Goal:** Master this codebase completely
+**Last Updated:** October 10, 2025  
+**Goal:** Master this codebase completely
 
 ---
 
@@ -210,7 +209,7 @@ ESP32-S3 (Microcontroller)          SX1262 (LoRa Radio Chip)
 └─────────────────────┘             └────────────────────┘
          ▲                                    ▲
          │                                    │
-    Your Code                            RadioLib
+    Application                          RadioLib
     (high level)                      (low level driver)
 ```
 
@@ -349,7 +348,7 @@ const ScanConfig scanConfigs[] = {
 
 ### **The Single Responsibility Principle**
 
-Your code follows a fundamental software engineering principle: **each class should have ONE job and do it well.**
+This code follows a fundamental software engineering principle: **each class should have ONE job and do it well.**
 
 ```
 ┌─────────────────────────────────────────────────────────┐
@@ -568,7 +567,7 @@ uint32_t now = millis();  // Returns milliseconds since boot
 // After 49 days: WRAPS AROUND to 0 (uint32_t overflow!)
 ```
 
-**Important:** `millis()` overflows after ~49 days. Your code handles this correctly using subtraction:
+**Important:** `millis()` overflows after ~49 days. This code handles it correctly using subtraction:
 
 ```cpp
 // WRONG: Direct comparison breaks after overflow

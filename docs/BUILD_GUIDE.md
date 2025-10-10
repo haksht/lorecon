@@ -22,13 +22,12 @@ This project implements a **dual-track build system** using PlatformIO's multi-e
 
 ```bash
 # Research Platform (Full-Featured) - DEFAULT
-pio run -e research-platform --target upload
+pio run --target upload
+pio device monitor
 
 # Educational Simple (Learning Version)  
 pio run -e simple --target upload
-
-# Legacy compatibility (same as research-platform)
-pio run --target upload
+pio device monitor
 ```
 
 ---
@@ -57,15 +56,15 @@ pio run --target upload
 The dual-track system uses **build source filtering** to compile different sets of files:
 
 ```ini
-# Research Platform Environment
-[env:research-platform]
-build_src_filter = +<*> -<main_realistic.cpp> -<test_*.cpp>
+# Default Environment (Research Platform)
+[env:default]
+build_src_filter = +<*> -<main_realistic.cpp> -<test_*.cpp> -<archive/>
 # ↳ Includes: main.cpp + all advanced modules
 
 # Educational Simple Environment  
 [env:simple]
-build_src_filter = +<*> -<main.cpp> -<recon_state.cpp> -<user_interface.cpp> -<psk_*.cpp> -<hardware_*.cpp> -<intelligence_*.cpp> -<test_*.cpp>
-# ↳ Includes: main_realistic.cpp only
+build_src_filter = +<main_realistic.cpp> +<data_structures.h> -<main.cpp> -<recon_state.cpp> -<user_interface.cpp> -<psk_*.cpp> -<hardware_*.cpp> -<test_*.cpp>
+# ↳ Includes: main_realistic.cpp only (minimal dependencies)
 ```
 
 ### **Source File Architecture**
@@ -73,18 +72,27 @@ build_src_filter = +<*> -<main.cpp> -<recon_state.cpp> -<user_interface.cpp> -<p
 ```
 firmware/src/
 ├── 🎯 RESEARCH PLATFORM FILES
-│   ├── main.cpp                     # Main application (900+ lines)
-│   ├── recon_state.cpp/.h           # Professional state management
+│   ├── main.cpp                     # Main application entry point
+│   ├── lora_recon_tool.cpp/.h       # Main reconnaissance engine
+│   ├── recon_state.cpp/.h           # State management and device tracking
 │   ├── user_interface.cpp/.h        # Interactive menu system  
-│   ├── psk_decryption_simple.cpp/.h # Cryptographic analysis
+│   ├── command_handler.cpp/.h       # Command pattern dispatcher
+│   ├── psk_decryption_simple.cpp/.h # PSK testing and AES decryption
+│   ├── session_key_manager.cpp/.h   # Session key harvesting
 │   ├── hardware_stress_tester.cpp/.h # System validation
-│   └── intelligence_storage.cpp/.h  # Data management
+│   ├── protocol_analyzer.cpp/.h     # Packet protocol analysis
+│   ├── geo_intelligence.cpp/.h      # GPS extraction and mapping
+│   ├── oled_display.cpp/.h          # OLED display management
+│   ├── error_handler.cpp/.h         # Production error recovery
+│   └── ui_components.cpp/.h         # Reusable UI elements
 │
 ├── 📚 EDUCATIONAL SIMPLE FILES  
-│   └── main_realistic.cpp           # Complete simple tool (300 lines)
+│   └── main_realistic.cpp           # Complete simple tool (~300 lines)
 │
 └── 🔄 SHARED COMPONENTS
-    └── data_structures.h            # Common data definitions
+    ├── data_structures.h            # Common data definitions
+    ├── psk_tests.h                  # PSK test suite
+    └── unit_tests.h                 # Unit test framework
 ```
 
 ### **Compilation Process**
@@ -107,8 +115,8 @@ When you run `pio run -e [environment]`, PlatformIO:
 # Start with simple version to understand basics
 pio run -e simple --target upload
 
-# Graduate to research platform for advanced techniques  
-pio run -e research-platform --target upload
+# Graduate to default (full-featured) for advanced techniques  
+pio run --target upload
 ```
 
 ### **Code Study Progression**
@@ -120,7 +128,7 @@ pio run -e research-platform --target upload
 ### **Teaching/Demonstration Scenarios**
 
 - **Basic Workshop**: Use `simple` environment for clear, focused demonstrations
-- **Advanced Course**: Use `research-platform` for comprehensive feature showcase
+- **Advanced Course**: Use `default` environment for comprehensive feature showcase
 - **Code Review**: Compare both versions to illustrate architecture evolution
 
 ---
@@ -133,23 +141,23 @@ pio run -e research-platform --target upload
 # Test in simple version first (if applicable)
 pio run -e simple --target upload
 
-# Implement in research platform
-pio run -e research-platform --target upload  
+# Implement in default (research platform)
+pio run --target upload  
 
 # Validate both versions work independently
-pio run -e simple --target upload && pio run -e research-platform --target upload
+pio run -e simple --target upload && pio run --target upload
 ```
 
 ### **Debugging Strategy**
 
 1. **Start Simple**: Debug basic functionality in `simple` environment
-2. **Escalate**: Move to `research-platform` for advanced features
+2. **Escalate**: Move to `default` environment for advanced features
 3. **Isolate**: Use environment switching to isolate issues
 
 ### **Maintenance Approach**
 
 - **Keep Simple Clean**: Resist adding complexity to educational version
-- **Evolve Research Platform**: Add advanced features to professional version  
+- **Evolve Default Platform**: Add advanced features to default environment  
 - **Maintain Compatibility**: Ensure both versions work with same hardware
 
 ---

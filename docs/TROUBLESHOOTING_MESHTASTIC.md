@@ -265,6 +265,70 @@ meshtastic --sendtext "TEST 123"
 
 ---
 
+## 🖥️ **OLED Display Troubleshooting**
+
+### Problem: "No OLED detected on I2C bus"
+
+#### Identify Board Version
+Different Heltec board versions use different pins:
+
+**V3 (ESP32-S3)** - Current default:
+- SDA: GPIO 17, SCL: GPIO 18, RST: GPIO 21
+- Vext: GPIO 36 (active LOW)
+
+**V2 (ESP32)** - Older boards:
+- SDA: GPIO 4, SCL: GPIO 15, RST: GPIO 16
+- Vext: GPIO 21
+
+**V1 (Original ESP32)**:
+- SDA: GPIO 4, SCL: GPIO 15, RST: GPIO 16
+- No Vext power control
+
+#### Diagnostic Steps
+
+1. **Check Serial Output**
+   ```
+   [DISPLAY] Scanning I2C bus...
+   [DISPLAY]   Address 0x3C: FOUND!
+   ```
+   or
+   ```
+   [DISPLAY]   Address 0x3C: not found (error 2)
+   ```
+
+2. **I2C Error Codes**
+   - `error 0`: Success (device found)
+   - `error 2`: Address not acknowledged (no device)
+   - `error 3`: Data not acknowledged
+   - `error 4`: Other error
+   - `error 5`: Timeout
+
+3. **Common Fixes**
+   - **Wrong pins for V2**: Edit `oled_display.h` to use V2 pins
+   - **Vext polarity**: Most V3 use LOW=ON, some need HIGH=ON
+   - **Physical connection**: Check OLED is properly seated
+   - **No OLED populated**: Some boards lack OLED (code handles gracefully)
+
+4. **Manual I2C Scan**
+   Add to setup() for debugging:
+   ```cpp
+   Serial.println("Scanning I2C 0x01-0x7F...");
+   for (uint8_t addr = 1; addr < 127; addr++) {
+     Wire.beginTransmission(addr);
+     if (Wire.endTransmission() == 0) {
+       Serial.printf("Device at 0x%02X\n", addr);
+     }
+   }
+   ```
+
+### Button Not Responding
+
+1. **Check GPIO 0**: PRG button should be on GPIO 0
+2. **Monitor serial**: Look for `[BUTTON] Button pressed` messages
+3. **Test timing**: Short press < 3s, long press ≥ 3s
+
+---
+
 ## 🎯 **Quick Win Test**
 
 **Do this right now:**
