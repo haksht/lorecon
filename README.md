@@ -63,9 +63,11 @@ pio device monitor
 ### **Interactive Capabilities**
 - **Device Targeting**: Select from discovered devices for focused monitoring
 - **Packet Replay**: Store up to 10 captured packets and retransmit them
-- **PSK Testing**: Test 5 common Meshtastic default keys (requires encrypted packets)
+- **Broadcast Decryption**: Decrypt position, telemetry, and channel messages with default PSKs
 - **Hardware Validation**: Built-in stress testing framework
 - **Protocol Analysis**: Identifies Meshtastic, LoRaWAN, and custom protocols
+
+**Note:** Firmware 2.5.0+ uses PKC for direct messages (DMs). This tool decrypts broadcasts and channel messages only. See [ENCRYPTION_REALITY.md](docs/ENCRYPTION_REALITY.md) for details.
 
 ### **NEW in v1.8** 🎉
 - **OLED Display**: 128x64 SSD1306 with 6 display modes for standalone operation
@@ -76,7 +78,7 @@ pio device monitor
 ### **Previous (v1.7)**
 - **Geographic Intelligence**: Automatic GPS extraction from Meshtastic position packets
 - **KML/GeoJSON Export**: Map device locations in Google Earth or web mapping tools
-- **PSK Test Suite**: Automated testing framework with 4 validation tests
+- **Channel PSK Decryption**: Tests 5 common default keys for broadcasts and channel messages
 - **Simplified Stress Testing**: Real ESP32 temperature monitoring for attack surface analysis
 - **UI Components**: Modular display functions for cleaner code organization
 
@@ -149,7 +151,9 @@ Primary focus: **902.125 MHz SF11** (Meshtastic US primary channel)
 ### **PSK Testing** (`psk_decryption_simple.cpp`)
 - **Enable/disable**: Set via `platformio.ini` build flags
 - **Default keys**: 5 common Meshtastic PSKs (AQ==, 1PG...HivQY=, etc.)
-- **Note**: Requires encrypted user packets (multi-node mesh)
+- **Decrypts**: Position broadcasts, telemetry, node info, channel messages
+- **Cannot decrypt**: Direct messages (use PKC in firmware 2.5.0+)
+- **Note**: Works best with default channel configurations
 
 ## 📊 **Performance Specifications**
 
@@ -241,14 +245,14 @@ Active flags:
 - ✅ **v1.3**: Packet replay feature + architecture refactoring (Phase 3)
 - ✅ **v1.4**: Production hardening (atomics, watchdog, timeouts) - **CURRENT**
 
-**Current Status (October 4, 2025):**
-- ⚙️ **Multi-node mesh setup**: Working on getting devices to recognize each other
+**Current Status (October 15, 2025):**
+- ✅ **Broadcast decryption**: Position, telemetry, and channel messages working
 - ✅ **Frequency matched**: 906.875 MHz (slot 20), US region, LONG_FAST preset
-- ⏳ **PSK testing**: Code implemented but awaiting encrypted traffic for validation
 - ✅ **Core functionality**: Recon/sniff/capture/replay fully operational
+- ℹ️ **Note**: Direct messages use PKC (firmware 2.5.0+) and cannot be decrypted
 
 **Next Steps:**
-- Complete PSK decryption validation with encrypted traffic from multi-node mesh
+- Validate channel message decryption with live multi-node mesh
 - Document hardware stress testing findings for DefCon talk
 - Refine visualization tools for live demonstrations
 - Prepare conference demo script and backup plans
