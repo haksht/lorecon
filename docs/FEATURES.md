@@ -88,8 +88,8 @@ A focused LoRa packet capture and analysis tool for security research and RF exp
 
 ---
 
-### 🔓 PSK Decryption Testing (SECURITY RESEARCH)
-**Status**: ✅ Code Complete, ⏳ Awaiting Live Traffic Validation  
+### 🔓 Broadcast & Channel Message Decryption (SECURITY RESEARCH)
+**Status**: ✅ Production Ready  
 **Build Flag**: `-DENABLE_PSK_TESTING`  
 **Files**: `psk_decryption_simple.cpp`, `psk_tests.h`
 
@@ -99,9 +99,15 @@ A focused LoRa packet capture and analysis tool for security research and RF exp
 - **Message extraction** (pulls plaintext from decrypted packets)
 - **Success statistics** (tracks which keys work)
 
-**What it does**: Tests captured Meshtastic packets against 5 common default encryption keys. When a match is found, decrypts the packet to reveal message content and GPS data.
+**What it decrypts**: Position broadcasts, telemetry, node info, traceroutes, and **channel/group messages**
 
-**Current Status**: Code implemented and tested with synthetic data. Waiting for multi-node mesh with encrypted traffic to validate against real-world packets.
+**What it cannot decrypt**: Direct messages (DMs) - these use Public Key Cryptography (PKC) in firmware 2.5.0+
+
+**What it does**: Tests captured Meshtastic packets against 5 common default encryption keys. When a match is found, decrypts broadcasts and channel messages to reveal content and GPS data.
+
+**Current Status**: Code complete and working. Successfully decrypts position broadcasts, telemetry, and channel messages sent with default PSKs. Direct messages require PKC decryption (not feasible).
+
+**See also**: [ENCRYPTION_REALITY.md](../docs/ENCRYPTION_REALITY.md) for complete explanation of what's decryptable vs. PKC-protected.
 
 ---
 
@@ -271,7 +277,7 @@ Reduces serial output by 95% to minimize packet processing time and capture gaps
 - ✅ User interface (interactive menus)
 
 ### HIGH VALUE (Makes Demo Impressive)
-- ✅ PSK decryption (once validated with live traffic)
+- ✅ Broadcast decryption (position, telemetry, channel messages with default PSK)
 - ✅ Geographic intelligence (GPS mapping)
 - ✅ Protocol analysis (device fingerprinting)
 - ✅ Hardware stress testing (attack surface analysis)

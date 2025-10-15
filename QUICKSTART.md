@@ -52,11 +52,13 @@ Press **'m'** anytime to see the menu:
 ✅ **Device Discovery** - Identifies Meshtastic nodes and LoRaWAN devices  
 ✅ **Protocol Analysis** - Parses Meshtastic/LoRaWAN packet structures  
 ✅ **Packet Replay** - Store and retransmit captured packets (10 slots)  
-✅ **PSK Decryption** - Tests 5 common default Meshtastic keys  
-✅ **Session Key Harvesting** - Captures encryption keys from mesh traffic  
+✅ **Broadcast Decryption** - Decrypts position, telemetry, channel messages (with default PSKs)  
+✅ **Session Key Harvesting** - Captures encryption keys from mesh traffic (legacy firmware)  
 ✅ **OLED Display** - Standalone operation without serial connection  
 ✅ **Geographic Intelligence** - Extracts GPS from position packets  
 ✅ **Export Tools** - KML/GeoJSON for mapping applications
+
+**Note on Encryption**: Meshtastic firmware 2.5.0+ (June 2024) uses Public Key Cryptography for direct messages. This tool decrypts broadcasts and channel messages, but cannot decrypt DMs. See [ENCRYPTION_REALITY.md](docs/ENCRYPTION_REALITY.md).
 
 ✅ **Export Tools** - KML/GeoJSON for mapping applications
 
@@ -74,8 +76,10 @@ Press **'m'** anytime to see the menu:
 ### Testing & Demonstration
 1. **Capture** - Save interesting packets (press 'c')
 2. **Replay** - Retransmit saved packets (press 'p')
-3. **PSK Testing** - Automatic testing of default keys
+3. **Broadcast Decryption** - Automatic testing of default PSKs on position/telemetry/channel messages
 4. **Stress Testing** - Hardware vulnerability assessment (press 't')
+
+**Testing Note**: To test channel message decryption, send messages to the **Channel** (not Direct Messages) in the Meshtastic app. DMs use PKC and cannot be decrypted.
 
 ---
 
