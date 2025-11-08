@@ -245,17 +245,29 @@ Active flags:
 - ✅ **v1.3**: Packet replay feature + architecture refactoring (Phase 3)
 - ✅ **v1.4**: Production hardening (atomics, watchdog, timeouts) - **CURRENT**
 
-**Current Status (October 15, 2025):**
-- ✅ **Broadcast decryption**: Position, telemetry, and channel messages working
-- ✅ **Frequency matched**: 906.875 MHz (slot 20), US region, LONG_FAST preset
+**Current Status (November 8, 2025):**
+- ✅ **Broadcast text decryption**: Successfully decrypting and extracting channel messages
+- ✅ **Multi-packet type support**: TEXT, TELEMETRY, POSITION, TRACEROUTE, ADMIN all working
+- ✅ **Parsing bugs fixed**: PacketID offset, NodeID endianness, text extraction patterns
 - ✅ **Core functionality**: Recon/sniff/capture/replay fully operational
-- ℹ️ **Note**: Direct messages use PKC (firmware 2.5.0+) and cannot be decrypted
+- ✅ **False positive prevention**: Stricter encrypted/plaintext detection
+- ⏳ **Session key harvesting**: Implementation complete, waiting for mesh responses
+- ℹ️ **Note**: Direct messages require session keys (not yet captured from live mesh)
+
+**Verified Working:**
+```
+╔════════════════════════════════════════════╗
+║  📧 TEXT MESSAGE: "This is a very good point..."
+╚════════════════════════════════════════════╝
+[PSK] Type: TEXT_MESSAGE_APP (portnum 0x01)
+[PSK] ✓ Decrypted with key #2 ("1PG7OiApB1nwvP+rz05pAQ==")
+```
 
 **Next Steps:**
-- Validate channel message decryption with live multi-node mesh
-- Document hardware stress testing findings for DefCon talk
-- Refine visualization tools for live demonstrations
-- Prepare conference demo script and backup plans
+- Monitor for telemetry packets to verify battery/voltage extraction
+- Wait for session key announcements from active mesh (6-24 hour interval)
+- Test position packet parsing and GPS coordinate extraction
+- Document TRACEROUTE_APP packet structure
 
 ---
 

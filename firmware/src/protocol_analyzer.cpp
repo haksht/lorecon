@@ -53,9 +53,9 @@ const char* ProtocolAnalyzer::identifyProtocol(const uint8_t* data, size_t lengt
 // Extract node ID from packet (protocol-dependent field locations)
 uint32_t ProtocolAnalyzer::extractNodeId(const uint8_t* data, size_t length, const char* protocol) {
     if (strcmp(protocol, "Meshtastic") == 0 && length >= 8) {
-        // Meshtastic node ID at offset 4-7 (big endian)
-        return (uint32_t(data[4]) << 24) | (uint32_t(data[5]) << 16) | 
-               (uint32_t(data[6]) << 8) | uint32_t(data[7]);
+        // Meshtastic node ID at offset 4-7 (little-endian)
+        return ((uint32_t)data[4]) | ((uint32_t)data[5] << 8) | 
+               ((uint32_t)data[6] << 16) | ((uint32_t)data[7] << 24);
     }
     
     if (strcmp(protocol, "LoRaWAN") == 0 && length >= 8) {

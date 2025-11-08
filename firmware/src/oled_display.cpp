@@ -6,7 +6,7 @@ OLEDDisplay::OLEDDisplay()
     : display(U8G2_R0, OLED_RST)  // HW I2C: rotation, reset - uses Wire object we configure
     , displayOn(false)
     , lastActivityTime(0)
-    , autoOffTimeout(30000)  // 30 seconds default
+    , autoOffTimeout(0)  // 0 = disabled (display stays on)
     , currentMode(MODE_WELCOME)
 {
     clearInfo();

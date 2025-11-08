@@ -129,6 +129,11 @@ bool LoRaReconTool::initialize() {
     // Initialize optional modules
     initializeStressTesting();
     
+    // Initialize PSK decryption system FIRST
+    #ifdef ENABLE_PSK_TESTING
+    PSKDecryption::initialize();
+    #endif
+    
     // Initialize session key manager with channel PSK
     #ifdef ENABLE_PSK_TESTING
     uint8_t channelPSK[16];
@@ -625,6 +630,14 @@ void LoRaReconTool::initializeStressTesting() {
 #endif
 }
 
+#ifdef ENABLE_STRESS_TESTING
+void LoRaReconTool::ensureStressTesterInitialized() {
+    if (!stressTester) {
+        stressTester = new HardwareStressTester(&radio);
+    }
+}
+#endif
+
 // Handle user input commands
 void LoRaReconTool::handleUserInput(char cmd) {
     if (cmd == 'm' || cmd == 'M') {
@@ -990,20 +1003,23 @@ void LoRaReconTool::trySessionKeyDecryption(const uint8_t* data, size_t length,
     
     if (!hasHeader) return;
     
-    const uint8_t* encryptedData = data + 14;
-    size_t encryptedLen = length - 14;
+    // Meshtastic header is 16 bytes (was using 14, now corrected)
+    const uint8_t* encryptedData = data + 16;
+    size_t encryptedLen = length - 16;
     
-    // Construct nonce (same as channel PSK decryption)
+    // Construct nonce with CORRECT little-endian format
     uint8_t nonce[16];
     memset(nonce, 0, sizeof(nonce));
+    // PacketID (little-endian)
     nonce[0] = (packetId) & 0xFF;
     nonce[1] = (packetId >> 8) & 0xFF;
     nonce[2] = (packetId >> 16) & 0xFF;
     nonce[3] = (packetId >> 24) & 0xFF;
-    nonce[8] = (nodeId >> 24) & 0xFF;
-    nonce[9] = (nodeId >> 16) & 0xFF;
-    nonce[10] = (nodeId >> 8) & 0xFF;
-    nonce[11] = nodeId & 0xFF;
+    // NodeID - use raw packet bytes directly (no endian conversion)
+    nonce[8] = data[4];
+    nonce[9] = data[5];
+    nonce[10] = data[6];
+    nonce[11] = data[7];
     
     uint8_t decrypted[256];
     if (encryptedLen > sizeof(decrypted)) return;

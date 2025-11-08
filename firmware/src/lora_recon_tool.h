@@ -88,6 +88,7 @@ public:
     
 #ifdef ENABLE_STRESS_TESTING
     HardwareStressTester* getStressTester() { return stressTester; }
+    void ensureStressTesterInitialized();
 #endif
 
 private:
