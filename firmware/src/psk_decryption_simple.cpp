@@ -420,6 +420,7 @@ bool PSKDecryption::testDefaultPSKs(const uint8_t* data, size_t length) {
                 case 0x08: typeStr = "TELEMETRY_APP"; break;
                 case 0x09: typeStr = "TEXT_MESSAGE_COMPRESSED_APP"; break;
                 case 0x42: typeStr = "TRACEROUTE_APP"; break;
+                case 0x43: typeStr = "MAP_REPORT_APP"; break;
             }
             Serial.printf("[PSK] Type: %s (portnum 0x%02X)\n", typeStr, portnum);
         }

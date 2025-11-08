@@ -8,6 +8,7 @@
 #include "user_interface.h"
 #include "lora_recon_tool.h"
 #include <Arduino.h>
+#include <esp_task_wdt.h>
 
 // Serial timeout constant
 #define SERIAL_INPUT_TIMEOUT_MS 30000  // 30 seconds
@@ -20,6 +21,7 @@ static bool waitForSerialInput(uint32_t timeoutMs = SERIAL_INPUT_TIMEOUT_MS) {
       Serial.println("\n[TIMEOUT] No input received. Returning to menu...");
       return false;
     }
+    esp_task_wdt_reset();  // Feed watchdog while waiting
     delay(10);
   }
   return true;

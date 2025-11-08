@@ -776,6 +776,7 @@ void LoRaReconTool::showReplayMenu() {
             Serial.println("[TIMEOUT] Returning to menu...");
             break;
           }
+          esp_task_wdt_reset();  // Feed watchdog while waiting
           delay(10);
         }
         if (Serial.available()) Serial.read();
@@ -815,6 +816,7 @@ void LoRaReconTool::showReplayMenu() {
       showReconResults();
       return;
     }
+    esp_task_wdt_reset();  // Feed watchdog while waiting
     delay(10);
   }
   char cmd = Serial.read();
@@ -837,6 +839,7 @@ void LoRaReconTool::showReplayMenu() {
             showReplayMenu();
             return;
           }
+          esp_task_wdt_reset();  // Feed watchdog while waiting
           delay(10);
         }
         char confirm = Serial.read();
@@ -898,7 +901,10 @@ void LoRaReconTool::replayPacket(uint8_t slotIndex) {
     uint8_t txBuffer[256];
     memcpy(txBuffer, pkt.data, pkt.length);
     
+    // Feed watchdog before transmission (can take several seconds with high SF)
+    esp_task_wdt_reset();
     int state = radio.transmit(txBuffer, pkt.length);
+    esp_task_wdt_reset();  // Feed again after transmission completes
     radio.setOutputPower(0);   // Back to receive-only mode
     
     if (state == RADIOLIB_ERR_NONE) {
@@ -909,7 +915,10 @@ void LoRaReconTool::replayPacket(uint8_t slotIndex) {
     }
     
     Serial.println("\nPress any key to return to replay menu...");
-    while (!Serial.available()) delay(10);
+    while (!Serial.available()) {
+        esp_task_wdt_reset();  // Feed watchdog while waiting
+        delay(10);
+    }
     Serial.read();
     
     // Resume receiving
