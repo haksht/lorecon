@@ -92,7 +92,7 @@ Press **'m'** anytime to see the menu:
 - **[TROUBLESHOOTING_MESHTASTIC.md](docs/TROUBLESHOOTING_MESHTASTIC.md)** - Common issues
 
 ### Advanced Topics
-- **[UNDERSTANDING.md](docs/UNDERSTANDING.md)** - Deep technical guide
+- **[UNDERSTANDING.md](docs/deepdive/UNDERSTANDING.md)** - Deep technical guide
 - **[architecture.md](docs/architecture.md)** - System design
 - **[conference/](conference/)** - Security research materials
 

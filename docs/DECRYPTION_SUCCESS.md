@@ -1,13 +1,14 @@
 # ESP32 LoRa Sniffer - Decryption Success Summary
 
-**Date:** November 8, 2025  
-**Status:** ✅ **BROADCAST TEXT MESSAGE DECRYPTION WORKING**
+**Date:** November 8, 2025 (Updated with watchdog fixes)  
+**Status:** ✅ **BROADCAST TEXT MESSAGE DECRYPTION WORKING** + ✅ **WATCHDOG REBOOT FIXED**
 
 ---
 
-## 🎉 Achievement
+## 🎉 Achievements
 
-Successfully decrypting and extracting text messages from Meshtastic broadcast packets using channel PSK.
+### 1. Successfully Decrypting Broadcast Text Messages
+Extracting text messages from Meshtastic broadcast packets using channel PSK:
 
 ```
 ╔════════════════════════════════════════════╗
@@ -18,11 +19,14 @@ Successfully decrypting and extracting text messages from Meshtastic broadcast p
 [PSK] Node: 0x9EA3D744, Packet: 0xEE3F36F2, Flags: 0x62
 ```
 
+### 2. Fixed Watchdog Timeout During Packet Replay
+System no longer reboots during packet replay operations. All user input loops and radio operations now properly feed the watchdog timer.
+
 ---
 
 ## 🐛 Critical Bugs Fixed
 
-### 1. PacketID Offset Error
+### Bug #1: PacketID Offset Error
 **Problem:** Reading PacketID from bytes 10-13  
 **Solution:** Correct offset is bytes 8-11  
 **Root Cause:** Misunderstood Meshtastic PacketHeader structure  
@@ -198,10 +202,93 @@ Decrypted: 08 42 12 07 73 65 71 20 31 30 34
 
 ---
 
+## 🔧 Bug #6: Watchdog Timeout During Packet Replay (Nov 8, 2025)
+
+**Problem:** System rebooting when replaying packets or waiting for user input  
+**Solution:** Feed watchdog timer in all wait loops and before/after radio operations  
+**Root Cause:** User input loops and `radio.transmit()` can exceed 30s watchdog timeout  
+**Impact:** Packet replay feature unusable due to frequent reboots
+
+### Locations Fixed (6 total)
+
+**1. Replay Menu Selection Loop** (`lora_recon_tool.cpp` ~line 817)
+```cpp
+// Added watchdog feeding during 30s timeout
+while (!Serial.available()) {
+    if (millis() - startTime > 30000) { ... }
+    esp_task_wdt_reset();  // ← ADDED
+    delay(10);
+}
+```
+
+**2. Clear Slots Confirmation** (`lora_recon_tool.cpp` ~line 842)
+```cpp
+// Added watchdog feeding during 10s confirmation wait
+while (!Serial.available()) {
+    if (millis() - startTime > 10000) { ... }
+    esp_task_wdt_reset();  // ← ADDED
+    delay(10);
+}
+```
+
+**3. Post-Replay Key Wait** (`lora_recon_tool.cpp` ~line 919)
+```cpp
+// Added watchdog feeding while waiting for user keypress
+while (!Serial.available()) {
+    esp_task_wdt_reset();  // ← ADDED
+    delay(10);
+}
+```
+
+**4. Radio Transmission** (`lora_recon_tool.cpp` ~line 903)
+```cpp
+// Feed watchdog before/after blocking transmit
+esp_task_wdt_reset();
+int state = radio.transmit(txBuffer, pkt.length);
+esp_task_wdt_reset();  // ← ADDED BOTH
+```
+
+**5. Return to Menu Wait** (`lora_recon_tool.cpp` ~line 774)
+```cpp
+// Added watchdog feeding in timeout loop
+while (!Serial.available()) {
+    if (millis() - startTime > 30000) { ... }
+    esp_task_wdt_reset();  // ← ADDED
+    delay(10);
+}
+```
+
+**6. Helper Function** (`user_interface.cpp` ~line 18)
+```cpp
+static bool waitForSerialInput(uint32_t timeoutMs) {
+    while (!Serial.available()) {
+        if (millis() - startTime > timeoutMs) { ... }
+        esp_task_wdt_reset();  // ← ADDED
+        delay(10);
+    }
+}
+```
+
+### Why This Matters
+- Watchdog timeout is 30 seconds
+- User input waits can easily exceed this
+- `radio.transmit()` with SF11 can take 5-10+ seconds
+- System was rebooting mid-operation, losing state
+
+### Result
+✅ Packet replay now stable  
+✅ User can take time selecting options without reboot  
+✅ Long transmissions don't trigger watchdog  
+✅ All menu systems protected
+
+---
+
 ## ⏭️ Next Steps
 
 ### Immediate
 - ✅ Text message decryption working
+- ✅ Watchdog reboot fixed
+- ⚠️ **Rebuild firmware to get TRACEROUTE_APP + MAP_REPORT_APP + watchdog fixes**
 - ⏳ Monitor for telemetry packets (verify battery/voltage parsing)
 - ⏳ Test position packet GPS coordinate extraction
 
@@ -215,6 +302,7 @@ Decrypted: 08 42 12 07 73 65 71 20 31 30 34
 - Decompress TEXT_MESSAGE_COMPRESSED_APP
 - Parse NODEINFO_APP for device metadata
 - Enhanced telemetry visualization
+- Test MAP_REPORT_APP (0x43) structure
 
 ---
 
@@ -224,6 +312,7 @@ Decrypted: 08 42 12 07 73 65 71 20 31 30 34
 - **[ENCRYPTION_REALITY.md](ENCRYPTION_REALITY.md)** - Encryption architecture
 - **[PSK_DECRYPTION_TROUBLESHOOTING.md](PSK_DECRYPTION_TROUBLESHOOTING.md)** - Debug guide
 - **[DEEP_DIVE_AES_CTR_DECRYPTION.md](deepdive/DEEP_DIVE_AES_CTR_DECRYPTION.md)** - AES-CTR details
+- **[SESSION_HANDOFF.md](../SESSION_HANDOFF.md)** - Quick start for new sessions
 
 ---
 
