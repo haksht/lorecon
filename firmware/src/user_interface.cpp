@@ -414,19 +414,26 @@ void showStressTestMenu() {
   Serial.println("⚠️ Safety limits enabled - testing within safe parameters");
   Serial.println();
   
-  // Get stress tester from tool instance
+  // Initialize stress tester if not already done
+  if (g_reconTool) {
+    g_reconTool->ensureStressTesterInitialized();
+  }
+  
+  // Get stress tester from tool instance  
   HardwareStressTester* stressTester = g_reconTool ? g_reconTool->getStressTester() : nullptr;
   
-  // Initialize stress tester if not already done
   if (!stressTester) {
-    Serial.print("🔧 Initializing stress testing framework... ");
-    if (stressTester && stressTester->initializeStressTesting()) {
-      Serial.println("✅ SUCCESS");
-    } else {
-      Serial.println("❌ FAILED");
-      Serial.println("Stress testing not available - returning to main menu");
-      return;
-    }
+    Serial.println("❌ Stress testing not available");
+    return;
+  }
+  
+  Serial.print("🔧 Initializing stress testing framework... ");
+  if (stressTester->initializeStressTesting()) {
+    Serial.println("✅ SUCCESS");
+  } else {
+    Serial.println("❌ FAILED");
+    Serial.println("Stress testing not available - returning to main menu");
+    return;
   }
   
   Serial.println("TEST OPTIONS:");

@@ -186,6 +186,7 @@ bool SessionKeyManager::processKeyAnnouncement(const uint8_t* data, size_t lengt
                 data += i;
                 length -= i;
                 found = true;
+                Serial.printf("[SESSION] Found header at offset %d\n", i);
                 break;
             }
         }
@@ -193,36 +194,63 @@ bool SessionKeyManager::processKeyAnnouncement(const uint8_t* data, size_t lengt
     }
     
     // Extract packet metadata
-    uint32_t nodeId = (uint32_t(data[4]) << 24) | (uint32_t(data[5]) << 16) | 
-                      (uint32_t(data[6]) << 8) | uint32_t(data[7]);
-    uint32_t packetId = ((uint32_t)data[10]) | ((uint32_t)data[11] << 8) | 
-                        ((uint32_t)data[12] << 16) | ((uint32_t)data[13] << 24);
+    // Meshtastic PacketHeader structure (16 bytes total):
+    // Bytes 0-3:   To (destination node, little-endian)
+    // Bytes 4-7:   From (source node, little-endian)  
+    // Bytes 8-11:  ID (packet ID, little-endian)
+    // Byte 12:     Flags
+    // Byte 13:     Channel index
+    // Byte 14:     Next hop (for routing)
+    // Byte 15:     Relay node (for routing)
+    // NOTE: All multi-byte fields are LITTLE-ENDIAN in the packet!
     
-    const uint8_t* encryptedData = data + 14;
-    size_t encryptedLen = length - 14;
+    uint32_t nodeId = ((uint32_t)data[4]) | ((uint32_t)data[5] << 8) | 
+                      ((uint32_t)data[6] << 16) | ((uint32_t)data[7] << 24);
+    uint32_t packetId = ((uint32_t)data[8]) | ((uint32_t)data[9] << 8) | 
+                        ((uint32_t)data[10] << 16) | ((uint32_t)data[11] << 24);
+    uint8_t flags = data[12];
+    uint8_t channelIdx = data[13];
     
-    // Decrypt with channel PSK
-    return parseKeyAnnouncement(encryptedData, encryptedLen, nodeId, packetId);
+    Serial.printf("[SESSION] Checking packet: Node=0x%08X, ID=0x%08X, Flags=0x%02X, Chan=%d\n",
+                  nodeId, packetId, flags, channelIdx);
+    
+    // Encrypted payload starts at offset 16 (not 14)
+    const uint8_t* encryptedData = data + 16;
+    size_t encryptedLen = length - 16;
+    
+    // Decrypt with channel PSK and check if it's an admin message
+    return parseKeyAnnouncement(encryptedData, encryptedLen, nodeId, packetId, data);
 }
 
 bool SessionKeyManager::parseKeyAnnouncement(const uint8_t* encryptedData, size_t length,
-                                             uint32_t nodeId, uint32_t packetId) {
+                                             uint32_t nodeId, uint32_t packetId, const uint8_t* rawPacket) {
     if (channelPSKLen == 0) {
         Serial.println("[SESSION] ❌ No channel PSK configured");
         return false;
     }
     
-    // Construct AES-CTR nonce
+    Serial.println("[SESSION] 🔍 Attempting to decrypt potential session key announcement...");
+    
+    // Construct AES-CTR nonce (same format as PSK decryption)
     uint8_t nonce[16];
     memset(nonce, 0, sizeof(nonce));
+    // PacketID (little-endian, 32-bit zero-padded to 64-bit)
     nonce[0] = (packetId) & 0xFF;
     nonce[1] = (packetId >> 8) & 0xFF;
     nonce[2] = (packetId >> 16) & 0xFF;
     nonce[3] = (packetId >> 24) & 0xFF;
-    nonce[8] = (nodeId >> 24) & 0xFF;
-    nonce[9] = (nodeId >> 16) & 0xFF;
-    nonce[10] = (nodeId >> 8) & 0xFF;
-    nonce[11] = nodeId & 0xFF;
+    // FromNode (raw bytes from packet, not converted)
+    // Use the data bytes directly instead of converting nodeId
+    nonce[8] = rawPacket[4];
+    nonce[9] = rawPacket[5];
+    nonce[10] = rawPacket[6];
+    nonce[11] = rawPacket[7];
+    
+    Serial.print("[SESSION] Nonce: ");
+    for (int i = 0; i < 16; i++) {
+        Serial.printf("%02X ", nonce[i]);
+    }
+    Serial.println();
     
     // Decrypt
     uint8_t decrypted[256];
@@ -247,11 +275,20 @@ bool SessionKeyManager::parseKeyAnnouncement(const uint8_t* encryptedData, size_
                                        encryptedData, decrypted);
     mbedtls_aes_free(&aes);
     
-    if (result != 0) return false;
+    if (result != 0) {
+        Serial.printf("[SESSION] ❌ Decryption failed (error %d)\n", result);
+        return false;
+    }
+    
+    Serial.print("[SESSION] Decrypted (first 16 bytes): ");
+    for (size_t i = 0; i < min(length, size_t(16)); i++) {
+        Serial.printf("%02X ", decrypted[i]);
+    }
+    Serial.println();
     
     // Parse decrypted admin message
     // Expected structure:
-    // Field 1 (portnum): 0x08 0x07 (ADMIN_APP)
+    // Field 1 (portnum): 0x08 <portnum> 
     // Field 2 (payload): 0x12 <len> ...
     //   Inside payload:
     //     Field X: session_key_response with key bytes
@@ -259,15 +296,20 @@ bool SessionKeyManager::parseKeyAnnouncement(const uint8_t* encryptedData, size_
     size_t pos = 0;
     
     // Check portnum
-    if (pos + 2 > length || decrypted[pos] != 0x08) return false;
+    if (pos + 2 > length || decrypted[pos] != 0x08) {
+        Serial.printf("[SESSION] ❌ Not a valid message (first byte=0x%02X, expected 0x08)\n", 
+                     decrypted[0]);
+        return false;
+    }
     pos++;
     
     uint8_t portnum = decrypted[pos++];
+    Serial.printf("[SESSION] Portnum: 0x%02X", portnum);
     if (portnum != PORTNUM_ADMIN_APP) {
+        Serial.println(" (not ADMIN_APP)");
         return false;  // Not an admin message
     }
-    
-    Serial.println("[SESSION] 🔍 Found admin message, parsing for session key...");
+    Serial.println(" (ADMIN_APP) ✓");
     
     // Field 2: payload
     if (pos >= length || decrypted[pos] != 0x12) return false;

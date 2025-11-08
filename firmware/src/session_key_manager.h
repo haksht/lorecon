@@ -130,10 +130,8 @@ private:
      * @param packetId Packet ID (for nonce)
      * @return true if successfully parsed
      */
-    bool parseKeyAnnouncement(const uint8_t* encryptedData, size_t length, 
-                              uint32_t nodeId, uint32_t packetId);
-    
-    /**
+    bool parseKeyAnnouncement(const uint8_t* encryptedData, size_t length,
+                             uint32_t nodeId, uint32_t packetId, const uint8_t* rawPacket);    /**
      * Add or update a session key in cache
      * @param key Session key to add
      */
