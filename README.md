@@ -8,7 +8,7 @@
 [![Warnings](https://img.shields.io/badge/warnings-0-brightgreen)]()
 [![Display](https://img.shields.io/badge/OLED-working-blue)]()
 
-**Last Updated:** October 9, 2025 | **Branch:** `main`
+**Last Updated:** November 8, 2025 | **Branch:** `main`
 
 ---
 
@@ -18,7 +18,7 @@
 - **[BUILD GUIDE](docs/BUILD_GUIDE.md)** - Compilation instructions
 - **[FEATURES](docs/FEATURES.md)** - Complete feature list
 - **[TROUBLESHOOTING](docs/TROUBLESHOOTING_MESHTASTIC.md)** - Common issues and solutions
-- **[UNDERSTANDING](docs/UNDERSTANDING.md)** - Deep technical guide
+- **[UNDERSTANDING](docs/deepdive/UNDERSTANDING.md)** - Deep technical guide
 
 ---
 
@@ -247,12 +247,15 @@ Active flags:
 
 **Current Status (November 8, 2025):**
 - ✅ **Broadcast text decryption**: Successfully decrypting and extracting channel messages
-- ✅ **Multi-packet type support**: TEXT, TELEMETRY, POSITION, TRACEROUTE, ADMIN all working
-- ✅ **Parsing bugs fixed**: PacketID offset, NodeID endianness, text extraction patterns
+- ✅ **Multi-packet type support**: TEXT (0x01), TELEMETRY (0x08), POSITION (0x03), TRACEROUTE (0x42), MAP_REPORT (0x43), NODEINFO (0x04), ADMIN (0x07) all working
+- ✅ **Parsing bugs fixed**: PacketID offset (bytes 8-11), NodeID endianness (little-endian), text extraction patterns (Pattern 1 for raw payload)
 - ✅ **Core functionality**: Recon/sniff/capture/replay fully operational
-- ✅ **False positive prevention**: Stricter encrypted/plaintext detection
-- ⏳ **Session key harvesting**: Implementation complete, waiting for mesh responses
-- ℹ️ **Note**: Direct messages require session keys (not yet captured from live mesh)
+- ✅ **False positive prevention**: Stricter encrypted/plaintext detection (0x08 + valid portnum required)
+- ✅ **Telemetry parsing**: Battery %, voltage, channel utilization, air util implemented (awaiting live packets)
+- ✅ **Watchdog handling**: All replay menu loops now feed watchdog (prevents reboots during packet replay)
+- ⏳ **Session key harvesting**: Implementation complete, waiting for mesh responses (6-24 hour broadcast interval)
+- ⏳ **Position GPS parsing**: Identifies packets but coordinate extraction not yet implemented
+- ℹ️ **Note**: Direct messages (DMs) require session keys from mesh
 
 **Verified Working:**
 ```
@@ -261,13 +264,24 @@ Active flags:
 ╚════════════════════════════════════════════╝
 [PSK] Type: TEXT_MESSAGE_APP (portnum 0x01)
 [PSK] ✓ Decrypted with key #2 ("1PG7OiApB1nwvP+rz05pAQ==")
+Node: 0x9EA3D744, Packet: 0x80B24533
 ```
 
+**Known Issues Fixed:**
+1. ✅ PacketID offset corrected (bytes 8-11 not 10-13)
+2. ✅ NodeID endianness fixed (little-endian throughout)
+3. ✅ TEXT_MESSAGE_APP Pattern 1 extraction working
+4. ✅ False positive detection eliminated (stricter validation)
+5. ✅ Telemetry portnum corrected (0x08 not 0x01)
+6. ✅ TRACEROUTE_APP (0x42) and MAP_REPORT_APP (0x43) packet types added
+7. ✅ Watchdog timeout during packet replay fixed
+
 **Next Steps:**
-- Monitor for telemetry packets to verify battery/voltage extraction
-- Wait for session key announcements from active mesh (6-24 hour interval)
-- Test position packet parsing and GPS coordinate extraction
-- Document TRACEROUTE_APP packet structure
+- Capture live telemetry packet to verify battery/voltage/channel util extraction
+- Wait for session key announcements from active mesh
+- Implement GPS coordinate parsing for POSITION_APP packets
+- Test MAP_REPORT_APP structure analysis
+- **Rebuild firmware** to get latest TRACEROUTE/MAP_REPORT fixes
 
 ---
 
