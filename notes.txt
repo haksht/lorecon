@@ -1,0 +1,11 @@
+have 'r' go back to recon but don't reset the List
+test for an sd card, if true, load logs from it
+if sd card, save logs to it
+clear all from menu (x)
+more test for broadcast decryption
+why isn't session key request working
+don't clear device results
+packet saving clears itself?
+make packet slots infinite loop
+why reboot after packet replay?
+why decrypt broadcast isn't working?
