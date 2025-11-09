@@ -52,13 +52,17 @@ Press **'m'** anytime to see the menu:
 ✅ **Device Discovery** - Identifies Meshtastic nodes and LoRaWAN devices  
 ✅ **Protocol Analysis** - Parses Meshtastic/LoRaWAN packet structures  
 ✅ **Packet Replay** - Store and retransmit captured packets (10 slots)  
-✅ **Broadcast Decryption** - Decrypts position, telemetry, channel messages (with default PSKs)  
-✅ **Session Key Harvesting** - Captures encryption keys from mesh traffic (legacy firmware)  
+✅ **Broadcast Decryption** - Decrypts position, telemetry, and channel messages (with default PSKs)  
 ✅ **OLED Display** - Standalone operation without serial connection  
 ✅ **Geographic Intelligence** - Extracts GPS from position packets  
 ✅ **Export Tools** - KML/GeoJSON for mapping applications
 
-**Note on Encryption**: Meshtastic firmware 2.5.0+ (June 2024) uses Public Key Cryptography for direct messages. This tool decrypts broadcasts and channel messages, but cannot decrypt DMs. See [ENCRYPTION_REALITY.md](docs/ENCRYPTION_REALITY.md).
+**Note on Encryption**: Meshtastic firmware 2.5.0+ (June 2024) uses Public Key Cryptography (Curve25519) for direct messages between users. This tool decrypts:
+- ✅ Channel/group messages (use channel PSK)
+- ✅ Broadcasts (position, telemetry, node info)
+- ❌ Direct messages (use PKC, require recipient's private key)
+
+See [ENCRYPTION_REALITY.md](docs/ENCRYPTION_REALITY.md) for details.
 
 ✅ **Export Tools** - KML/GeoJSON for mapping applications
 
@@ -76,10 +80,11 @@ Press **'m'** anytime to see the menu:
 ### Testing & Demonstration
 1. **Capture** - Save interesting packets (press 'c')
 2. **Replay** - Retransmit saved packets (press 'p')
-3. **Broadcast Decryption** - Automatic testing of default PSKs on position/telemetry/channel messages
-4. **Stress Testing** - Hardware vulnerability assessment (press 't')
+3. **Channel Message Decryption** - Automatic testing of default PSKs on channel/group messages
+4. **Broadcast Decryption** - Position, telemetry, and node info packets
+5. **Stress Testing** - Hardware vulnerability assessment (press 't')
 
-**Testing Note**: To test channel message decryption, send messages to the **Channel** (not Direct Messages) in the Meshtastic app. DMs use PKC and cannot be decrypted.
+**Important**: To test message decryption, send messages to the **Channel** (group chat) in the Meshtastic app, not Direct Messages. Direct Messages use Public Key Cryptography (Curve25519) and cannot be decrypted without the recipient's private key.
 
 ---
 
