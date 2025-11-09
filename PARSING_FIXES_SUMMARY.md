@@ -1,5 +1,7 @@
 # ESP32 Sniffer Parsing Logic Fixes
 
+> **⚠️ HISTORICAL DOCUMENT**: This document describes session key harvesting functionality that was removed in v1.9. Modern Meshtastic firmware (2.5.0+, June 2024) uses Public Key Cryptography (Curve25519) for direct messages instead of session keys. Session key harvesting is no longer possible or relevant. This document is preserved for historical reference only.
+
 **Date:** November 8, 2025  
 **Issue:** Decryption and session key harvesting failing due to incorrect packet header parsing
 

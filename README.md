@@ -67,7 +67,14 @@ pio device monitor
 - **Hardware Validation**: Built-in stress testing framework
 - **Protocol Analysis**: Identifies Meshtastic, LoRaWAN, and custom protocols
 
-**Note:** Firmware 2.5.0+ uses PKC for direct messages (DMs). This tool decrypts broadcasts and channel messages only. See [ENCRYPTION_REALITY.md](docs/ENCRYPTION_REALITY.md) for details.
+**Important:** Meshtastic firmware 2.5.0+ (June 2024) uses Public Key Cryptography (Curve25519) for direct messages. This tool decrypts:
+- ✅ **Channel/group messages** (sent to channel, uses channel PSK)
+- ✅ **Position broadcasts** (GPS coordinates)
+- ✅ **Telemetry broadcasts** (battery, temperature)
+- ✅ **Node information** (device names, hardware)
+- ❌ **Direct messages** (person-to-person, uses PKC - cannot decrypt without private key)
+
+See [ENCRYPTION_REALITY.md](docs/ENCRYPTION_REALITY.md) for technical details.
 
 ### **NEW in v1.8** 🎉
 - **OLED Display**: 128x64 SSD1306 with 6 display modes for standalone operation
@@ -78,9 +85,10 @@ pio device monitor
 ### **Previous (v1.7)**
 - **Geographic Intelligence**: Automatic GPS extraction from Meshtastic position packets
 - **KML/GeoJSON Export**: Map device locations in Google Earth or web mapping tools
-- **Channel PSK Decryption**: Tests 5 common default keys for broadcasts and channel messages
+- **Channel PSK Decryption**: Tests 5 common default keys for broadcast and channel messages
 - **Simplified Stress Testing**: Real ESP32 temperature monitoring for attack surface analysis
 - **UI Components**: Modular display functions for cleaner code organization
+- **Note**: Session key harvesting removed in v1.9 - modern Meshtastic uses PKC for DMs
 
 ### **Previous Features (v1.5)**
 - Live Visualization with real-time RSSI graphs
@@ -245,17 +253,17 @@ Active flags:
 - ✅ **v1.3**: Packet replay feature + architecture refactoring (Phase 3)
 - ✅ **v1.4**: Production hardening (atomics, watchdog, timeouts) - **CURRENT**
 
-**Current Status (November 8, 2025):**
-- ✅ **Broadcast text decryption**: Successfully decrypting and extracting channel messages
-- ✅ **Multi-packet type support**: TEXT (0x01), TELEMETRY (0x08), POSITION (0x03), TRACEROUTE (0x42), MAP_REPORT (0x43), NODEINFO (0x04), ADMIN (0x07) all working
-- ✅ **Parsing bugs fixed**: PacketID offset (bytes 8-11), NodeID endianness (little-endian), text extraction patterns (Pattern 1 for raw payload)
+**Current Status (November 9, 2025):**
+- ✅ **Channel message decryption**: Successfully decrypting group chat messages with default PSKs
+- ✅ **Broadcast decryption**: Position, telemetry, node info, traceroute all working
+- ✅ **Multi-packet type support**: TEXT (0x01), TELEMETRY (0x08), POSITION (0x03), TRACEROUTE (0x42), MAP_REPORT (0x43), NODEINFO (0x04), ADMIN (0x07)
+- ✅ **Parsing bugs fixed**: PacketID offset (bytes 8-11), NodeID endianness (little-endian), text extraction patterns
 - ✅ **Core functionality**: Recon/sniff/capture/replay fully operational
-- ✅ **False positive prevention**: Stricter encrypted/plaintext detection (0x08 + valid portnum required)
-- ✅ **Telemetry parsing**: Battery %, voltage, channel utilization, air util implemented (awaiting live packets)
-- ✅ **Watchdog handling**: All replay menu loops now feed watchdog (prevents reboots during packet replay)
-- ⏳ **Session key harvesting**: Implementation complete, waiting for mesh responses (6-24 hour broadcast interval)
+- ✅ **False positive prevention**: Stricter encrypted/plaintext detection
+- ✅ **Telemetry parsing**: Battery %, voltage, channel utilization, air util implemented
+- ✅ **Watchdog handling**: All replay menu loops feed watchdog (prevents reboots)
 - ⏳ **Position GPS parsing**: Identifies packets but coordinate extraction not yet implemented
-- ℹ️ **Note**: Direct messages (DMs) require session keys from mesh
+- ℹ️ **Note**: Direct messages use PKC (Curve25519) in firmware 2.5.0+ and cannot be decrypted without recipient's private key
 
 **Verified Working:**
 ```
@@ -275,13 +283,13 @@ Node: 0x9EA3D744, Packet: 0x80B24533
 5. ✅ Telemetry portnum corrected (0x08 not 0x01)
 6. ✅ TRACEROUTE_APP (0x42) and MAP_REPORT_APP (0x43) packet types added
 7. ✅ Watchdog timeout during packet replay fixed
+8. ✅ Session key harvesting code removed (obsolete for modern Meshtastic firmware 2.5.0+)
 
 **Next Steps:**
 - Capture live telemetry packet to verify battery/voltage/channel util extraction
-- Wait for session key announcements from active mesh
 - Implement GPS coordinate parsing for POSITION_APP packets
 - Test MAP_REPORT_APP structure analysis
-- **Rebuild firmware** to get latest TRACEROUTE/MAP_REPORT fixes
+- **Rebuild firmware** to get latest updates
 
 ---
 
