@@ -88,7 +88,7 @@ conference/: 3 files (offensive testing + ethics)
 - OLED display with button control
 
 **Decryption & Analysis:**
-- PSK decryption (5 default keys)
+- PSK decryption (14 default keys - expanded Nov 11, 2025)
 - TEXT_MESSAGE_APP extraction ✅
 - POSITION_APP, TELEMETRY_APP, NODEINFO_APP, ADMIN_APP
 - TRACEROUTE_APP (0x42) and MAP_REPORT_APP (0x43)

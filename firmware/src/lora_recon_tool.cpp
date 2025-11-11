@@ -484,7 +484,7 @@ void LoRaReconTool::startTargetedCapture(uint8_t deviceIndex) {
     Serial.printf("Frequency: %.3f MHz\n", reconState.getScanConfig(target.configIndex).frequency);
     Serial.printf("Best RSSI: %.1f dBm\n", target.bestRSSI);
     Serial.printf("Packets Seen: %d\n", target.packetCount);
-    Serial.println("\nPress 'm' to return to menu, 'r' to restart recon");
+    Serial.println("\nPress 'm' to return to menu, 'r' to resume recon");
     Serial.println("Monitoring for packets...\n");
     
     applyConfig(reconState.scanState.targetConfig);
@@ -523,7 +523,7 @@ void LoRaReconTool::startFrequencyTargeting(uint8_t configIndex) {
         Serial.println("   Will monitor for new transmissions...");
     }
     
-    Serial.println("\nPress 'm' to return to menu, 'r' to restart recon");
+    Serial.println("\nPress 'm' to return to menu, 'r' to resume recon");
     Serial.println("Monitoring for packets...\n");
     
     // Set up targeting mode
@@ -638,16 +638,8 @@ void LoRaReconTool::handleUserInput(char cmd) {
         return;
     }
     
-    if (cmd == 'r' || cmd == 'R') {
-        // Restart reconnaissance
-        reconState.reset();
-        
-        Serial.println("\n=== RESTARTING RECONNAISSANCE ===");
-        Serial.println("Cleared activity history and device list.");
-        applyConfig(reconState.scanState.currentConfig);
-        radio.startReceive();
-        return;
-    }
+    // All commands now handled by CommandHandler
+    // This fallback should rarely be reached
     
     if (cmd == 's' || cmd == 'S') {
         showReconResults();

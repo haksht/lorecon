@@ -41,7 +41,8 @@ private:
     static void cmdDeviceTypeSummary(LoRaReconTool* tool);
     static void cmdActivityDetails(LoRaReconTool* tool);
     static void cmdPacketReplay(LoRaReconTool* tool);
-    static void cmdRestartRecon(LoRaReconTool* tool);
+    static void cmdResumeRecon(LoRaReconTool* tool);
+    static void cmdRebootDevice(LoRaReconTool* tool);
     static void cmdShowSummary(LoRaReconTool* tool);
     static void cmdSecurityAssessment(LoRaReconTool* tool);
     static void cmdCapturePacket(LoRaReconTool* tool);

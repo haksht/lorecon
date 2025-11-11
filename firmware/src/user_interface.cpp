@@ -297,7 +297,7 @@ void showReconResults() {
     Serial.println("TARGETABLE DEVICES: None\n");
     Serial.println("ℹ️  No devices with decoded packets found.");
     Serial.println("   RF activity detected above, but no targetable node IDs captured.");
-    Serial.println("   Press 'r' to restart reconnaissance or wait longer for packet capture.");
+    Serial.println("   Press 'r' to resume reconnaissance or wait longer for packet capture.");
   } else {
     Serial.println("TARGETABLE DEVICES (Confirmed Node IDs):");
     Serial.println("ID | Device Type          | Node ID    | Protocol     | RSSI  | Pkts | Router");
@@ -329,7 +329,8 @@ void showReconResults() {
   Serial.println("k   : Export KML (Google Earth format)");
   Serial.println("j   : Export GeoJSON (web mapping)");
   Serial.println("p   : Packet replay menu");
-  Serial.println("r   : Restart reconnaissance");
+  Serial.println("r   : Resume reconnaissance (keep devices)");
+  Serial.println("b   : Reboot device (clears all data)");
   Serial.println("s   : Show summary again");
   Serial.println("v   : Security vulnerability assessment");
 #ifdef ENABLE_STRESS_TESTING
@@ -364,7 +365,7 @@ void printStats() {
                   pskStats.attempts, pskStats.successes,
                   (float)pskStats.successes / pskStats.attempts * 100.0);
     
-    for (uint8_t i = 0; i < 5; i++) { // NUM_DEFAULT_PSKS
+    for (uint8_t i = 0; i < 14; i++) { // NUM_DEFAULT_PSKS
       if (pskStats.hitCount[i] > 0) {
         Serial.printf("  Key #%d: %d hits\n", i + 1, pskStats.hitCount[i]);
       }
@@ -382,7 +383,7 @@ void displayWelcomeMessage() {
   Serial.printf("Scanning %d configurations\n", reconState.getNumConfigs());
   
   #ifdef ENABLE_PSK_TESTING
-  Serial.printf("PSK testing: ENABLED (%d default keys)\n", 5); // NUM_DEFAULT_PSKS
+  Serial.printf("PSK testing: ENABLED (%d default keys)\n", 14); // NUM_DEFAULT_PSKS
   #else
   Serial.println("PSK testing: DISABLED");
   #endif
