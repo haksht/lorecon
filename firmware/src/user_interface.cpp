@@ -298,40 +298,30 @@ void showReconResults() {
     Serial.println("ℹ️  No devices with decoded packets found.");
     Serial.println("   RF activity detected above, but no targetable node IDs captured.");
     Serial.println("   Press 'r' to restart reconnaissance or wait longer for packet capture.");
+  } else {
+    Serial.println("TARGETABLE DEVICES (Confirmed Node IDs):");
+    Serial.println("ID | Device Type          | Node ID    | Protocol     | RSSI  | Pkts | Router");
+    Serial.println("---|----------------------|------------|--------------|-------|------|-------");
     
-    Serial.println("\nCOMMANDS:");
-    Serial.println("8   : Target SF8 freq (encrypted messages)");
-    Serial.println("p   : Packet replay menu");
-    Serial.println("r   : Restart reconnaissance");
-    Serial.println("a   : Show activity details");
-    Serial.println("g   : Geographic intelligence (GPS data)");
-#ifdef ENABLE_STRESS_TESTING
-    Serial.println("t   : Hardware stress testing");
-#endif
-    Serial.print("\nSelect command: ");
-    return;
+    for (uint8_t i = 0; i < reconState.numTargetableDevices; i++) {
+      const TargetableDevice& dev = reconState.getTargetableDevice(i);
+      
+      Serial.printf("%2d | %-20s | 0x%08X | %-12s | %5.1f | %4d | %s\n",
+                    i + 1,
+                    dev.deviceType,
+                    (unsigned int)dev.nodeId,
+                    dev.protocol,
+                    dev.bestRSSI,
+                    (int)dev.packetCount,
+                    dev.isRouter ? " YES " : " NO  ");
+    }
   }
   
-  Serial.println("TARGETABLE DEVICES (Confirmed Node IDs):");
-  Serial.println("ID | Device Type          | Node ID    | Protocol     | RSSI  | Pkts | Router");
-  Serial.println("---|----------------------|------------|--------------|-------|------|-------");
-  
-  for (uint8_t i = 0; i < reconState.numTargetableDevices; i++) {
-    const TargetableDevice& dev = reconState.getTargetableDevice(i);
-    
-    Serial.printf("%2d | %-20s | 0x%08X | %-12s | %5.1f | %4d | %s\n",
-                  i + 1,
-                  dev.deviceType,
-                  (unsigned int)dev.nodeId,
-                  dev.protocol,
-                  dev.bestRSSI,
-                  (int)dev.packetCount,
-                  dev.isRouter ? " YES " : " NO  ");
-  }
-  
+  // Show full command menu regardless of whether devices were found
   Serial.println("\nCOMMANDS:");
-  Serial.println("1-" + String(reconState.numTargetableDevices) + " : Target device for capture");
-  Serial.println("8   : Target SF8 freq (encrypted messages)");
+  if (reconState.numTargetableDevices > 0) {
+    Serial.println("1-" + String(reconState.numTargetableDevices) + " : Target device for capture");
+  }
   Serial.println("a   : Show activity details");
   Serial.println("d   : Show device type analysis");
   Serial.println("f   : Frequency targeting (skip device ID)");

@@ -66,6 +66,17 @@ private:
     bool testingEnabled;
     unsigned long lastCooldown;
     
+    // Saved radio configuration for restoration
+    struct SavedRadioConfig {
+        float frequency;
+        float bandwidth;
+        uint8_t spreadingFactor;
+        uint8_t syncWord;
+        uint8_t codingRate;
+        uint8_t preambleLength;
+        bool saved;
+    } savedConfig;
+    
     // Safety functions
     bool checkSafetyLimits();
     bool performSafetyCheck();
@@ -86,6 +97,8 @@ private:
     bool checkHardwareStability();
     bool validateRadioConfiguration();
     void logTestMetrics(const String& testName, bool result);
+    void saveCurrentRadioConfiguration();   // Save current radio config before tests
+    void restoreReconConfiguration();       // Restore radio to saved settings after tests
     
 public:
     HardwareStressTester(SX1262* radioModule);

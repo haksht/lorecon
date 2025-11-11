@@ -29,7 +29,6 @@ const CommandHandler::CommandEntry CommandHandler::commands[] = {
     {'M', cmdShowMenu,            "Show menu and results",         false},
     {'f', cmdFrequencyTargeting,  "Frequency targeting mode",      false},
     {'F', cmdFrequencyTargeting,  "Frequency targeting mode",      false},
-    {'8', cmdTargetSF8,           "Target SF8 (encrypted msgs)",   false},
     {'d', cmdDeviceTypeSummary,   "Device type analysis",          false},
     {'D', cmdDeviceTypeSummary,   "Device type analysis",          false},
     {'a', cmdActivityDetails,     "RF activity details",           false},
@@ -50,8 +49,8 @@ const CommandHandler::CommandEntry CommandHandler::commands[] = {
     {'K', cmdExportKML,           "Export KML (Google Earth)",     false},
     {'j', cmdExportGeoJSON,       "Export GeoJSON (web maps)",     false},
     {'J', cmdExportGeoJSON,       "Export GeoJSON (web maps)",     false},
-    {'q', cmdRequestSessionKey,   "Request session key",           false},
-    {'Q', cmdSessionKeyStatus,    "Show session key status",       false},
+    {'q', cmdToggleQuietMode,     "Toggle quiet/verbose mode",     false},
+    {'Q', cmdToggleQuietMode,     "Toggle quiet/verbose mode",     false},
     {'x', cmdDiagnosticReport,    "Text packet diagnostic report", false},
     {'X', cmdDiagnosticReport,    "Text packet diagnostic report", false},
 #ifdef ENABLE_STRESS_TESTING
@@ -109,7 +108,6 @@ void CommandHandler::showCommands() {
     Serial.println("\\n📡 TARGETING:");
     Serial.println("  1-9 : Target device by number");
     Serial.println("  f   : Frequency targeting (skip device)");
-    Serial.println("  8   : Quick target SF8 (encrypted messages)");
     
     Serial.println("\\n📊 ANALYSIS:");
     Serial.println("  m   : Show menu with discovered devices");
@@ -143,28 +141,6 @@ void CommandHandler::cmdShowMenu(LoRaReconTool* tool) {
 void CommandHandler::cmdFrequencyTargeting(LoRaReconTool* tool) {
     showFrequencyTargetingMenu();
     handleFrequencyTargetingInput();
-}
-
-void CommandHandler::cmdTargetSF8(LoRaReconTool* tool) {
-    Serial.println("\\n🎯 TARGETING SF8 FREQUENCY FOR ENCRYPTED MESSAGES");
-    Serial.println("Switching to Meshtastic_902_SF8 (902.125 MHz, SF8, BW250)");
-    
-    reconState.scanState.mode = MODE_TARGETED_CAPTURE;
-    reconState.scanState.targetConfig = 6;  // Meshtastic_902_SF8
-    reconState.scanState.currentConfig = 6;
-    
-    Serial.println("Configuration:");
-    const ScanConfig& cfg = reconState.getScanConfig(6);
-    Serial.printf("  Frequency: %.3f MHz\\n", cfg.frequency);
-    Serial.printf("  Spreading Factor: SF%d\\n", cfg.spreadingFactor);
-    Serial.printf("  Bandwidth: %.0f kHz\\n", cfg.bandwidth);
-    Serial.printf("  Sync Word: 0x%02X\\n", cfg.syncWord);
-    Serial.println("\\nThis configuration should capture encrypted user messages!");
-    Serial.println("Press 'm' for menu, 'r' to restart recon");
-    Serial.println("Monitoring for encrypted packets...\\n");
-    
-    tool->applyConfigPublic(6);
-    tool->startReceiving();
 }
 
 void CommandHandler::cmdDeviceTypeSummary(LoRaReconTool* tool) {
@@ -278,35 +254,6 @@ void CommandHandler::cmdToggleQuietMode(LoRaReconTool* tool) {
     }
     Serial.println();
 }
-
-#ifdef ENABLE_PSK_TESTING
-void CommandHandler::cmdRequestSessionKey(LoRaReconTool* tool) {
-    Serial.println("\n[SESSION] 🔑 Requesting session key from mesh...");
-    
-    // Use a node ID we've seen, or random
-    uint32_t nodeId = 0xDEADBEEF;  // Default random
-    
-    if (reconState.numTargetableDevices > 0) {
-        // Use ID of first discovered device
-        nodeId = reconState.getTargetableDevice(0).nodeId;
-        Serial.printf("[SESSION] Using node ID: 0x%08X\n", nodeId);
-    } else {
-        Serial.println("[SESSION] Using random node ID (no devices discovered yet)");
-    }
-    
-    if (tool->getSessionKeyManager().requestSessionKey(0, nodeId)) {
-        Serial.println("[SESSION] ✅ Request transmitted");
-        Serial.println("[SESSION] 📡 Listening for response...");
-        Serial.println("[SESSION] (Should arrive within 5-10 seconds)\n");
-    } else {
-        Serial.println("[SESSION] ❌ Request transmission failed\n");
-    }
-}
-
-void CommandHandler::cmdSessionKeyStatus(LoRaReconTool* tool) {
-    tool->getSessionKeyManager().printStatus();
-}
-#endif
 
 #ifdef ENABLE_STRESS_TESTING
 void CommandHandler::cmdStressTesting(LoRaReconTool* tool) {
