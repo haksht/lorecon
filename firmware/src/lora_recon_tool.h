@@ -11,28 +11,11 @@
 class CommandHandler;
 class OLEDDisplay;
 
-// Packet queue structure for buffering received packets
-struct QueuedPacket {
-    uint8_t data[256];
-    size_t length;
-    float rssi;
-    float snr;
-    uint32_t timestamp;
-};
-
 #include "recon_state.h"
 #include "protocol_analyzer.h"
 #include "geo_intelligence.h"
 #include "command_handler.h"
 #include "oled_display.h"
-
-#ifdef ENABLE_STRESS_TESTING
-#include "hardware_stress_tester.h"
-#endif
-
-#ifdef ENABLE_OFFENSIVE_TESTING
-#include "device_stress_tester.h"
-#endif
 
 // Hardware configuration for Heltec WiFi LoRa 32 V3
 #define LORA_NSS    8
@@ -85,16 +68,6 @@ public:
     
     // Display access
     OLEDDisplay* getDisplay() { return oledDisplay; }
-    
-#ifdef ENABLE_STRESS_TESTING
-    HardwareStressTester* getStressTester() { return stressTester; }
-    void ensureStressTesterInitialized();
-#endif
-
-#ifdef ENABLE_OFFENSIVE_TESTING
-    DeviceStressTester* getDeviceStressTester() { return deviceStressTester; }
-    void ensureDeviceStressTesterInitialized();
-#endif
 
 private:
     // Hardware instances
@@ -112,14 +85,6 @@ private:
     bool buttonPressed;
     uint32_t buttonPressStart;
     bool shutdownInitiated;
-    
-#ifdef ENABLE_STRESS_TESTING
-    HardwareStressTester* stressTester;
-#endif
-
-#ifdef ENABLE_OFFENSIVE_TESTING
-    DeviceStressTester* deviceStressTester;
-#endif
     
     // Button handler
     void handleButtonPress(uint32_t now);
@@ -144,9 +109,6 @@ private:
     
     // Logging
     void logPacket(const uint8_t* data, size_t length, float rssi, float snr, const char* protocol);
-    
-    // Stress testing
-    void initializeStressTesting();
 };
 
 // Global interrupt handler needs access to tool instance
