@@ -49,6 +49,9 @@ LoRaReconTool::LoRaReconTool()
 #ifdef ENABLE_STRESS_TESTING
     , stressTester(nullptr)
 #endif
+#ifdef ENABLE_OFFENSIVE_TESTING
+    , deviceStressTester(nullptr)
+#endif
 {
     g_reconTool = this;
 }
@@ -373,6 +376,11 @@ void LoRaReconTool::processQueuedPackets() {
             geoIntel.extractPosition(data, length, info.nodeId);
         }
         
+        // Track as targetable device in ALL modes if we have a real node ID
+        if (info.nodeId != 0) {
+            trackTargetableDevice(info.nodeId, reconState.scanState.currentConfig, rssi, info.protocol, data, length);
+        }
+        
         // Mode-specific handling
         if (reconState.scanState.mode == MODE_RECONNAISSANCE) {
                 Serial.printf("[RECON] Packet #%d: %s, %d bytes, %.1f dBm, %.1f dB SNR\n",
@@ -385,11 +393,6 @@ void LoRaReconTool::processQueuedPackets() {
                 
                 // Track RF activity (for situational awareness)
                 trackRFActivity(reconState.scanState.currentConfig, rssi);
-                
-                // Track as targetable device only if we have a real node ID
-                if (info.nodeId != 0) {
-                    trackTargetableDevice(info.nodeId, reconState.scanState.currentConfig, rssi, info.protocol, data, length);
-                }
             } else if (reconState.scanState.mode == MODE_TARGETED_CAPTURE) {
                 // Show ALL packets with full decryption to find text messages
                 if (length < 40) {
@@ -596,6 +599,16 @@ void LoRaReconTool::initializeStressTesting() {
 void LoRaReconTool::ensureStressTesterInitialized() {
     if (!stressTester) {
         stressTester = new HardwareStressTester(&radio);
+    }
+}
+#endif
+
+#ifdef ENABLE_OFFENSIVE_TESTING
+void LoRaReconTool::ensureDeviceStressTesterInitialized() {
+    if (!deviceStressTester) {
+        deviceStressTester = new DeviceStressTester(&radio);
+        deviceStressTester->initialize();
+        Serial.println("[OFFENSIVE] DeviceStressTester initialized");
     }
 }
 #endif
