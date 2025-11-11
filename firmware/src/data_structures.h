@@ -33,6 +33,15 @@ struct CapturedPacket {
   bool valid;
 };
 
+// Queued packet for interrupt-driven reception
+struct QueuedPacket {
+    uint8_t data[256];
+    size_t length;
+    float rssi;
+    float snr;
+    uint32_t timestamp;
+};
+
 // Frequency scan configuration
 struct ScanConfig {
   float frequency;

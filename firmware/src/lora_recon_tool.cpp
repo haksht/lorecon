@@ -46,12 +46,6 @@ LoRaReconTool::LoRaReconTool()
     , buttonPressed(false)
     , buttonPressStart(0)
     , shutdownInitiated(false)
-#ifdef ENABLE_STRESS_TESTING
-    , stressTester(nullptr)
-#endif
-#ifdef ENABLE_OFFENSIVE_TESTING
-    , deviceStressTester(nullptr)
-#endif
 {
     g_reconTool = this;
 }
@@ -588,30 +582,6 @@ void LoRaReconTool::logPacket(const uint8_t* data, size_t length, float rssi, fl
 }
 
 // Initialize stress testing
-void LoRaReconTool::initializeStressTesting() {
-#ifdef ENABLE_STRESS_TESTING
-    // Stress tester will be initialized on first use for efficiency
-    Serial.println("⚠️ Hardware stress testing available (press 't' in menu)");
-#endif
-}
-
-#ifdef ENABLE_STRESS_TESTING
-void LoRaReconTool::ensureStressTesterInitialized() {
-    if (!stressTester) {
-        stressTester = new HardwareStressTester(&radio);
-    }
-}
-#endif
-
-#ifdef ENABLE_OFFENSIVE_TESTING
-void LoRaReconTool::ensureDeviceStressTesterInitialized() {
-    if (!deviceStressTester) {
-        deviceStressTester = new DeviceStressTester(&radio);
-        deviceStressTester->initialize();
-        Serial.println("[OFFENSIVE] DeviceStressTester initialized");
-    }
-}
-#endif
 
 // Handle user input commands
 void LoRaReconTool::handleUserInput(char cmd) {
@@ -620,13 +590,6 @@ void LoRaReconTool::handleUserInput(char cmd) {
         showReconResults();
         return;
     }
-    
-#ifdef ENABLE_STRESS_TESTING
-    if (cmd == 't' || cmd == 'T') {
-        showStressTestMenu();
-        return;
-    }
-#endif
 
     if (cmd == 'f' || cmd == 'F') {
         showFrequencyTargetingMenu();

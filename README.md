@@ -1,14 +1,13 @@
 # ESP32 LoRa Packet Sniffer & Reconnaissance Tool
 
-**Version 1.9 Production | Status: ✅ PRODUCTION READY**
+**Version 2.0 - Simplified Architecture | Status: ✅ PRODUCTION READY**
 
 [![Build Status](https://img.shields.io/badge/build-passing-brightgreen)]()
-[![Code Quality](https://img.shields.io/badge/code%20quality-9.5%2F10-brightgreen)]()
-[![Security](https://img.shields.io/badge/security-A--grade-green)]()
-[![Warnings](https://img.shields.io/badge/warnings-0-brightgreen)]()
-[![Display](https://img.shields.io/badge/OLED-working-blue)]()
+[![Architecture](https://img.shields.io/badge/architecture-simplified-blue)]()
+[![Code Lines](https://img.shields.io/badge/code-~2.1k_lines_removed-green)]()
+[![Focus](https://img.shields.io/badge/focus-reconnaissance+PC_analysis-orange)]()
 
-**Last Updated:** November 11, 2025 | **Branch:** `main`
+**Last Updated:** November 11, 2025 | **Branch:** `main` | **Architecture:** Reconnaissance + PC Analysis
 
 ---
 
@@ -24,48 +23,54 @@
 
 # ESP32 LoRa Packet Sniffer & Reconnaissance Tool
 
-**Version 1.9** - Production-Ready Security Research Platform
+**Version 2.0** - Production-Ready Passive Reconnaissance Platform
 
-LoRa packet capture and analysis tool for ESP32-S3 + SX1262 radio with OLED display. Focused reconnaissance, sniffing, capture, and replay capabilities with optional PSK testing and hardware stress validation. Now with standalone operation via OLED and button control.
+LoRa packet capture and analysis tool for ESP32-S3 + SX1262 radio with OLED display. **Focused on field data collection with PC-based analysis.** Passive reconnaissance, packet capture, PSK decryption, and SD card logging for post-mission analysis.
 
-**Quality Score**: 8.5/10 - Production-grade embedded code with atomic interrupts, hardware watchdog, and comprehensive timeout protection.
+**Design Philosophy**: ESP32 captures efficiently, PC analyzes comprehensively.
 
-## 🚀 **Dual-Track Build System**
+**Quality Score**: 9.0/10 - Simplified architecture, removed ~2,100 lines of speculative code, focused on core mission.
 
-**Choose your version based on your needs:**
+## 🎯 **What Changed in v2.0**
 
-### 🎯 **Research Platform** (Default - Full-Featured)
+### **Removed** 🗑️
+- ❌ Attack/offensive testing framework (~1,200 lines)
+- ❌ Hardware stress testing (~900 lines)
+- ❌ Speculative "device testing" features
+- ❌ Over-engineered attack scenarios
+
+### **Added** ✅
+- ✅ SD card logging for field deployment
+- ✅ PC analysis tools (Python scripts)
+- ✅ Clean CSV export format
+- ✅ Focus on data quality over quantity
+
+### **Why?**
+The tool is excellent at **passive reconnaissance**. Testing external devices requires lab equipment and controlled conditions - not something an ESP32 can reliably do in the field. By focusing on what we do well (capture, analyze, decrypt), we've created a more reliable, maintainable tool.
+
+## 🚀 **Build System**
+
 ```bash
-# Complete reconnaissance tool with advanced features
-pio run -e research-platform --target upload
-pio device monitor
-
-# Or use default (same as research-platform)
-pio run --target upload 
+# Complete reconnaissance tool
+pio run --target upload
 pio device monitor
 ```
 
-### 📚 **Educational Simple** (Clean Learning Version)  
-```bash
-# Streamlined 300-line implementation for learning
-pio run -e simple --target upload
-pio device monitor
-```
+## 🎯 **Core Features**
 
-## 🎯 **Core Features (Research Platform)**
-
-### **Four-Stage Operation**
+### **Field Data Collection**
 1. **Reconnaissance**: Scans 16 LoRa configurations to detect active devices
-2. **Sniffing**: Monitors RF activity and identifies protocol types
+2. **Sniffing**: Monitors RF activity and identifies protocol types  
 3. **Capture**: Locks onto specific devices for focused packet collection
-4. **Replay**: Retransmit captured packets for testing and analysis
+4. **SD Card Logging**: Automatic session logging to SD card for PC analysis
 
-### **Interactive Capabilities**
+### **On-Device Capabilities**
 - **Device Targeting**: Select from discovered devices for focused monitoring
 - **Packet Replay**: Store up to 10 captured packets and retransmit them
 - **Broadcast Decryption**: Decrypt position, telemetry, and channel messages with default PSKs
-- **Hardware Validation**: Built-in stress testing framework
 - **Protocol Analysis**: Identifies Meshtastic, LoRaWAN, and custom protocols
+- **OLED Display**: Real-time status with 6 display modes
+- **Button Control**: Toggle display and shutdown via hardware button
 
 **Important:** Meshtastic firmware 2.5.0+ (June 2024) uses Public Key Cryptography (Curve25519) for direct messages. This tool decrypts:
 - ✅ **Channel/group messages** (sent to channel, uses channel PSK)
@@ -76,35 +81,47 @@ pio device monitor
 
 See [ENCRYPTION_REALITY.md](docs/ENCRYPTION_REALITY.md) for technical details.
 
-### **NEW in v1.8** 🎉
-- **OLED Display**: 128x64 SSD1306 with 6 display modes for standalone operation
-- **Button Control**: Toggle display and shutdown via hardware button
-- **Auto-Off Timer**: Configurable display timeout (30s default)
-- **Robust Initialization**: Reset pulse + retry logic handles all board variants
+### **PC Analysis Workflow** 🖥️ **NEW in v2.0**
+The ESP32 now focuses on efficient field data collection. Analysis happens on PC:
 
-### **Previous (v1.7)**
-- **Geographic Intelligence**: Automatic GPS extraction from Meshtastic position packets
-- **KML/GeoJSON Export**: Map device locations in Google Earth or web mapping tools
-- **Channel PSK Decryption**: Tests 5 common default keys for broadcast and channel messages
-- **Simplified Stress Testing**: Real ESP32 temperature monitoring for attack surface analysis
-- **UI Components**: Modular display functions for cleaner code organization
-- **Note**: Session key harvesting removed in v1.9 - modern Meshtastic uses PKC for DMs
+1. **Field Deployment**: ESP32 captures packets to SD card
+2. **Data Transfer**: Copy CSV files from SD card to PC
+3. **PC Analysis**: Run Python tools for comprehensive analysis:
+   ```bash
+   # Analyze capture session
+   python tools/pc_analyzer.py logs/recon_123456.csv
+   
+   # Generate device map
+   python tools/pc_analyzer.py logs/ --json analysis.json
+   ```
+4. **Visualization**: Import CSV into Excel, Python pandas, or custom tools
+5. **Mapping**: GPS tracks and device locations in GIS tools
 
-### **Previous Features (v1.5)**
-- Live Visualization with real-time RSSI graphs
-- Firmware Fingerprinting for Meshtastic versions
-- Security Assessment with vulnerability scoring
+**Benefits**:
+- 💾 Unlimited storage (SD card)
+- 🔍 Advanced analysis algorithms on PC
+- 📊 Custom visualization and reporting
+- 🔄 Reproducible analysis from raw data
+- 🗺️ Integration with mapping tools
+
+### **Version History**
+- ✅ **v2.0**: Simplified architecture, SD card logging, PC analysis focus
+- ✅ **v1.9**: Session key code removed (obsolete for modern Meshtastic)
+- ✅ **v1.8**: OLED display, button control, robust initialization  
+- ✅ **v1.7**: Geographic intelligence, KML/GeoJSON export
+- ✅ **v1.5**: Live visualization, firmware fingerprinting
 
 ## 💡 **Usage Flow**
 
-### **Research Platform Workflow**
+### **Field Operation**
 1. **Initial Scan**: Wait ~3 minutes for reconnaissance phase to complete
 2. **Review Devices**: Press 'm' to see menu with discovered devices and signal analysis
 3. **Target Device**: Select device number (1-9) to lock frequency and capture packets
-4. **Capture Packets**: During targeting mode, press 'c' to save packet to replay slot
-5. **Replay Menu**: Press 'p' to view captured packets and retransmit them
+4. **SD Card Logging**: All packets automatically logged to SD card (if present)
+5. **Data Collection**: Continue capture as long as needed - unlimited SD card storage
 
-### **Additional Commands**
+### **Available Commands**
+- **'m'**: Show menu with discovered devices
 - **'f'**: Direct frequency targeting (bypass device detection)
 - **'a'**: Show detailed RF activity analysis
 - **'d'**: Device type classification breakdown
@@ -113,25 +130,31 @@ See [ENCRYPTION_REALITY.md](docs/ENCRYPTION_REALITY.md) for technical details.
 - **'g'**: Geographic intelligence summary (GPS positions)
 - **'k'**: Export KML for Google Earth
 - **'j'**: Export GeoJSON for web mapping
-- **'t'**: Hardware stress testing menu
 - **'r'**: Resume reconnaissance (keeps discovered devices)
 - **'b'**: Reboot device (clears all data)
+- **'c'**: Capture packet for replay (targeted mode)
+- **'p'**: Packet replay menu
 
-### **Live Visualization** ← NEW
+### **PC Analysis**
+After field collection, analyze data on PC:
 ```bash
-# Terminal 1: ESP32 running
-pio device monitor
+# Copy SD card files to PC
+cp /Volumes/SD_CARD/logs/*.csv ./analysis/
 
-# Terminal 2: Python visualizer
-python tools/live_visualizer.py COM3
+# Run analysis
+python tools/pc_analyzer.py analysis/recon_123456.csv
+
+# Generate JSON report
+python tools/pc_analyzer.py analysis/ --json report.json
 ```
-Real-time graphs showing RSSI, packet rates, and device discovery!
 
-### **Educational Simple**
-- Automatic continuous scanning across all frequencies
-- Real-time packet display as captures occur
-- Clean output perfect for learning LoRa basics
-- No interactive menus - streamlined operation
+**PC Analysis Features:**
+- Device identification and classification
+- Signal strength heatmaps and coverage analysis
+- Protocol distribution statistics
+- Timeline visualization
+- GPS track mapping (if position data captured)
+- Export to multiple formats for further processing
 
 ## 🔧 **Hardware Requirements**
 
