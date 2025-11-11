@@ -134,11 +134,11 @@ Fixed system rebooting during packet replay operations:
 
 ## ⏳ PENDING / TODO
 
-### Session Key Harvesting (Implemented, Not Yet Working)
-- ✅ Request transmission successful
-- ❌ No ADMIN_APP responses with session keys received
-- **Reason**: Nodes may not share keys with unknown devices, or mesh inactive
-- **Note**: Broadcast channel messages work WITHOUT session keys!
+### ⚠️ Session Key Harvesting (REMOVED - OBSOLETE)
+- **Status**: Code removed in v1.9
+- **Reason**: Modern Meshtastic (firmware 2.5.0+, June 2024) uses PKC (Curve25519) for DMs
+- **Note**: Channel PSK still works for broadcast/position/telemetry messages
+- **Reality**: Direct messages cannot be decrypted without recipient's private key
 
 ### Position GPS Parsing (Identified, Not Implemented)
 - ✅ POSITION_APP packets decrypt successfully
@@ -229,7 +229,6 @@ Hex:    D4 F1 BB 3A 20 29 07 59 F0 BC FF AB CF 4E 69 01
 - [ ] Add target device selection UI
 
 ### Low Priority / Nice to Have
-- [ ] Test session key harvesting when mesh becomes active
 - [ ] Document TRACEROUTE_APP internal structure
 - [ ] Add more position data parsing (altitude, speed, heading)
 - [ ] Test with different Meshtastic firmware versions
@@ -304,9 +303,15 @@ Hex:    D4 F1 BB 3A 20 29 07 59 F0 BC FF AB CF 4E 69 01
 5. Lines 423: Added MAP_REPORT_APP (0x43) to packet type switch
 6. Lines 456-488: Fixed telemetry portnum (0x08) with battery/voltage/channel/air util parsing
 
-### Session Key Management
-**`firmware/src/session_key_manager.cpp`**:
-- Lines 195-213: Fixed PacketID offset + NodeID endianness to match main decryption
+### Session Key Code Removal (v1.9)
+- **DELETED**: `firmware/src/session_key_manager.h`
+- **DELETED**: `firmware/src/session_key_manager.cpp`
+- **DELETED**: `conference/SESSION_KEY_HARVESTING_GUIDE.md`
+- **DELETED**: `docs/deepdive/DEEP_DIVE_SESSION_KEY_HARVESTING.md`
+- **MODIFIED**: `firmware/src/lora_recon_tool.h` - Removed SessionKeyManager integration
+- **MODIFIED**: `firmware/src/lora_recon_tool.cpp` - Removed session key functions
+- **MODIFIED**: `firmware/src/command_handler.h` - Removed 'q'/'Q' commands
+- **MODIFIED**: `firmware/src/command_handler.cpp` - Removed session key commands
 
 ### Protocol Analysis
 **`firmware/src/protocol_analyzer.cpp`**:
