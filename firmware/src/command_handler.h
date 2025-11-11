@@ -56,6 +56,10 @@ private:
 #ifdef ENABLE_STRESS_TESTING
     static void cmdStressTesting(LoRaReconTool* tool);
 #endif
+
+#ifdef ENABLE_OFFENSIVE_TESTING
+    static void cmdOffensiveTesting(LoRaReconTool* tool);
+#endif
     
     // Command table entry
     struct CommandEntry {

@@ -30,6 +30,10 @@ struct QueuedPacket {
 #include "hardware_stress_tester.h"
 #endif
 
+#ifdef ENABLE_OFFENSIVE_TESTING
+#include "device_stress_tester.h"
+#endif
+
 // Hardware configuration for Heltec WiFi LoRa 32 V3
 #define LORA_NSS    8
 #define LORA_DIO1   14
@@ -87,6 +91,11 @@ public:
     void ensureStressTesterInitialized();
 #endif
 
+#ifdef ENABLE_OFFENSIVE_TESTING
+    DeviceStressTester* getDeviceStressTester() { return deviceStressTester; }
+    void ensureDeviceStressTesterInitialized();
+#endif
+
 private:
     // Hardware instances
     SX1262 radio;
@@ -106,6 +115,10 @@ private:
     
 #ifdef ENABLE_STRESS_TESTING
     HardwareStressTester* stressTester;
+#endif
+
+#ifdef ENABLE_OFFENSIVE_TESTING
+    DeviceStressTester* deviceStressTester;
 #endif
     
     // Button handler

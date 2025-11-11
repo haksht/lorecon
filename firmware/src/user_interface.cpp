@@ -336,6 +336,9 @@ void showReconResults() {
 #ifdef ENABLE_STRESS_TESTING
   Serial.println("t   : Hardware stress testing");
 #endif
+#ifdef ENABLE_OFFENSIVE_TESTING
+  Serial.println("A   : Attack menu (offensive testing)");
+#endif
   Serial.print("\nSelect target (1-" + String(reconState.numTargetableDevices) + ") or command: ");
 }
 
