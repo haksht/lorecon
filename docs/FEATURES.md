@@ -93,8 +93,11 @@ A focused LoRa packet capture and analysis tool for security research and RF exp
 **Build Flag**: `-DENABLE_PSK_TESTING`  
 **Files**: `psk_decryption_simple.cpp`, `psk_tests.h`
 
-- **5 default Meshtastic PSKs** (AQ==, 1PG...HivQY=, common defaults)
-- **AES-256 decryption** (Meshtastic encryption standard)
+- **14 default Meshtastic PSKs** including:
+  - Standard 16-byte keys (most common)
+  - Single-byte variants (0x01-0x05)
+  - Weak test keys (zeros, "1234567890123456", "test", "meshtastic")
+- **AES-128/256 decryption** (Meshtastic encryption standard)
 - **Automated test suite** (Base64 parsing, PSK loading, decryption logic)
 - **Message extraction** (pulls plaintext from decrypted packets)
 - **Success statistics** (tracks which keys work)

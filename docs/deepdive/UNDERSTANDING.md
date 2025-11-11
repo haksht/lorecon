@@ -1572,7 +1572,9 @@ void handleInput(char cmd) {
     } else if (cmd == 'p' || cmd == 'P') {
         packetReplay();
     } else if (cmd == 'r' || cmd == 'R') {
-        restartRecon();
+        resumeRecon();  // Keeps discovered devices
+    } else if (cmd == 'b' || cmd == 'B') {
+        rebootDevice();  // Clears all data with confirmation
     } else if (cmd == 's' || cmd == 'S') {
         showSummary();
     } else if (cmd == 'v' || cmd == 'V') {

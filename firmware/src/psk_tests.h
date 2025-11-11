@@ -74,7 +74,7 @@ private:
         Serial.print("Test 3: Default PSK Loading... ");
         
         // Verify PSK database is accessible
-        if (PSKDecryption::getDefaultPSKCount() == 5) {
+        if (PSKDecryption::getDefaultPSKCount() == 14) {
             Serial.println("✅ PASS");
             return 1;
         }

@@ -10,6 +10,7 @@
  * - Grouped command display
  */
 
+#include <esp_task_wdt.h>
 #include "command_handler.h"
 #include "lora_recon_tool.h"
 #include "user_interface.h"
@@ -35,8 +36,10 @@ const CommandHandler::CommandEntry CommandHandler::commands[] = {
     {'A', cmdActivityDetails,     "RF activity details",           false},
     {'p', cmdPacketReplay,        "Packet replay menu",            false},
     {'P', cmdPacketReplay,        "Packet replay menu",            false},
-    {'r', cmdRestartRecon,        "Restart reconnaissance",        false},
-    {'R', cmdRestartRecon,        "Restart reconnaissance",        false},
+    {'r', cmdResumeRecon,         "Resume reconnaissance",         false},
+    {'R', cmdResumeRecon,         "Resume reconnaissance",         false},
+    {'b', cmdRebootDevice,        "Reboot device",                 false},
+    {'B', cmdRebootDevice,        "Reboot device",                 false},
     {'s', cmdShowSummary,         "Show summary",                  false},
     {'S', cmdShowSummary,         "Show summary",                  false},
     {'v', cmdSecurityAssessment,  "Security assessment",           false},
@@ -116,10 +119,11 @@ void CommandHandler::showCommands() {
     Serial.println("  d   : Device type breakdown");
     Serial.println("  v   : Security vulnerability assessment");
     
-    Serial.println("\\n🔧 OPERATIONS:");
+    Serial.println("\n🔧 OPERATIONS:");
     Serial.println("  c   : Capture packet for replay");
     Serial.println("  p   : Packet replay menu");
-    Serial.println("  r   : Restart reconnaissance");
+    Serial.println("  r   : Resume reconnaissance (keep devices)");
+    Serial.println("  b   : Reboot device (clears all data)");
     
 #ifdef ENABLE_STRESS_TESTING
     Serial.println("\\n⚡ TESTING:");
@@ -155,17 +159,60 @@ void CommandHandler::cmdPacketReplay(LoRaReconTool* tool) {
     tool->showReplayMenu();
 }
 
-void CommandHandler::cmdRestartRecon(LoRaReconTool* tool) {
-    reconState.reset();
+void CommandHandler::cmdResumeRecon(LoRaReconTool* tool) {
+    // Resume reconnaissance WITHOUT clearing discovered devices/data
+    Serial.println("\n=== RESUMING RECONNAISSANCE ===");
+    Serial.println("Restarting scan cycle while keeping discovered devices.");
+    Serial.printf("Current devices: %d, Nodes: %d, Replay slots: %d\n", 
+                  reconState.numTargetableDevices, 
+                  reconState.nodeCount,
+                  reconState.numCapturedPackets);
     
-    // Reset diagnostic counters when restarting reconnaissance
-    TextPacketDiagnostic::reset();
+    // Reset only the scan state to restart the cycle
+    reconState.scanState.mode = MODE_RECONNAISSANCE;
+    reconState.scanState.currentConfig = 0;
+    reconState.scanState.lastScanSwitch = millis();
+    reconState.scanState.packetPending = false;
+    reconState.scanState.waitingForUserInput = false;
     
-    Serial.println("\\n=== RESTARTING RECONNAISSANCE ===");
-    Serial.println("Cleared activity history and device list.");
-    Serial.println("Cleared diagnostic counters.");
     tool->applyConfigPublic(reconState.scanState.currentConfig);
     tool->startReceiving();
+}
+
+void CommandHandler::cmdRebootDevice(LoRaReconTool* tool) {
+    Serial.println("\n=== REBOOTING DEVICE ===");
+    Serial.println("⚠️  This will clear ALL discovered devices, nodes, and replay slots!");
+    Serial.println("⚠️  Diagnostic counters will also be reset.");
+    Serial.print("\nAre you sure? Type 'YES' to confirm or anything else to cancel: ");
+    
+    // Wait for user confirmation with watchdog feeding
+    String confirmation = "";
+    uint32_t startTime = millis();
+    while (millis() - startTime < 10000) {  // 10 second timeout
+        esp_task_wdt_reset();  // Feed watchdog while waiting
+        if (Serial.available()) {
+            confirmation = Serial.readStringUntil('\n');
+            confirmation.trim();
+            break;
+        }
+        delay(100);
+    }
+    
+    if (confirmation == "YES") {
+        Serial.println("\n✅ Confirmed. Clearing all data and restarting...");
+        
+        reconState.reset();
+        TextPacketDiagnostic::reset();
+        
+        Serial.println("Cleared activity history and device list.");
+        Serial.println("Cleared diagnostic counters.");
+        Serial.println("Cleared replay slots.");
+        
+        tool->applyConfigPublic(reconState.scanState.currentConfig);
+        tool->startReceiving();
+    } else {
+        Serial.println("\n❌ Reboot cancelled. Returning to menu.");
+    }
 }
 
 void CommandHandler::cmdShowSummary(LoRaReconTool* tool) {
@@ -235,7 +282,7 @@ void CommandHandler::cmdDiagnosticReport(LoRaReconTool* tool) {
     // Print the comprehensive diagnostic report
     TextPacketDiagnostic::printReport();
     
-    Serial.println("💡 TIP: To reset diagnostic counters, restart reconnaissance with 'r'");
+    Serial.println("💡 TIP: To reset diagnostic counters, reboot device with 'b'");
     Serial.println("    or manually reset by restarting the device.\n");
 }
 

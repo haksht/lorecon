@@ -218,9 +218,10 @@ Try both!
 ```
 'm' → Enter menu
 'f' → Frequency targeting menu
-'r' → Restart reconnaissance
+'r' → Resume reconnaissance (keeps discovered devices)
+'b' → Reboot device (clears all data)
 's' → Show summary
-'8' → Target SF8 (encrypted messages)
+'q' → Toggle quiet/verbose mode
 ```
 
 ### Meshtastic Commands:

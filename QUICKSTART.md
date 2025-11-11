@@ -40,7 +40,8 @@ Press **'m'** anytime to see the menu:
 - Press 'c' to save packets for replay
 - Press 'p' to view and replay captured packets
 - Press 'q' for quiet mode (faster capture)
-- Press 'r' to restart scanning
+- Press 'r' to resume scanning (keeps discovered devices)
+- Press 'b' to reboot device (clears all data)
 
 ---
 
@@ -52,7 +53,7 @@ Press **'m'** anytime to see the menu:
 ✅ **Device Discovery** - Identifies Meshtastic nodes and LoRaWAN devices  
 ✅ **Protocol Analysis** - Parses Meshtastic/LoRaWAN packet structures  
 ✅ **Packet Replay** - Store and retransmit captured packets (10 slots)  
-✅ **Broadcast Decryption** - Decrypts position, telemetry, and channel messages (with default PSKs)  
+✅ **Broadcast Decryption** - Decrypts position, telemetry, and channel messages (with 14 default PSKs)  
 ✅ **OLED Display** - Standalone operation without serial connection  
 ✅ **Geographic Intelligence** - Extracts GPS from position packets  
 ✅ **Export Tools** - KML/GeoJSON for mapping applications

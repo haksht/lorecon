@@ -22,11 +22,21 @@
 // Known Meshtastic default PSKs
 static const char* DEFAULT_PSKS[] = {
     "AQ==",                      // #1: Single byte (0x01) - often expanded to 16 bytes
-    "1PG7OiApB1nwvP+rz05pAQ==",  // #2: Standard 16-byte key
+    "1PG7OiApB1nwvP+rz05pAQ==",  // #2: Standard 16-byte key (most common)
     "d1iq21lNSh7BP6MOkP6cQA==",  // #3: Channel variant 1
     "2f8aH6iT8K9jQ1P3mD4nBw==",  // #4: Channel variant 2
     "7h3kL9mR5wX2pY8qE6tZcA==",  // #5: Channel variant 3
+    "/u7k03L8N3Q=",              // #6: Short key variant (8 bytes)
+    "Ag==",                      // #7: Single byte (0x02)
+    "Aw==",                      // #8: Single byte (0x03)
+    "BA==",                      // #9: Single byte (0x04)
+    "BQ==",                      // #10: Single byte (0x05)
+    "AAAAAAAAAAAAAAAAAAAAAA==",  // #11: All zeros (16 bytes)
+    "MTIzNDU2Nzg5MDEyMzQ1Ng==",  // #12: "1234567890123456" ASCII
+    "dGVzdHRlc3R0ZXN0dGVzdA==",  // #13: "testtesttesttest" ASCII
+    "bWVzaHRhc3RpY21lc2h0YXN0",  // #14: "meshtasticmeshtast" ASCII
 };
+
 
 static const uint8_t NUM_PSKS = sizeof(DEFAULT_PSKS) / sizeof(char*);
 

@@ -8,7 +8,7 @@
 [![Warnings](https://img.shields.io/badge/warnings-0-brightgreen)]()
 [![Display](https://img.shields.io/badge/OLED-working-blue)]()
 
-**Last Updated:** November 8, 2025 | **Branch:** `main`
+**Last Updated:** November 11, 2025 | **Branch:** `main`
 
 ---
 
@@ -24,7 +24,7 @@
 
 # ESP32 LoRa Packet Sniffer & Reconnaissance Tool
 
-**Version 1.8** - Production-Ready Security Research Platform
+**Version 1.9** - Production-Ready Security Research Platform
 
 LoRa packet capture and analysis tool for ESP32-S3 + SX1262 radio with OLED display. Focused reconnaissance, sniffing, capture, and replay capabilities with optional PSK testing and hardware stress validation. Now with standalone operation via OLED and button control.
 
@@ -106,15 +106,16 @@ See [ENCRYPTION_REALITY.md](docs/ENCRYPTION_REALITY.md) for technical details.
 
 ### **Additional Commands**
 - **'f'**: Direct frequency targeting (bypass device detection)
-- **'8'**: Quick target SF8 frequency (encrypted messages)
 - **'a'**: Show detailed RF activity analysis
 - **'d'**: Device type classification breakdown
 - **'v'**: Security vulnerability assessment
-- **'g'**: Geographic intelligence summary (GPS positions) ← NEW
-- **'k'**: Export KML for Google Earth ← NEW
-- **'j'**: Export GeoJSON for web mapping ← NEW
+- **'q'**: Toggle quiet/verbose mode
+- **'g'**: Geographic intelligence summary (GPS positions)
+- **'k'**: Export KML for Google Earth
+- **'j'**: Export GeoJSON for web mapping
 - **'t'**: Hardware stress testing menu
-- **'r'**: Restart reconnaissance phase
+- **'r'**: Resume reconnaissance (keeps discovered devices)
+- **'b'**: Reboot device (clears all data)
 
 ### **Live Visualization** ← NEW
 ```bash
@@ -158,7 +159,10 @@ Primary focus: **902.125 MHz SF11** (Meshtastic US primary channel)
 
 ### **PSK Testing** (`psk_decryption_simple.cpp`)
 - **Enable/disable**: Set via `platformio.ini` build flags
-- **Default keys**: 5 common Meshtastic PSKs (AQ==, 1PG...HivQY=, etc.)
+- **Default keys**: 14 common Meshtastic PSKs including:
+  - Standard 16-byte keys (most common)
+  - Single-byte variants (0x01-0x05)
+  - Weak test keys (zeros, "1234567890123456", "test", "meshtastic")
 - **Decrypts**: Position broadcasts, telemetry, node info, channel messages
 - **Cannot decrypt**: Direct messages (use PKC in firmware 2.5.0+)
 - **Note**: Works best with default channel configurations
@@ -238,22 +242,25 @@ Active flags:
 
 ## 📈 **Development Status**
 
-**Current Version: v1.4 - Production Ready** ✅
+**Current Version: v1.9 - Production Ready** ✅
 
-### **Recent Improvements (v1.4 - Oct 2, 2025)**
-- ✅ **Interrupt Safety**: Atomic operations for thread-safe packet handling
-- ✅ **Hardware Watchdog**: 30-second timeout prevents system hangs
-- ✅ **Timeout Protection**: All user inputs have 30s timeout (no infinite blocking)
-- ✅ **Code Quality**: Improved from 7.5/10 to 8.5/10
+### **Recent Improvements (v1.9 - Nov 11, 2025)**
+- ✅ **Session Key Code Removed**: Obsolete for Meshtastic 2.5.0+ (uses PKC for DMs)
+- ✅ **Stress Testing Enhanced**: Fixed radio state restoration after tests
+- ✅ **Packet Replay Enhanced**: Added repeat count and delay configuration
+- ✅ **Command Fixes**: 'q' command wired, '8' command removed, 'm' menu fixed
+- ✅ **Code Quality**: Maintained at 9.5/10
 
 ### **Version History**
 - ✅ **v1.0**: Two-stage reconnaissance and targeting system
 - ✅ **v1.1**: Enhanced protocol detection and RSSI spike analysis
 - ✅ **v1.2**: Interactive device selection and targeted capture
-- ✅ **v1.3**: Packet replay feature + architecture refactoring (Phase 3)
-- ✅ **v1.4**: Production hardening (atomics, watchdog, timeouts) - **CURRENT**
+- ✅ **v1.3**: Packet replay feature + architecture refactoring
+- ✅ **v1.4**: Production hardening (atomics, watchdog, timeouts)
+- ✅ **v1.5-v1.8**: Geographic intelligence, OLED display, PSK decryption
+- ✅ **v1.9**: Session key removal, enhanced testing - **CURRENT**
 
-**Current Status (November 9, 2025):**
+**Current Status (November 11, 2025):**
 - ✅ **Channel message decryption**: Successfully decrypting group chat messages with default PSKs
 - ✅ **Broadcast decryption**: Position, telemetry, node info, traceroute all working
 - ✅ **Multi-packet type support**: TEXT (0x01), TELEMETRY (0x08), POSITION (0x03), TRACEROUTE (0x42), MAP_REPORT (0x43), NODEINFO (0x04), ADMIN (0x07)
@@ -284,12 +291,14 @@ Node: 0x9EA3D744, Packet: 0x80B24533
 6. ✅ TRACEROUTE_APP (0x42) and MAP_REPORT_APP (0x43) packet types added
 7. ✅ Watchdog timeout during packet replay fixed
 8. ✅ Session key harvesting code removed (obsolete for modern Meshtastic firmware 2.5.0+)
+9. ✅ Stress testing radio state restoration implemented
+10. ✅ Command handler bugs fixed ('q' wired, '8' removed, 'm' menu corrected)
 
 **Next Steps:**
-- Capture live telemetry packet to verify battery/voltage/channel util extraction
 - Implement GPS coordinate parsing for POSITION_APP packets
+- Add SD card logging for autonomous field operation
+- Enhance PC integration with database import
 - Test MAP_REPORT_APP structure analysis
-- **Rebuild firmware** to get latest updates
 
 ---
 
