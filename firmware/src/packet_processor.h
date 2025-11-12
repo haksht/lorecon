@@ -41,6 +41,9 @@ public:
     const uint8_t* getLastPacket() const { return lastPacketData; }
     size_t getLastPacketLength() const { return lastPacketLength; }
     
+    // Access to protocol analyzer (for manual packet analysis)
+    ProtocolAnalyzer& getProtocolAnalyzer() { return protocolAnalyzer; }
+    
 private:
     // Packet queue
     std::queue<QueuedPacket> packetQueue;

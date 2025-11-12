@@ -3,20 +3,11 @@
 #include "error_handler.h"
 #include <LittleFS.h>
 #include <ArduinoJson.h>
-#include <SPI.h>
 #include <esp_task_wdt.h>
-#include <mbedtls/base64.h>
-#include <mbedtls/aes.h>
-#include "text_packet_diagnostic.h"  // For packet diagnostic analysis
 
 #ifdef ENABLE_PSK_TESTING
 #include "psk_decryption_simple.h"
 #endif
-
-// SPI pins for Heltec WiFi LoRa 32 V3
-#define SCK  9
-#define MISO 11
-#define MOSI 10
 
 // Timing constants
 #define SERIAL_INIT_DELAY_MS       2000  // Wait for serial console to initialize
@@ -27,22 +18,15 @@
 #define SHUTDOWN_FINAL_DELAY_MS    1000  // Final delay before shutdown
 #define LOOP_POLLING_DELAY_MS      10    // Main loop polling delay
 
-// Global pointer for interrupt handler
+// Global pointer for tool instance
 LoRaReconTool* g_reconTool = nullptr;
-
-// Interrupt handler (must be global for ISR)
-void IRAM_ATTR onPacketReceived() {
-    if (g_reconTool) {
-        g_reconTool->markPacketReceived();
-    }
-}
 
 // Constructor
 LoRaReconTool::LoRaReconTool()
-    : radio(new Module(LORA_NSS, LORA_DIO1, LORA_RST, LORA_BUSY))
+    : radioController(nullptr)
+    , packetProcessor(nullptr)
     , commandHandler(nullptr)
     , oledDisplay(nullptr)
-    , packetReceived(false)
     , buttonPressed(false)
     , buttonPressStart(0)
     , shutdownInitiated(false)
@@ -78,22 +62,19 @@ bool LoRaReconTool::initialize() {
         Serial.println("[FS] Storage init failed");
     }
     
-    // Initialize SPI and radio
-    SPI.begin(SCK, MISO, MOSI, LORA_NSS);
-    
-    Serial.print("[RADIO] Initializing SX1262... ");
-    int state = radio.begin();
-    if (state != RADIOLIB_ERR_NONE) {
-        Serial.printf("FAILED (%d)\n", state);
-        LOG_RADIO_ERROR(ErrorCodes::RADIO_INIT_FAILED, "SX1262 initialization failed");
+    // Initialize RadioController
+    radioController = new RadioController();
+    if (!radioController || !radioController->initialize()) {
+        Serial.println("[ERROR] Radio initialization failed");
         return false;
     }
-    Serial.println("OK");
     
-    // Set interrupt handler with explicit pin configuration
-    pinMode(LORA_DIO1, INPUT);
-    radio.setDio1Action(onPacketReceived);
-    Serial.printf("[RADIO] DIO1 interrupt configured on GPIO %d\n", LORA_DIO1);
+    // Initialize PacketProcessor
+    packetProcessor = new PacketProcessor();
+    if (!packetProcessor) {
+        Serial.println("[ERROR] PacketProcessor initialization failed");
+        return false;
+    }
     
     // Initialize reconnaissance system
     reconState.initialize();
@@ -114,13 +95,14 @@ bool LoRaReconTool::initialize() {
     displayReconStartMessage();
     
     // Apply initial configuration and start receiving
-    if (!applyConfig(reconState.scanState.currentConfig)) {
+    const ScanConfig& cfg = reconState.getScanConfig(reconState.scanState.currentConfig);
+    if (!radioController->applyConfig(cfg)) {
         Serial.println("[ERROR] Failed to apply initial config");
         LOG_RADIO_ERROR(ErrorCodes::RADIO_CONFIG_FAILED, "Initial radio configuration failed");
         return false;
     }
     
-    radio.startReceive();
+    radioController->startReceive();
     Serial.println("[RECON] Started\n");
     
     // Initialize PSK decryption system
@@ -191,51 +173,6 @@ void LoRaReconTool::update() {
 }
 
 // Apply radio configuration for scanning
-bool LoRaReconTool::applyConfig(uint8_t configIndex) {
-    if (!reconState.isValidConfigIndex(configIndex)) return false;
-    
-    const ScanConfig& cfg = reconState.getScanConfig(configIndex);
-    
-    Serial.printf("[SCAN] %s (%.3f MHz, SF%d, BW%.0f, SW:0x%02X)\n", 
-                  cfg.protocol, cfg.frequency, cfg.spreadingFactor, 
-                  cfg.bandwidth, cfg.syncWord);
-    
-    // Apply configuration with error checking
-    int state = radio.setFrequency(cfg.frequency);
-    if (state != RADIOLIB_ERR_NONE) return false;
-    
-    state = radio.setBandwidth(cfg.bandwidth);
-    if (state != RADIOLIB_ERR_NONE) return false;
-    
-    state = radio.setSpreadingFactor(cfg.spreadingFactor);
-    if (state != RADIOLIB_ERR_NONE) return false;
-    
-    state = radio.setSyncWord(cfg.syncWord);
-    if (state != RADIOLIB_ERR_NONE) return false;
-    
-    // Try different parameters based on protocol type
-    if (strstr(cfg.protocol, "Meshtastic_MSG") != nullptr) {
-        radio.setCodingRate(5);         // 4/5 for message content
-        radio.setPreambleLength(8);     // Standard for messages
-        radio.setCRC(false);            // Promiscuous mode for better capture
-    } else if (strstr(cfg.protocol, "Meshtastic_MF") != nullptr) {
-        radio.setCodingRate(8);         // 4/8 for MediumFast
-        radio.setPreambleLength(12);    // Longer preamble
-        radio.setCRC(false);            // Promiscuous mode
-    } else {
-        radio.setCodingRate(5);         // 4/5 for routing packets
-        radio.setPreambleLength(8);     // Standard
-        radio.setCRC(false);            // Promiscuous mode
-    }
-    radio.explicitHeader();
-    
-    // Receive-only mode (no transmission)
-    radio.setCurrentLimit(100);
-    radio.setOutputPower(0);
-    
-    return true;
-}
-
 // Handle reconnaissance mode operations
 void LoRaReconTool::handleReconnaissanceMode(uint32_t now) {
     // Handle frequency switching in recon mode
@@ -250,12 +187,12 @@ void LoRaReconTool::handleReconnaissanceMode(uint32_t now) {
                           (unsigned int)elapsed, reconState.numTargetableDevices);
         }
         
-        if (applyConfig(reconState.scanState.currentConfig)) {
-            radio.startReceive();
+        const ScanConfig& cfg = reconState.getScanConfig(reconState.scanState.currentConfig);
+        if (radioController->applyConfig(cfg)) {
+            radioController->startReceive();
             
             // Update display with new scanning config
             if (oledDisplay && oledDisplay->isOn()) {
-                const ScanConfig& cfg = reconState.getScanConfig(reconState.scanState.currentConfig);
                 char freqStr[16];
                 snprintf(freqStr, sizeof(freqStr), "%.3f", cfg.frequency);
                 oledDisplay->showScanningStatus(freqStr, cfg.spreadingFactor, 
@@ -267,9 +204,6 @@ void LoRaReconTool::handleReconnaissanceMode(uint32_t now) {
     
     // Handle packets in recon mode
     handlePacketReception();
-    
-    // Enhanced activity monitoring for recon
-    handleReconActivityMonitoring(now);
 }
 
 // Handle targeted capture mode operations
@@ -277,190 +211,35 @@ void LoRaReconTool::handleTargetedCaptureMode(uint32_t now) {
     handlePacketReception();
 }
 
-// Handle activity monitoring during reconnaissance
-void LoRaReconTool::handleReconActivityMonitoring(uint32_t now) {
-    static uint32_t lastActivityCheck = 0;
-    
-    // Check less frequently - only every 5 seconds to avoid spam
-    if (now - lastActivityCheck >= 5000) {
-        lastActivityCheck = now;
-    }
-}
-
 // Unified packet reception handler
 void LoRaReconTool::handlePacketReception() {
-    // Check if interrupt fired
-    if (!packetReceived.load(std::memory_order_acquire)) return;
+    // Check if radio has packet available
+    if (!radioController->hasPacket()) return;
     
-    packetReceived.store(false, std::memory_order_release);
+    // Quick read from radio and queue it
+    uint8_t tempBuffer[256];
+    int length = radioController->readPacket(tempBuffer, sizeof(tempBuffer));
     
-    // Quick read from radio and queue it - minimize time before returning to receive
-    uint8_t tempBuffer[PACKET_BUFFER_SIZE];
-    int state = radio.readData(tempBuffer, PACKET_BUFFER_SIZE);
-    
-    if (state == RADIOLIB_ERR_NONE) {
-        size_t length = radio.getPacketLength();
+    if (length > 0) {
+        // Get signal metrics (only for larger packets to save time)
+        float rssi = 0;
+        float snr = 0;
+        if (length >= 40) {
+            rssi = radioController->getRSSI();
+            snr = radioController->getSNR();
+        }
         
-        if (length > 0 && length <= PACKET_BUFFER_SIZE) {
-            // Get signal metrics ONLY for large packets (saves ~5ms for small packets)
-            float rssi = 0;
-            float snr = 0;
-            if (length >= 40) {
-                rssi = radio.getRSSI();
-                snr = radio.getSNR();
-            }
-            
-            // Queue the packet if space available
-            if (packetQueue.size() < MAX_QUEUE_SIZE) {
-                QueuedPacket qp;
-                memcpy(qp.data, tempBuffer, length);
-                qp.length = length;
-                qp.rssi = rssi;
-                qp.snr = snr;
-                qp.timestamp = millis();
-                packetQueue.push(qp);
-            } else {
-                Serial.println("[WARNING] Packet queue full - dropping packet!");
-            }
+        // Queue the packet for processing
+        if (!packetProcessor->queuePacket(tempBuffer, length, rssi, snr)) {
+            Serial.println("[WARNING] Packet queue full - packet dropped!");
         }
     }
     
-    // Immediately restart receiving - this is KEY to catching rapid packets
-    radio.startReceive();
+    // Immediately restart receiving
+    radioController->startReceive();
     
-    // Debug: Show queue size if it's building up
-    if (packetQueue.size() > 1) {
-        Serial.printf("[QUEUE] %d packets buffered\n", packetQueue.size());
-    }
-    
-    // Now process queued packets at our leisure
-    processQueuedPackets();
-}
-
-// Process packets from queue
-void LoRaReconTool::processQueuedPackets() {
-    static uint8_t packetBuffer[PACKET_BUFFER_SIZE];
-    
-    while (!packetQueue.empty()) {
-        QueuedPacket qp = packetQueue.front();
-        packetQueue.pop();
-        
-        // Copy to processing buffer
-        memcpy(packetBuffer, qp.data, qp.length);
-        size_t packetLength = qp.length;
-        float rssi = qp.rssi;
-        float snr = qp.snr;
-        
-        // Store for potential replay capture
-        if (packetLength <= MAX_PACKET_SIZE) {
-            memcpy(reconState.scanState.lastPacket, packetBuffer, packetLength);
-            reconState.scanState.lastPacketLength = packetLength;
-        }
-        reconState.scanState.totalPackets++;
-        
-        const uint8_t* data = packetBuffer;
-        size_t length = packetLength;
-        
-        // Analyze packet using ProtocolAnalyzer (skip verbose diagnostics for speed)
-        PacketInfo info = protocolAnalyzer.analyze(data, length, rssi);
-        
-        // Enhanced packet analysis for Meshtastic (minimal output for speed)
-        if (strcmp(info.protocol, "Meshtastic") == 0) {
-            // Try to extract GPS position silently
-            geoIntel.extractPosition(data, length, info.nodeId);
-        }
-        
-        // Track as targetable device in ALL modes if we have a real node ID
-        if (info.nodeId != 0) {
-            trackTargetableDevice(info.nodeId, reconState.scanState.currentConfig, rssi, info.protocol, data, length);
-        }
-        
-        // Mode-specific handling
-        if (reconState.scanState.mode == MODE_RECONNAISSANCE) {
-                Serial.printf("[RECON] Packet #%d: %s, %d bytes, %.1f dBm, %.1f dB SNR\n",
-                              reconState.scanState.totalPackets, info.protocol, length, rssi, snr);
-                
-                // Update display with packet info
-                if (oledDisplay && oledDisplay->isOn()) {
-                    oledDisplay->showPacketReceived(rssi, snr, info.protocol, info.nodeId);
-                }
-                
-                // Track RF activity (for situational awareness)
-                trackRFActivity(reconState.scanState.currentConfig, rssi);
-            } else if (reconState.scanState.mode == MODE_TARGETED_CAPTURE) {
-                // Show ALL packets with full decryption to find text messages
-                if (length < 40) {
-                    Serial.printf("\n[SMALL %d bytes] ", length);
-                } else {
-                    Serial.printf("\n🎯 [CAPTURE] Packet #%d: %s, %d bytes, %.1f dBm, %.1f dB SNR\n",
-                                  reconState.scanState.totalPackets, info.protocol, length, rssi, snr);
-                }
-                
-                // Update display silently
-                if (oledDisplay && oledDisplay->isOn()) {
-                    oledDisplay->showPacketReceived(rssi, snr, info.protocol, info.nodeId);
-                }
-                
-                #ifdef ENABLE_PSK_TESTING
-                // Try decryption on ALL packets to find text messages
-                if (length >= 20) {
-                    if (length < 40) {
-                        // For small packets, only print if we find actual readable text
-                        Serial.printf("Decrypting... ");
-                    } else {
-                        Serial.printf("[PSK] Analyzing %d-byte packet (text message size)\n", length);
-                    }
-                    // For "Unknown" packets that might be routed Meshtastic, try to find the header
-                    const uint8_t* payload = data;
-                    size_t payloadLen = length;
-                    
-                    // If it doesn't start with FF FF FF FF, it might be a routed packet
-                    // Try to locate Meshtastic header within the packet
-                    if (data[0] != 0xFF && length >= 16) {
-                        // Look for 0xFF 0xFF 0xFF 0xFF pattern in first 20 bytes
-                        for (size_t i = 0; i < min(length - 4, size_t(20)); i++) {
-                            if (data[i] == 0xFF && data[i+1] == 0xFF && data[i+2] == 0xFF && data[i+3] == 0xFF) {
-                                payload = data + i;
-                                payloadLen = length - i;
-                                Serial.printf("[ROUTED] Found Meshtastic header at offset %d in %d-byte packet\n", i, length);
-                                break;
-                            }
-                        }
-                    }
-                    
-                    // Try decryption on the located packet (or original if standard Meshtastic)
-                    // IMPORTANT: Try decryption on ALL packets, not just identified Meshtastic!
-                    // Raw packets without 0xFFFFFFFF header may not be identified correctly
-                    PSKDecryption::testDefaultPSKs(payload, payloadLen);
-                } // End if length >= 20
-                #endif
-            }
-            
-            // Always track nodes and log packets
-            if (info.nodeId != 0) {
-                trackNode(info.nodeId, info.protocol, rssi);
-            }
-            
-            logPacket(data, length, rssi, snr, info.protocol);
-            
-            // Show hex data for ALL packets in targeting mode (to see what we're really getting)
-            if (reconState.scanState.mode == MODE_TARGETED_CAPTURE) {
-                Serial.print("     Data: ");
-                for (size_t i = 0; i < min(length, size_t(16)); i++) {
-                    Serial.printf("%02X ", data[i]);
-                }
-                if (length > 16) Serial.print("...");
-                Serial.println();
-            } else if (reconState.scanState.mode == MODE_RECONNAISSANCE) {
-                // Always show data in recon mode
-                Serial.print("     Data: ");
-                for (size_t i = 0; i < min(length, size_t(16)); i++) {
-                    Serial.printf("%02X ", data[i]);
-                }
-                if (length > 16) Serial.print("...");
-                Serial.println();
-            }
-    } // End while loop - all queued packets processed
+    // Process queued packets
+    packetProcessor->processQueue(oledDisplay);
 }
 
 // Start targeted capture mode on specific device
@@ -484,8 +263,9 @@ void LoRaReconTool::startTargetedCapture(uint8_t deviceIndex) {
     Serial.println("\nPress 'm' to return to menu, 'r' to resume recon");
     Serial.println("Monitoring for packets...\n");
     
-    applyConfig(reconState.scanState.targetConfig);
-    radio.startReceive();
+    const ScanConfig& targetCfg = reconState.getScanConfig(reconState.scanState.targetConfig);
+    radioController->applyConfig(targetCfg);
+    radioController->startReceive();
 }
 
 // Start frequency targeting mode
@@ -528,57 +308,13 @@ void LoRaReconTool::startFrequencyTargeting(uint8_t configIndex) {
     reconState.scanState.targetConfig = configIndex;
     reconState.scanState.currentConfig = configIndex;
     
-    if (applyConfig(configIndex)) {
-        radio.startReceive();
+    if (radioController->applyConfig(cfg)) {
+        radioController->startReceive();
         Serial.println("✅ Frequency targeting active");
     } else {
         Serial.println("❌ Failed to configure radio for targeting");
         reconState.scanState.mode = MODE_INTERACTIVE_MENU;
     }
-}
-
-// Tracking functions
-void LoRaReconTool::trackNode(uint32_t nodeId, const char* protocol, float rssi) {
-    reconState.updateNode(nodeId, protocol, rssi);
-}
-
-void LoRaReconTool::trackRFActivity(uint8_t configIndex, float rssi) {
-    reconState.updateRFActivity(configIndex, rssi);
-}
-
-void LoRaReconTool::trackTargetableDevice(uint32_t nodeId, uint8_t configIndex, float rssi, 
-                                         const char* protocol, const uint8_t* packetData, size_t packetLength) {
-    reconState.addTargetableDevice(nodeId, configIndex, rssi, protocol, packetData, packetLength);
-}
-
-// Save packet to JSON log
-void LoRaReconTool::logPacket(const uint8_t* data, size_t length, float rssi, float snr, const char* protocol) {
-    if (!LittleFS.begin()) return;
-    
-    File logFile = LittleFS.open("/packets.jsonl", "a");
-    if (!logFile) return;
-    
-    JsonDocument doc;
-    doc["timestamp"] = millis();
-    doc["config"] = reconState.getScanConfig(reconState.scanState.currentConfig).protocol;
-    doc["frequency"] = reconState.getScanConfig(reconState.scanState.currentConfig).frequency;
-    doc["protocol"] = protocol;
-    doc["length"] = length;
-    doc["rssi"] = rssi;
-    doc["snr"] = snr;
-    
-    // Store packet data as hex string
-    String hexData = "";
-    for (size_t i = 0; i < min(length, size_t(64)); i++) {
-        char hex[3];
-        sprintf(hex, "%02X", data[i]);
-        hexData += hex;
-    }
-    doc["data"] = hexData;
-    
-    serializeJson(doc, logFile);
-    logFile.println();
-    logFile.close();
 }
 
 // Initialize stress testing
@@ -634,10 +370,10 @@ void LoRaReconTool::handleUserInput(char cmd) {
         if (reconState.scanState.lastPacketLength > 0 && reconState.scanState.mode == MODE_TARGETED_CAPTURE) {
             const uint8_t* data = (const uint8_t*)reconState.scanState.lastPacket;
             size_t length = reconState.scanState.lastPacketLength;
-            float rssi = radio.getRSSI();
+            float rssi = radioController->getRSSI();
             
             // Analyze packet
-            PacketInfo info = protocolAnalyzer.analyze(data, length, rssi);
+            PacketInfo info = packetProcessor->getProtocolAnalyzer().analyze(data, length, rssi);
             
             if (reconState.capturePacketForReplay(data, length, reconState.scanState.currentConfig, rssi, info.protocol)) {
                 Serial.println("✅ Packet saved to replay slot!");
@@ -861,7 +597,8 @@ void LoRaReconTool::replayPacket(uint8_t slotIndex) {
     }
     
     // Apply the correct radio configuration
-    if (!applyConfig(pkt.configIndex)) {
+    const ScanConfig& replayCfg = reconState.getScanConfig(pkt.configIndex);
+    if (!radioController->applyConfig(replayCfg)) {
         Serial.println("❌ Failed to apply radio configuration");
         delay(2000);
         showReplayMenu();
@@ -874,7 +611,7 @@ void LoRaReconTool::replayPacket(uint8_t slotIndex) {
     
     // Transmit the packet multiple times
     Serial.printf("\n📡 Transmitting %d time(s) with %d ms delay...\n", repeatCount, delayMs);
-    radio.setOutputPower(10);  // Set transmission power
+    radioController->getRadio().setOutputPower(10);  // Set transmission power
     
     int successCount = 0;
     int failCount = 0;
@@ -884,7 +621,7 @@ void LoRaReconTool::replayPacket(uint8_t slotIndex) {
         
         // Feed watchdog before transmission (can take several seconds with high SF)
         esp_task_wdt_reset();
-        int state = radio.transmit(txBuffer, pkt.length);
+        int state = radioController->getRadio().transmit(txBuffer, pkt.length);
         esp_task_wdt_reset();  // Feed again after transmission completes
         
         if (state == RADIOLIB_ERR_NONE) {
@@ -901,7 +638,7 @@ void LoRaReconTool::replayPacket(uint8_t slotIndex) {
         }
     }
     
-    radio.setOutputPower(0);   // Back to receive-only mode
+    radioController->getRadio().setOutputPower(0);   // Back to receive-only mode
     
     Serial.println("\n📊 REPLAY SUMMARY");
     Serial.println("=================");
@@ -925,8 +662,9 @@ void LoRaReconTool::replayPacket(uint8_t slotIndex) {
     Serial.read();
     
     // Resume receiving
-    applyConfig(reconState.scanState.currentConfig);
-    radio.startReceive();
+    const ScanConfig& resumeCfg = reconState.getScanConfig(reconState.scanState.currentConfig);
+    radioController->applyConfig(resumeCfg);
+    radioController->startReceive();
     
     showReplayMenu();
 }
@@ -960,8 +698,8 @@ void LoRaReconTool::handleButtonPress(uint32_t now) {
             
             // Stop radio safely
             Serial.print("[RADIO] Stopping radio... ");
-            radio.standby();
-            radio.sleep();
+            radioController->getRadio().standby();
+            radioController->getRadio().sleep();
             Serial.println("OK");
             
             // Optional: Save state to flash

@@ -2,38 +2,32 @@
 #define LORA_RECON_TOOL_H
 
 #include <Arduino.h>
-#include <RadioLib.h>
-#include <atomic>
-#include <queue>
 #include "data_structures.h"
 
 // Forward declarations
 class CommandHandler;
 class OLEDDisplay;
+class RadioController;
+class PacketProcessor;
 
 #include "recon_state.h"
-#include "protocol_analyzer.h"
-#include "geo_intelligence.h"
+#include "radio_controller.h"
+#include "packet_processor.h"
 #include "command_handler.h"
 #include "oled_display.h"
 
-// Hardware configuration for Heltec WiFi LoRa 32 V3
-#define LORA_NSS    8
-#define LORA_DIO1   14
-#define LORA_RST    12
-#define LORA_BUSY   13
+// Hardware configuration
 #define USER_BUTTON 0   // PRG button (active low)
 
 // Scanning configuration
 #define SCAN_DWELL_TIME     12000  // 12 seconds per frequency
-#define PACKET_BUFFER_SIZE  256
 #define SERIAL_TIMEOUT_MS   30000  // 30 second timeout for user input
 
 /**
- * LoRa Reconnaissance Tool - Main application class
+ * LoRa Reconnaissance Tool - Main application orchestrator
  * 
- * Encapsulates all reconnaissance logic, radio control, and state management.
- * Eliminates global variables and provides clean interface for the application.
+ * Coordinates RadioController, PacketProcessor, and UI components.
+ * Simplified from 1000+ lines to focus on orchestration, not implementation.
  */
 class LoRaReconTool {
 public:
@@ -54,32 +48,30 @@ public:
     void showReplayMenu();
     void replayPacket(uint8_t slotIndex);
     
-    // Access to radio for external needs (like stress testing)
-    SX1262& getRadio() { return radio; }
-    
-    // Public config application for command handler
-    bool applyConfigPublic(uint8_t configIndex) { return applyConfig(configIndex); }
-    
-    // Public receiver start for command handler
-    void startReceiving() { radio.startReceive(); }
-    
-    // Packet received flag for interrupt handler
-    void markPacketReceived() { packetReceived.store(true, std::memory_order_release); }
-    
-    // Display access
+    // Access to components for command handler
+    RadioController* getRadioController() { return radioController; }
     OLEDDisplay* getDisplay() { return oledDisplay; }
-
+    
+    // Helper methods for command handler
+    bool applyConfigPublic(uint8_t configIndex) {
+        const ScanConfig& cfg = reconState.getScanConfig(configIndex);
+        return radioController->applyConfig(cfg);
+    }
+    
+    void startReceiving() { 
+        radioController->startReceive(); 
+    }
+    
+    SX1262& getRadio() { 
+        return radioController->getRadio(); 
+    }
+    
 private:
-    // Hardware instances
-    SX1262 radio;
-    ProtocolAnalyzer protocolAnalyzer;
+    // Component instances
+    RadioController* radioController;
+    PacketProcessor* packetProcessor;
     CommandHandler* commandHandler;
     OLEDDisplay* oledDisplay;
-    
-    // Interrupt flag and packet queue
-    std::atomic<bool> packetReceived;
-    std::queue<QueuedPacket> packetQueue;
-    static const size_t MAX_QUEUE_SIZE = 10;  // Buffer up to 10 packets
     
     // Button state tracking
     bool buttonPressed;
@@ -89,26 +81,12 @@ private:
     // Button handler
     void handleButtonPress(uint32_t now);
     
-    // Radio configuration
-    bool applyConfig(uint8_t configIndex);
-    
     // Mode handlers
     void handleReconnaissanceMode(uint32_t now);
     void handleTargetedCaptureMode(uint32_t now);
-    void handleReconActivityMonitoring(uint32_t now);
     
-    // Packet processing
+    // Packet reception
     void handlePacketReception();
-    void processQueuedPackets();
-    
-    // Tracking functions
-    void trackNode(uint32_t nodeId, const char* protocol, float rssi);
-    void trackRFActivity(uint8_t configIndex, float rssi);
-    void trackTargetableDevice(uint32_t nodeId, uint8_t configIndex, float rssi, 
-                               const char* protocol, const uint8_t* packetData, size_t packetLength);
-    
-    // Logging
-    void logPacket(const uint8_t* data, size_t length, float rssi, float snr, const char* protocol);
 };
 
 // Global interrupt handler needs access to tool instance
