@@ -12,7 +12,8 @@
 
 #include <esp_task_wdt.h>
 #include "command_handler.h"
-#include "lora_recon_tool.h"
+#include "irecon_tool.h"  // Interface only
+#include "radio_controller.h"  // Need full definition for method calls
 #include "user_interface.h"
 #include "recon_state.h"
 #include "protocol_analyzer.h"
@@ -24,42 +25,11 @@
 #include "psk_tests.h"
 #endif
 
-// Command dispatch table - O(1) lookup instead of linear scan
-const CommandHandler::CommandEntry CommandHandler::commands[] = {
-    {'m', cmdShowMenu,            "Show menu and results",         false},
-    {'M', cmdShowMenu,            "Show menu and results",         false},
-    {'f', cmdFrequencyTargeting,  "Frequency targeting mode",      false},
-    {'F', cmdFrequencyTargeting,  "Frequency targeting mode",      false},
-    {'d', cmdDeviceTypeSummary,   "Device type analysis",          false},
-    {'D', cmdDeviceTypeSummary,   "Device type analysis",          false},
-    {'a', cmdActivityDetails,     "RF activity details",           false},
-    {'p', cmdPacketReplay,        "Packet replay menu",            false},
-    {'P', cmdPacketReplay,        "Packet replay menu",            false},
-    {'r', cmdResumeRecon,         "Resume reconnaissance",         false},
-    {'R', cmdResumeRecon,         "Resume reconnaissance",         false},
-    {'b', cmdRebootDevice,        "Reboot device",                 false},
-    {'B', cmdRebootDevice,        "Reboot device",                 false},
-    {'s', cmdShowSummary,         "Show summary",                  false},
-    {'S', cmdShowSummary,         "Show summary",                  false},
-    {'v', cmdSecurityAssessment,  "Security assessment",           false},
-    {'V', cmdSecurityAssessment,  "Security assessment",           false},
-    {'c', cmdCapturePacket,       "Capture packet for replay",     false},
-    {'C', cmdCapturePacket,       "Capture packet for replay",     false},
-    {'g', cmdGeoIntelligence,     "Geographic intelligence",       false},
-    {'G', cmdGeoIntelligence,     "Geographic intelligence",       false},
-    {'k', cmdExportKML,           "Export KML (Google Earth)",     false},
-    {'K', cmdExportKML,           "Export KML (Google Earth)",     false},
-    {'j', cmdExportGeoJSON,       "Export GeoJSON (web maps)",     false},
-    {'J', cmdExportGeoJSON,       "Export GeoJSON (web maps)",     false},
-    {'q', cmdToggleQuietMode,     "Toggle quiet/verbose mode",     false},
-    {'Q', cmdToggleQuietMode,     "Toggle quiet/verbose mode",     false},
-    {'x', cmdDiagnosticReport,    "Text packet diagnostic report", false},
-    {'X', cmdDiagnosticReport,    "Text packet diagnostic report", false},
-};
+// Explicit definition required for constexpr static members (C++ linkage rule)
+constexpr CommandHandler::CommandEntry CommandHandler::commands[];
+constexpr uint8_t CommandHandler::numCommands;
 
-const uint8_t CommandHandler::numCommands = sizeof(commands) / sizeof(CommandEntry);
-
-CommandHandler::CommandHandler(LoRaReconTool* tool) 
+CommandHandler::CommandHandler(IReconTool* tool) 
     : reconTool(tool) 
 {
 }
@@ -126,29 +96,29 @@ void CommandHandler::showCommands() {
 // Command Implementations
 // ============================================================================
 
-void CommandHandler::cmdShowMenu(LoRaReconTool* tool) {
+void CommandHandler::cmdShowMenu(IReconTool* tool) {
     reconState.scanState.mode = MODE_INTERACTIVE_MENU;
     showReconResults();
 }
 
-void CommandHandler::cmdFrequencyTargeting(LoRaReconTool* tool) {
+void CommandHandler::cmdFrequencyTargeting(IReconTool* tool) {
     showFrequencyTargetingMenu();
     handleFrequencyTargetingInput();
 }
 
-void CommandHandler::cmdDeviceTypeSummary(LoRaReconTool* tool) {
+void CommandHandler::cmdDeviceTypeSummary(IReconTool* tool) {
     showDeviceTypeSummary();
 }
 
-void CommandHandler::cmdActivityDetails(LoRaReconTool* tool) {
+void CommandHandler::cmdActivityDetails(IReconTool* tool) {
     showActivityDetails();
 }
 
-void CommandHandler::cmdPacketReplay(LoRaReconTool* tool) {
+void CommandHandler::cmdPacketReplay(IReconTool* tool) {
     tool->showReplayMenu();
 }
 
-void CommandHandler::cmdResumeRecon(LoRaReconTool* tool) {
+void CommandHandler::cmdResumeRecon(IReconTool* tool) {
     // Resume reconnaissance WITHOUT clearing discovered devices/data
     Serial.println("\n=== RESUMING RECONNAISSANCE ===");
     Serial.println("Restarting scan cycle while keeping discovered devices.");
@@ -164,11 +134,12 @@ void CommandHandler::cmdResumeRecon(LoRaReconTool* tool) {
     reconState.scanState.packetPending = false;
     reconState.scanState.waitingForUserInput = false;
     
-    tool->applyConfigPublic(reconState.scanState.currentConfig);
-    tool->startReceiving();
+    const ScanConfig& cfg = reconState.getScanConfig(reconState.scanState.currentConfig);
+    tool->getRadioController()->applyConfig(cfg);
+    tool->getRadioController()->startReceive();
 }
 
-void CommandHandler::cmdRebootDevice(LoRaReconTool* tool) {
+void CommandHandler::cmdRebootDevice(IReconTool* tool) {
     Serial.println("\n=== REBOOTING DEVICE ===");
     Serial.println("⚠️  This will clear ALL discovered devices, nodes, and replay slots!");
     Serial.println("⚠️  Diagnostic counters will also be reset.");
@@ -197,30 +168,31 @@ void CommandHandler::cmdRebootDevice(LoRaReconTool* tool) {
         Serial.println("Cleared diagnostic counters.");
         Serial.println("Cleared replay slots.");
         
-        tool->applyConfigPublic(reconState.scanState.currentConfig);
-        tool->startReceiving();
+        const ScanConfig& cfg = reconState.getScanConfig(reconState.scanState.currentConfig);
+        tool->getRadioController()->applyConfig(cfg);
+        tool->getRadioController()->startReceive();
     } else {
         Serial.println("\n❌ Reboot cancelled. Returning to menu.");
     }
 }
 
-void CommandHandler::cmdShowSummary(LoRaReconTool* tool) {
+void CommandHandler::cmdShowSummary(IReconTool* tool) {
     showReconResults();
 }
 
-void CommandHandler::cmdSecurityAssessment(LoRaReconTool* tool) {
+void CommandHandler::cmdSecurityAssessment(IReconTool* tool) {
     showSecurityAssessment();
     reconState.scanState.mode = MODE_INTERACTIVE_MENU;
     showReconResults();
 }
 
-void CommandHandler::cmdCapturePacket(LoRaReconTool* tool) {
+void CommandHandler::cmdCapturePacket(IReconTool* tool) {
     if (reconState.scanState.lastPacketLength > 0 && 
         reconState.scanState.mode == MODE_TARGETED_CAPTURE) {
         
         const uint8_t* data = (const uint8_t*)reconState.scanState.lastPacket;
         size_t length = reconState.scanState.lastPacketLength;
-        float rssi = tool->getRadio().getRSSI();
+        float rssi = tool->getRadioController()->getRSSI();
         
         // Analyze packet
         ProtocolAnalyzer analyzer;
@@ -237,15 +209,15 @@ void CommandHandler::cmdCapturePacket(LoRaReconTool* tool) {
     }
 }
 
-void CommandHandler::cmdDeviceTarget(LoRaReconTool* tool, uint8_t deviceIndex) {
+void CommandHandler::cmdDeviceTarget(IReconTool* tool, uint8_t deviceIndex) {
     tool->startTargetedCapture(deviceIndex);
 }
 
-void CommandHandler::cmdGeoIntelligence(LoRaReconTool* tool) {
+void CommandHandler::cmdGeoIntelligence(IReconTool* tool) {
     geoIntel.printSummary();
 }
 
-void CommandHandler::cmdExportKML(LoRaReconTool* tool) {
+void CommandHandler::cmdExportKML(IReconTool* tool) {
     String kml;
     geoIntel.exportKML(kml);
     
@@ -256,7 +228,7 @@ void CommandHandler::cmdExportKML(LoRaReconTool* tool) {
     Serial.println("Save this to 'captured_devices.kml' and open in Google Earth");
 }
 
-void CommandHandler::cmdExportGeoJSON(LoRaReconTool* tool) {
+void CommandHandler::cmdExportGeoJSON(IReconTool* tool) {
     String geojson;
     geoIntel.exportGeoJSON(geojson);
     
@@ -267,7 +239,7 @@ void CommandHandler::cmdExportGeoJSON(LoRaReconTool* tool) {
     Serial.println("Use with Leaflet, Mapbox, or other web mapping libraries");
 }
 
-void CommandHandler::cmdDiagnosticReport(LoRaReconTool* tool) {
+void CommandHandler::cmdDiagnosticReport(IReconTool* tool) {
     // Print the comprehensive diagnostic report
     TextPacketDiagnostic::printReport();
     
@@ -275,7 +247,7 @@ void CommandHandler::cmdDiagnosticReport(LoRaReconTool* tool) {
     Serial.println("    or manually reset by restarting the device.\n");
 }
 
-void CommandHandler::cmdToggleQuietMode(LoRaReconTool* tool) {
+void CommandHandler::cmdToggleQuietMode(IReconTool* tool) {
     bool currentMode = TextPacketDiagnostic::isVerbose();
     TextPacketDiagnostic::enableVerbose(!currentMode);
     

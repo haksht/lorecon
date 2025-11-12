@@ -1,7 +1,7 @@
 # ESP32 LoRa Sniffer - Quick Start Guide
 
-**Last Updated:** October 10, 2025  
-**Version:** 1.9 Production Ready  
+**Last Updated:** November 12, 2025  
+**Version:** 2.0 Production Ready  
 **Status:** ✅ Ready to Use
 
 ---
@@ -83,7 +83,7 @@ See [ENCRYPTION_REALITY.md](docs/ENCRYPTION_REALITY.md) for details.
 2. **Replay** - Retransmit saved packets (press 'p')
 3. **Channel Message Decryption** - Automatic testing of default PSKs on channel/group messages
 4. **Broadcast Decryption** - Position, telemetry, and node info packets
-5. **Stress Testing** - Hardware vulnerability assessment (press 't')
+5. **Geographic Export** - Export GPS data to KML/GeoJSON (press 'g', 'k', or 'j')
 
 **Important**: To test message decryption, send messages to the **Channel** (group chat) in the Meshtastic app, not Direct Messages. Direct Messages use Public Key Cryptography (Curve25519) and cannot be decrypted without the recipient's private key.
 

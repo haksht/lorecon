@@ -10,6 +10,7 @@
 
 #include <Arduino.h>
 #include "data_structures.h"
+#include "config.h"
 
 class GeoIntelligence {
 public:
@@ -17,6 +18,9 @@ public:
     
     // Extract GPS from Meshtastic position packet
     bool extractPosition(const uint8_t* data, size_t length, uint32_t nodeId);
+    
+    // Extract GPS from decrypted position payload (portnum + protobuf data)
+    bool extractPositionFromDecrypted(const uint8_t* decrypted, size_t length, uint32_t nodeId);
     
     // Query functions
     uint8_t getPointCount() const { return numPoints; }
@@ -32,7 +36,7 @@ public:
     void clear();
     
 private:
-    GeoPoint points[MAX_GEO_POINTS];
+    GeoPoint points[Config::Tracking::MAX_GEO_POINTS];
     uint8_t numPoints;
     
     // Meshtastic protobuf parsing helpers

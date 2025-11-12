@@ -1,10 +1,33 @@
-# Complete Understanding Guide - ESP32 LoRa Reconnaissance Tool
+# Understanding Guide - ESP32 LoRa Reconnaissance Tool
 
-**A Personal Teacher for This Codebase**
+> **🚀 v2.0 Documentation Available**  
+> **For the complete v2.0 architecture guide, see: [UNDERSTANDING_v2.md](UNDERSTANDING_v2.md)**
+>
+> The v2.0 guide covers:
+> - RadioController hardware abstraction
+> - PacketProcessor queue and analysis pipeline  
+> - IReconTool dependency inversion pattern
+> - Interrupt-driven reception with thread safety
+> - Command dispatch pattern with constexpr
+> - SD card logging integration
+> - Complete architecture deep dive with examples
+> - Study guide and self-testing questions
 
-This document explains everything needed to deeply understand this project - from hardware fundamentals to advanced embedded systems concepts. Study at your own pace, revisit sections as needed, and use this as a reference guide.
+---
 
-**Last Updated:** October 10, 2025  
+**⚠️ Legacy Content Warning**  
+This document preserves the original pre-v2.0 understanding guide for historical reference and embedded systems concepts. The code examples below reflect the architecture before the November 2025 refactoring.
+
+**For current v2.0 architecture, use [UNDERSTANDING_v2.md](UNDERSTANDING_v2.md) instead.**
+
+---
+
+**A Personal Teacher for This Codebase (Pre-v2.0)**
+
+This document explains everything needed to deeply understand the original project architecture - from hardware fundamentals to advanced embedded systems concepts. Many concepts remain valid, but specific code examples are outdated.
+
+**Last Updated:** October 10, 2025 (Pre-v2.0)  
+**v2.0 Update:** November 12, 2025 (Added architecture notes)  
 **Goal:** Master this codebase completely
 
 ---
