@@ -5,6 +5,7 @@
 #include "packet_processor.h"
 #include "recon_state.h"
 #include "oled_display.h"
+#include "text_packet_diagnostic.h"
 
 #ifdef ENABLE_PSK_TESTING
 #include "psk_decryption_simple.h"
@@ -62,6 +63,9 @@ void PacketProcessor::processSinglePacket(const QueuedPacket& qp, OLEDDisplay* d
     }
     reconState.scanState.totalPackets++;
     
+    // Analyze raw packet for diagnostics (timing, encryption detection)
+    TextPacketDiagnostic::analyzePacket(qp.data, qp.length, qp.rssi, qp.snr);
+    
     // Analyze packet using ProtocolAnalyzer
     PacketInfo info = protocolAnalyzer.analyze(qp.data, qp.length, qp.rssi);
     
@@ -74,6 +78,7 @@ void PacketProcessor::processSinglePacket(const QueuedPacket& qp, OLEDDisplay* d
     if (info.nodeId != 0) {
         reconState.addTargetableDevice(info.nodeId, reconState.scanState.currentConfig, 
                                       qp.rssi, info.protocol, qp.data, qp.length);
+        reconState.updateNode(info.nodeId, info.protocol, qp.rssi);
     }
     
     // Mode-specific handling

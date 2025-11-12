@@ -11,6 +11,8 @@
 
 #include <mbedtls/aes.h>
 #include <mbedtls/base64.h>
+#include "geo_intelligence.h"
+#include "text_packet_diagnostic.h"
 
 // Protocol constants
 #define MIN_PACKET_LENGTH           5    // Minimum protobuf packet size
@@ -278,78 +280,56 @@ bool PSKDecryption::testDefaultPSKs(const uint8_t* data, size_t length) {
             Serial.printf("%02X ", encryptedData[j]);
         }
         Serial.println();
+        
+        // Check if this is a position packet and extract GPS
+        if (secondByte == 0x03) {  // POSITION_APP
+            Serial.println("[PSK] 📍 Unencrypted position packet - extracting GPS...");
+            geoIntel.extractPositionFromDecrypted(encryptedData, encryptedLen, nodeId);
+        }
+        
         return true;
     }
     
     // Build AES-CTR nonce (PacketID + NodeID)
-    // Meshtastic nonce format:
-    // Bytes 0-3:  PacketID (little-endian)
-    // Bytes 4-7:  Unused (0x00)
-    // Bytes 8-11: NodeID (use bytes directly from packet, not converted)
-    // Bytes 12-15: Unused (0x00)
     uint8_t nonce[16];
     memset(nonce, 0, sizeof(nonce));
     
-    // PacketID (little-endian)
     nonce[0] = (packetId) & 0xFF;
     nonce[1] = (packetId >> 8) & 0xFF;
     nonce[2] = (packetId >> 16) & 0xFF;
     nonce[3] = (packetId >> 24) & 0xFF;
     
-    // NodeID - use bytes DIRECTLY from packet (positions 4-7)
     nonce[8] = data[4];
     nonce[9] = data[5];
     nonce[10] = data[6];
     nonce[11] = data[7];
     
-    Serial.print("[PSK] Nonce: ");
-    for (int j = 0; j < 16; j++) {
-        Serial.printf("%02X ", nonce[j]);
-    }
-    Serial.println();
-    
     // Try each PSK
-    Serial.printf("[PSK] Testing %d default keys...\n", NUM_PSKS);
     for (uint8_t i = 0; i < NUM_PSKS; i++) {
         uint8_t key[32];
         int keyLen = decodeBase64(DEFAULT_PSKS[i], key, sizeof(key));
         
         // Validate key length
         if (keyLen != 16 && keyLen != 1) {
-            Serial.printf("[PSK] Key #%d: Invalid length (%d bytes, skipping)\n", i + 1, keyLen);
             continue;  // Invalid key length
         }
         
-        Serial.printf("[PSK] Testing key #%d (\"%s\"): %d bytes decoded\n", 
-                      i + 1, DEFAULT_PSKS[i], keyLen);
-        
         // Expand single-byte keys to 16 bytes (defaultpsk)  
-        // Meshtastic expands "AQ==" (0x01) to the 16-byte defaultpsk
         uint8_t expandedKey[32];
         int keyBits = 0;
         
         if (keyLen == 16) {
-            // 16-byte key: use with AES-128
             memcpy(expandedKey, key, 16);
             keyBits = 128;
         } else if (keyLen == 32) {
-            // 32-byte key: use with AES-256
             memcpy(expandedKey, key, 32);
             keyBits = 256;
         } else {
-            // Single byte: this is already the expanded defaultpsk (key #2)
-            // Skip it - we'll try key #2 in the list
+            // Single byte: skip (key #2 in list has full key)
             continue;
         }
         
-        // Show the key being used
-        Serial.printf("[PSK] Using %d-bit AES with key: ", keyBits);
-        for (int j = 0; j < (keyBits/8); j++) {
-            Serial.printf("%02X ", expandedKey[j]);
-        }
-        Serial.println();
-        
-        // Decrypt with AES-CTR (128 or 256 bit depending on key)
+        // Decrypt with AES-CTR
         uint8_t decrypted[256];
         mbedtls_aes_context aes;
         mbedtls_aes_init(&aes);
@@ -371,35 +351,20 @@ bool PSKDecryption::testDefaultPSKs(const uint8_t* data, size_t length) {
         mbedtls_aes_free(&aes);
         
         if (result != 0) {
-            Serial.printf("[PSK] Key #%d: AES decryption failed (error %d)\n", i + 1, result);
             continue;
         }
-        
-        Serial.printf("[PSK] Key #%d: Decryption succeeded, validating...\n", i + 1);
-        
-        // Show first few bytes of decrypted data
-        Serial.print("[PSK] Decrypted (first 16 bytes): ");
-        for (size_t j = 0; j < min(encryptedLen, size_t(16)); j++) {
-            Serial.printf("%02X ", decrypted[j]);
-        }
-        Serial.println();
         
         // Validate decryption (basic protobuf check)
         uint8_t firstByte = decrypted[0];
         uint8_t fieldNum = firstByte >> 3;
         uint8_t wireType = firstByte & 0x07;
         
-        Serial.printf("[PSK] Key #%d: First byte=0x%02X, fieldNum=%d, wireType=%d\n", 
-                      i + 1, firstByte, fieldNum, wireType);
-        
         // More lenient validation - wireType 6 and 7 are invalid, but others might work
         if (wireType == 6 || wireType == 7) {
-            Serial.printf("[PSK] Key #%d: Invalid protobuf wire type (%d)\n", i + 1, wireType);
             continue;
         }
         
         if (fieldNum < 1 || fieldNum > 31) {
-            Serial.printf("[PSK] Key #%d: Invalid protobuf field number (%d)\n", i + 1, fieldNum);
             continue;  // Invalid protobuf structure
         }
         
@@ -413,6 +378,9 @@ bool PSKDecryption::testDefaultPSKs(const uint8_t* data, size_t length) {
         // Success!
         pskStats.successes++;
         pskStats.hitCount[i]++;
+        
+        // Update diagnostic statistics for activity analysis
+        TextPacketDiagnostic::analyzeDecryptedPacket(decrypted, encryptedLen, length);
         
         Serial.printf("\n[PSK] ✓ Decrypted with key #%d (\"%s\")\n", i + 1, DEFAULT_PSKS[i]);
         Serial.printf("[PSK] Node: 0x%08X, Packet: 0x%08X, Flags: 0x%02X\n", 
@@ -442,49 +410,13 @@ bool PSKDecryption::testDefaultPSKs(const uint8_t* data, size_t length) {
             Serial.printf("║  📧 TEXT MESSAGE: \"%s\"\n", messageText.c_str());
             Serial.println("╚════════════════════════════════════════════╝\n");
         } else {
-            // Debug: Show why extraction failed for TEXT_MESSAGE_APP
-            if (firstByte == 0x08 && encryptedLen > 1 && decrypted[1] == 0x01) {
-                Serial.println("[PSK] ⚠️  TEXT_MESSAGE_APP but extraction failed. Payload structure:");
-                Serial.print("[PSK]    Bytes 0-20: ");
-                for (size_t j = 0; j < min(encryptedLen, size_t(20)); j++) {
-                    Serial.printf("%02X ", decrypted[j]);
-                }
-                Serial.println();
-                Serial.print("[PSK]    As ASCII: ");
-                for (size_t j = 0; j < min(encryptedLen, size_t(20)); j++) {
-                    char c = decrypted[j];
-                    Serial.print((c >= 32 && c <= 126) ? c : '.');
-                }
-                Serial.println();
-            }
-            
             // Try to extract telemetry data (if portnum suggests it)
             if (firstByte == 0x08 && encryptedLen > 1) {
                 uint8_t portnum = decrypted[1];
                 if (portnum == 0x03) {  // POSITION_APP
-                    Serial.println("[PSK] 📍 Position data decrypted (parse for lat/lon/alt)");
+                    geoIntel.extractPositionFromDecrypted(decrypted, encryptedLen, nodeId);
                 } else if (portnum == 0x08) {  // TELEMETRY_APP (device metrics)
-                    Serial.println("[PSK] 📊 Telemetry data - searching for values...");
-                    
-                    // Show full payload for debugging
-                    Serial.print("[PSK]   Raw telemetry bytes: ");
-                    for (size_t j = 0; j < min(encryptedLen, size_t(40)); j++) {
-                        Serial.printf("%02X ", decrypted[j]);
-                    }
-                    Serial.println();
-                    
-                    // Meshtastic Telemetry protobuf structure:
-                    // Field 1 (portnum): 0x08 0x08
-                    // Field 2 (payload): 0x12 <len> <telemetry_data>
-                    // Inside telemetry_data:
-                    //   Field 1 (device_metrics): 0x0a <len> <DeviceMetrics>
-                    // Inside DeviceMetrics:
-                    //   Field 1 (battery_level): 0x08 <varint>
-                    //   Field 2 (voltage): 0x15 <fixed32_float>
-                    //   Field 3 (channel_utilization): 0x1d <fixed32_float>
-                    //   Field 4 (air_util_tx): 0x25 <fixed32_float>
-                    
-                    // Scan for telemetry fields (look for specific field tags)
+                    // Scan for telemetry fields
                     for (size_t j = 0; j < encryptedLen - 4; j++) {
                         // Battery level: field 1, varint (0x08 followed by value)
                         if (decrypted[j] == 0x08 && j + 1 < encryptedLen && j > 2) {
@@ -520,7 +452,6 @@ bool PSKDecryption::testDefaultPSKs(const uint8_t* data, size_t length) {
                     }
                 }
             }
-            Serial.println("[PSK] (No text message in this packet)\n");
         }
         
         return true;

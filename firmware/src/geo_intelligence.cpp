@@ -52,6 +52,61 @@ bool GeoIntelligence::extractPosition(const uint8_t* data, size_t length, uint32
     return false;
 }
 
+bool GeoIntelligence::extractPositionFromDecrypted(const uint8_t* decrypted, size_t length, uint32_t nodeId) {
+    // Decrypted payload format:
+    // [0]: Field tag (0x08)
+    // [1]: Portnum (0x03 for POSITION_APP)
+    // [2]: Field tag (0x12)
+    // [3+]: Length varint + Position protobuf data
+    
+    if (length < 5) return false;
+    
+    // Verify portnum is POSITION_APP (0x03)
+    if (decrypted[0] != 0x08 || decrypted[1] != 0x03) return false;
+    
+    // Find the position payload (after 0x12 <length>)
+    if (decrypted[2] != 0x12) return false;
+    
+    // Decode length varint
+    size_t offset = 3;
+    uint8_t lengthByte = decrypted[offset++];
+    // Simple varint (assuming < 128 bytes)
+    size_t payloadLen = lengthByte & 0x7F;
+    if (lengthByte & 0x80) {
+        // Multi-byte varint (skip for now)
+        return false;
+    }
+    
+    if (offset + payloadLen > length) return false;
+    
+    GeoPoint point;
+    point.nodeId = nodeId;
+    point.timestamp = millis();
+    
+    // Parse protobuf position data
+    if (parseProtobufPosition(decrypted + offset, payloadLen, point)) {
+        // Store point (replace oldest if full)
+        if (numPoints < MAX_GEO_POINTS) {
+            points[numPoints++] = point;
+        } else {
+            // Replace oldest entry
+            memmove(points, points + 1, sizeof(GeoPoint) * (MAX_GEO_POINTS - 1));
+            points[MAX_GEO_POINTS - 1] = point;
+        }
+        
+        Serial.println("\n📍 GPS POSITION EXTRACTED!");
+        Serial.printf("   Node: 0x%08X\n", nodeId);
+        Serial.printf("   Lat:  %f° %s\n", abs(point.latitude), point.latitude >= 0 ? "N" : "S");
+        Serial.printf("   Lon:  %f° %s\n", abs(point.longitude), point.longitude >= 0 ? "E" : "W");
+        Serial.printf("   Alt:  %.1f m\n", point.altitude);
+        Serial.printf("   Precision: %d\n\n", point.precision);
+        
+        return true;
+    }
+    
+    return false;
+}
+
 bool GeoIntelligence::parseProtobufPosition(const uint8_t* payload, size_t length, GeoPoint& point) {
     // Simplified protobuf parser for Meshtastic Position message
     // Format: field_tag (varint) + field_data
@@ -67,7 +122,7 @@ bool GeoIntelligence::parseProtobufPosition(const uint8_t* payload, size_t lengt
         uint8_t fieldNumber = tag >> 3;
         uint8_t wireType = tag & 0x07;
         
-        if (wireType == 0) {  // Varint
+        if (wireType == 0) {  // Varint (old format: latitude_i, longitude_i)
             size_t bytesRead = 0;
             int32_t value = decodeVarint(payload + offset, length - offset, bytesRead);
             offset += bytesRead;
@@ -88,6 +143,26 @@ bool GeoIntelligence::parseProtobufPosition(const uint8_t* payload, size_t lengt
                     point.precision = (int8_t)value;
                     break;
             }
+        } else if (wireType == 5) {  // Fixed32 (sfixed32 - signed 32-bit integer)
+            if (offset + 4 > length) break;
+            
+            int32_t intValue;
+            memcpy(&intValue, payload + offset, 4);
+            offset += 4;
+            
+            switch (fieldNumber) {
+                case 1:  // latitude (1e-7 degrees as int32)
+                    latitudeRaw = intValue;
+                    hasLat = true;
+                    break;
+                case 2:  // longitude (1e-7 degrees as int32)
+                    longitudeRaw = intValue;
+                    hasLon = true;
+                    break;
+                case 3:  // altitude (meters as int32)
+                    point.altitude = (float)intValue;
+                    break;
+            }
         } else if (wireType == 2) {  // Length-delimited (skip)
             size_t bytesRead = 0;
             int32_t fieldLen = decodeVarint(payload + offset, length - offset, bytesRead);
@@ -99,8 +174,12 @@ bool GeoIntelligence::parseProtobufPosition(const uint8_t* payload, size_t lengt
     }
     
     if (hasLat && hasLon) {
-        point.latitude = convertCoordinate(latitudeRaw);
-        point.longitude = convertCoordinate(longitudeRaw);
+        // If we parsed integer format (latitudeRaw/longitudeRaw), convert to degrees
+        // Otherwise latitude/longitude already set as floats
+        if (latitudeRaw != 0 || longitudeRaw != 0) {
+            point.latitude = convertCoordinate(latitudeRaw);
+            point.longitude = convertCoordinate(longitudeRaw);
+        }
         point.valid = true;
         return true;
     }
