@@ -3,6 +3,7 @@
 
 #include <Arduino.h>
 #include "data_structures.h"
+#include "irecon_tool.h"  // Interface to implement
 
 // Forward declarations
 class CommandHandler;
@@ -28,8 +29,10 @@ class PacketProcessor;
  * 
  * Coordinates RadioController, PacketProcessor, and UI components.
  * Simplified from 1000+ lines to focus on orchestration, not implementation.
+ * 
+ * Implements IReconTool interface to break circular dependency with CommandHandler.
  */
-class LoRaReconTool {
+class LoRaReconTool : public IReconTool {
 public:
     LoRaReconTool();
     
@@ -40,17 +43,13 @@ public:
     // User interaction
     void handleUserInput(char cmd);
     
-    // Device targeting (public for UI module access)
-    void startTargetedCapture(uint8_t deviceIndex);
-    void startFrequencyTargeting(uint8_t configIndex);
-    
-    // Packet replay (public for command handler)
-    void showReplayMenu();
-    void replayPacket(uint8_t slotIndex);
-    
-    // Access to components for command handler
-    RadioController* getRadioController() { return radioController; }
-    OLEDDisplay* getDisplay() { return oledDisplay; }
+    // IReconTool interface implementation
+    RadioController* getRadioController() override { return radioController; }
+    OLEDDisplay* getDisplay() override { return oledDisplay; }
+    void startTargetedCapture(uint8_t deviceIndex) override;
+    void startFrequencyTargeting(uint8_t configIndex) override;
+    void showReplayMenu() override;
+    void replayPacket(uint8_t slotIndex) override;
     
 private:
     // Component instances
