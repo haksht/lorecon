@@ -110,11 +110,21 @@ void showSecurityAssessment() {
     return;
   }
   
-  Serial.println("Device                  | Security Score | Vulnerabilities");
-  Serial.println("------------------------|----------------|------------------");
+  Serial.println("Device                  | Security Score | Status");
+  Serial.println("------------------------|----------------|---------------");
   
-  uint16_t totalScore = 0;
+  // Store device assessments for detailed breakdown
+  struct DeviceAssessment {
+    uint8_t index;
+    uint8_t score;
+    const char* rating;
+    String vulnerabilities;
+    const TargetableDevice* dev;
+  };
+  DeviceAssessment assessments[32]; // Match MAX_TARGETABLE_DEVICES
+  
   uint8_t vulnerableCount = 0;
+  uint8_t moderateCount = 0;
   
   for (uint8_t i = 0; i < reconState.numTargetableDevices; i++) {
     const TargetableDevice& dev = reconState.getTargetableDevice(i);
@@ -170,34 +180,84 @@ void showSecurityAssessment() {
     const char* rating;
     if (score >= 80) {
       rating = "✅ SECURE  ";
-      } else if (score >= 60) {
+    } else if (score >= 60) {
       rating = "⚠️ MODERATE";
+      moderateCount++;
     } else {
       rating = "🚨 VULNERABLE";
       vulnerableCount++;
     }
     
-    Serial.printf("0x%08X (%8s) | %3d/100 %s | %s\n",
-                  dev.nodeId, dev.deviceType, score, rating,
-                  vulnerabilities.c_str());
+    // Print summary line
+    Serial.printf("0x%08X (%8s) | %3d/100 %s |\n",
+                  dev.nodeId, dev.deviceType, score, rating);
     
-    totalScore += score;
+    // Store for detailed breakdown
+    assessments[i] = {i, score, rating, vulnerabilities, &dev};
   }
   
-  Serial.println("------------------------|----------------|------------------");
+  Serial.println("------------------------|----------------|---------------");
+  
+  // Detailed breakdowns for vulnerable and moderate devices
+  if (vulnerableCount > 0 || moderateCount > 0) {
+    Serial.println("\n🔍 DETAILED VULNERABILITY ANALYSIS:");
+    Serial.println("===================================");
+    
+    for (uint8_t i = 0; i < reconState.numTargetableDevices; i++) {
+      if (assessments[i].score >= 80) continue; // Skip secure devices
+      
+      const TargetableDevice* dev = assessments[i].dev;
+      Serial.printf("\n%s Device 0x%08X (%s):\n", 
+                    assessments[i].rating, dev->nodeId, dev->deviceType);
+      Serial.printf("   Score: %d/100\n", assessments[i].score);
+      Serial.printf("   RSSI: %.1f dBm (avg: %.1f), Packets: %d\n",
+                    dev->bestRSSI, dev->avgRSSI, dev->packetCount);
+      
+      Serial.println("   Findings:");
+      if (dev->bestRSSI > -50) {
+        Serial.println("      • Very strong signal (-50+ dBm) = physical proximity risk");
+      }
+      if (dev->isRouter) {
+        Serial.println("      • Router device = higher attack surface (message forwarding)");
+      }
+      if (dev->packetCount > 100) {
+        Serial.println("      • High traffic volume = potential information leakage");
+      }
+      if (dev->packetCount < 5) {
+        Serial.println("      • Low packet count = weak battery or intermittent operation");
+      }
+      if (strstr(dev->firmwareVersion, "v1.x") != nullptr || 
+          strstr(dev->firmwareVersion, "v2.0") != nullptr) {
+        Serial.printf("      • Outdated firmware: %s (known vulnerabilities)\n", dev->firmwareVersion);
+      }
+      
+      Serial.println("   Recommended Actions:");
+      if (dev->bestRSSI > -50) {
+        Serial.println("      → Increase physical distance or use directional antenna");
+      }
+      if (dev->isRouter) {
+        Serial.println("      → Monitor for injection/replay attack opportunities");
+      }
+      if (dev->packetCount > 100) {
+        Serial.println("      → Capture and analyze traffic patterns");
+      }
+    }
+  }
   
   // Summary
-  uint8_t avgScore = totalScore / reconState.numTargetableDevices;
-  Serial.printf("\n📊 OVERALL ASSESSMENT:\n");
-  Serial.printf("   Average Score: %d/100\n", avgScore);
-  Serial.printf("   Vulnerable Devices: %d/%d\n", vulnerableCount, reconState.numTargetableDevices);
+  Serial.printf("\n📊 NETWORK SUMMARY:\n");
+  Serial.printf("   Total Devices: %d\n", reconState.numTargetableDevices);
+  Serial.printf("   🚨 Vulnerable: %d\n", vulnerableCount);
+  Serial.printf("   ⚠️  Moderate Risk: %d\n", moderateCount);
+  Serial.printf("   ✅ Secure: %d\n", 
+                reconState.numTargetableDevices - vulnerableCount - moderateCount);
   
-  if (avgScore >= 80) {
-    Serial.println("   Status: ✅ Network appears well-secured");
-  } else if (avgScore >= 60) {
-    Serial.println("   Status: ⚠️ Some security concerns detected");
+  if (vulnerableCount > 0) {
+    Serial.println("\n   Status: 🚨 High-priority targets identified");
+  } else if (moderateCount > 0) {
+    Serial.println("\n   Status: ⚠️ Some devices warrant investigation");
   } else {
-    Serial.println("   Status: 🚨 Multiple vulnerabilities found");
+    Serial.println("\n   Status: ✅ All devices appear well-secured");
   }
   
   Serial.println("\n💡 RECOMMENDATIONS:");
@@ -218,6 +278,61 @@ void showSecurityAssessment() {
 
 // Show detailed RF activity analysis
 void showActivityDetails() {
+  // Check if we're in targeted capture mode
+  if (reconState.scanState.mode == MODE_TARGETED_CAPTURE) {
+    // Show targeted device statistics instead
+    Serial.println("\n🎯 TARGETED CAPTURE STATUS:");
+    Serial.println("============================");
+    
+    const ScanConfig& config = reconState.getScanConfig(reconState.scanState.targetConfig);
+    Serial.printf("Target Frequency: %.3f MHz\n", config.frequency);
+    Serial.printf("Protocol: %s\n", config.protocol);
+    Serial.printf("Spreading Factor: %d\n", config.spreadingFactor);
+    Serial.printf("Bandwidth: %.0f kHz\n", config.bandwidth);
+    
+    // Show activity on this frequency
+    const RFActivity& activity = reconState.getRFActivity(reconState.scanState.targetConfig);
+    Serial.printf("\nPackets Captured: %d\n", reconState.numCapturedPackets);
+    Serial.printf("Replay Slots Available: %d/%d\n", 
+                  Config::Replay::MAX_SLOTS - reconState.numCapturedPackets, Config::Replay::MAX_SLOTS);
+    
+    if (activity.activityCount > 0) {
+      uint32_t ageSeconds = (millis() - activity.lastActivity) / 1000;
+      Serial.printf("Signal Activity: %s\n", activity.activityLevel);
+      Serial.printf("Packets Detected: %d\n", activity.activityCount);
+      Serial.printf("Peak RSSI: %.1f dBm\n", activity.peakRSSI);
+      Serial.printf("Avg RSSI: %.1f dBm\n", activity.avgRSSI);
+      Serial.printf("Last Activity: %us ago\n", (unsigned int)ageSeconds);
+    }
+    
+    // Show devices discovered on this frequency
+    Serial.println("\nDEVICES ON THIS FREQUENCY:");
+    Serial.println("Node ID    | Device Type              | RSSI  | Packets");
+    Serial.println("-----------|--------------------------|-------|--------");
+    
+    uint8_t devicesOnFreq = 0;
+    for (uint8_t i = 0; i < reconState.numTargetableDevices; i++) {
+      const TargetableDevice& dev = reconState.getTargetableDevice(i);
+      if (dev.configIndex == reconState.scanState.targetConfig) {
+        Serial.printf("0x%08X | %-24s | %5.1f | %6d\n",
+                      dev.nodeId, dev.deviceType, dev.bestRSSI, dev.packetCount);
+        devicesOnFreq++;
+      }
+    }
+    
+    if (devicesOnFreq == 0) {
+      Serial.println("(No devices identified yet)");
+    }
+    
+    Serial.println("\n💡 TIP: Use 'c' to capture next packet, 'p' for replay menu");
+    
+    Serial.print("\nPress any key to continue: ");
+    if (!waitForSerialInput()) return;
+    Serial.read();
+    return;
+  }
+  
+  // Standard reconnaissance mode - show all frequencies
   Serial.println("\nDETAILED RF ACTIVITY ANALYSIS:");
   Serial.println("Configuration            | Frequency | SF | BW  | Activity | Signals | Age");
   Serial.println("-------------------------|-----------|----|----|----------|---------|-------");
@@ -242,13 +357,21 @@ void showActivityDetails() {
   
   if (!anyActivity) {
     Serial.println("(No RF activity detected)");
+    
+    // If we're in menu mode and have no activity, explain why
+    if (reconState.scanState.mode == MODE_INTERACTIVE_MENU) {
+      Serial.println("\nℹ️  This command shows frequency scanning activity.");
+      Serial.println("   You're currently in menu/targeted mode, not scanning.");
+      Serial.println("   Use 'r' to resume reconnaissance and scan all frequencies.");
+    }
   }
   
   Serial.println("\n💡 INTERPRETATION:");
   Serial.println("• HIGH activity: Strong nearby devices, good targeting potential");
   Serial.println("• MEDIUM activity: Moderate signals, devices may be distant");
   Serial.println("• LOW activity: Weak signals or intermittent transmissions");
-  Serial.println("\nℹ️  Only devices with decoded node IDs appear in targetable list.");
+  Serial.println("\nℹ️  This shows RF activity per frequency configuration.");
+  Serial.println("   Use 'm' to see the full targetable device list.");
   
   Serial.print("\nPress any key to continue: ");
   if (!waitForSerialInput()) return;
@@ -401,204 +524,6 @@ void displayReconStartMessage() {
   Serial.println("Press 'm' anytime to enter menu mode.");
   Serial.println();
 }
-
-#ifdef ENABLE_STRESS_TESTING
-// Hardware stress testing menu
-void showStressTestMenu() {
-  Serial.println("\n🧪 HARDWARE STRESS TESTING");
-  Serial.println("============================");
-  Serial.println("⚠️ Safety limits enabled - testing within safe parameters");
-  Serial.println();
-  
-  // Initialize stress tester if not already done
-  if (g_reconTool) {
-    g_reconTool->ensureStressTesterInitialized();
-  }
-  
-  // Get stress tester from tool instance  
-  HardwareStressTester* stressTester = g_reconTool ? g_reconTool->getStressTester() : nullptr;
-  
-  if (!stressTester) {
-    Serial.println("❌ Stress testing not available");
-    return;
-  }
-  
-  Serial.print("🔧 Initializing stress testing framework... ");
-  if (stressTester->initializeStressTesting()) {
-    Serial.println("✅ SUCCESS");
-  } else {
-    Serial.println("❌ FAILED");
-    Serial.println("Stress testing not available - returning to main menu");
-    return;
-  }
-  
-  Serial.println("TEST OPTIONS:");
-  Serial.println("1 : T-Deck targeted assessment");
-  Serial.println("2 : Frequency sweep test");
-  Serial.println("3 : Power ramp validation");
-  Serial.println("4 : Parameter boundary test");
-  Serial.println("5 : Rapid config stress test");
-  Serial.println("6 : Memory integrity test");
-  Serial.println("7 : Thermal monitoring test");
-  Serial.println("8 : Full validation suite");
-  Serial.println("9 : Show last test report");
-  Serial.println("r : Return to main menu");
-  Serial.print("\nSelect test (1-9) or command: ");
-}
-
-// Execute selected stress test
-void runHardwareStressTest(char testChoice) {
-  bool testResult = false;
-  
-  // Get stress tester from tool instance
-  HardwareStressTester* stressTester = g_reconTool ? g_reconTool->getStressTester() : nullptr;
-  
-  if (!stressTester) {
-    Serial.println("❌ Stress tester not initialized");
-    return;
-  }
-  
-  switch (testChoice) {
-    case '1':
-      Serial.println("\n🎯 Running T-Deck Targeted Assessment...");
-      testResult = stressTester->runStressTest(TDECK_TARGETED_TEST);
-      break;
-      
-    case '2':
-      Serial.println("\n📡 Running Frequency Sweep Test...");
-      testResult = stressTester->runStressTest(FREQUENCY_SWEEP_TEST);
-      break;
-      
-    case '3':
-      Serial.println("\n⚡ Running Power Ramp Test...");
-      testResult = stressTester->runStressTest(POWER_RAMP_TEST);
-      break;
-      
-    case '4':
-      Serial.println("\n🔧 Running Parameter Boundary Test...");
-      testResult = stressTester->runStressTest(PARAMETER_BOUNDARY_TEST);
-      break;
-      
-    case '5':
-      Serial.println("\n⚡ Running Rapid Config Stress Test...");
-      testResult = stressTester->runStressTest(RAPID_CONFIG_CHANGE_TEST);
-      break;
-      
-    case '6':
-      Serial.println("\n💾 Running Memory Integrity Test...");
-      testResult = stressTester->runStressTest(MEMORY_STRESS_TEST);
-      break;
-      
-    case '7':
-      Serial.println("\n🌡️ Running Thermal Monitoring Test...");
-      testResult = stressTester->runStressTest(THERMAL_STRESS_TEST);
-      break;
-      
-    case '8':
-      {
-        Serial.println("\n🧪 Running Full Validation Suite...");
-        Serial.println("This will run all tests sequentially...");
-        
-        // Run all tests with proper cooldown management
-        int passedTests = 0;
-        
-        // Helper function for cooldown with countdown
-        auto waitForCooldown = [](int seconds) {
-          Serial.printf("⏱️ Hardware cooldown: ");
-          for (int i = seconds; i > 0; i--) {
-            Serial.printf("%d ", i);
-            Serial.flush();
-            delay(1000);
-          }
-          Serial.println("✅ Ready");
-        };
-        
-        // Initial cooldown to ensure hardware is ready
-        Serial.println("🔧 Preparing hardware for validation suite...");
-        waitForCooldown(5);
-        
-        Serial.println("\n1/7: T-Deck Assessment");
-        if (stressTester->runStressTest(TDECK_TARGETED_TEST)) passedTests++;
-        waitForCooldown(30);
-        
-        Serial.println("2/7: Frequency Sweep");
-        if (stressTester->runStressTest(FREQUENCY_SWEEP_TEST)) passedTests++;
-        waitForCooldown(30);
-        
-        Serial.println("3/7: Power Validation");
-        if (stressTester->runStressTest(POWER_RAMP_TEST)) passedTests++;
-        waitForCooldown(30);
-        
-        Serial.println("4/7: Parameter Boundaries");
-        if (stressTester->runStressTest(PARAMETER_BOUNDARY_TEST)) passedTests++;
-        waitForCooldown(30);
-        
-        Serial.println("5/7: Rapid Config Stress");
-        if (stressTester->runStressTest(RAPID_CONFIG_CHANGE_TEST)) passedTests++;
-        waitForCooldown(30);
-        
-        Serial.println("6/7: Memory Integrity");
-        if (stressTester->runStressTest(MEMORY_STRESS_TEST)) passedTests++;
-        waitForCooldown(30);
-        
-        Serial.println("7/7: Thermal Monitoring");
-        if (stressTester->runStressTest(THERMAL_STRESS_TEST)) passedTests++;
-        
-        Serial.printf("\n🎯 VALIDATION COMPLETE: %d/7 tests passed (%.1f%%)\n", 
-                      passedTests, (passedTests / 7.0) * 100.0);
-        
-        if (passedTests >= 6) {
-          Serial.println("🏆 VERDICT: Hardware excellent for security research");
-        } else if (passedTests >= 4) {
-          Serial.println("✅ VERDICT: Hardware good with minor limitations");
-        } else {
-          Serial.println("⚠️ VERDICT: Hardware stability concerns detected");
-        }
-        
-        testResult = (passedTests >= 4);
-      }
-      break;
-      
-    case '9':
-      Serial.println("\n📊 Last Test Report:");
-      stressTester->printStressTestReport();
-      Serial.println("\nPress any key to continue...");
-      if (!waitForSerialInput()) return;  // Timeout returns to menu
-      Serial.read();
-      // Note: Menu handling done by caller
-      return;
-      
-    case 'r':
-    case 'R':
-      // Note: Mode switching handled by caller
-      return;
-      
-    default:
-      Serial.println("❌ Invalid selection");
-      delay(1000);
-      // Note: Menu re-display handled by caller
-      return;
-  }
-  
-  // Show test result
-  Serial.printf("\n📊 Test Result: %s\n", testResult ? "✅ PASS" : "❌ FAIL");
-  
-  // Show safety status
-  SafetyMonitor status = stressTester->getSafetyStatus();
-  Serial.printf("🛡️ Safety Status: %s\n", status.thermalShutdown ? "⚠️ SHUTDOWN" : "✅ OK");
-  Serial.printf("🌡️ Temperature: %.1f°C\n", status.currentTemperature);
-  
-  Serial.println("\nPress any key to return to stress test menu...");
-  if (!waitForSerialInput()) return;  // Timeout returns to menu
-  Serial.read();
-  
-  // Note: Menu re-display handled by caller
-}
-#endif
-
-
-
-
 
 // Frequency targeting menu for direct frequency selection
 void showFrequencyTargetingMenu() {

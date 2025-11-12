@@ -9,9 +9,7 @@
 #define COMMAND_HANDLER_H
 
 #include <Arduino.h>
-
-// Forward declaration
-class LoRaReconTool;
+#include "irecon_tool.h"  // Interface, not concrete class
 
 /**
  * Command Handler - Processes user input commands
@@ -21,10 +19,10 @@ class LoRaReconTool;
  */
 class CommandHandler {
 public:
-    // Command function signature
-    typedef void (*CommandFunc)(LoRaReconTool* tool);
+    // Command function signature - takes interface, not concrete class
+    typedef void (*CommandFunc)(IReconTool* tool);
     
-    CommandHandler(LoRaReconTool* tool);
+    CommandHandler(IReconTool* tool);
     
     // Main entry point - dispatches command
     bool handleCommand(char cmd);
@@ -33,25 +31,25 @@ public:
     void showCommands();
     
 private:
-    LoRaReconTool* reconTool;
+    IReconTool* reconTool;
     
     // Command implementations (static for use in table)
-    static void cmdShowMenu(LoRaReconTool* tool);
-    static void cmdFrequencyTargeting(LoRaReconTool* tool);
-    static void cmdDeviceTypeSummary(LoRaReconTool* tool);
-    static void cmdActivityDetails(LoRaReconTool* tool);
-    static void cmdPacketReplay(LoRaReconTool* tool);
-    static void cmdResumeRecon(LoRaReconTool* tool);
-    static void cmdRebootDevice(LoRaReconTool* tool);
-    static void cmdShowSummary(LoRaReconTool* tool);
-    static void cmdSecurityAssessment(LoRaReconTool* tool);
-    static void cmdCapturePacket(LoRaReconTool* tool);
-    static void cmdDeviceTarget(LoRaReconTool* tool, uint8_t deviceIndex);
-    static void cmdGeoIntelligence(LoRaReconTool* tool);
-    static void cmdExportKML(LoRaReconTool* tool);
-    static void cmdExportGeoJSON(LoRaReconTool* tool);
-    static void cmdDiagnosticReport(LoRaReconTool* tool);
-    static void cmdToggleQuietMode(LoRaReconTool* tool);
+    static void cmdShowMenu(IReconTool* tool);
+    static void cmdFrequencyTargeting(IReconTool* tool);
+    static void cmdDeviceTypeSummary(IReconTool* tool);
+    static void cmdActivityDetails(IReconTool* tool);
+    static void cmdPacketReplay(IReconTool* tool);
+    static void cmdResumeRecon(IReconTool* tool);
+    static void cmdRebootDevice(IReconTool* tool);
+    static void cmdShowSummary(IReconTool* tool);
+    static void cmdSecurityAssessment(IReconTool* tool);
+    static void cmdCapturePacket(IReconTool* tool);
+    static void cmdDeviceTarget(IReconTool* tool, uint8_t deviceIndex);
+    static void cmdGeoIntelligence(IReconTool* tool);
+    static void cmdExportKML(IReconTool* tool);
+    static void cmdExportGeoJSON(IReconTool* tool);
+    static void cmdDiagnosticReport(IReconTool* tool);
+    static void cmdToggleQuietMode(IReconTool* tool);
     
     // Command table entry
     struct CommandEntry {
@@ -61,9 +59,40 @@ private:
         bool requiresMenu;  // Only available from menu
     };
     
-    // Command dispatch table
-    static const CommandEntry commands[];
-    static const uint8_t numCommands;
+    // Command dispatch table (constexpr for compile-time evaluation)
+    static constexpr CommandEntry commands[] = {
+        {'m', cmdShowMenu,            "Show menu and results",         false},
+        {'M', cmdShowMenu,            "Show menu and results",         false},
+        {'f', cmdFrequencyTargeting,  "Frequency targeting mode",      false},
+        {'F', cmdFrequencyTargeting,  "Frequency targeting mode",      false},
+        {'d', cmdDeviceTypeSummary,   "Device type analysis",          false},
+        {'D', cmdDeviceTypeSummary,   "Device type analysis",          false},
+        {'a', cmdActivityDetails,     "RF activity details",           false},
+        {'p', cmdPacketReplay,        "Packet replay menu",            false},
+        {'P', cmdPacketReplay,        "Packet replay menu",            false},
+        {'r', cmdResumeRecon,         "Resume reconnaissance",         false},
+        {'R', cmdResumeRecon,         "Resume reconnaissance",         false},
+        {'b', cmdRebootDevice,        "Reboot device",                 false},
+        {'B', cmdRebootDevice,        "Reboot device",                 false},
+        {'s', cmdShowSummary,         "Show summary",                  false},
+        {'S', cmdShowSummary,         "Show summary",                  false},
+        {'v', cmdSecurityAssessment,  "Security assessment",           false},
+        {'V', cmdSecurityAssessment,  "Security assessment",           false},
+        {'c', cmdCapturePacket,       "Capture packet for replay",     false},
+        {'C', cmdCapturePacket,       "Capture packet for replay",     false},
+        {'g', cmdGeoIntelligence,     "Geographic intelligence",       false},
+        {'G', cmdGeoIntelligence,     "Geographic intelligence",       false},
+        {'k', cmdExportKML,           "Export KML (Google Earth)",     false},
+        {'K', cmdExportKML,           "Export KML (Google Earth)",     false},
+        {'j', cmdExportGeoJSON,       "Export GeoJSON (web maps)",     false},
+        {'J', cmdExportGeoJSON,       "Export GeoJSON (web maps)",     false},
+        {'q', cmdToggleQuietMode,     "Toggle quiet/verbose mode",     false},
+        {'Q', cmdToggleQuietMode,     "Toggle quiet/verbose mode",     false},
+        {'x', cmdDiagnosticReport,    "Text packet diagnostic report", false},
+        {'X', cmdDiagnosticReport,    "Text packet diagnostic report", false},
+    };
+    
+    static constexpr uint8_t numCommands = sizeof(commands) / sizeof(CommandEntry);
     
     // Helper to find command in table
     const CommandEntry* findCommand(char cmd);

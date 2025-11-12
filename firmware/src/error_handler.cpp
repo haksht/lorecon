@@ -124,8 +124,9 @@ bool ErrorHandler::recoverRadioError(const ErrorInfo& error) {
     if (g_reconTool) {
         delay(100);  // Brief pause
         
-        // Try to re-initialize radio
-        SX1262& radio = g_reconTool->getRadio();
+        // Try to re-initialize radio through RadioController
+        RadioController* radioController = g_reconTool->getRadioController();
+        SX1262& radio = radioController->getRadio();
         
         // Reset radio
         int state = radio.reset();
@@ -144,8 +145,9 @@ bool ErrorHandler::recoverRadioError(const ErrorInfo& error) {
         }
         
         // Apply current configuration
-        g_reconTool->applyConfigPublic(reconState.scanState.currentConfig);
-        g_reconTool->startReceiving();
+        const ScanConfig& cfg = reconState.getScanConfig(reconState.scanState.currentConfig);
+        radioController->applyConfig(cfg);
+        radioController->startReceive();
         
         Serial.println("[ERROR_HANDLER] Radio recovery successful");
         return true;

@@ -10,6 +10,7 @@
 #define DATA_STRUCTURES_H
 
 #include <Arduino.h>
+#include "config.h"
 
 // Operation modes
 enum OperationMode : uint8_t {
@@ -20,11 +21,8 @@ enum OperationMode : uint8_t {
 };
 
 // Captured packet for replay
-#define MAX_REPLAY_SLOTS 10
-#define MAX_PACKET_SIZE 256
-
 struct CapturedPacket {
-  uint8_t data[MAX_PACKET_SIZE];
+  uint8_t data[Config::PacketProcessing::MAX_PACKET_SIZE];
   size_t length;
   uint8_t configIndex;  // Which radio config to use for replay
   float originalRSSI;
@@ -35,7 +33,7 @@ struct CapturedPacket {
 
 // Queued packet for interrupt-driven reception
 struct QueuedPacket {
-    uint8_t data[256];
+    uint8_t data[Config::PacketProcessing::MAX_PACKET_SIZE];
     size_t length;
     float rssi;
     float snr;
@@ -99,7 +97,7 @@ struct ScanState {
   uint32_t totalPackets;
   uint32_t totalDetections;
   bool packetPending;
-  char lastPacket[MAX_PACKET_SIZE];  // Fixed buffer instead of String
+  char lastPacket[Config::PacketProcessing::MAX_PACKET_SIZE];  // Fixed buffer instead of String
   size_t lastPacketLength;           // Track actual length
   uint32_t reconStartTime;
   bool waitingForUserInput;
@@ -130,7 +128,5 @@ struct GeoPoint {
   GeoPoint() : latitude(0), longitude(0), altitude(0), timestamp(0), 
                nodeId(0), precision(0), valid(false) {}
 };
-
-#define MAX_GEO_POINTS 50
 
 #endif // DATA_STRUCTURES_H
