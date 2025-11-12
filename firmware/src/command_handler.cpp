@@ -164,8 +164,9 @@ void CommandHandler::cmdResumeRecon(LoRaReconTool* tool) {
     reconState.scanState.packetPending = false;
     reconState.scanState.waitingForUserInput = false;
     
-    tool->applyConfigPublic(reconState.scanState.currentConfig);
-    tool->startReceiving();
+    const ScanConfig& cfg = reconState.getScanConfig(reconState.scanState.currentConfig);
+    tool->getRadioController()->applyConfig(cfg);
+    tool->getRadioController()->startReceive();
 }
 
 void CommandHandler::cmdRebootDevice(LoRaReconTool* tool) {
@@ -197,8 +198,9 @@ void CommandHandler::cmdRebootDevice(LoRaReconTool* tool) {
         Serial.println("Cleared diagnostic counters.");
         Serial.println("Cleared replay slots.");
         
-        tool->applyConfigPublic(reconState.scanState.currentConfig);
-        tool->startReceiving();
+        const ScanConfig& cfg = reconState.getScanConfig(reconState.scanState.currentConfig);
+        tool->getRadioController()->applyConfig(cfg);
+        tool->getRadioController()->startReceive();
     } else {
         Serial.println("\n❌ Reboot cancelled. Returning to menu.");
     }
@@ -220,7 +222,7 @@ void CommandHandler::cmdCapturePacket(LoRaReconTool* tool) {
         
         const uint8_t* data = (const uint8_t*)reconState.scanState.lastPacket;
         size_t length = reconState.scanState.lastPacketLength;
-        float rssi = tool->getRadio().getRSSI();
+        float rssi = tool->getRadioController()->getRSSI();
         
         // Analyze packet
         ProtocolAnalyzer analyzer;
