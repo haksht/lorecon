@@ -10,11 +10,7 @@
 
 #include <Arduino.h>
 #include "data_structures.h"
-
-// Configuration constants
-#define SCAN_DWELL_TIME     12000  // 12 seconds per frequency
-#define MAX_TRACKED_NODES   20
-#define PACKET_BUFFER_SIZE  256
+#include "config.h"
 
 class ReconState {
 private:
@@ -24,20 +20,20 @@ private:
 
 public:
     // Core reconnaissance state
-    // RFActivity array sized exactly to NUM_CONFIGS (no waste)
-    RFActivity rfActivity[16];  // Will be initialized to correct size based on NUM_CONFIGS
-    TargetableDevice targetableDevices[MAX_TRACKED_NODES];
+    // RFActivity array sized to handle all scanning configurations
+    RFActivity rfActivity[Config::Scanning::NUM_CONFIGURATIONS];
+    TargetableDevice targetableDevices[Config::Tracking::MAX_DEVICES];
     uint8_t numTargetableDevices;
     
     // System state
     ScanState scanState;
     
     // Node tracking
-    TrackedNode trackedNodes[MAX_TRACKED_NODES];
+    TrackedNode trackedNodes[Config::Tracking::MAX_NODES];
     uint8_t nodeCount;
     
     // Packet replay storage
-    CapturedPacket replaySlots[MAX_REPLAY_SLOTS];
+    CapturedPacket replaySlots[Config::Replay::MAX_SLOTS];
     uint8_t numCapturedPackets;
     
     // Optional modules state

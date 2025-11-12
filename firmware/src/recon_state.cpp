@@ -3,6 +3,7 @@
  */
 
 #include "recon_state.h"
+#include "config.h"
 
 // Compile-time check: Ensure rfActivity array size matches NUM_CONFIGS
 static_assert(sizeof(((ReconState*)0)->rfActivity) / sizeof(RFActivity) >= 16, 
@@ -151,7 +152,7 @@ void ReconState::addTargetableDevice(uint32_t nodeId, uint8_t configIndex, float
     // Find existing device or create new entry
     TargetableDevice* device = findTargetableDevice(nodeId);
     
-    if (!device && numTargetableDevices < MAX_TRACKED_NODES) {
+    if (!device && numTargetableDevices < Config::Tracking::MAX_DEVICES) {
         device = &targetableDevices[numTargetableDevices++];
         device->nodeId = nodeId;
         device->configIndex = configIndex;
@@ -228,7 +229,7 @@ void ReconState::updateNode(uint32_t nodeId, const char* protocol, float rssi) {
     
     TrackedNode* node = findNode(nodeId);
     
-    if (!node && nodeCount < MAX_TRACKED_NODES) {
+    if (!node && nodeCount < Config::Tracking::MAX_NODES) {
         node = &trackedNodes[nodeCount++];
         node->nodeId = nodeId;
         node->protocol = protocol;
@@ -386,11 +387,11 @@ void ReconState::printStateSummary() const {
 // Packet replay management
 bool ReconState::capturePacketForReplay(const uint8_t* data, size_t length, uint8_t configIndex,
                                         float rssi, const char* protocol) {
-    if (numCapturedPackets >= MAX_REPLAY_SLOTS) {
+    if (numCapturedPackets >= Config::Replay::MAX_SLOTS) {
         return false;  // Slots full
     }
     
-    if (length > MAX_PACKET_SIZE) {
+    if (length > Config::PacketProcessing::MAX_PACKET_SIZE) {
         return false;  // Packet too large
     }
     

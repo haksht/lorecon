@@ -2,7 +2,10 @@
 
 **Version:** 1.0  
 **Date:** November 10, 2025  
+**Status:** Future Design Proposal  
 **Purpose:** Modular dual-board system for enhanced reconnaissance and triangulation capabilities
+
+> **Note (v2.0)**: This document describes a potential future architecture enhancement. The current v2.0 single-board architecture (RadioController, PacketProcessor, IReconTool) provides a solid foundation for implementing multi-board coordination if this concept moves forward.
 
 ---
 

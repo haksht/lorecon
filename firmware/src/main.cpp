@@ -18,6 +18,8 @@
  */
 
 #include "lora_recon_tool.h"
+#include "logger.h"
+#include "config.h"
 
 #ifdef ENABLE_PSK_TESTING
 #include "psk_tests.h"
@@ -26,7 +28,13 @@
 // Global tool instance
 LoRaReconTool reconTool;
 
+// Global logger instance
+SerialLogger serialLogger(LogLevel::INFO);
+
 void setup() {
+    // Initialize logger first
+    Logger::setInstance(&serialLogger);
+    
     if (!reconTool.initialize()) {
         while (1) delay(1000);  // Halt on initialization failure
     }

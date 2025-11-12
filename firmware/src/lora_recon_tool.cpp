@@ -1,6 +1,9 @@
 #include "lora_recon_tool.h"
 #include "user_interface.h"
 #include "error_handler.h"
+#include "logger.h"
+#include "packet_logger.h"
+#include "config.h"
 #include <LittleFS.h>
 #include <ArduinoJson.h>
 #include <esp_task_wdt.h>
@@ -8,15 +11,6 @@
 #ifdef ENABLE_PSK_TESTING
 #include "psk_decryption_simple.h"
 #endif
-
-// Timing constants
-#define SERIAL_INIT_DELAY_MS       2000  // Wait for serial console to initialize
-#define OLED_WELCOME_DELAY_MS      2000  // Display welcome screen duration
-#define BUTTON_DEBOUNCE_DELAY_MS   100   // Debounce delay for button presses
-#define BUTTON_LONG_PRESS_MS       3000  // Long press threshold for shutdown
-#define SHUTDOWN_WARNING_DELAY_MS  2000  // Display shutdown warning duration
-#define SHUTDOWN_FINAL_DELAY_MS    1000  // Final delay before shutdown
-#define LOOP_POLLING_DELAY_MS      10    // Main loop polling delay
 
 // Global pointer for tool instance
 LoRaReconTool* g_reconTool = nullptr;
@@ -36,43 +30,44 @@ LoRaReconTool::LoRaReconTool()
 
 // Initialize the reconnaissance tool
 bool LoRaReconTool::initialize() {
-    Serial.begin(115200);
-    delay(SERIAL_INIT_DELAY_MS);
+    Serial.begin(Config::UI::SERIAL_BAUD);
+    delay(Config::UI::SERIAL_INIT_DELAY_MS);
+    
+    LOG_INFO("ESP32 LoRa Reconnaissance Tool v2.0");
     
     // Initialize error handler first
     ErrorHandler::initialize();
     
     // Initialize user button
-    pinMode(USER_BUTTON, INPUT_PULLUP);
-    Serial.printf("[BUTTON] User button configured on GPIO %d\n", USER_BUTTON);
-    Serial.println("[BUTTON] Short press = Toggle display | Long press (3s) = Shutdown");
+    pinMode(Config::Hardware::USER_BUTTON, INPUT_PULLUP);
+    LOG_INFO("User button configured on GPIO %d", Config::Hardware::USER_BUTTON);
+    LOG_INFO("Short press = Toggle display | Long press (3s) = Shutdown");
     
-    // Initialize watchdog timer for stability (30 second timeout)
-    // This will reset the ESP32 if the main loop hangs
-    esp_task_wdt_init(30, true);
+    // Initialize watchdog timer for stability
+    esp_task_wdt_init(Config::System::WATCHDOG_TIMEOUT_SEC, true);
     esp_task_wdt_add(NULL);
-    Serial.println("[WATCHDOG] Hardware watchdog enabled (30s timeout)");
+    LOG_INFO("Hardware watchdog enabled (%ds timeout)", Config::System::WATCHDOG_TIMEOUT_SEC);
     
     displayWelcomeMessage();
     
     // Initialize storage
     if (LittleFS.begin()) {
-        Serial.println("[FS] Storage ready");
+        LOG_INFO("Storage ready");
     } else {
-        Serial.println("[FS] Storage init failed");
+        LOG_WARN("Storage init failed");
     }
     
     // Initialize RadioController
     radioController = new RadioController();
     if (!radioController || !radioController->initialize()) {
-        Serial.println("[ERROR] Radio initialization failed");
+        LOG_ERROR("Radio initialization failed");
         return false;
     }
     
     // Initialize PacketProcessor
     packetProcessor = new PacketProcessor();
     if (!packetProcessor) {
-        Serial.println("[ERROR] PacketProcessor initialization failed");
+        LOG_ERROR("PacketProcessor initialization failed");
         return false;
     }
     
@@ -83,9 +78,9 @@ bool LoRaReconTool::initialize() {
     oledDisplay = new OLEDDisplay();
     if (oledDisplay && oledDisplay->initialize()) {
         oledDisplay->showWelcome();
-        delay(OLED_WELCOME_DELAY_MS);
+        delay(Config::UI::WELCOME_SCREEN_DELAY_MS);
     } else {
-        Serial.println("[WARNING] Display initialization failed - continuing without display");
+        LOG_WARN("Display initialization failed - continuing without display");
         if (oledDisplay) {
             delete oledDisplay;
             oledDisplay = nullptr;
@@ -97,13 +92,21 @@ bool LoRaReconTool::initialize() {
     // Apply initial configuration and start receiving
     const ScanConfig& cfg = reconState.getScanConfig(reconState.scanState.currentConfig);
     if (!radioController->applyConfig(cfg)) {
-        Serial.println("[ERROR] Failed to apply initial config");
-        LOG_RADIO_ERROR(ErrorCodes::RADIO_CONFIG_FAILED, "Initial radio configuration failed");
+        LOG_ERROR("Failed to apply initial config");
+        REPORT_RADIO_ERROR(ErrorCodes::RADIO_CONFIG_FAILED, "Initial radio configuration failed");
         return false;
     }
     
     radioController->startReceive();
-    Serial.println("[RECON] Started\n");
+    LOG_INFO("Reconnaissance started");
+    
+    // Initialize SD card logger
+    if (packetLogger.initialize()) {
+        LOG_INFO("SD card logging available");
+        packetLogger.startSession();
+    } else {
+        LOG_INFO("SD card not present - continuing without logging");
+    }
     
     // Initialize PSK decryption system
     #ifdef ENABLE_PSK_TESTING
@@ -112,7 +115,7 @@ bool LoRaReconTool::initialize() {
     
     // Initialize command handler
     commandHandler = new CommandHandler(this);
-    Serial.println("[SYSTEM] Command handler initialized");
+    LOG_INFO("Command handler initialized");
     
     return true;
 }
@@ -160,31 +163,31 @@ void LoRaReconTool::update() {
             
         case MODE_INTERACTIVE_MENU:
             // Just wait for user input
-            delay(BUTTON_DEBOUNCE_DELAY_MS);
+            delay(Config::UI::BUTTON_DEBOUNCE_MS);
             return;
             
         case MODE_PACKET_REPLAY:
             // Packet replay is handled via command handler
-            delay(BUTTON_DEBOUNCE_DELAY_MS);
+            delay(Config::UI::BUTTON_DEBOUNCE_MS);
             return;
     }
     
-    delay(LOOP_POLLING_DELAY_MS);
+    delay(Config::UI::LOOP_POLLING_DELAY_MS);
 }
 
 // Apply radio configuration for scanning
 // Handle reconnaissance mode operations
 void LoRaReconTool::handleReconnaissanceMode(uint32_t now) {
     // Handle frequency switching in recon mode
-    if (now - reconState.scanState.lastScanSwitch >= SCAN_DWELL_TIME) {
+    if (now - reconState.scanState.lastScanSwitch >= Config::Scanning::DWELL_TIME_MS) {
         reconState.scanState.currentConfig = (reconState.scanState.currentConfig + 1) % reconState.getNumConfigs();
         reconState.scanState.lastScanSwitch = now;
         
         // Show progress every full cycle (when back to config 0)
         if (reconState.scanState.currentConfig == 0) {
             uint32_t elapsed = (now - reconState.scanState.reconStartTime) / 1000;
-            Serial.printf("[RECON] Cycle complete - %u seconds elapsed, %d targetable devices found\n", 
-                          (unsigned int)elapsed, reconState.numTargetableDevices);
+            LOG_INFO("Cycle complete - %u seconds elapsed, %d targetable devices found", 
+                     (unsigned int)elapsed, reconState.numTargetableDevices);
         }
         
         const ScanConfig& cfg = reconState.getScanConfig(reconState.scanState.currentConfig);
@@ -346,7 +349,7 @@ void LoRaReconTool::showReplayMenu() {
     }
     
     Serial.printf("Captured Packets: %d/%d slots used\n\n", 
-                  reconState.getNumCapturedPackets(), MAX_REPLAY_SLOTS);
+                  reconState.getNumCapturedPackets(), Config::Replay::MAX_SLOTS);
     
     Serial.println("Slot | Protocol     | Length | Config              | RSSI   | Age");
     Serial.println("-----|--------------|--------|---------------------|--------|-------");
@@ -616,24 +619,23 @@ void LoRaReconTool::replayPacket(uint8_t slotIndex) {
 
 // Handle button press for display toggle and power off
 void LoRaReconTool::handleButtonPress(uint32_t now) {
-    bool currentButtonState = (digitalRead(USER_BUTTON) == LOW);  // Active low
+    bool currentButtonState = (digitalRead(Config::Hardware::USER_BUTTON) == LOW);  // Active low
     
     // Detect button press (transition from not pressed to pressed)
     if (currentButtonState && !buttonPressed) {
         buttonPressed = true;
         buttonPressStart = now;
-        Serial.println("[BUTTON] Button pressed");
+        LOG_DEBUG("Button pressed");
     }
     
     // Button is being held down
     if (currentButtonState && buttonPressed) {
         uint32_t pressDuration = now - buttonPressStart;
         
-        // Long press (3 seconds) = shutdown
-        if (pressDuration >= 3000 && !shutdownInitiated) {
+        // Long press = shutdown
+        if (pressDuration >= Config::UI::BUTTON_LONG_PRESS_MS && !shutdownInitiated) {
             shutdownInitiated = true;
-            Serial.println("\n🔴 SHUTDOWN INITIATED (3s press detected)");
-            Serial.println("===========================================");
+            LOG_INFO("🔴 SHUTDOWN INITIATED (long press detected)");
             
             // Show shutdown on display
             if (oledDisplay) {
@@ -642,22 +644,19 @@ void LoRaReconTool::handleButtonPress(uint32_t now) {
             }
             
             // Stop radio safely
-            Serial.print("[RADIO] Stopping radio... ");
+            LOG_INFO("Stopping radio...");
             radioController->getRadio().standby();
             radioController->getRadio().sleep();
-            Serial.println("OK");
+            LOG_INFO("Radio stopped");
             
-            // Optional: Save state to flash
-            // reconState.saveToFlash();
-            
-            Serial.println("✅ Safe to remove power");
-            Serial.println("Device will enter deep sleep in 2 seconds...");
+            LOG_INFO("✅ Safe to remove power");
+            LOG_INFO("Device will enter deep sleep in %dms...", Config::UI::SHUTDOWN_WARNING_MS);
             Serial.flush();
             
-            delay(2000);
+            delay(Config::UI::SHUTDOWN_WARNING_MS);
             
             // Enter deep sleep (effectively powered off until reset)
-            Serial.println("[SLEEP] Entering deep sleep mode");
+            LOG_INFO("Entering deep sleep mode");
             Serial.flush();
             esp_deep_sleep_start();
         }
@@ -668,9 +667,9 @@ void LoRaReconTool::handleButtonPress(uint32_t now) {
         uint32_t pressDuration = now - buttonPressStart;
         buttonPressed = false;
         
-        // Short press (< 3 seconds) = toggle display
-        if (pressDuration < 3000 && !shutdownInitiated) {
-            Serial.println("[BUTTON] Short press detected - toggling display");
+        // Short press = toggle display
+        if (pressDuration < Config::UI::BUTTON_LONG_PRESS_MS && !shutdownInitiated) {
+            LOG_DEBUG("Short press detected - toggling display");
             if (oledDisplay) {
                 oledDisplay->toggle();
                 if (oledDisplay->isOn()) {

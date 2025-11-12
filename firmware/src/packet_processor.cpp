@@ -3,19 +3,19 @@
  */
 
 #include "packet_processor.h"
+#include "packet_logger.h"
 #include "recon_state.h"
 #include "oled_display.h"
 #include "text_packet_diagnostic.h"
+#include "config.h"
 
 #ifdef ENABLE_PSK_TESTING
 #include "psk_decryption_simple.h"
 #endif
 
 // Constructor
-PacketProcessor::PacketProcessor()
-    : lastPacketLength(0)
-{
-    memset(lastPacketData, 0, sizeof(lastPacketData));
+PacketProcessor::PacketProcessor() {
+    lastPacketData.reserve(Config::PacketProcessing::MAX_PACKET_SIZE);
 }
 
 // Queue a packet for processing
@@ -52,10 +52,9 @@ void PacketProcessor::processQueue(OLEDDisplay* display) {
 
 // Process a single packet
 void PacketProcessor::processSinglePacket(const QueuedPacket& qp, OLEDDisplay* display) {
-    // Store for potential replay capture
-    if (qp.length <= MAX_PACKET_SIZE) {
-        memcpy(lastPacketData, qp.data, qp.length);
-        lastPacketLength = qp.length;
+    // Store for potential replay capture using vector
+    if (qp.length <= Config::PacketProcessing::MAX_PACKET_SIZE) {
+        lastPacketData.assign(qp.data, qp.data + qp.length);
         
         // Also update recon state for backward compatibility
         memcpy(reconState.scanState.lastPacket, qp.data, qp.length);
@@ -86,6 +85,11 @@ void PacketProcessor::processSinglePacket(const QueuedPacket& qp, OLEDDisplay* d
         handleReconPacket(info, qp.data, qp.length, qp.rssi, qp.snr, display);
     } else if (reconState.scanState.mode == MODE_TARGETED_CAPTURE) {
         handleTargetedPacket(info, qp.data, qp.length, qp.rssi, qp.snr, display);
+    }
+    
+    // Log to SD card if available
+    if (packetLogger.isAvailable()) {
+        packetLogger.logPacket(qp.data, qp.length, qp.rssi, qp.snr, info.protocol, info.nodeId);
     }
 }
 

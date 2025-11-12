@@ -109,16 +109,17 @@ private:
 };
 
 // Helper macros for easy error reporting with file/line info
-#define LOG_ERROR(cat, sev, code, msg) \
+// Note: Renamed to avoid conflict with logger.h LOG_ERROR macro
+#define REPORT_ERROR(cat, sev, code, msg) \
     ErrorHandler::logError(cat, sev, code, msg, __FUNCTION__, __LINE__)
 
-#define LOG_RADIO_ERROR(code, msg) \
+#define REPORT_RADIO_ERROR(code, msg) \
     ErrorHandler::radioError(code, msg, __FUNCTION__, __LINE__)
 
-#define LOG_MEMORY_ERROR(code, msg) \
+#define REPORT_MEMORY_ERROR(code, msg) \
     ErrorHandler::memoryError(code, msg, __FUNCTION__, __LINE__)
 
-#define LOG_STATE_ERROR(code, msg) \
+#define REPORT_STATE_ERROR(code, msg) \
     ErrorHandler::stateError(code, msg, __FUNCTION__, __LINE__)
 
 // Error code definitions
