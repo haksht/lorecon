@@ -52,20 +52,6 @@ public:
     RadioController* getRadioController() { return radioController; }
     OLEDDisplay* getDisplay() { return oledDisplay; }
     
-    // Helper methods for command handler
-    bool applyConfigPublic(uint8_t configIndex) {
-        const ScanConfig& cfg = reconState.getScanConfig(configIndex);
-        return radioController->applyConfig(cfg);
-    }
-    
-    void startReceiving() { 
-        radioController->startReceive(); 
-    }
-    
-    SX1262& getRadio() { 
-        return radioController->getRadio(); 
-    }
-    
 private:
     // Component instances
     RadioController* radioController;
