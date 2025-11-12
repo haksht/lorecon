@@ -204,18 +204,14 @@ Primary focus: **902.125 MHz SF11** (Meshtastic US primary channel)
 
 ```
 firmware/src/
-├── main.cpp                      # Research Platform main (~800 lines)
-├── main_realistic.cpp            # Educational Simple main (~300 lines)
+├── main.cpp                      # Main entry point (~50 lines)
+├── lora_recon_tool.cpp/.h        # Core reconnaissance system
 ├── recon_state.cpp/.h            # State management encapsulation
 ├── user_interface.cpp/.h         # Menu system and display
 ├── psk_decryption_simple.cpp/.h  # PSK testing framework
-├── hardware_stress_tester.cpp/.h # Hardware validation tools
+├── protocol_analyzer.cpp/.h      # Protocol identification
 └── data_structures.h             # Shared structs (CapturedPacket, etc.)
 ```
-
-**Build Filtering (platformio.ini):**
-- **Research Platform**: Excludes `main_realistic.cpp`, uses all modules
-- **Educational Simple**: Excludes `main.cpp` and advanced modules
 
 ### **Feature Flags**
 Currently disabled via `platformio.ini`:
