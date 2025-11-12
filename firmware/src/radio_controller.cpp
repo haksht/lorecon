@@ -4,6 +4,7 @@
 
 #include "radio_controller.h"
 #include "error_handler.h"
+#include "config.h"
 #include <SPI.h>
 
 // Global pointer for ISR access
@@ -18,7 +19,8 @@ void IRAM_ATTR radioISR() {
 
 // Constructor
 RadioController::RadioController()
-    : radio(new Module(LORA_NSS, LORA_DIO1, LORA_RST, LORA_BUSY))
+    : radio(new Module(Config::Hardware::LORA_NSS, Config::Hardware::LORA_DIO1, 
+                       Config::Hardware::LORA_RST, Config::Hardware::LORA_BUSY))
     , packetAvailable(false)
     , cachedRSSI(0)
     , cachedSNR(0)
@@ -38,28 +40,30 @@ bool RadioController::initialize() {
     Serial.println("[RADIO] Initializing SX1262...");
     
     // Initialize SPI bus
-    SPI.begin(SCK, MISO, MOSI, LORA_NSS);
+    SPI.begin(Config::Hardware::SPI_SCK, Config::Hardware::SPI_MISO, 
+              Config::Hardware::SPI_MOSI, Config::Hardware::LORA_NSS);
     Serial.printf("[RADIO] SPI initialized (SCK:%d MISO:%d MOSI:%d NSS:%d)\n", 
-                  SCK, MISO, MOSI, LORA_NSS);
+                  Config::Hardware::SPI_SCK, Config::Hardware::SPI_MISO, 
+                  Config::Hardware::SPI_MOSI, Config::Hardware::LORA_NSS);
     
     // Initialize radio module
     int state = radio.begin();
     if (state != RADIOLIB_ERR_NONE) {
         Serial.printf("[RADIO] Initialization FAILED (error: %d)\n", state);
-        LOG_RADIO_ERROR(ErrorCodes::RADIO_INIT_FAILED, "SX1262 initialization failed");
+        REPORT_RADIO_ERROR(ErrorCodes::RADIO_INIT_FAILED, "SX1262 initialization failed");
         return false;
     }
     
     Serial.println("[RADIO] SX1262 initialized successfully");
     
     // Configure interrupt pin and handler
-    pinMode(LORA_DIO1, INPUT);
+    pinMode(Config::Hardware::LORA_DIO1, INPUT);
     radio.setDio1Action(radioISR);
-    Serial.printf("[RADIO] Interrupt configured on GPIO %d\n", LORA_DIO1);
+    Serial.printf("[RADIO] Interrupt configured on GPIO %d\n", Config::Hardware::LORA_DIO1);
     
     // Set receive-only mode (no transmission by default)
-    radio.setCurrentLimit(100);
-    radio.setOutputPower(0);
+    radio.setCurrentLimit(Config::Radio::CURRENT_LIMIT_MA);
+    radio.setOutputPower(Config::Radio::OUTPUT_POWER_DBM);
     
     return true;
 }
@@ -198,7 +202,7 @@ size_t RadioController::getPacketLength() {
 
 // Get RSSI
 float RadioController::getRSSI(bool useCache) {
-    if (useCache && (millis() - lastMetricUpdate < METRIC_CACHE_MS)) {
+    if (useCache && (millis() - lastMetricUpdate < Config::PacketProcessing::METRIC_CACHE_MS)) {
         return cachedRSSI;
     }
     
@@ -209,7 +213,7 @@ float RadioController::getRSSI(bool useCache) {
 
 // Get SNR
 float RadioController::getSNR(bool useCache) {
-    if (useCache && (millis() - lastMetricUpdate < METRIC_CACHE_MS)) {
+    if (useCache && (millis() - lastMetricUpdate < Config::PacketProcessing::METRIC_CACHE_MS)) {
         return cachedSNR;
     }
     

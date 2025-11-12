@@ -1,5 +1,7 @@
 ### SESSION HANDOFF - Nov 11, 2025 (ARCHITECTURE SIMPLIFIED - v2.0)
 
+> **⚠️ NOTE**: This document represents the state after attack code removal but BEFORE the architecture refactoring phases (1-5) completed on Nov 11-12, 2025. For complete v2.0 architecture documentation including RadioController, PacketProcessor, IReconTool, and GPS parsing, see [ARCHITECTURE_REFACTOR_NOV11.md](ARCHITECTURE_REFACTOR_NOV11.md).
+
 ## 🎯 QUICK START FOR NEXT SESSION
 
 **STATUS: v2.0 Architecture Complete - Simplified & Focused on Reconnaissance + PC Analysis**

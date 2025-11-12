@@ -17,17 +17,7 @@
 #include <RadioLib.h>
 #include <atomic>
 #include "data_structures.h"
-
-// Hardware configuration for Heltec WiFi LoRa 32 V3
-#define LORA_NSS    8
-#define LORA_DIO1   14
-#define LORA_RST    12
-#define LORA_BUSY   13
-
-// SPI pins for Heltec WiFi LoRa 32 V3
-#define SCK  9
-#define MISO 11
-#define MOSI 10
+#include "config.h"
 
 /**
  * RadioController - Manages SX1262 radio hardware
@@ -80,7 +70,6 @@ private:
     float cachedRSSI;
     float cachedSNR;
     uint32_t lastMetricUpdate;
-    static const uint32_t METRIC_CACHE_MS = 100;
     
     // Apply protocol-specific parameters
     void applyProtocolParameters(const char* protocol);

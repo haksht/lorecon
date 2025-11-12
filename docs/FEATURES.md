@@ -1,21 +1,23 @@
 # Feature Documentation
 
-**ESP32 LoRa Reconnaissance Tool v1.8**
+**ESP32 LoRa Reconnaissance Tool v2.0**
 
 ## 🎯 Tool Identity
 
-**Core Mission**: Recon → Sniff → Capture → Replay
+**Core Mission**: Recon → Sniff → Capture → Replay → Analyze
 
-A focused LoRa packet capture and analysis tool for security research and RF experimentation. Designed for DefCon-quality demonstrations of LoRa security assessment techniques. Features OLED display for standalone operation.
+A production-ready LoRa packet capture and analysis platform for security research and RF experimentation. Features clean architecture (RadioController, PacketProcessor, IReconTool), GPS parsing, PSK decryption, and OLED display for standalone operation.
+
+**Architecture**: v2.0 - Refactored with clean component separation and dependency inversion
 
 ---
 
 ## ✅ Implemented Features
 
-### 📺 OLED Display & Button Control (NEW v1.8)
+### 📺 OLED Display & Button Control (v1.8+)
 **Status**: ✅ Production Ready  
-**Build Flag**: Always enabled  
-**Files**: `oled_display.cpp`, `oled_display.h`
+**Architecture**: UserInterface + OLEDDisplay components  
+**Files**: `oled_display.cpp/.h`, `user_interface.cpp/.h`, `ui_components.cpp/.h`
 
 #### Hardware Requirements
 - **Heltec WiFi LoRa 32 V3** with 128x64 SSD1306 OLED (I2C address 0x3C)
@@ -28,23 +30,23 @@ A focused LoRa packet capture and analysis tool for security research and RF exp
 
 #### Features
 - **128x64 SSD1306 display** (I2C 0x3C)
-- **6 display modes** (Welcome, Scanning, Packet Info, Device List, Targeting, Shutdown)
+- **6 display modes** (Welcome, Idle, Device Info, Signal Info, Stats, Summary)
 - **Button control**:
-  - **Short press** (< 3 seconds): Toggle display on/off
+  - **Short press** (< 3 seconds): Toggle display mode
   - **Long press** (≥ 3 seconds): Initiate shutdown sequence
-- **Auto-off timer** (30 seconds default, configurable)
-- **Robust initialization** (reset pulse + 3x retry I2C, 2x retry U8g2)
+- **Auto-cycle timer** (configurable display rotation)
+- **Robust initialization** (reset pulse + retry logic)
 - **Runtime recovery** (reinitialize() method for transient failures)
 - **Graceful degradation** (continues without display on boards lacking OLED)
 
-**What it does**: Provides standalone visual feedback and control without requiring serial connection. Display shows scanning status, packet info, device counts, and allows toggle/shutdown via button. Works with Heltec V2/V3 boards (auto-detects pin configuration).
+**What it does**: Provides standalone visual feedback and control without requiring serial connection. Display shows scanning status, packet info, device counts, signal quality, and statistics. Button allows display mode cycling and safe shutdown.
 
 ---
 
 ### 🔍 Core Reconnaissance (ESSENTIAL)
 **Status**: ✅ Production Ready  
-**Build Flag**: Always enabled  
-**Files**: `lora_recon_tool.cpp`, `recon_state.cpp`
+**Architecture**: LoRaReconTool (orchestrator) + ReconState (tracking)  
+**Files**: `lora_recon_tool.cpp/.h`, `recon_state.cpp/.h`
 
 - **16 scan configurations** (Meshtastic, LoRaWAN, ISM band)
 - **Sequential frequency scanning** (12s dwell time per config)
@@ -52,24 +54,41 @@ A focused LoRa packet capture and analysis tool for security research and RF exp
 - **Device enumeration** (node IDs, signal strength, device types)
 - **Protocol detection** (Meshtastic, LoRaWAN, generic)
 - **Interactive targeting** (select discovered devices for focused capture)
+- **Resume capability** ('r' command keeps discovered devices)
 
-**What it does**: Automatically scans 16 LoRa configurations to discover active devices in your area, tracks signal strength, and lets you target specific devices for deeper analysis.
+**What it does**: Automatically scans 16 LoRa configurations to discover active devices in your area, tracks signal strength, and lets you target specific devices for deeper analysis. Resume feature allows restarting scans without losing device history.
 
 ---
 
 ### 📡 Packet Capture & Analysis (ESSENTIAL)
 **Status**: ✅ Production Ready  
-**Build Flag**: Always enabled  
-**Files**: `protocol_analyzer.cpp`, `lora_recon_tool.cpp`
+**Architecture**: RadioController (hardware) + PacketProcessor (analysis)  
+**Files**: `radio_controller.cpp/.h`, `packet_processor.cpp/.h`, `protocol_analyzer.cpp/.h`
 
+#### RadioController Features
+- **Thread-safe interrupt handling** (atomic flags, ISR-driven)
+- **SX1262 hardware abstraction** (SPI, pins, configuration)
+- **Signal metrics caching** (RSSI, SNR with 100ms cache)
+- **Configuration management** (frequency, BW, SF, sync word)
+
+#### PacketProcessor Features
+- **Queue management** (max 10 packets, overflow protection)
+- **Protocol analysis coordination** (Meshtastic, LoRaWAN)
+- **PSK decryption coordination** (14 default keys)
+- **Activity tracking** (via TextPacketDiagnostic)
+- **Last packet storage** (for replay capture)
+
+#### Analysis Capabilities
 - **Real-time packet capture** (interrupt-driven, <50ms latency)
 - **Meshtastic header parsing** (node IDs, hop counts, routing flags)
 - **LoRaWAN frame analysis** (message types, DevAddr extraction)
 - **Device fingerprinting** (firmware version estimation, power class)
 - **Router detection** (identifies mesh routing devices)
 - **Signal analysis** (RSSI, SNR, frequency error)
+- **Packet timing analysis** (gaps, burst detection)
+- **Encryption status tracking** (encrypted vs plaintext)
 
-**What it does**: Captures and analyzes LoRa packets in real-time, extracting intelligence like node IDs, device types, firmware versions, and network topology information.
+**What it does**: Captures and analyzes LoRa packets in real-time with clean architecture separation. RadioController handles hardware, PacketProcessor manages queue and analysis, resulting in reliable, maintainable packet capture.
 
 ---
 
@@ -90,13 +109,17 @@ A focused LoRa packet capture and analysis tool for security research and RF exp
 
 ### 🔓 Broadcast & Channel Message Decryption (SECURITY RESEARCH)
 **Status**: ✅ Production Ready  
-**Build Flag**: `-DENABLE_PSK_TESTING`  
-**Files**: `psk_decryption_simple.cpp`, `psk_tests.h`
+**Architecture**: PSK testing via PacketProcessor coordination  
+**Files**: `psk_decryption_simple.cpp/.h`, `psk_tests.h`
 
 - **14 default Meshtastic PSKs** including:
-  - Standard 16-byte keys (most common)
-  - Single-byte variants (0x01-0x05)
-  - Weak test keys (zeros, "1234567890123456", "test", "meshtastic")
+  - Standard 16-byte keys (most common: "AQ==", "1PG7OiApB1nwvP+rz05pAQ==", etc.)
+  - Single-byte variants (0x01-0x05: "AQ==", "Ag==", "Aw==", "BA==", "BQ==")
+  - Weak test keys:
+    - All zeros: "AAAAAAAAAAAAAAAAAAAAAA=="
+    - ASCII "1234567890123456": "MTIzNDU2Nzg5MDEyMzQ1Ng=="
+    - ASCII "testtesttesttest": "dGVzdHRlc3R0ZXN0dGVzdA=="
+    - ASCII "meshtasticmeshtast": "bWVzaHRhc3RpY21lc2h0YXN0"
 - **AES-128/256 decryption** (Meshtastic encryption standard)
 - **Automated test suite** (Base64 parsing, PSK loading, decryption logic)
 - **Message extraction** (pulls plaintext from decrypted packets)
@@ -104,57 +127,69 @@ A focused LoRa packet capture and analysis tool for security research and RF exp
 
 **What it decrypts**: Position broadcasts, telemetry, node info, traceroutes, and **channel/group messages**
 
+**Supported Packet Types**:
+- TEXT_MESSAGE_APP (0x01): Channel chat messages
+- POSITION_APP (0x03): GPS coordinates (triggers GPS extraction)
+- NODEINFO_APP (0x04): Device names, hardware info
+- ADMIN_APP (0x07): Administrative messages
+- TELEMETRY_APP (0x08): Battery %, voltage, channel utilization, air util
+- TRACEROUTE_APP (0x42): Routing traces
+- MAP_REPORT_APP (0x43): Map reports
+
 **What it cannot decrypt**: Direct messages (DMs) - these use Public Key Cryptography (PKC) in firmware 2.5.0+
 
-**What it does**: Tests captured Meshtastic packets against 5 common default encryption keys. When a match is found, decrypts broadcasts and channel messages to reveal content and GPS data.
+**What it does**: Tests captured Meshtastic packets against 14 common default encryption keys. When a match is found, decrypts broadcasts and channel messages to reveal content, GPS data, and telemetry. Integrates with GPS extraction for POSITION_APP packets.
 
-**Current Status**: Code complete and working. Successfully decrypts position broadcasts, telemetry, and channel messages sent with default PSKs. Direct messages require PKC decryption (not feasible).
+**Current Status**: Code complete and working. Successfully decrypts position broadcasts, telemetry, and channel messages sent with default PSKs. Direct messages require PKC decryption (not feasible without private key).
 
 **See also**: [ENCRYPTION_REALITY.md](../docs/ENCRYPTION_REALITY.md) for complete explanation of what's decryptable vs. PKC-protected.
 
 ---
 
-### 📍 Geographic Intelligence (BONUS)
+### 📍 Geographic Intelligence (v2.0)
 **Status**: ✅ Production Ready  
-**Build Flag**: Always enabled  
-**Files**: `geo_intelligence.cpp`
+**Architecture**: GeoIntelligence component with protobuf parsing  
+**Files**: `geo_intelligence.cpp/.h`
 
 - **GPS coordinate extraction** (latitude, longitude, altitude)
-- **Meshtastic position packet parsing** (protobuf decoding)
+- **Meshtastic POSITION_APP parsing** (protobuf wire types 0 and 5)
+- **Wire type 0 support** (varint encoding)
+- **Wire type 5 support** (sfixed32 encoding)
+- **Coordinate scaling** (1e-7 factor for degree conversion)
 - **50 position history** (tracks device movements over time)
-- **KML export** (Google Earth compatible)
-- **GeoJSON export** (web mapping tools like Leaflet, Mapbox)
+- **KML export** (Google Earth compatible, 'k' command)
+- **GeoJSON export** (web mapping tools like Leaflet, Mapbox, 'j' command)
 - **Node position tracking** (associates GPS with node IDs)
+- **Integration with PSK decryption** (automatic extraction from decrypted POSITION_APP packets)
 
-**What it does**: Automatically extracts GPS coordinates from Meshtastic position packets and lets you export them for mapping in Google Earth or web-based maps.
+**Verified Working**: Extracted real coordinates (35.730228° N, 78.879128° W) from live Meshtastic traffic
 
----
-
-### ⚡ Hardware Stress Testing (ATTACK SURFACE ANALYSIS)
-**Status**: ✅ Production Ready  
-**Build Flag**: `-DENABLE_STRESS_TESTING`  
-**Files**: `hardware_stress_tester.cpp`
-
-- **7 stress test suites**:
-  1. T-Deck targeted assessment
-  2. Frequency sweep validation
-  3. Power ramp testing
-  4. Parameter boundary testing
-  5. Rapid configuration changes
-  6. Memory integrity validation
-  7. Thermal monitoring
-- **Real ESP32 temperature monitoring**
-- **Safety limits** (thermal shutdown, power limits)
-- **Automated test reports**
-- **Hardware vulnerability research**
-
-**What it does**: Tests the radio hardware's limits to identify potential attack vectors and vulnerabilities. Useful for understanding where hardware might fail under stress or malicious configuration.
-
-**DefCon Value**: Demonstrates professional hardware security assessment methodology.
+**What it does**: Automatically extracts GPS coordinates from Meshtastic position packets (both encrypted and plaintext) and lets you export them for mapping in Google Earth or web-based maps. Works with both wire type encodings found in Meshtastic firmware.
 
 ---
 
-### � Quiet Mode (FAST PACKET CAPTURE)
+### ⚡ Hardware Stress Testing (REMOVED in v2.0)
+**Status**: ❌ Removed  
+**Reason**: Fundamental design flaw - cannot reliably test external devices without instrumentation
+
+**Previously included**:
+- T-Deck targeted assessment
+- Frequency sweep validation  
+- Power ramp testing
+- Parameter boundary testing
+- Rapid configuration changes
+- Memory integrity validation
+- Thermal monitoring
+
+**Why removed**: The attack testing framework tried to assess external devices but had no reliable way to determine results. Cannot verify if target device crashed vs. just stopped transmitting, no visibility into target device internal state. This ~900 lines of code provided minimal value and violated the principle of focusing on what the ESP32 does well (passive reconnaissance).
+
+**Replacement**: Focus shifted to PC-based analysis of captured data, which provides more reliable insights without the fundamental limitations of on-device testing.
+
+**See**: [ARCHITECTURE_REFACTOR_NOV11.md](../ARCHITECTURE_REFACTOR_NOV11.md) for detailed rationale.
+
+---
+
+### 🔇 Quiet Mode (FAST PACKET CAPTURE)
 **Status**: ✅ Production Ready  
 **Build Flag**: Always enabled  
 **Command**: Press 'q' to toggle
@@ -229,40 +264,50 @@ Reduces serial output by 95% to minimize packet processing time and capture gaps
 
 ## ❌ Features NOT Included (By Design)
 
-### Intelligence Storage / Session Management
-**Why Not**: Adds complexity without clear benefit for a focused recon tool. Current LittleFS packet logging is sufficient.
+### Attack/Offensive Testing Framework (Removed v2.0)
+**Why Not**: Fundamental design flaw - cannot reliably test external devices without instrumentation or control. ~2,100 lines of speculative code provided minimal value.
 
-**What We Have Instead**: Real-time packet logging, 10 in-memory replay slots, KML/GeoJSON export.
+**What Was Removed**: Device stress testing, attack scenarios, vulnerability scanner, hardware stress testing.
+
+**See**: [ARCHITECTURE_REFACTOR_NOV11.md](../ARCHITECTURE_REFACTOR_NOV11.md) for detailed rationale.
+
+### Intelligence Storage / Session Management
+**Why Not**: Adds complexity without clear benefit for a focused recon tool. SD card logging (ready for integration) provides better solution.
+
+**What We Have Instead**: Real-time packet logging, 10 in-memory replay slots, KML/GeoJSON export, SD card logging framework.
 
 ### Network Topology Mapping
 **Why Not**: Out of scope. Tool is about packet capture, not network graphing.
 
-**What We Have Instead**: Device enumeration, fingerprinting, and router detection gives you enough network intelligence.
+**What We Have Instead**: Device enumeration, fingerprinting, and router detection gives you network intelligence. PC-based analysis can generate topology maps from captured data.
 
 ### Traffic Analysis Module
 **Why Not**: Overlaps with existing packet capture and protocol analysis. Adds bloat.
 
-**What We Have Instead**: Protocol analyzer provides all needed packet intelligence extraction.
+**What We Have Instead**: Protocol analyzer + TextPacketDiagnostic provides comprehensive packet intelligence extraction and timing analysis.
 
 ### Web Interface
-**Why Not**: Deferred to post-conference. Serial interface is sufficient for demo and most use cases.
+**Why Not**: Deferred. Serial interface + OLED display sufficient for field operations. PC analysis tools handle post-mission visualization.
 
-**Future Consideration**: If there's community demand after DefCon talk, could add web UI.
+**Future Consideration**: Could add web dashboard for real-time monitoring if demand exists.
 
 ---
 
-## 🔧 Build Flag Reference
+## 🔧 Build Configuration
 
-### Active Flags (Default Build)
+### Active Flags (v2.0)
 ```ini
--DENABLE_PSK_TESTING           # AES-256 decryption with 5 default keys
--DENABLE_STRESS_TESTING        # Hardware validation framework
--DPRODUCTION_BUILD            # Production error handling
--DERROR_LOGGING_ENABLED       # Comprehensive error recovery
+# All features enabled by default in v2.0
+# No build flags needed - PSK testing, GPS parsing, etc. always available
 ```
 
-### Legacy/Removed Flags
+### Removed Flags (v2.0)
 ```ini
+-DENABLE_STRESS_TESTING          # Removed - hardware stress testing
+-DENABLE_OFFENSIVE_TESTING       # Removed - attack framework  
+-DENABLE_INTELLIGENCE_STORAGE    # Never fully implemented
+-DENABLE_TRAFFIC_ANALYSIS        # Redundant with existing analysis
+```
 -DENABLE_INTELLIGENCE_STORAGE  # REMOVED - Module deleted
 -DENABLE_NETWORK_RECON         # REMOVED - Module deleted
 -DENABLE_TRAFFIC_ANALYSIS      # REMOVED - Module deleted
@@ -283,7 +328,7 @@ Reduces serial output by 95% to minimize packet processing time and capture gaps
 - ✅ Broadcast decryption (position, telemetry, channel messages with default PSK)
 - ✅ Geographic intelligence (GPS mapping)
 - ✅ Protocol analysis (device fingerprinting)
-- ✅ Hardware stress testing (attack surface analysis)
+- ✅ SD card logging (field deployment capability)
 
 ### NICE TO HAVE (Polish)
 - ✅ KML/GeoJSON export
@@ -295,7 +340,7 @@ Reduces serial output by 95% to minimize packet processing time and capture gaps
 - ❌ Persistent session storage
 - ❌ Network topology graphs
 - ❌ Web interface (deferred)
-- ❌ SD card logging (use LittleFS)
+- ❌ Attack/stress testing framework (removed v2.0)
 
 ---
 
@@ -307,13 +352,13 @@ Reduces serial output by 95% to minimize packet processing time and capture gaps
 3. **Packet Replay** - Capture and retransmit packets
 4. **PSK Exploitation** - Decrypt default-key Meshtastic networks
 5. **Geographic Intelligence** - Show GPS positions on map
-6. **Hardware Assessment** - Run stress tests to find vulnerabilities
+6. **SD Card Logging** - Demonstrate field deployment with post-analysis
 
 ### What We Won't Demonstrate
 - Session management (not implemented)
 - Network topology graphs (removed)
 - Web interface (deferred)
-- Advanced traffic analysis (out of scope)
+- Attack testing (removed in v2.0)
 
 ---
 

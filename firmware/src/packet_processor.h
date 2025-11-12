@@ -10,9 +10,11 @@
 
 #include <Arduino.h>
 #include <queue>
+#include <vector>
 #include "data_structures.h"
 #include "protocol_analyzer.h"
 #include "geo_intelligence.h"
+#include "config.h"
 
 // Forward declarations
 class OLEDDisplay;
@@ -35,11 +37,11 @@ public:
     bool queuePacket(const uint8_t* data, size_t length, float rssi, float snr);
     void processQueue(OLEDDisplay* display = nullptr);
     size_t getQueueSize() const { return packetQueue.size(); }
-    bool isQueueFull() const { return packetQueue.size() >= MAX_QUEUE_SIZE; }
+    bool isQueueFull() const { return packetQueue.size() >= Config::PacketProcessing::QUEUE_SIZE; }
     
     // Access to last packet (for replay capture)
-    const uint8_t* getLastPacket() const { return lastPacketData; }
-    size_t getLastPacketLength() const { return lastPacketLength; }
+    const std::vector<uint8_t>& getLastPacket() const { return lastPacketData; }
+    size_t getLastPacketLength() const { return lastPacketData.size(); }
     
     // Access to protocol analyzer (for manual packet analysis)
     ProtocolAnalyzer& getProtocolAnalyzer() { return protocolAnalyzer; }
@@ -47,11 +49,9 @@ public:
 private:
     // Packet queue
     std::queue<QueuedPacket> packetQueue;
-    static const size_t MAX_QUEUE_SIZE = 10;
     
-    // Last packet storage (for potential replay)
-    uint8_t lastPacketData[MAX_PACKET_SIZE];
-    size_t lastPacketLength;
+    // Last packet storage (for potential replay) - using vector for safety
+    std::vector<uint8_t> lastPacketData;
     
     // Analysis modules
     ProtocolAnalyzer protocolAnalyzer;

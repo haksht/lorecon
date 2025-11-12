@@ -241,16 +241,18 @@ bool PacketLogger::logGPSPosition(uint32_t nodeId, double latitude,
 }
 
 bool PacketLogger::exportDeviceSummaryJSON() {
-    // TODO: Implement JSON export for devices
-    // This would read devices_summary.csv and convert to JSON
-    // For now, CSV is sufficient for PC analysis
+    // NOTE: JSON/KML export is handled by PC analysis tools
+    // See tools/pc_analyzer.py for conversion of CSV to JSON/KML formats
+    // Keeping CSV format allows easy Excel/pandas import and is more flexible
+    Serial.println("[SD] JSON export: Use PC tools (pc_analyzer.py) for format conversion");
     return true;
 }
 
 bool PacketLogger::exportGPSTracksKML() {
-    // TODO: Implement KML export for GPS tracks
-    // This would read gps_tracks.csv and convert to KML
-    // For now, CSV is sufficient for PC analysis
+    // NOTE: KML export is handled by PC analysis tools
+    // See tools/pc_analyzer.py for conversion of CSV to KML/GeoJSON formats
+    // ESP32 CSV logging is simpler, more reliable, and doesn't require XML parsing
+    Serial.println("[SD] KML export: Use PC tools (pc_analyzer.py) for format conversion");
     return true;
 }
 

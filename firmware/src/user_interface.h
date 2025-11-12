@@ -34,12 +34,6 @@ void startFrequencyTargeting(uint8_t configIndex);
 // Statistics and Analysis Functions  
 void printStats();
 
-// Menu Functions
-#ifdef ENABLE_STRESS_TESTING
-void showStressTestMenu();
-void runHardwareStressTest(char testChoice);
-#endif
-
 // Utility Functions
 void displayWelcomeMessage();
 void displayReconStartMessage();
@@ -50,11 +44,6 @@ extern ReconState reconState;
 
 #ifdef ENABLE_PSK_TESTING
 extern PSKStats pskStats;
-#endif
-
-#ifdef ENABLE_STRESS_TESTING
-class HardwareStressTester;
-extern HardwareStressTester* stressTester;
 #endif
 
 #endif // USER_INTERFACE_H

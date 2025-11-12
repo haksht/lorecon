@@ -4,6 +4,7 @@
 #include <Arduino.h>
 #include "data_structures.h"
 #include "irecon_tool.h"  // Interface to implement
+#include "config.h"
 
 // Forward declarations
 class CommandHandler;
@@ -17,12 +18,9 @@ class PacketProcessor;
 #include "command_handler.h"
 #include "oled_display.h"
 
-// Hardware configuration
-#define USER_BUTTON 0   // PRG button (active low)
+// Hardware configuration moved to config.h
 
-// Scanning configuration
-#define SCAN_DWELL_TIME     12000  // 12 seconds per frequency
-#define SERIAL_TIMEOUT_MS   30000  // 30 second timeout for user input
+// Scanning configuration moved to config.h
 
 /**
  * LoRa Reconnaissance Tool - Main application orchestrator

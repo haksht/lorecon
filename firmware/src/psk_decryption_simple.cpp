@@ -22,7 +22,7 @@
 #define MAX_VARINT_BYTES            5    // Maximum bytes in a varint encoding
 
 // Known Meshtastic default PSKs
-static const char* DEFAULT_PSKS[] = {
+static constexpr const char* DEFAULT_PSKS[] = {
     "AQ==",                      // #1: Single byte (0x01) - often expanded to 16 bytes
     "1PG7OiApB1nwvP+rz05pAQ==",  // #2: Standard 16-byte key (most common)
     "d1iq21lNSh7BP6MOkP6cQA==",  // #3: Channel variant 1
@@ -40,7 +40,7 @@ static const char* DEFAULT_PSKS[] = {
 };
 
 
-static const uint8_t NUM_PSKS = sizeof(DEFAULT_PSKS) / sizeof(char*);
+static constexpr uint8_t NUM_PSKS = sizeof(DEFAULT_PSKS) / sizeof(char*);
 
 PSKStats pskStats;
 

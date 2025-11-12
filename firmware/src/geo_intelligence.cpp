@@ -30,13 +30,37 @@ bool GeoIntelligence::extractPosition(const uint8_t* data, size_t length, uint32
     
     // Parse protobuf position data starting at offset 9
     if (parseProtobufPosition(data + 9, length - 9, point)) {
-        // Store point (replace oldest if full)
-        if (numPoints < MAX_GEO_POINTS) {
-            points[numPoints++] = point;
-        } else {
-            // Replace oldest entry
-            memmove(points, points + 1, sizeof(GeoPoint) * (MAX_GEO_POINTS - 1));
-            points[MAX_GEO_POINTS - 1] = point;
+        // Check if we already have this exact position (deduplicate)
+        for (uint8_t i = 0; i < numPoints; i++) {
+            if (points[i].nodeId == nodeId &&
+                abs(points[i].latitude - point.latitude) < 0.000001f &&
+                abs(points[i].longitude - point.longitude) < 0.000001f) {
+                // Update timestamp of existing position
+                points[i].timestamp = millis();
+                return true;  // Already have this position
+            }
+        }
+        
+        // Check if we already have a position for this node (update instead of add)
+        bool updated = false;
+        for (uint8_t i = 0; i < numPoints; i++) {
+            if (points[i].nodeId == nodeId) {
+                // Update existing entry
+                points[i] = point;
+                updated = true;
+                break;
+            }
+        }
+        
+        if (!updated) {
+            // Store new point (replace oldest if full)
+            if (numPoints < Config::Tracking::MAX_GEO_POINTS) {
+                points[numPoints++] = point;
+            } else {
+                // Replace oldest entry
+                memmove(points, points + 1, sizeof(GeoPoint) * (Config::Tracking::MAX_GEO_POINTS - 1));
+                points[Config::Tracking::MAX_GEO_POINTS - 1] = point;
+            }
         }
         
         Serial.println("\n📍 GPS POSITION EXTRACTED!");
@@ -85,13 +109,37 @@ bool GeoIntelligence::extractPositionFromDecrypted(const uint8_t* decrypted, siz
     
     // Parse protobuf position data
     if (parseProtobufPosition(decrypted + offset, payloadLen, point)) {
-        // Store point (replace oldest if full)
-        if (numPoints < MAX_GEO_POINTS) {
-            points[numPoints++] = point;
-        } else {
-            // Replace oldest entry
-            memmove(points, points + 1, sizeof(GeoPoint) * (MAX_GEO_POINTS - 1));
-            points[MAX_GEO_POINTS - 1] = point;
+        // Check if we already have this exact position (deduplicate)
+        for (uint8_t i = 0; i < numPoints; i++) {
+            if (points[i].nodeId == nodeId &&
+                abs(points[i].latitude - point.latitude) < 0.000001f &&
+                abs(points[i].longitude - point.longitude) < 0.000001f) {
+                // Update timestamp of existing position
+                points[i].timestamp = millis();
+                return true;  // Already have this position
+            }
+        }
+        
+        // Check if we already have a position for this node (update instead of add)
+        bool updated = false;
+        for (uint8_t i = 0; i < numPoints; i++) {
+            if (points[i].nodeId == nodeId) {
+                // Update existing entry
+                points[i] = point;
+                updated = true;
+                break;
+            }
+        }
+        
+        if (!updated) {
+            // Store new point (replace oldest if full)
+            if (numPoints < Config::Tracking::MAX_GEO_POINTS) {
+                points[numPoints++] = point;
+            } else {
+                // Replace oldest entry
+                memmove(points, points + 1, sizeof(GeoPoint) * (Config::Tracking::MAX_GEO_POINTS - 1));
+                points[Config::Tracking::MAX_GEO_POINTS - 1] = point;
+            }
         }
         
         Serial.println("\n📍 GPS POSITION EXTRACTED!");

@@ -10,6 +10,7 @@
 
 #include <Arduino.h>
 #include "data_structures.h"
+#include "config.h"
 
 class GeoIntelligence {
 public:
@@ -35,7 +36,7 @@ public:
     void clear();
     
 private:
-    GeoPoint points[MAX_GEO_POINTS];
+    GeoPoint points[Config::Tracking::MAX_GEO_POINTS];
     uint8_t numPoints;
     
     // Meshtastic protobuf parsing helpers
