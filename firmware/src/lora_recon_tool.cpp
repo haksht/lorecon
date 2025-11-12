@@ -447,31 +447,43 @@ void LoRaReconTool::replayPacket(uint8_t slotIndex) {
     
     // Ask for repeat count
     Serial.print("Repeat count (1-100, or 0 to cancel): ");
+    Serial.flush();  // Ensure prompt is sent
+    
+    // Clear any stale input
+    while (Serial.available()) {
+        Serial.read();
+    }
+    
     uint32_t startTime = millis();
     String input = "";
-    while (!Serial.available()) {
-        if (millis() - startTime > 30000) {  // 30 second timeout
-            Serial.println("\n[TIMEOUT] Cancelled.");
-            delay(1000);
-            showReplayMenu();
-            return;
-        }
+    bool gotInput = false;
+    
+    while (!gotInput && (millis() - startTime < 30000)) {
         esp_task_wdt_reset();
+        
+        if (Serial.available()) {
+            char c = Serial.read();
+            if (c == '\n' || c == '\r') {
+                if (input.length() > 0) {
+                    gotInput = true;
+                }
+            } else if (c >= '0' && c <= '9') {
+                input += c;
+                Serial.print(c);  // Echo the character
+            }
+        }
         delay(10);
     }
     
-    // Read the number
-    while (Serial.available()) {
-        char c = Serial.read();
-        if (c == '\n' || c == '\r') break;
-        if (c >= '0' && c <= '9') {
-            input += c;
-        }
-        delay(10);
+    if (!gotInput) {
+        Serial.println("\n[TIMEOUT] Cancelled.");
+        delay(1000);
+        showReplayMenu();
+        return;
     }
     
     int repeatCount = input.toInt();
-    Serial.println(repeatCount);
+    Serial.printf("\n[INPUT] Received: %d\n", repeatCount);
     
     if (repeatCount <= 0 || repeatCount > 100) {
         Serial.println("❌ Cancelled or invalid count");
@@ -484,33 +496,48 @@ void LoRaReconTool::replayPacket(uint8_t slotIndex) {
     uint16_t delayMs = 1000;  // Default 1 second between packets
     if (repeatCount > 1) {
         Serial.print("Delay between packets in ms (100-10000, default 1000): ");
+        Serial.flush();
+        
+        // Clear any stale input
+        while (Serial.available()) {
+            Serial.read();
+        }
+        
         startTime = millis();
         input = "";
-        while (!Serial.available()) {
-            if (millis() - startTime > 10000) {  // 10 second timeout
-                Serial.printf("\n[TIMEOUT] Using default %d ms\n", delayMs);
-                break;
-            }
+        gotInput = false;
+        
+        while (!gotInput && (millis() - startTime < 10000)) {
             esp_task_wdt_reset();
+            
+            if (Serial.available()) {
+                char c = Serial.read();
+                if (c == '\n' || c == '\r') {
+                    if (input.length() > 0) {
+                        gotInput = true;
+                    } else {
+                        // Empty input = use default
+                        gotInput = true;
+                        input = "1000";
+                    }
+                } else if (c >= '0' && c <= '9') {
+                    input += c;
+                    Serial.print(c);  // Echo
+                }
+            }
             delay(10);
         }
         
-        if (Serial.available()) {
-            while (Serial.available()) {
-                char c = Serial.read();
-                if (c == '\n' || c == '\r') break;
-                if (c >= '0' && c <= '9') {
-                    input += c;
-                }
-                delay(10);
-            }
+        if (gotInput) {
             int userDelay = input.toInt();
             if (userDelay >= 100 && userDelay <= 10000) {
                 delayMs = userDelay;
-                Serial.println(delayMs);
+                Serial.printf("\n[INPUT] Using %d ms delay\n", delayMs);
             } else {
-                Serial.printf("\n[Invalid] Using default %d ms\n", delayMs);
+                Serial.printf("\n[INVALID] Using default %d ms\n", delayMs);
             }
+        } else {
+            Serial.printf("\n[TIMEOUT] Using default %d ms\n", delayMs);
         }
     }
     

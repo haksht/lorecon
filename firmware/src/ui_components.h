@@ -20,14 +20,6 @@ void displayDeviceSummary(const TargetableDevice& device, uint8_t index);
 void displayRFActivityTable();
 void displayActivitySummary();
 
-// Statistics displays
-void displayReconStatistics();
-void displaySecurityScores();
-
-// Geographic displays
-void displayGeoIntelligence();
-void displayDeviceMap();
-
 // Helper functions
 String formatRSSI(float rssi);
 String formatDuration(uint32_t seconds);

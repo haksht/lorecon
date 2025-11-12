@@ -18,6 +18,9 @@ public:
     // Extract GPS from Meshtastic position packet
     bool extractPosition(const uint8_t* data, size_t length, uint32_t nodeId);
     
+    // Extract GPS from decrypted position payload (portnum + protobuf data)
+    bool extractPositionFromDecrypted(const uint8_t* decrypted, size_t length, uint32_t nodeId);
+    
     // Query functions
     uint8_t getPointCount() const { return numPoints; }
     const GeoPoint& getPoint(uint8_t index) const;
