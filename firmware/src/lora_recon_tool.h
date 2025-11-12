@@ -40,9 +40,6 @@ public:
     bool initialize();
     void update();
     
-    // User interaction
-    void handleUserInput(char cmd);
-    
     // IReconTool interface implementation
     RadioController* getRadioController() override { return radioController; }
     OLEDDisplay* getDisplay() override { return oledDisplay; }
