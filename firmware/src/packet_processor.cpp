@@ -7,6 +7,7 @@
 #include "recon_state.h"
 #include "oled_display.h"
 #include "text_packet_diagnostic.h"
+#include "web_server.h"
 #include "config.h"
 
 #ifdef ENABLE_PSK_TESTING
@@ -90,6 +91,22 @@ void PacketProcessor::processSinglePacket(const QueuedPacket& qp, OLEDDisplay* d
     // Log to SD card if available
     if (packetLogger.isAvailable()) {
         packetLogger.logPacket(qp.data, qp.length, qp.rssi, qp.snr, info.protocol, info.nodeId);
+    }
+    
+    // Broadcast to web clients if web server is active
+    if (webServer && info.nodeId != 0) {
+        // Get decrypted message if available
+        const char* message = nullptr;
+#ifdef ENABLE_PSK_TESTING
+        message = PSKDecryption::getLastMessage();
+        if (message && strlen(message) == 0) message = nullptr;
+#endif
+        webServer->broadcastPacket(info.nodeId, info.protocol, qp.rssi, qp.snr, qp.length, message);
+        
+        // Clear message after broadcasting
+#ifdef ENABLE_PSK_TESTING
+        PSKDecryption::clearLastMessage();
+#endif
     }
 }
 

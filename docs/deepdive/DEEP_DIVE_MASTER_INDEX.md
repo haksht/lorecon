@@ -8,10 +8,7 @@
 This document serves as a **master index and learning guide** for the ESP32 LoRa reconnaissance tool. It provides a structured approach to understanding the v2.0 architecture with its clean component separation (RadioController, PacketProcessor, IReconTool).
 
 **Primary Documentation:**
-- **[UNDERSTANDING_v2.md](UNDERSTANDING_v2.md)** (~7,000 lines) - Complete v2.0 architecture guide 🚀 **START HERE**
-- **[UNDERSTANDING.md](UNDERSTANDING.md)** (~2,200 lines) - Legacy pre-v2.0 content (embedded systems concepts still valid)
-
-> **Note:** This index originally planned 11 separate deep-dive documents. Comprehensive v2.0 technical content is now consolidated in UNDERSTANDING_v2.md with complete examples, learning paths, and self-test questions.
+- **[UNDERSTANDING_v2.md](UNDERSTANDING_v2.md)** (~7,000 lines) - Complete v2.0 architecture guide 🚀
 
 ---
 

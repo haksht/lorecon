@@ -11,6 +11,7 @@ struct PacketInfo {
     uint8_t powerClass;         // 0=Low, 1=Medium, 2=High power
     bool isRouter;              // true if device appears to be routing traffic
     const char* firmwareVersion; // Estimated firmware version
+    const char* message;        // Decrypted message content (if any)
     
     PacketInfo() 
         : protocol("Unknown")
@@ -19,6 +20,7 @@ struct PacketInfo {
         , powerClass(0)
         , isRouter(false)
         , firmwareVersion("Unknown")
+        , message(nullptr)
     {}
 };
 

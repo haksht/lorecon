@@ -14,6 +14,8 @@
 ## 📋 Quick Links
 
 - **[QUICKSTART](QUICKSTART.md)** ⭐ - **Read this first!** Getting started guide
+- **[PHONE APP GUIDE](PHONE_APP_GUIDE.md)** 📱 - **NEW!** Wireless phone control
+- **[API REFERENCE](API_REFERENCE.md)** 🔌 - REST API documentation
 - **[BUILD GUIDE](docs/BUILD_GUIDE.md)** - Compilation instructions
 - **[FEATURES](docs/FEATURES.md)** - Complete feature list
 - **[TROUBLESHOOTING](docs/TROUBLESHOOTING_MESHTASTIC.md)** - Common issues and solutions
@@ -137,6 +139,25 @@ pio device monitor
 
 ## 🎯 **Core Features**
 
+### **📱 Phone App (NEW!)** 🚀
+Control and monitor your LoRa sniffer wirelessly from any phone or browser!
+
+- **📡 WiFi Access Point** - ESP32 creates its own network (no router needed)
+- **🌐 Progressive Web App** - Modern browser-based interface
+- **📊 Live Dashboard** - Real-time packet feed and statistics
+- **🗺️ Interactive Maps** - View device GPS positions (Leaflet.js powered)
+- **🎯 Device Targeting** - Select and target devices with a tap
+- **💾 Export Data** - GeoJSON and KML export for mapping tools
+- **⚡ WebSocket Updates** - Sub-second real-time updates
+- **📴 Offline Support** - Works without internet connection
+
+**Quick Setup:**
+1. Power ESP32 → Connect phone to `ESP32-LoRa-Sniffer` WiFi
+2. Open browser: `http://192.168.4.1`
+3. Tap "Add to Home Screen" (optional) → Launches like native app!
+
+See **[PHONE_APP_GUIDE.md](PHONE_APP_GUIDE.md)** for complete setup and usage.
+
 ### **Field Data Collection**
 1. **Reconnaissance**: Scans 16 LoRa configurations to detect active devices
 2. **Sniffing**: Monitors RF activity and identifies protocol types  
@@ -203,6 +224,7 @@ The ESP32 now focuses on efficient field data collection. Analysis happens on PC
 5. **Data Collection**: Continue capture as long as needed - unlimited SD card storage
 
 ### **Available Commands**
+- **📱 Phone App**: Connect WiFi → Open `http://192.168.4.1` (see [PHONE_APP_GUIDE.md](PHONE_APP_GUIDE.md))
 - **'m'**: Show menu with discovered devices
 - **'f'**: Direct frequency targeting (bypass device detection)
 - **'a'**: Show detailed RF activity analysis
@@ -296,6 +318,9 @@ firmware/src/
 ├── command_handler.cpp/.h         # Serial command processing
 ├── oled_display.cpp/.h            # Display driver and rendering
 ├── ui_components.cpp/.h           # Display component library
+├── wifi_manager.cpp/.h            # WiFi AP/Station management (NEW!)
+├── web_server.cpp/.h              # HTTP + WebSocket server (NEW!)
+├── api_controller.cpp/.h          # REST API handlers (NEW!)
 ├── psk_decryption_simple.cpp/.h   # PSK testing framework (14 keys)
 ├── protocol_analyzer.cpp/.h       # Protocol identification
 ├── geo_intelligence.cpp/.h        # GPS position extraction
@@ -303,6 +328,18 @@ firmware/src/
 ├── packet_logger.cpp/.h           # SD card logging (ready for integration)
 ├── error_handler.cpp/.h           # Error reporting and recovery
 └── data_structures.h              # Shared structs (CapturedPacket, etc.)
+
+data/webapp/                       # Progressive Web App (NEW!)
+├── index.html                     # Main app interface
+├── manifest.json                  # PWA manifest
+├── sw.js                          # Service worker (offline support)
+├── css/
+│   └── style.css                  # Dark theme styling
+├── js/
+│   ├── app.js                     # Main application logic
+│   ├── api-client.js              # REST + WebSocket client
+│   └── map.js                     # Leaflet.js mapping
+└── icons/                         # PWA icons
 ```
 
 ### **Feature Flags**
@@ -356,6 +393,9 @@ Active flags:
 **Current Version: v2.0 - Production Ready** ✅
 
 ### **Recent Improvements (v2.0 - Nov 12, 2025)**
+- ✅ **Phone App Integration**: WiFi manager, web server, REST API, Progressive Web App (Nov 13, 2025)
+- ✅ **WebSocket Streaming**: Real-time packet updates to browser/phone
+- ✅ **Interactive Maps**: Leaflet.js integration for geographic visualization
 - ✅ **Architecture Refactoring**: RadioController, PacketProcessor, IReconTool interface
 - ✅ **GPS Position Extraction**: Full support for latitude/longitude parsing from Meshtastic packets
 - ✅ **Debug Output Cleanup**: Production-ready logging (removed verbose debug spew)

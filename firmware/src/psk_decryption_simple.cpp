@@ -14,6 +14,9 @@
 #include "geo_intelligence.h"
 #include "text_packet_diagnostic.h"
 
+// Static storage for last decrypted message
+char PSKDecryption::lastMessage[PSKDecryption::MAX_MESSAGE_LEN] = {0};
+
 // Protocol constants
 #define MIN_PACKET_LENGTH           5    // Minimum protobuf packet size
 #define MAX_TEXT_MESSAGE_LENGTH     200  // Meshtastic text message limit
@@ -271,6 +274,9 @@ bool PSKDecryption::testDefaultPSKs(const uint8_t* data, size_t length) {
             Serial.println("\n╔════════════════════════════════════════════╗");
             Serial.printf("║  📧 PLAINTEXT MESSAGE: \"%s\"\n", plaintext.c_str());
             Serial.println("╚════════════════════════════════════════════╝\n");
+            // Store for web broadcast
+            strncpy(lastMessage, plaintext.c_str(), MAX_MESSAGE_LEN - 1);
+            lastMessage[MAX_MESSAGE_LEN - 1] = '\0';
             return true;
         }
         
@@ -409,6 +415,9 @@ bool PSKDecryption::testDefaultPSKs(const uint8_t* data, size_t length) {
             Serial.println("\n╔════════════════════════════════════════════╗");
             Serial.printf("║  📧 TEXT MESSAGE: \"%s\"\n", messageText.c_str());
             Serial.println("╚════════════════════════════════════════════╝\n");
+            // Store for web broadcast
+            strncpy(lastMessage, messageText.c_str(), MAX_MESSAGE_LEN - 1);
+            lastMessage[MAX_MESSAGE_LEN - 1] = '\0';
         } else {
             // Try to extract telemetry data (if portnum suggests it)
             if (firstByte == 0x08 && encryptedLen > 1) {

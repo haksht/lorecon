@@ -46,6 +46,9 @@ public:
     void showReplayMenu() override;
     void replayPacket(uint8_t slotIndex) override;
     
+    // Web server integration
+    void setWebServer(WebServer* ws);
+    
 private:
     // Component instances
     RadioController* radioController;

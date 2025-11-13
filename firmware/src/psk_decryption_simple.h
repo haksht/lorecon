@@ -16,9 +16,17 @@ public:
   // Test helpers (made public for testing)
   static int decodeBase64(const char* input, uint8_t* output, size_t maxLen);  // Returns decoded byte count (0 on failure)
   static uint8_t getDefaultPSKCount() { return 14; }  // NUM_DEFAULT_PSKS
+  
+  // Get last decrypted message (for web broadcast)
+  static const char* getLastMessage() { return lastMessage; }
+  static void clearLastMessage() { lastMessage[0] = '\0'; }
 
 private:
   static bool extractMessageText(const uint8_t* data, size_t length, String& message);
+  
+  // Storage for last decrypted message
+  static constexpr size_t MAX_MESSAGE_LEN = 256;
+  static char lastMessage[MAX_MESSAGE_LEN];
 };
 
 // External access to PSK stats

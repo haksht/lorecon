@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#1a1a2e">
+    
+    <title>ESP32 LoRa Sniffer</title>
+    
+    <link rel="manifest" href="manifest.json">
+    <link rel="icon" type="image/png" href="icons/icon-192.png">
+    <link rel="apple-touch-icon" href="icons/icon-192.png">
+    
+    <!-- Leaflet CSS for mapping -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <!-- Loading Screen -->
+    <div id="loading-screen" class="loading-screen">
+        <div class="loading-content">
+            <div class="loader"></div>
+            <h2>ESP32 LoRa Sniffer</h2>
+            <p>Connecting...</p>
+        </div>
+    </div>
+
+    <!-- Main App -->
+    <div id="app" class="app hidden">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-left">
+                <h1>📡 LoRa Sniffer</h1>
+            </div>
+            <div class="header-right">
+                <span id="connection-status" class="status-indicator">●</span>
+                <span id="client-count">0 clients</span>
+            </div>
+        </header>
+
+        <!-- Navigation Tabs -->
+        <nav class="tabs">
+            <button class="tab active" data-tab="dashboard">Dashboard</button>
+            <button class="tab" data-tab="devices">Devices</button>
+            <button class="tab" data-tab="map">Map</button>
+            <button class="tab" data-tab="activity">Activity</button>
+        </nav>
+
+        <!-- Tab Content -->
+        <div class="content">
+            <!-- Dashboard Tab -->
+            <div id="tab-dashboard" class="tab-content active">
+                <!-- Stats Cards -->
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-icon">📱</div>
+                        <div class="stat-info">
+                            <div class="stat-label">Devices</div>
+                            <div class="stat-value" id="stat-devices">0</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">📦</div>
+                        <div class="stat-info">
+                            <div class="stat-label">Packets</div>
+                            <div class="stat-value" id="stat-packets">0</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">🔓</div>
+                        <div class="stat-info">
+                            <div class="stat-label">Decrypted</div>
+                            <div class="stat-value" id="stat-decrypted">0</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">⏱️</div>
+                        <div class="stat-info">
+                            <div class="stat-label">Uptime</div>
+                            <div class="stat-value" id="stat-uptime">0s</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Real-time Packet Feed -->
+                <div class="panel">
+                    <h2>📡 Live Packet Feed</h2>
+                    <div id="packet-feed" class="packet-feed">
+                        <p class="no-data">Waiting for packets...</p>
+                    </div>
+                </div>
+
+                <!-- System Status -->
+                <div class="panel">
+                    <h2>⚙️ System Status</h2>
+                    <div id="system-status" class="status-info">
+                        <div class="status-row">
+                            <span class="status-label">Mode:</span>
+                            <span id="status-mode">-</span>
+                        </div>
+                        <div class="status-row">
+                            <span class="status-label">Free Heap:</span>
+                            <span id="status-heap">-</span>
+                        </div>
+                        <div class="status-row">
+                            <span class="status-label">WebSocket:</span>
+                            <span id="status-ws">-</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Devices Tab -->
+            <div id="tab-devices" class="tab-content">
+                <div class="panel">
+                    <div class="panel-header">
+                        <h2>📱 Discovered Devices</h2>
+                        <button class="btn btn-primary" onclick="app.refreshDevices()">🔄 Refresh</button>
+                    </div>
+                    <div id="device-list" class="device-list">
+                        <p class="no-data">No devices discovered yet...</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Map Tab -->
+            <div id="tab-map" class="tab-content">
+                <div class="panel">
+                    <h2>🗺️ Device Locations</h2>
+                    <div id="map-container" class="map-container">
+                        <div id="map" style="height: 500px;"></div>
+                    </div>
+                    <div class="map-controls">
+                        <button class="btn btn-secondary" onclick="app.refreshMap()">🔄 Refresh</button>
+                        <button class="btn btn-secondary" onclick="app.exportGeoJSON()">💾 Export GeoJSON</button>
+                        <button class="btn btn-secondary" onclick="app.exportKML()">🌍 Export KML</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Activity Tab -->
+            <div id="tab-activity" class="tab-content">
+                <div class="panel">
+                    <h2>📊 RF Activity</h2>
+                    <div id="activity-list" class="activity-list">
+                        <p class="no-data">No RF activity data yet...</p>
+                    </div>
+                </div>
+                
+                <div class="panel">
+                    <h2>📈 Statistics</h2>
+                    <div id="statistics" class="statistics">
+                        <p class="no-data">Loading statistics...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notifications -->
+    <div id="toast-container" class="toast-container"></div>
+
+    <!-- Scripts -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="js/api-client.js"></script>
+    <script src="js/map.js"></script>
+    <script src="js/app.js"></script>
+    
+    <script>
+        // Register service worker for PWA
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('sw.js')
+                .then(reg => console.log('Service Worker registered:', reg))
+                .catch(err => console.error('Service Worker registration failed:', err));
+        }
+    </script>
+</body>
+</html>

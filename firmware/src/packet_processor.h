@@ -18,6 +18,7 @@
 
 // Forward declarations
 class OLEDDisplay;
+class WebServer;
 
 /**
  * PacketProcessor - Manages packet queue and analysis
@@ -32,6 +33,9 @@ class OLEDDisplay;
 class PacketProcessor {
 public:
     PacketProcessor();
+    
+    // Set web server for live packet broadcasting
+    void setWebServer(WebServer* ws) { webServer = ws; }
     
     // Queue management
     bool queuePacket(const uint8_t* data, size_t length, float rssi, float snr);
@@ -56,6 +60,9 @@ private:
     // Analysis modules
     ProtocolAnalyzer protocolAnalyzer;
     GeoIntelligence geoIntel;
+    
+    // Web server for live updates (optional)
+    WebServer* webServer = nullptr;
     
     // Processing helpers
     void processSinglePacket(const QueuedPacket& qp, OLEDDisplay* display);

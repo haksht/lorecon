@@ -3,6 +3,10 @@
 #include "error_handler.h"
 #include "logger.h"
 #include "packet_logger.h"
+#include "packet_processor.h"
+#include "command_handler.h"
+#include "oled_display.h"
+#include "web_server.h"
 #include "config.h"
 #include <LittleFS.h>
 #include <ArduinoJson.h>
@@ -683,5 +687,12 @@ void LoRaReconTool::handleButtonPress(uint32_t now) {
                 }
             }
         }
+    }
+}
+
+// Set web server for live packet broadcasting
+void LoRaReconTool::setWebServer(WebServer* ws) {
+    if (packetProcessor) {
+        packetProcessor->setWebServer(ws);
     }
 }
