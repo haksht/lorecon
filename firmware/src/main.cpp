@@ -24,6 +24,7 @@
 #include "config.h"
 #include "wifi_manager.h"
 #include "web_server.h"
+#include "recon_service.h"
 #include <LittleFS.h>
 
 #ifdef ENABLE_PSK_TESTING
@@ -57,6 +58,8 @@ void setup() {
         LOG_ERROR("Failed to initialize LoRa recon tool");
         while (1) delay(1000);  // Halt on initialization failure
     }
+
+    ReconService::initialize(&reconTool);
     
 #ifdef ENABLE_PSK_TESTING
     Serial.println("\n🧪 Running PSK Decryption Tests...");
