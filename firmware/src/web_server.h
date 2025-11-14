@@ -16,7 +16,10 @@
 #include <Arduino.h>
 #include <ESPAsyncWebServer.h>
 #include <AsyncTCP.h>
+#include <atomic>
 #include <vector>
+#include "freertos/FreeRTOS.h"
+#include "freertos/semphr.h"
 #include "irecon_tool.h"
 #include "data_structures.h"
 #include "packet_processor.h"  // For PacketEvent
@@ -60,6 +63,7 @@ public:
     void broadcastDeviceUpdate(uint32_t nodeId);
     void broadcastStatusUpdate();
     void periodicUpdate();
+    void service();
     
     // Client management
     size_t getClientCount() const;
@@ -68,10 +72,14 @@ private:
     AsyncWebServer* server;
     AsyncWebSocket* ws;
     IReconTool* reconTool;
+    mutable SemaphoreHandle_t wsMutex;
+    std::atomic<size_t> activeClients;
     
     // Aggregation for efficient WebSocket updates
     AggregatedStats aggStats;
     uint32_t lastBroadcast;
+    std::atomic<bool> pendingPacketBroadcast;
+    std::atomic<bool> pendingClientCleanup;
     static constexpr uint32_t BROADCAST_INTERVAL_MS = 500;  // 2 Hz max
     
     // Request handlers
@@ -92,6 +100,14 @@ private:
     static void handleGetConfig(AsyncWebServerRequest* request);
     static void handleStartScan(AsyncWebServerRequest* request);
     static void handleStopScan(AsyncWebServerRequest* request);
+    static void handleGetReconSummary(AsyncWebServerRequest* request);
+    static void handleGetDeviceTypeSummary(AsyncWebServerRequest* request);
+    static void handleGetSecurityAssessment(AsyncWebServerRequest* request);
+    static void handleGetReplaySlots(AsyncWebServerRequest* request);
+    static void handleClearReplaySlots(AsyncWebServerRequest* request);
+    static void handleStartFrequencyTargeting(AsyncWebServerRequest* request);
+    static void handleGetDiagnostics(AsyncWebServerRequest* request);
+    static void handleSetVerboseMode(AsyncWebServerRequest* request);
     
     // WebSocket handlers
     static void handleWebSocketEvent(AsyncWebSocket* server, AsyncWebSocketClient* client,
@@ -103,6 +119,10 @@ private:
     
     // CORS headers for development
     void addCORSHeaders(AsyncWebServerResponse* response);
+
+    bool acquireWebSocketLock(TickType_t timeout = pdMS_TO_TICKS(100)) const;
+    void releaseWebSocketLock() const;
+    bool cleanupWebSocketClients();
 };
 
 // Global instance for static handlers

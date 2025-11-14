@@ -195,3 +195,47 @@ String APIController::stopScan() {
     reconState.scanState.mode = MODE_TARGETED_CAPTURE;  // Use as idle/paused state
     return createSuccessResponse("Scan stopped");
 }
+
+String APIController::getReconSummary() {
+    return ReconService::buildReconSummaryJson();
+}
+
+String APIController::getDeviceTypeSummary() {
+    return ReconService::buildDeviceTypeSummaryJson();
+}
+
+String APIController::getSecurityAssessment() {
+    return ReconService::buildSecurityAssessmentJson();
+}
+
+String APIController::getReplaySlots() {
+    return ReconService::buildReplaySlotsJson();
+}
+
+String APIController::clearReplaySlots() {
+    String message;
+    if (!ReconService::clearReplaySlots(message)) {
+        return createErrorResponse(message);
+    }
+    return createSuccessResponse(message);
+}
+
+String APIController::startFrequencyTargeting(uint8_t configIndex) {
+    String message;
+    if (!ReconService::startFrequencyTargeting(configIndex, message)) {
+        return createErrorResponse(message);
+    }
+    return createSuccessResponse(message);
+}
+
+String APIController::getDiagnostics() {
+    return ReconService::buildDiagnosticsJson();
+}
+
+String APIController::setVerboseMode(bool enableVerbose) {
+    String message;
+    if (!ReconService::setVerboseMode(enableVerbose, message)) {
+        return createErrorResponse(message);
+    }
+    return createSuccessResponse(message);
+}

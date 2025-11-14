@@ -182,6 +182,17 @@ void PacketProcessor::handleTargetedPacket(const PacketInfo& info, const uint8_t
         // Attempt decryption
         bool decrypted = PSKDecryption::testDefaultPSKs(payload, payloadLen);
         
+        // Auto-capture packet for replay with decrypted text
+        const char* decryptedText = PSKDecryption::getLastMessage();
+        if (reconState.capturePacketForReplay(data, length, reconState.scanState.currentConfig, 
+                                               rssi, info.protocol, decryptedText)) {
+            if (decrypted && decryptedText && decryptedText[0] != '\0') {
+                Serial.printf("   ✅ Packet auto-captured with text: \"%s\"\n", decryptedText);
+            } else {
+                Serial.println("   ✅ Packet auto-captured (encrypted)");
+            }
+        }
+        
         if (!decrypted && length < 40) {
             Serial.println("(no readable content found)");
         }

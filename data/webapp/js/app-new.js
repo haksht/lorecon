@@ -13,21 +13,15 @@ class ReconApp {
             devices: document.getElementById('devices'),
             packets: document.getElementById('packets'),
             uptime: document.getElementById('uptime'),
-            statusMode: document.getElementById('status-mode'),
-            statusUptime: document.getElementById('status-uptime'),
-            statusPackets: document.getElementById('status-packets'),
-            statusDevices: document.getElementById('status-devices'),
-            devicesContent: document.getElementById('devices-content'),
-            packetsContent: document.getElementById('packets-content'),
-            frequencyContent: document.getElementById('frequency-content'),
-            gpsContent: document.getElementById('gps-content')
+            results: document.getElementById('results'),
+            resultsTitle: document.getElementById('results-title'),
+            toast: document.getElementById('toast')
         };
 
         // App state
         this.lastCommand = null;
         this.statusTimer = null;
         this.isQuietMode = false;
-        this.currentTab = 'status';
 
         // Start the app
         this.init();
@@ -37,54 +31,6 @@ class ReconApp {
         await this.updateStatus();
         this.statusTimer = setInterval(() => this.updateStatus(), 5000);
         this.setConnected(true);
-        this.setupEventDelegation();
-        this.setupTabs();
-        this.loadTabContent('status');
-    }
-
-    setupTabs() {
-        const tabs = document.querySelectorAll('.tab-btn');
-        tabs.forEach(tab => {
-            tab.addEventListener('click', () => {
-                const tabName = tab.dataset.tab;
-                this.switchTab(tabName);
-            });
-        });
-    }
-
-    switchTab(tabName) {
-        // Update active tab button
-        document.querySelectorAll('.tab-btn').forEach(btn => {
-            btn.classList.toggle('active', btn.dataset.tab === tabName);
-        });
-        
-        // Update active tab content
-        document.querySelectorAll('.tab-content').forEach(content => {
-            content.classList.toggle('active', content.id === `tab-${tabName}`);
-        });
-        
-        this.currentTab = tabName;
-        this.loadTabContent(tabName);
-    }
-
-    async loadTabContent(tabName) {
-        switch(tabName) {
-            case 'devices':
-                await this.showMenu();
-                break;
-            case 'packets':
-                await this.showReplayMenu();
-                break;
-            case 'frequency':
-                await this.showFrequencyMenu();
-                break;
-            case 'gps':
-                await this.showGPS();
-                break;
-            case 'status':
-                // Status updates automatically
-                break;
-        }
     }
 
     // ================================================================
@@ -95,25 +41,10 @@ class ReconApp {
         try {
             const data = await this.get('/api/status');
             if (data.status === 'success') {
-                const mode = this.formatMode(data.mode);
-                const uptime = this.formatDuration(data.uptime);
-                const devices = data.devices || 0;
-                const packets = data.totalPackets || 0;
-                
-                // Update sidebar stats
-                this.el.mode.textContent = mode;
-                this.el.devices.textContent = devices;
-                this.el.packets.textContent = packets;
-                this.el.uptime.textContent = uptime;
-                
-                // Update status tab if it exists
-                if (this.el.statusMode) {
-                    this.el.statusMode.textContent = mode;
-                    this.el.statusUptime.textContent = uptime;
-                    this.el.statusPackets.textContent = packets;
-                    this.el.statusDevices.textContent = devices;
-                }
-                
+                this.el.mode.textContent = this.formatMode(data.mode);
+                this.el.devices.textContent = data.devices || 0;
+                this.el.packets.textContent = data.totalPackets || 0;
+                this.el.uptime.textContent = this.formatDuration(data.uptime);
                 this.setConnected(true);
             }
         } catch (error) {
@@ -131,44 +62,6 @@ class ReconApp {
                 dot.classList.remove('connected');
                 this.el.connectionText.textContent = 'Disconnected';
             }
-        }
-    }
-
-    setupEventDelegation() {
-        // Handle clicks on dynamically created buttons in tab contents
-        document.addEventListener('click', (e) => {
-            const btn = e.target.closest('button[data-action]');
-            if (btn) {
-                e.preventDefault();
-                const action = btn.dataset.action;
-                const value = btn.dataset.value;
-                this.handleDynamicAction(action, value);
-            }
-        });
-    }
-
-    handleDynamicAction(action, value) {
-        switch (action) {
-            case 'target-device':
-                this.targetDevice(value);
-                break;
-            case 'target-frequency':
-                this.targetFrequency(parseInt(value));
-                break;
-            case 'view-packet':
-                this.viewPacket(parseInt(value));
-                break;
-            case 'replay-menu':
-                this.showReplayMenu();
-                break;
-            case 'clear-replay-slots':
-                this.clearReplaySlots();
-                break;
-            case 'clear-replay':
-                this.clearReplaySlots();
-                break;
-            default:
-                console.warn('Unknown action:', action);
         }
     }
 
@@ -193,8 +86,8 @@ class ReconApp {
             // Show devices
             const devices = await this.get('/api/devices');
             if (devices.status === 'success' && devices.devices && devices.devices.length > 0) {
-                html += '<h3>Targetable Devices</h3>';
-                html += '<div style="overflow-x: auto;"><table class="table"><thead><tr>';
+                html += '<hr><h3>Targetable Devices</h3>';
+                html += '<table class="table"><thead><tr>';
                 html += '<th>Node ID</th><th>Protocol</th><th>RSSI</th><th>Packets</th><th>Action</th>';
                 html += '</tr></thead><tbody>';
                 
@@ -205,23 +98,16 @@ class ReconApp {
                     html += `<td>${dev.protocol || 'Unknown'}</td>`;
                     html += `<td>${dev.rssi ? dev.rssi.toFixed(1) : '—'} dBm</td>`;
                     html += `<td>${dev.packetCount || 0}</td>`;
-                    html += `<td><button class="btn btn-primary" data-action="target-device" data-value="${nodeHex}">Target</button></td>`;
+                    html += `<td><button class="btn btn-primary" onclick="app.targetDevice('${nodeHex}')">Target</button></td>`;
                     html += '</tr>';
                 });
                 
-                html += '</tbody></table></div>';
-                html += '<div style="margin-top: 1.5rem; padding: 1rem; background: rgba(74, 144, 226, 0.1); border-left: 4px solid #4a90e2; border-radius: 4px;">';
-                html += '<p><strong>💡 How to capture packets:</strong></p>';
-                html += '<p>1. Click <strong>Target</strong> on a device above</p>';
-                html += '<p>2. Wait for packets to be captured</p>';
-                html += '<p>3. View them in <strong>Packets</strong> menu (left sidebar)</p>';
-                html += '<p><em>Note: Decrypted packet content is only visible via serial monitor (USB connection)</em></p>';
-                html += '</div>';
+                html += '</tbody></table>';
             } else {
-                html += '<p><em>No devices discovered yet. Reconnaissance is running...</em></p>';
+                html += '<p><em>No devices discovered yet. Wait for reconnaissance to find active nodes.</em></p>';
             }
 
-            this.showResults('Discovered Devices', html);
+            this.showResults('Menu', html);
         } catch (error) {
             this.showError('Failed to load menu');
         }
@@ -278,22 +164,23 @@ class ReconApp {
             }
 
             let html = '<h3>RF Activity by Configuration</h3>';
-            html += '<div style="overflow-x: auto;"><table class="table"><thead><tr>';
+            html += '<table class="table"><thead><tr>';
             html += '<th>#</th><th>Protocol</th><th>Frequency</th><th>Packets</th><th>Avg RSSI</th><th>Peak RSSI</th>';
             html += '</tr></thead><tbody>';
 
-            data.activities.forEach((activity, idx) => {
+            data.activities.forEach(activity => {
+                const idx = (activity.configIndex || 0) + 1;
                 html += '<tr>';
-                html += `<td>${idx + 1}</td>`;
+                html += `<td>${idx}</td>`;
                 html += `<td>${activity.protocol || 'Unknown'}</td>`;
-                html += `<td>${this.formatFreq(activity.frequency)}</td>`;
+                html += `<td>${this.formatFreq(activity.frequencyMHz)}</td>`;
                 html += `<td>${activity.packets || 0}</td>`;
                 html += `<td>${this.formatSignal(activity.avgRSSI)}</td>`;
                 html += `<td>${this.formatSignal(activity.peakRSSI)}</td>`;
                 html += '</tr>';
             });
 
-            html += '</tbody></table></div>';
+            html += '</tbody></table>';
             this.showResults('RF Activity', html);
         } catch (error) {
             this.showError('Failed to load activity data');
@@ -313,7 +200,7 @@ class ReconApp {
             html += `<p><strong>Total Devices:</strong> ${data.summary?.totalDevices || 0}</p>`;
             html += `<p><strong>Routers Detected:</strong> ${data.summary?.routersDetected || 0}</p>`;
 
-            html += '<div style="overflow-x: auto;"><table class="table"><thead><tr>';
+            html += '<hr><table class="table"><thead><tr>';
             html += '<th>Type</th><th>Count</th><th>Avg RSSI</th><th>Routers</th>';
             html += '</tr></thead><tbody>';
 
@@ -326,183 +213,43 @@ class ReconApp {
                 html += '</tr>';
             });
 
-            html += '</tbody></table></div>';
+            html += '</tbody></table>';
             this.showResults('Device Types', html);
         } catch (error) {
             this.showError('Failed to load device types');
         }
     }
 
-    async showReplayMenu() {
-        try {
-            const data = await this.get('/api/replay/slots');
-            console.log('Replay slots data:', data);
-            
-            if (data.status !== 'success') {
-                this.showError('Failed to load replay slots');
-                return;
-            }
-
-            let html = '<h3>Packet Replay</h3>';
-            
-            if (!data.slots || data.slots.length === 0) {
-                html += '<p>No packets captured yet.</p>';
-                html += '<p><strong>To capture packets:</strong></p>';
-                html += '<ol>';
-                html += '<li>Target a device or frequency</li>';
-                html += '<li>Wait for packet reception</li>';
-                html += '<li>Packet will be automatically captured</li>';
-                html += '</ol>';
-                this.showResults('Packet Replay', html);
-                return;
-            }
-
-            html += `<p>Captured Packets: ${data.count}/${data.capacity} slots used</p>`;
-            html += '<div style="overflow-x: auto;"><table class="table"><thead><tr>';
-            html += '<th style="width: 40px;">#</th>';
-            html += '<th style="width: 140px;">Protocol</th>';
-            html += '<th style="width: 70px;">Bytes</th>';
-            html += '<th style="width: 80px;">Freq MHz</th>';
-            html += '<th style="width: 70px;">RSSI</th>';
-            html += '<th style="width: 60px;">Age</th>';
-            html += '<th>Decrypted Text</th>';
-            html += '</tr></thead><tbody>';
-
-            data.slots.forEach((slot, idx) => {
-                const age = this.formatAge(slot.capturedSecondsAgo || 0);
-                const decryptedText = slot.decryptedText ? `"${slot.decryptedText}"` : '<em style="color: var(--text-muted);">encrypted</em>';
-                html += '<tr>';
-                html += `<td>${slot.index || (idx + 1)}</td>`;
-                html += `<td style="font-size: 0.8em;">${slot.protocol || 'Unknown'}</td>`;
-                html += `<td>${slot.length}</td>`;
-                html += `<td>${this.formatFreq(slot.frequencyMHz)}</td>`;
-                html += `<td>${slot.rssi ? slot.rssi.toFixed(0) : 'N/A'}</td>`;
-                html += `<td style="font-size: 0.8em;">${age}</td>`;
-                html += `<td style="max-width: 250px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.85em;">${decryptedText}</td>`;
-                html += '</tr>';
-            });
-
-            html += '</tbody></table></div>';
-            html += '<div style="margin-top: 1rem;">';
-            html += '<button class="btn" data-action="clear-replay-slots" style="background: var(--danger); color: white;">Clear All Slots</button>';
-            html += '</div>';
-            this.showResults('Captured Packets', html);
-        } catch (error) {
-            console.error('Error loading replay slots:', error);
-            this.showError('Failed to load replay slots: ' + error.message);
-        }
-    }
-
     async showFrequencyMenu() {
         try {
-            // Get recon summary which includes rfActivity
-            const data = await this.get('/api/recon/summary');
-            console.log('Recon summary data:', data);
-            
-            if (data.status !== 'success') {
-                this.showError('Failed to load frequency data');
+            const data = await this.get('/api/activity');
+            if (data.status !== 'success' || !data.activities) {
+                this.showResults('Frequency Targeting', '<p>No frequency data available yet.</p>');
                 return;
-            }
-
-            // Build a list of all scan configurations (hardcoded like in the firmware)
-            // This matches the serial menu which shows ALL configs, not just ones with activity
-            const scanConfigs = [
-                { protocol: 'Meshtastic_ShortFast', frequencyMHz: 906.875, sf: 7, bw: 250 },
-                { protocol: 'Meshtastic_ShortSlow', frequencyMHz: 906.875, sf: 8, bw: 250 },
-                { protocol: 'Meshtastic_MedFast', frequencyMHz: 906.875, sf: 9, bw: 250 },
-                { protocol: 'Meshtastic_MedSlow', frequencyMHz: 906.875, sf: 10, bw: 250 },
-                { protocol: 'Meshtastic_LongFast', frequencyMHz: 906.875, sf: 11, bw: 250 },
-                { protocol: 'Meshtastic_LongSlow', frequencyMHz: 906.875, sf: 12, bw: 250 },
-                { protocol: 'Meshtastic_VLongSlow', frequencyMHz: 906.875, sf: 12, bw: 125 }
-            ];
-
-            // Create a map of activity by config index
-            const activityMap = {};
-            if (data.rfActivity && Array.isArray(data.rfActivity)) {
-                data.rfActivity.forEach(activity => {
-                    activityMap[activity.configIndex] = activity;
-                });
             }
 
             let html = '<h3>Frequency Targeting</h3>';
-            html += '<p>Select a configuration to target directly (🔥 = activity detected, ⚪ = no activity):</p>';
-            html += '<div style="overflow-x: auto;"><table class="table"><thead><tr>';
+            html += '<p>Select a configuration to target directly:</p>';
+            html += '<table class="table"><thead><tr>';
             html += '<th>#</th><th>Protocol</th><th>Frequency</th><th>Activity</th><th>Action</th>';
             html += '</tr></thead><tbody>';
 
-            scanConfigs.forEach((config, idx) => {
-                const activity = activityMap[idx];
-                const hasActivity = activity && activity.packets > 0;
-                const activityIcon = hasActivity ? '🔥' : '⚪';
-                const packets = activity ? activity.packets : 0;
-                
+            data.activities.forEach(activity => {
+                const idx = (activity.configIndex || 0) + 1;
+                const hasActivity = activity.packets > 0 ? '🔥' : '⚪';
                 html += '<tr>';
-                html += `<td>${idx + 1}</td>`;
-                html += `<td>${config.protocol}</td>`;
-                html += `<td>${this.formatFreq(config.frequencyMHz)} (SF${config.sf}, BW${config.bw})</td>`;
-                html += `<td>${activityIcon} ${packets} packets</td>`;
-                html += `<td><button class="btn" data-action="target-frequency" data-value="${idx}">Target</button></td>`;
+                html += `<td>${idx}</td>`;
+                html += `<td>${activity.protocol || 'Unknown'}</td>`;
+                html += `<td>${this.formatFreq(activity.frequencyMHz)}</td>`;
+                html += `<td>${hasActivity} ${activity.packets || 0} packets</td>`;
+                html += `<td><button class="btn" onclick="app.targetFrequency(${activity.configIndex})">Target</button></td>`;
                 html += '</tr>';
             });
 
-            html += '</tbody></table></div>';
+            html += '</tbody></table>';
             this.showResults('Frequency Targeting', html);
         } catch (error) {
-            console.error('Error loading frequency data:', error);
-            this.showError('Failed to load frequency data: ' + error.message);
-        }
-    }
-
-    async viewPacket(slotIndex) {
-        try {
-            const data = await this.get('/api/replay/slots');
-            if (data.status !== 'success' || !data.slots || slotIndex >= data.slots.length) {
-                this.showError('Invalid packet slot');
-                return;
-            }
-
-            const slot = data.slots[slotIndex];
-            let html = `<h3>Packet #${slot.index || (slotIndex + 1)} Details</h3>`;
-            html += '<div style="background: #2a2a2a; padding: 1rem; border-radius: 4px; margin-bottom: 1rem;">';
-            html += `<p><strong>Protocol:</strong> ${slot.protocol || 'Unknown'}</p>`;
-            html += `<p><strong>Frequency:</strong> ${this.formatFreq(slot.frequencyMHz)}</p>`;
-            html += `<p><strong>Config Index:</strong> ${slot.configIndex}</p>`;
-            html += `<p><strong>Length:</strong> ${slot.length} bytes</p>`;
-            html += `<p><strong>RSSI:</strong> ${slot.rssi ? slot.rssi.toFixed(1) : 'N/A'} dBm</p>`;
-            html += `<p><strong>Captured:</strong> ${this.formatAge(slot.capturedSecondsAgo || 0)} ago</p>`;
-            html += '</div>';
-            html += '<p><em>Note: Raw packet data and decryption details not yet available via API. Use serial monitor for detailed packet inspection.</em></p>';
-
-            html += '<button class="btn" data-action="replay-menu" style="margin-top: 1rem;">Back to Replay Menu</button>';
-            this.showResults('Packet Details', html);
-        } catch (error) {
-            console.error('Error viewing packet:', error);
-            this.showError('Failed to load packet details: ' + error.message);
-        }
-    }
-
-    escapeHtml(text) {
-        const div = document.createElement('div');
-        div.textContent = text;
-        return div.innerHTML;
-    }
-
-    async clearReplaySlots() {
-        if (!confirm('Clear all captured packets? This cannot be undone.')) {
-            return;
-        }
-
-        try {
-            const data = await this.post('/api/replay/clear', {});
-            if (data.status === 'success') {
-                this.showToast('✅ All replay slots cleared');
-                this.showReplayMenu(); // Refresh the view
-            } else {
-                this.showError(data.message || 'Failed to clear replay slots');
-            }
-        } catch (error) {
-            console.error('Error clearing replay slots:', error);
-            this.showError('Failed to clear replay slots: ' + error.message);
+            this.showError('Failed to load frequency data');
         }
     }
 
@@ -530,7 +277,7 @@ class ReconApp {
 
             let html = '<h3>GPS Positions</h3>';
             html += `<p><strong>Total Positions:</strong> ${data.totalPositions || data.positions.length}</p>`;
-            html += '<div style="overflow-x: auto;"><table class="table"><thead><tr>';
+            html += '<table class="table"><thead><tr>';
             html += '<th>Node ID</th><th>Latitude</th><th>Longitude</th><th>Altitude</th><th>Time</th>';
             html += '</tr></thead><tbody>';
 
@@ -545,10 +292,65 @@ class ReconApp {
                 html += '</tr>';
             });
 
-            html += '</tbody></table></div>';
+            html += '</tbody></table>';
             this.showResults('GPS Data', html);
         } catch (error) {
             this.showError('Failed to load GPS data');
+        }
+    }
+
+    async showReplayMenu() {
+        try {
+            const data = await this.get('/api/replay/slots');
+            if (data.status !== 'success') {
+                this.showResults('Replay Slots', '<p>Replay data not available.</p>');
+                return;
+            }
+
+            let html = '<h3>Packet Replay Slots</h3>';
+            html += `<p><strong>Captured:</strong> ${data.count || 0} / ${data.capacity || 10}</p>`;
+            html += `<p><strong>Available:</strong> ${data.available || 0}</p>`;
+
+            if (data.slots && data.slots.length > 0) {
+                html += '<hr><table class="table"><thead><tr>';
+                html += '<th>Slot</th><th>Protocol</th><th>Length</th><th>RSSI</th><th>Config</th>';
+                html += '</tr></thead><tbody>';
+
+                data.slots.forEach(slot => {
+                    html += '<tr>';
+                    html += `<td>#${slot.index}</td>`;
+                    html += `<td>${slot.protocol || 'Unknown'}</td>`;
+                    html += `<td>${slot.length} bytes</td>`;
+                    html += `<td>${this.formatSignal(slot.rssi)}</td>`;
+                    html += `<td>#${(slot.configIndex || 0) + 1}</td>`;
+                    html += '</tr>';
+                });
+
+                html += '</tbody></table>';
+                html += '<p><button class="btn btn-danger" onclick="app.clearReplaySlots()">Clear All Slots</button></p>';
+            } else {
+                html += '<p><em>No packets captured for replay yet. Press "c" during targeted capture to save packets.</em></p>';
+            }
+
+            this.showResults('Replay Slots', html);
+        } catch (error) {
+            this.showError('Failed to load replay slots');
+        }
+    }
+
+    async clearReplaySlots() {
+        if (!confirm('Clear all replay slots?')) return;
+        
+        try {
+            const result = await this.post('/api/replay/clear');
+            if (result.status === 'success') {
+                this.showToast('Replay slots cleared');
+                await this.showReplayMenu();
+            } else {
+                this.showToast(result.error || 'Failed to clear slots', 'error');
+            }
+        } catch (error) {
+            this.showToast('Failed to clear slots', 'error');
         }
     }
 
@@ -567,7 +369,7 @@ class ReconApp {
             html += `<p><strong>Secure:</strong> ${data.summary.secure || 0}</p>`;
 
             if (data.devices && data.devices.length > 0) {
-                html += '<div style="overflow-x: auto;"><table class="table"><thead><tr>';
+                html += '<hr><table class="table"><thead><tr>';
                 html += '<th>Node ID</th><th>Type</th><th>Risk Level</th><th>RSSI</th><th>Packets</th>';
                 html += '</tr></thead><tbody>';
 
@@ -582,7 +384,7 @@ class ReconApp {
                     html += '</tr>';
                 });
 
-                html += '</tbody></table></div>';
+                html += '</tbody></table>';
             }
 
             this.showResults('Security Assessment', html);
@@ -703,34 +505,24 @@ class ReconApp {
     // Utility Functions
     // ================================================================
 
-    showTabContent(tabName, html) {
-        const contentEl = this.el[`${tabName}Content`];
-        if (contentEl) {
-            contentEl.innerHTML = html;
-        }
-    }
-
     showResults(title, html) {
-        // Legacy function - route to appropriate tab
-        const tabMap = {
-            'Discovered Devices': 'devices',
-            'Menu': 'devices',
-            'Captured Packets': 'packets',
-            'Packet Replay': 'packets',
-            'Packet Details': 'packets',
-            'Frequency Targeting': 'frequency',
-            'GPS Data': 'gps'
-        };
-        
-        const tab = tabMap[title];
-        if (tab) {
-            this.showTabContent(tab, html);
-        }
+        this.el.resultsTitle.textContent = title;
+        this.el.results.innerHTML = html;
+        this.lastCommand = () => this.showResults(title, html);
     }
 
     showError(message) {
-        const html = `<p class="error" style="color: var(--danger); padding: 2rem; text-align: center;">${message}</p>`;
-        this.showTabContent(this.currentTab, html);
+        this.showResults('Error', `<p class="error">${message}</p>`);
+    }
+
+    showToast(message, type = 'success') {
+        this.el.toast.textContent = message;
+        this.el.toast.className = `toast ${type}`;
+        this.el.toast.style.display = 'block';
+        
+        setTimeout(() => {
+            this.el.toast.style.display = 'none';
+        }, 3000);
     }
 
     formatMode(mode) {
@@ -764,27 +556,6 @@ class ReconApp {
         return `${freq.toFixed(3)} MHz`;
     }
 
-    formatAge(seconds) {
-        if (seconds < 60) return `${seconds}s`;
-        if (seconds < 3600) return `${Math.floor(seconds / 60)}m`;
-        return `${Math.floor(seconds / 3600)}h`;
-    }
-
-    showLoading(title = 'Loading') {
-        this.resultsTitle.textContent = title;
-        this.resultsContent.innerHTML = '';
-        this.resultsContent.classList.add('loading');
-        this.resultsPanel.style.display = 'block';
-        
-        // Scroll to show loading state
-        setTimeout(() => {
-            window.scrollTo({ 
-                top: 0, 
-                behavior: 'smooth' 
-            });
-        }, 50);
-    }
-
     // ================================================================
     // API Methods
     // ================================================================
@@ -811,7 +582,7 @@ class ReconApp {
 }
 
 // Initialize app when DOM is ready
-window.app = null;
+let app;
 document.addEventListener('DOMContentLoaded', () => {
-    window.app = new ReconApp();
+    app = new ReconApp();
 });

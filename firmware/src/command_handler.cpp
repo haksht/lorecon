@@ -20,6 +20,7 @@
 #include "geo_intelligence.h"
 #include "ui_components.h"
 #include "text_packet_diagnostic.h"  // For diagnostic reporting
+#include "psk_decryption_simple.h"   // For accessing decrypted text
 
 #ifdef ENABLE_PSK_TESTING
 #include "psk_tests.h"
@@ -198,9 +199,15 @@ void CommandHandler::cmdCapturePacket(IReconTool* tool) {
         ProtocolAnalyzer analyzer;
         PacketInfo info = analyzer.analyze(data, length, rssi);
         
+        // Get decrypted text if available
+        const char* decryptedText = PSKDecryption::getLastMessage();
+        
         if (reconState.capturePacketForReplay(data, length, reconState.scanState.currentConfig, 
-                                               rssi, info.protocol)) {
+                                               rssi, info.protocol, decryptedText)) {
             Serial.println("✅ Packet saved to replay slot!");
+            if (decryptedText && decryptedText[0] != '\0') {
+                Serial.printf("   📧 Decrypted text: \"%s\"\n", decryptedText);
+            }
         } else {
             Serial.println("❌ Failed to save packet (slots full?)");
         }
