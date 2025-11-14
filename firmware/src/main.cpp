@@ -101,6 +101,9 @@ void loop() {
     // Update LoRa reconnaissance (handles radio, packets, commands)
     reconTool.update();
     
+    // Flush pending web server updates
+    webServer.service();
+
     // Update WiFi connection monitoring
     wifiManager.update();
     

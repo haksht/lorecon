@@ -336,4 +336,33 @@ bool isVerbose() {
     return verboseMode;
 }
 
+void getStats(DiagnosticStats& stats) {
+    stats.gapCount = gapCount;
+    stats.maxGapMs = maxGapMs;
+    stats.largeGapCount = largeGapCount;
+    stats.encryptedPacketCount = encryptedPacketCount;
+    stats.plaintextPacketCount = plaintextPacketCount;
+    stats.unknownPacketCount = unknownPacketCount;
+    stats.verboseMode = verboseMode;
+
+    auto fillStats = [](PacketCategoryStats& dst, const PacketTypeStats& src) {
+        if (src.count == 0) {
+            dst.count = 0;
+            dst.minSize = 0;
+            dst.maxSize = 0;
+            dst.averageSize = 0.0f;
+        } else {
+            dst.count = src.count;
+            dst.minSize = src.minSize == 999 ? 0 : src.minSize;
+            dst.maxSize = src.maxSize;
+            dst.averageSize = src.avgSize();
+        }
+    };
+
+    fillStats(stats.routing, routingStats);
+    fillStats(stats.position, positionStats);
+    fillStats(stats.text, textStats);
+    fillStats(stats.other, otherStats);
+}
+
 } // namespace TextPacketDiagnostic

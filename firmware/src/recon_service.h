@@ -25,13 +25,20 @@ public:
     static String buildPositionsJson();
     static String buildGeoJson();
     static String buildKml();
-
-    static bool toggleQuietMode(bool enableVerbose, String& outMessage);
+    static String buildReconSummaryJson();
+    static String buildDeviceTypeSummaryJson();
+    static String buildSecurityAssessmentJson();
+    static String buildReplaySlotsJson();
+    static bool clearReplaySlots(String& outMessage);
+    static bool startFrequencyTargeting(uint8_t configIndex, String& outMessage);
+    static String buildDiagnosticsJson();
+    static bool setVerboseMode(bool enableVerbose, String& outMessage);
 
 private:
     static IReconTool* reconTool;
 
     static TargetableDevice* findTargetableDevice(uint32_t nodeId);
+    static const char* modeToString(OperationMode mode);
     static uint8_t findDeviceIndex(uint32_t nodeId);
     static void fillDevice(JsonObject& obj, const TargetableDevice& device, uint8_t index);
 };

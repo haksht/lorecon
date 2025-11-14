@@ -168,27 +168,6 @@ A production-ready LoRa packet capture and analysis platform for security resear
 
 ---
 
-### ⚡ Hardware Stress Testing (REMOVED in v2.0)
-**Status**: ❌ Removed  
-**Reason**: Fundamental design flaw - cannot reliably test external devices without instrumentation
-
-**Previously included**:
-- T-Deck targeted assessment
-- Frequency sweep validation  
-- Power ramp testing
-- Parameter boundary testing
-- Rapid configuration changes
-- Memory integrity validation
-- Thermal monitoring
-
-**Why removed**: The attack testing framework tried to assess external devices but had no reliable way to determine results. Cannot verify if target device crashed vs. just stopped transmitting, no visibility into target device internal state. This ~900 lines of code provided minimal value and violated the principle of focusing on what the ESP32 does well (passive reconnaissance).
-
-**Replacement**: Focus shifted to PC-based analysis of captured data, which provides more reliable insights without the fundamental limitations of on-device testing.
-
-**See**: [ARCHITECTURE_REFACTOR_NOV11.md](../ARCHITECTURE_REFACTOR_NOV11.md) for detailed rationale.
-
----
-
 ### 🔇 Quiet Mode (FAST PACKET CAPTURE)
 **Status**: ✅ Production Ready  
 **Build Flag**: Always enabled  
@@ -259,37 +238,6 @@ Reduces serial output by 95% to minimize packet processing time and capture gaps
 - **Real-time statistics** (packet counts, uptime, error rates)
 
 **What it does**: Provides a clean, interactive interface via serial terminal for controlling the tool and viewing results.
-
----
-
-## ❌ Features NOT Included (By Design)
-
-### Attack/Offensive Testing Framework (Removed v2.0)
-**Why Not**: Fundamental design flaw - cannot reliably test external devices without instrumentation or control. ~2,100 lines of speculative code provided minimal value.
-
-**What Was Removed**: Device stress testing, attack scenarios, vulnerability scanner, hardware stress testing.
-
-**See**: [ARCHITECTURE_REFACTOR_NOV11.md](../ARCHITECTURE_REFACTOR_NOV11.md) for detailed rationale.
-
-### Intelligence Storage / Session Management
-**Why Not**: Adds complexity without clear benefit for a focused recon tool. SD card logging (ready for integration) provides better solution.
-
-**What We Have Instead**: Real-time packet logging, 10 in-memory replay slots, KML/GeoJSON export, SD card logging framework.
-
-### Network Topology Mapping
-**Why Not**: Out of scope. Tool is about packet capture, not network graphing.
-
-**What We Have Instead**: Device enumeration, fingerprinting, and router detection gives you network intelligence. PC-based analysis can generate topology maps from captured data.
-
-### Traffic Analysis Module
-**Why Not**: Overlaps with existing packet capture and protocol analysis. Adds bloat.
-
-**What We Have Instead**: Protocol analyzer + TextPacketDiagnostic provides comprehensive packet intelligence extraction and timing analysis.
-
-### Web Interface
-**Why Not**: Deferred. Serial interface + OLED display sufficient for field operations. PC analysis tools handle post-mission visualization.
-
-**Future Consideration**: Could add web dashboard for real-time monitoring if demand exists.
 
 ---
 

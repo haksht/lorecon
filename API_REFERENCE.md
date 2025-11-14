@@ -471,17 +471,12 @@ Host: 192.168.4.1
   "totalPackets": 1234,
   "freeHeap": 204800,
   "heapSize": 327680,
+  "clientCount": 2,
   "scan": {
     "currentConfig": 3,
     "totalConfigs": 16,
     "cyclesCompleted": 2
-  },
-  "wifi": {
-    "ssid": "ESP32-LoRa-Sniffer",
-    "clients": 2,
-    "ip": "192.168.4.1"
-  },
-  "timestamp": 1699900800000
+  }
 }
 ```
 
@@ -489,12 +484,13 @@ Host: 192.168.4.1
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `mode` | string | Current mode (`reconnaissance`, `targeted`, `idle`) |
+| `mode` | string | Current mode (`reconnaissance`, `targeted`, `menu`, `replay`) |
 | `uptime` | number | System uptime (seconds) |
 | `devices` | number | Total discovered devices |
 | `totalPackets` | number | Total packets captured |
 | `freeHeap` | number | Free RAM (bytes) |
 | `heapSize` | number | Total RAM (bytes) |
+| `clientCount` | number | Active WebSocket clients connected to the UI |
 | `scan.currentConfig` | number | Current frequency config |
 | `scan.totalConfigs` | number | Total configs to scan |
 | `scan.cyclesCompleted` | number | Full scan cycles completed |

@@ -5,6 +5,7 @@
 #include "web_server.h"
 #include "api_controller.h"
 #include "logger.h"
+#include "recon_state.h"
 #include <LittleFS.h>
 
 // Global instance for static handlers
@@ -14,7 +15,11 @@ WebServer::WebServer()
     : server(nullptr)
     , ws(nullptr)
     , reconTool(nullptr)
+    , wsMutex(nullptr)
+    , activeClients(0)
     , lastBroadcast(0)
+    , pendingPacketBroadcast(false)
+    , pendingClientCleanup(false)
 {
 }
 
@@ -46,6 +51,16 @@ bool WebServer::begin(IReconTool* tool, uint16_t port) {
     // Setup WebSocket
     setupWebSocket();
     server->addHandler(ws);
+
+    // Initialize synchronization primitive for safe websocket access
+    wsMutex = xSemaphoreCreateMutex();
+    if (!wsMutex) {
+        LOG_WARN("WebSocket mutex creation failed; concurrency safeguards disabled");
+    }
+
+    activeClients.store(0);
+    pendingPacketBroadcast.store(false, std::memory_order_relaxed);
+    pendingClientCleanup.store(false, std::memory_order_relaxed);
     
     // Setup REST API routes
     setupRoutes();
@@ -84,6 +99,15 @@ void WebServer::stop() {
         delete ws;
         ws = nullptr;
     }
+
+    if (wsMutex) {
+        vSemaphoreDelete(wsMutex);
+        wsMutex = nullptr;
+    }
+
+    activeClients.store(0);
+    pendingPacketBroadcast.store(false, std::memory_order_relaxed);
+    pendingClientCleanup.store(false, std::memory_order_relaxed);
     
     g_webServer = nullptr;
 }
@@ -108,6 +132,14 @@ void WebServer::setupRoutes() {
     server->on("/api/statistics", HTTP_GET, handleGetStatistics);
     server->on("/api/activity", HTTP_GET, handleGetActivity);
     server->on("/api/config", HTTP_GET, handleGetConfig);
+    server->on("/api/recon/summary", HTTP_GET, handleGetReconSummary);
+    server->on("/api/recon/device-types", HTTP_GET, handleGetDeviceTypeSummary);
+    server->on("/api/recon/security", HTTP_GET, handleGetSecurityAssessment);
+    server->on("/api/replay/slots", HTTP_GET, handleGetReplaySlots);
+    server->on("/api/replay/clear", HTTP_POST, handleClearReplaySlots);
+    server->on("/api/frequency/target", HTTP_POST, handleStartFrequencyTargeting);
+    server->on("/api/diagnostics", HTTP_GET, handleGetDiagnostics);
+    server->on("/api/diagnostics/verbose", HTTP_POST, handleSetVerboseMode);
     
     // Scan Control
     server->on("/api/scan/start", HTTP_POST, handleStartScan);
@@ -251,6 +283,100 @@ void WebServer::handleStopScan(AsyncWebServerRequest* request) {
     request->send(200, "application/json", json);
 }
 
+void WebServer::handleGetReconSummary(AsyncWebServerRequest* request) {
+    String json = APIController::getReconSummary();
+    request->send(200, "application/json", json);
+}
+
+void WebServer::handleGetDeviceTypeSummary(AsyncWebServerRequest* request) {
+    String json = APIController::getDeviceTypeSummary();
+    request->send(200, "application/json", json);
+}
+
+void WebServer::handleGetSecurityAssessment(AsyncWebServerRequest* request) {
+    String json = APIController::getSecurityAssessment();
+    request->send(200, "application/json", json);
+}
+
+void WebServer::handleGetReplaySlots(AsyncWebServerRequest* request) {
+    String json = APIController::getReplaySlots();
+    request->send(200, "application/json", json);
+}
+
+void WebServer::handleClearReplaySlots(AsyncWebServerRequest* request) {
+    String json = APIController::clearReplaySlots();
+    request->send(200, "application/json", json);
+}
+
+void WebServer::handleStartFrequencyTargeting(AsyncWebServerRequest* request) {
+    AsyncWebParameter* param = nullptr;
+    if (request->hasParam("configIndex", true)) {
+        param = request->getParam("configIndex", true);
+    } else if (request->hasParam("configIndex")) {
+        param = request->getParam("configIndex");
+    }
+
+    if (!param) {
+        request->send(400, "application/json", "{\"status\":\"error\",\"error\":\"Missing configIndex\"}");
+        return;
+    }
+
+    String indexStr = param->value();
+    uint32_t rawIndex = strtoul(indexStr.c_str(), nullptr, 0);
+
+    if (rawIndex > UINT8_MAX) {
+        request->send(400, "application/json", "{\"status\":\"error\",\"error\":\"configIndex out of range\"}");
+        return;
+    }
+
+    uint8_t configIndex = static_cast<uint8_t>(rawIndex);
+    if (!reconState.isValidConfigIndex(configIndex) && rawIndex > 0) {
+        uint32_t adjusted = rawIndex - 1;
+        if (adjusted <= UINT8_MAX && reconState.isValidConfigIndex(static_cast<uint8_t>(adjusted))) {
+            configIndex = static_cast<uint8_t>(adjusted);
+        }
+    }
+
+    String json = APIController::startFrequencyTargeting(configIndex);
+    request->send(200, "application/json", json);
+}
+
+void WebServer::handleGetDiagnostics(AsyncWebServerRequest* request) {
+    String json = APIController::getDiagnostics();
+    request->send(200, "application/json", json);
+}
+
+void WebServer::handleSetVerboseMode(AsyncWebServerRequest* request) {
+    AsyncWebParameter* param = nullptr;
+    if (request->hasParam("enable", true)) {
+        param = request->getParam("enable", true);
+    } else if (request->hasParam("enable")) {
+        param = request->getParam("enable");
+    }
+
+    if (!param) {
+        request->send(400, "application/json", "{\"status\":\"error\",\"error\":\"Missing enable parameter\"}");
+        return;
+    }
+
+    String enableStr = param->value();
+    enableStr.trim();
+    enableStr.toLowerCase();
+
+    bool enableVerbose;
+    if (enableStr == "true" || enableStr == "1" || enableStr == "yes" || enableStr == "on" || enableStr == "verbose") {
+        enableVerbose = true;
+    } else if (enableStr == "false" || enableStr == "0" || enableStr == "no" || enableStr == "off" || enableStr == "quiet") {
+        enableVerbose = false;
+    } else {
+        request->send(400, "application/json", "{\"status\":\"error\",\"error\":\"Invalid enable value\"}");
+        return;
+    }
+
+    String json = APIController::setVerboseMode(enableVerbose);
+    request->send(200, "application/json", json);
+}
+
 // =============================================================================
 // WEBSOCKET HANDLERS
 // =============================================================================
@@ -262,12 +388,25 @@ void WebServer::handleWebSocketEvent(AsyncWebSocket* server, AsyncWebSocketClien
             LOG_INFO("WebSocket client #%u connected from %s", client->id(), client->remoteIP().toString().c_str());
             // Send initial status
             if (g_webServer) {
+                g_webServer->activeClients.fetch_add(1, std::memory_order_relaxed);
                 g_webServer->broadcastStatusUpdate();
+                g_webServer->lastBroadcast = millis();
             }
             break;
             
         case WS_EVT_DISCONNECT:
             LOG_INFO("WebSocket client #%u disconnected", client->id());
+            if (g_webServer) {
+                size_t previous = g_webServer->activeClients.load(std::memory_order_relaxed);
+                while (previous != 0 && !g_webServer->activeClients.compare_exchange_weak(
+                           previous, previous - 1, std::memory_order_relaxed)) {
+                    // Loop until the decrement succeeds or count hits zero
+                }
+                g_webServer->aggStats = AggregatedStats{};
+                g_webServer->lastBroadcast = millis();
+                g_webServer->pendingPacketBroadcast.store(false, std::memory_order_relaxed);
+                g_webServer->pendingClientCleanup.store(true, std::memory_order_relaxed);
+            }
             break;
             
         case WS_EVT_DATA:
@@ -285,14 +424,26 @@ void WebServer::handleWebSocketMessage(AsyncWebSocketClient* client, uint8_t* da
     if (len == 0 || len > 1024) {
         return;  // Silently ignore
     }
-    
-    // Only log if it looks like valid JSON (starts with '{')
+
     if (data[0] == '{') {
-        String message = String((char*)data).substring(0, len);
-        LOG_INFO("WebSocket command from client #%u: %s", client->id(), message.c_str());
-        
-        // Could implement commands via WebSocket if needed in the future
-        // For now, no response needed - server pushes data via broadcast methods
+        // Build a bounded, printable preview without assuming null termination
+        const size_t previewLen = std::min(len, static_cast<size_t>(128));
+        String preview;
+        preview.reserve(previewLen + 3);
+        for (size_t i = 0; i < previewLen; ++i) {
+            char c = static_cast<char>(data[i]);
+            if (c >= 32 && c <= 126) {
+                preview += c;
+            } else {
+                preview += '?';
+            }
+        }
+        if (len > previewLen) {
+            preview += "...";
+        }
+
+        LOG_INFO("WebSocket command from client #%u: %s", client->id(), preview.c_str());
+        // Future: handle commands routed over WebSocket
     }
     // Silently ignore other messages (pings, pongs, binary data, garbage)
 }
@@ -319,14 +470,7 @@ void WebServer::handlePacketEvent(const PacketEvent& evt) {
     }
     
     aggStats.timestamp = evt.timestamp;
-    
-    // Check if it's time to broadcast (throttle to 500ms intervals)
-    uint32_t now = millis();
-    if (now - lastBroadcast >= BROADCAST_INTERVAL_MS) {
-        broadcastAggregatedUpdate();
-        lastBroadcast = now;
-        aggStats.packetCount = 0;  // Reset counter after broadcast
-    }
+    pendingPacketBroadcast.store(true, std::memory_order_relaxed);
 }
 
 /**
@@ -334,16 +478,11 @@ void WebServer::handlePacketEvent(const PacketEvent& evt) {
  */
 void WebServer::broadcastAggregatedUpdate() {
     // Safety checks: no broadcast if no websocket, no stats, or no clients
-    if (!ws || !server || aggStats.packetCount == 0) {
+    if (!ws || !server || aggStats.packetCount == 0 || activeClients.load(std::memory_order_relaxed) == 0) {
+        pendingPacketBroadcast.store(false, std::memory_order_relaxed);
         return;
     }
-    
-    // Extra safety: check client count
-    size_t clientCount = ws->count();
-    if (clientCount == 0) {
-        return;
-    }
-    
+
     // Build JSON
     JsonDocument doc;
     doc["type"] = "packet";
@@ -359,21 +498,55 @@ void WebServer::broadcastAggregatedUpdate() {
     
     String json;
     serializeJson(doc, json);
-    
-    // Only send if we still have clients (double-check before actual send)
-    if (ws && ws->count() > 0) {
-        ws->textAll(json);
+
+    if (!acquireWebSocketLock()) {
+        return;
     }
+
+    ws->textAll(json);
+    releaseWebSocketLock();
+    aggStats.packetCount = 0;
+    lastBroadcast = millis();
+    pendingPacketBroadcast.store(false, std::memory_order_relaxed);
 }
 
 /**
  * Periodic maintenance - cleanup dead connections
  */
 void WebServer::periodicUpdate() {
+    if (!ws) {
+        return;
+    }
+
+    if (activeClients.load(std::memory_order_relaxed) == 0) {
+        return;
+    }
+
+    if (!acquireWebSocketLock()) {
+        return;
+    }
+
     if (ws) {
         ws->cleanupClients();
-        // Ping all clients to keep connection alive
         ws->pingAll();
+    }
+
+    releaseWebSocketLock();
+}
+
+void WebServer::service() {
+    bool broadcastPending = pendingPacketBroadcast.load(std::memory_order_relaxed);
+    if (broadcastPending) {
+        uint32_t now = millis();
+        if (now - lastBroadcast >= BROADCAST_INTERVAL_MS) {
+            broadcastAggregatedUpdate();
+        }
+    }
+
+    if (pendingClientCleanup.load(std::memory_order_relaxed)) {
+        if (cleanupWebSocketClients()) {
+            pendingClientCleanup.store(false, std::memory_order_relaxed);
+        }
     }
 }
 
@@ -381,7 +554,7 @@ void WebServer::periodicUpdate() {
  * Broadcast device update to all connected WebSocket clients
  */
 void WebServer::broadcastDeviceUpdate(uint32_t nodeId) {
-    if (!ws || !server || ws->count() == 0) return;
+    if (!ws || !server || activeClients.load(std::memory_order_relaxed) == 0) return;
     
     JsonDocument doc;
     doc["type"] = "deviceUpdate";
@@ -391,17 +564,20 @@ void WebServer::broadcastDeviceUpdate(uint32_t nodeId) {
     String json;
     serializeJson(doc, json);
     
-    if (ws && ws->count() > 0) {
-        ws->textAll(json);
+    if (!acquireWebSocketLock()) {
+        return;
     }
+
+    ws->textAll(json);
+    releaseWebSocketLock();
 }
 
 /**
  * Broadcast status update to all connected WebSocket clients
  */
 void WebServer::broadcastStatusUpdate() {
-    if (!ws || !server || ws->count() == 0) return;
-    
+    if (!ws || !server || activeClients.load(std::memory_order_relaxed) == 0) return;
+
     String statusJson = APIController::getStatus();
     
     JsonDocument doc;
@@ -411,15 +587,54 @@ void WebServer::broadcastStatusUpdate() {
     
     String json;
     serializeJson(doc, json);
-    
-    if (ws && ws->count() > 0) {
-        ws->textAll(json);
+
+    if (!acquireWebSocketLock()) {
+        return;
     }
+
+    ws->textAll(json);
+    releaseWebSocketLock();
 }
 
 /**
  * Get number of connected WebSocket clients
  */
 size_t WebServer::getClientCount() const {
-    return ws ? ws->count() : 0;
+    return activeClients.load(std::memory_order_relaxed);
+}
+
+bool WebServer::acquireWebSocketLock(TickType_t timeout) const {
+    if (!wsMutex) {
+        return true;
+    }
+
+    if (xSemaphoreTake(wsMutex, timeout) == pdTRUE) {
+        return true;
+    }
+
+    LOG_DEBUG("WebSocket mutex acquisition timed out");
+    return false;
+}
+
+void WebServer::releaseWebSocketLock() const {
+    if (wsMutex) {
+        xSemaphoreGive(wsMutex);
+    }
+}
+
+bool WebServer::cleanupWebSocketClients() {
+    if (!ws) {
+        return true;
+    }
+
+    if (!acquireWebSocketLock()) {
+        return false;
+    }
+
+    if (ws) {
+        ws->cleanupClients();
+    }
+
+    releaseWebSocketLock();
+    return true;
 }

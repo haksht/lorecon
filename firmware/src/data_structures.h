@@ -28,6 +28,7 @@ struct CapturedPacket {
   float originalRSSI;
   uint32_t captureTime;
   char protocol[16];
+  char decryptedText[256];  // Stores decrypted message text if available
   bool valid;
 };
 

@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#1a1a2e">
+    
+    <title>ESP32 LoRa Sniffer</title>
+    
+    <link rel="manifest" href="manifest.json">
+    <link rel="icon" type="image/png" href="icons/icon-192.png">
+    <link rel="apple-touch-icon" href="icons/icon-192.png">
+    
+    <!-- Leaflet CSS for mapping -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <!-- Loading Screen -->
+    <div id="loading-screen" class="loading-screen">
+        <div class="loading-content">
+            <div class="loader"></div>
+            <h2>ESP32 LoRa Sniffer</h2>
+            <p>Connecting...</p>
+        </div>
+    </div>
+
+    <!-- Main App -->
+    <div id="app" class="app hidden">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-left">
+                <h1>📡 LoRa Sniffer</h1>
+            </div>
+            <div class="header-right">
+                <span id="connection-status" class="status-indicator">●</span>
+                <span id="client-count">0 clients</span>
+            </div>
+        </header>
+
+        <!-- Navigation Tabs -->
+        <nav class="tabs">
+            <button class="tab active" data-tab="dashboard">Dashboard</button>
+            <button class="tab" data-tab="devices">Devices</button>
+            <button class="tab" data-tab="map">Map</button>
+            <button class="tab" data-tab="activity">Activity</button>
+        </nav>
+
+        <!-- Tab Content -->
+        <div class="content">
+            <!-- Dashboard Tab -->
+            <div id="tab-dashboard" class="tab-content active">
+                <!-- Stats Cards -->
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-icon">📱</div>
+                        <div class="stat-info">
+                            <div class="stat-label">Devices</div>
+                            <div class="stat-value" id="stat-devices">0</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">📦</div>
+                        <div class="stat-info">
+                            <div class="stat-label">Packets</div>
+                            <div class="stat-value" id="stat-packets">0</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">🔓</div>
+                        <div class="stat-info">
+                            <div class="stat-label">Decrypted</div>
+                            <div class="stat-value" id="stat-decrypted">0</div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">⏱️</div>
+                        <div class="stat-info">
+                            <div class="stat-label">Uptime</div>
+                            <div class="stat-value" id="stat-uptime">0s</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Real-time Packet Feed -->
+                <div class="panel">
+                    <h2>📡 Live Packet Feed</h2>
+                    <div id="packet-feed" class="packet-feed">
+                        <p class="no-data">Waiting for packets...</p>
+                    </div>
+                </div>
+
+                <!-- System Status -->
+                <div class="panel">
+                    <h2>⚙️ System Status</h2>
+                    <div id="system-status" class="status-info">
+                        <div class="status-row">
+                            <span class="status-label">Mode:</span>
+                            <span id="status-mode">-</span>
+                        </div>
+                        <div class="status-row">
+                            <span class="status-label">Free Heap:</span>
+                            <span id="status-heap">-</span>
+                        </div>
+                        <div class="status-row">
+                            <span class="status-label">WebSocket:</span>
+                            <span id="status-ws">-</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="panel">
+                    <div class="panel-header">
+                        <h2>🧭 Recon Summary</h2>
+                        <div class="panel-actions">
+                            <button class="btn btn-secondary" onclick="app.refreshReconSummary()">🔄 Refresh</button>
+                        </div>
+                    </div>
+                    <div id="recon-summary" class="status-info">
+                        <p class="no-data">Loading recon summary...</p>
+                    </div>
+                    <div id="recon-activity" class="activity-list"></div>
+                </div>
+
+                <div class="panel">
+                    <div class="panel-header">
+                        <h2>🩺 Diagnostics</h2>
+                        <div class="panel-actions">
+                            <button class="btn btn-secondary" onclick="app.refreshDiagnostics()">🔄 Refresh</button>
+                            <button class="btn btn-secondary" id="toggle-verbose-btn">Enable Verbose</button>
+                        </div>
+                    </div>
+                    <div id="diagnostics-content" class="status-info">
+                        <p class="no-data">Loading diagnostics...</p>
+                    </div>
+                    <div id="diagnostics-recommendations" class="status-info"></div>
+                </div>
+
+                <div class="panel">
+                    <div class="panel-header">
+                        <h2>🎛️ Replay Slots</h2>
+                        <div class="panel-actions">
+                            <button class="btn btn-secondary" onclick="app.refreshReplaySlots()">🔄 Refresh</button>
+                            <button class="btn btn-danger" onclick="app.clearReplaySlots()">🧹 Clear</button>
+                        </div>
+                    </div>
+                    <div id="replay-summary" class="status-info">
+                        <p class="no-data">Loading replay slots...</p>
+                    </div>
+                    <div id="replay-slots" class="device-list"></div>
+                </div>
+            </div>
+
+            <!-- Devices Tab -->
+            <div id="tab-devices" class="tab-content">
+                <div class="panel">
+                    <div class="panel-header">
+                        <h2>📱 Discovered Devices</h2>
+                        <button class="btn btn-primary" onclick="app.refreshDevices()">🔄 Refresh</button>
+                    </div>
+                    <div id="device-list" class="device-list">
+                        <p class="no-data">No devices discovered yet...</p>
+                    </div>
+                </div>
+
+                <div class="panel">
+                    <div class="panel-header">
+                        <h2>📊 Device Type Overview</h2>
+                        <div class="panel-actions">
+                            <button class="btn btn-secondary" onclick="app.refreshDeviceTypeSummary()">🔄 Refresh</button>
+                        </div>
+                    </div>
+                    <div id="device-type-summary">
+                        <p class="no-data">Loading device type summary...</p>
+                    </div>
+                </div>
+
+                <div class="panel">
+                    <div class="panel-header">
+                        <h2>🛡️ Security Assessment</h2>
+                        <div class="panel-actions">
+                            <button class="btn btn-secondary" onclick="app.refreshSecurityAssessment()">🔄 Refresh</button>
+                        </div>
+                    </div>
+                    <div id="security-overview" class="status-info">
+                        <p class="no-data">Loading security overview...</p>
+                    </div>
+                    <div id="security-assessment" class="device-list">
+                        <p class="no-data">No assessment data yet...</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Map Tab -->
+            <div id="tab-map" class="tab-content">
+                <div class="panel">
+                    <h2>🗺️ Device Locations</h2>
+                    <div id="map-container" class="map-container">
+                        <div id="map" style="height: 500px;"></div>
+                    </div>
+                    <div class="map-controls">
+                        <button class="btn btn-secondary" onclick="app.refreshMap()">🔄 Refresh</button>
+                        <button class="btn btn-secondary" onclick="app.exportGeoJSON()">💾 Export GeoJSON</button>
+                        <button class="btn btn-secondary" onclick="app.exportKML()">🌍 Export KML</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Activity Tab -->
+            <div id="tab-activity" class="tab-content">
+                <div class="panel">
+                    <h2>📊 RF Activity</h2>
+                    <div id="activity-list" class="activity-list">
+                        <p class="no-data">No RF activity data yet...</p>
+                    </div>
+                </div>
+                
+                <div class="panel">
+                    <h2>📈 Statistics</h2>
+                    <div id="statistics" class="statistics">
+                        <p class="no-data">Loading statistics...</p>
+                    </div>
+                </div>
+
+                <div class="panel">
+                    <div class="panel-header">
+                        <h2>🎯 Frequency Targeting</h2>
+                        <div class="panel-actions">
+                            <button class="btn btn-secondary" onclick="app.refreshFrequencyOptions()">🔄 Refresh</button>
+                        </div>
+                    </div>
+                    <div class="status-info" style="gap: 0.75rem;">
+                        <label class="status-label" for="frequency-target-select">Configuration</label>
+                        <select id="frequency-target-select" style="padding: 0.6rem 1rem; background-color: rgba(255,255,255,0.05); border: 1px solid var(--border-color); color: var(--text-primary); border-radius: 8px;"></select>
+                        <button class="btn btn-primary" id="start-frequency-btn">Start Frequency Targeting</button>
+                        <p class="status-label" id="frequency-target-helper">Options derive from recent recon activity. One-based menu numbers are shown for convenience.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notifications -->
+    <div id="toast-container" class="toast-container"></div>
+
+    <!-- Scripts -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="js/api-client.js"></script>
+    <script src="js/map.js"></script>
+    <script src="js/app.js"></script>
+    
+    <script>
+        // Register service worker for PWA
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('sw.js')
+                .then(reg => console.log('Service Worker registered:', reg))
+                .catch(err => console.error('Service Worker registration failed:', err));
+        }
+    </script>
+</body>
+</html>

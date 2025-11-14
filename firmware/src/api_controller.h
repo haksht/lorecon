@@ -52,6 +52,14 @@ public:
     static String setConfig(const String& jsonConfig);
     static String startScan();
     static String stopScan();
+    static String getReconSummary();
+    static String getDeviceTypeSummary();
+    static String getSecurityAssessment();
+    static String getReplaySlots();
+    static String clearReplaySlots();
+    static String startFrequencyTargeting(uint8_t configIndex);
+    static String getDiagnostics();
+    static String setVerboseMode(bool enableVerbose);
     
     // Statistics
     static String getStatistics();

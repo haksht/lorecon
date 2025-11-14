@@ -1,6 +1,7 @@
 #include "recon_service.h"
 #include "config.h"
 #include "logger.h"
+#include "web_server.h"
 
 IReconTool* ReconService::reconTool = nullptr;
 
@@ -122,7 +123,7 @@ String ReconService::buildDeviceJson(uint32_t nodeId) {
     return response;
 }
 
-static const char* modeToString(OperationMode mode) {
+const char* ReconService::modeToString(OperationMode mode) {
     switch (mode) {
         case MODE_RECONNAISSANCE: return "reconnaissance";
         case MODE_TARGETED_CAPTURE: return "targeted";
@@ -141,6 +142,10 @@ String ReconService::buildStatusJson() {
     doc["totalPackets"] = reconState.scanState.totalPackets;
     doc["freeHeap"] = ESP.getFreeHeap();
     doc["heapSize"] = ESP.getHeapSize();
+
+    if (g_webServer) {
+        doc["clientCount"] = g_webServer->getClientCount();
+    }
 
     if (reconState.scanState.mode == MODE_RECONNAISSANCE) {
         JsonObject scan = doc["scan"].to<JsonObject>();
@@ -311,7 +316,369 @@ String ReconService::buildKml() {
     return kml;
 }
 
-bool ReconService::toggleQuietMode(bool enableVerbose, String& outMessage) {
+String ReconService::buildReconSummaryJson() {
+    JsonDocument doc;
+    doc["status"] = "success";
+
+    JsonObject summary = doc["summary"].to<JsonObject>();
+    summary["mode"] = modeToString(reconState.scanState.mode);
+    summary["uptimeSeconds"] = millis() / 1000;
+    summary["reconDurationSeconds"] = reconState.getReconDuration();
+    summary["totalPackets"] = reconState.scanState.totalPackets;
+    summary["totalDetections"] = reconState.scanState.totalDetections;
+    summary["targetableDevices"] = reconState.numTargetableDevices;
+    summary["nodesTracked"] = reconState.nodeCount;
+    summary["capturedPackets"] = reconState.getNumCapturedPackets();
+    summary["verboseDiagnostics"] = TextPacketDiagnostic::isVerbose();
+
+    if (reconState.scanState.mode == MODE_TARGETED_CAPTURE ||
+        reconState.scanState.mode == MODE_PACKET_REPLAY) {
+        JsonObject targeted = doc["targetedCapture"].to<JsonObject>();
+        targeted["configIndex"] = reconState.scanState.targetConfig;
+        const ScanConfig& cfg = reconState.getScanConfig(reconState.scanState.targetConfig);
+        targeted["protocol"] = cfg.protocol;
+        targeted["frequencyMHz"] = cfg.frequency;
+        targeted["spreadingFactor"] = cfg.spreadingFactor;
+        targeted["bandwidthKHz"] = cfg.bandwidth;
+        targeted["replaySlotsUsed"] = reconState.getNumCapturedPackets();
+    }
+
+    JsonArray activity = doc["rfActivity"].to<JsonArray>();
+    for (uint8_t i = 0; i < reconState.getNumConfigs(); i++) {
+        const RFActivity& rf = reconState.getRFActivity(i);
+        if (rf.activityCount == 0) {
+            continue;
+        }
+
+        JsonObject obj = activity.add<JsonObject>();
+        const ScanConfig& cfg = reconState.getScanConfig(i);
+        obj["configIndex"] = i;
+        obj["protocol"] = cfg.protocol;
+        obj["frequencyMHz"] = cfg.frequency;
+        obj["packets"] = rf.activityCount;
+        obj["avgRSSI"] = rf.avgRSSI;
+        obj["peakRSSI"] = rf.peakRSSI;
+        obj["activityLevel"] = rf.activityLevel ? rf.activityLevel : "UNKNOWN";
+        obj["lastActivitySecondsAgo"] = rf.lastActivity > 0 ? (millis() - rf.lastActivity) / 1000 : 0;
+    }
+
+    JsonArray devices = doc["devices"].to<JsonArray>();
+    for (uint8_t i = 0; i < reconState.numTargetableDevices; i++) {
+        JsonObject deviceObj = devices.add<JsonObject>();
+        fillDevice(deviceObj, reconState.targetableDevices[i], i);
+        deviceObj["lastSeenSecondsAgo"] = reconState.targetableDevices[i].lastSeen > 0 ?
+            (millis() - reconState.targetableDevices[i].lastSeen) / 1000 : 0;
+        deviceObj["firstSeenSecondsAgo"] = reconState.targetableDevices[i].firstSeen > 0 ?
+            (millis() - reconState.targetableDevices[i].firstSeen) / 1000 : 0;
+    }
+
+    doc["rfActivityCount"] = activity.size();
+
+    String response;
+    serializeJson(doc, response);
+    return response;
+}
+
+String ReconService::buildDeviceTypeSummaryJson() {
+    JsonDocument doc;
+    doc["status"] = "success";
+
+    struct DeviceTypeStats {
+        char type[24];
+        uint8_t count;
+        float totalRSSI;
+        uint8_t routers;
+        uint8_t powerClassSum;
+    };
+
+    DeviceTypeStats stats[Config::Tracking::MAX_DEVICES];
+    memset(stats, 0, sizeof(stats));
+    uint8_t typeCount = 0;
+    uint16_t totalRouters = 0;
+
+    for (uint8_t i = 0; i < reconState.numTargetableDevices; i++) {
+        const TargetableDevice& dev = reconState.getTargetableDevice(i);
+
+        DeviceTypeStats* statPtr = nullptr;
+        for (uint8_t j = 0; j < typeCount; j++) {
+            if (strcmp(stats[j].type, dev.deviceType) == 0) {
+                statPtr = &stats[j];
+                break;
+            }
+        }
+
+        if (!statPtr && typeCount < Config::Tracking::MAX_DEVICES) {
+            statPtr = &stats[typeCount++];
+            strncpy(statPtr->type, dev.deviceType, sizeof(statPtr->type) - 1);
+            statPtr->type[sizeof(statPtr->type) - 1] = '\0';
+            statPtr->count = 0;
+            statPtr->totalRSSI = 0.0f;
+            statPtr->routers = 0;
+            statPtr->powerClassSum = 0;
+        }
+
+        if (!statPtr) {
+            continue;
+        }
+
+        statPtr->count++;
+        statPtr->totalRSSI += dev.avgRSSI;
+        statPtr->routers += dev.isRouter ? 1 : 0;
+        statPtr->powerClassSum += dev.powerClass;
+    }
+
+    JsonArray types = doc["deviceTypes"].to<JsonArray>();
+    for (uint8_t i = 0; i < typeCount; i++) {
+        const DeviceTypeStats& stat = stats[i];
+        JsonObject obj = types.add<JsonObject>();
+        obj["type"] = stat.type;
+        obj["count"] = stat.count;
+        obj["avgRSSI"] = stat.count > 0 ? stat.totalRSSI / stat.count : 0;
+        obj["routers"] = stat.routers;
+        totalRouters += stat.routers;
+        float avgPowerClass = stat.count > 0 ? static_cast<float>(stat.powerClassSum) / stat.count : 0.0f;
+        obj["avgPowerClass"] = avgPowerClass;
+        const char* descriptor = "Low";
+        if (avgPowerClass > 1.5f) {
+            descriptor = "High";
+        } else if (avgPowerClass > 0.5f) {
+            descriptor = "Medium";
+        }
+        obj["powerDescriptor"] = descriptor;
+    }
+
+    JsonObject summary = doc["summary"].to<JsonObject>();
+    summary["totalDeviceTypes"] = typeCount;
+    summary["totalDevices"] = reconState.numTargetableDevices;
+    summary["routersDetected"] = totalRouters;
+    summary["hasDevices"] = reconState.numTargetableDevices > 0;
+
+    String response;
+    serializeJson(doc, response);
+    return response;
+}
+
+String ReconService::buildSecurityAssessmentJson() {
+    JsonDocument doc;
+    doc["status"] = "success";
+
+    JsonArray devices = doc["devices"].to<JsonArray>();
+    uint8_t vulnerableCount = 0;
+    uint8_t moderateCount = 0;
+
+    for (uint8_t i = 0; i < reconState.numTargetableDevices; i++) {
+        const TargetableDevice& dev = reconState.getTargetableDevice(i);
+        uint8_t score = 100;
+        JsonObject deviceObj = devices.add<JsonObject>();
+        deviceObj["nodeId"] = String(dev.nodeId, HEX);
+        deviceObj["nodeIdDecimal"] = dev.nodeId;
+        deviceObj["deviceType"] = dev.deviceType;
+        deviceObj["protocol"] = dev.protocol;
+        deviceObj["firmwareVersion"] = dev.firmwareVersion;
+        deviceObj["bestRSSI"] = dev.bestRSSI;
+        deviceObj["avgRSSI"] = dev.avgRSSI;
+        deviceObj["packetCount"] = dev.packetCount;
+        deviceObj["isRouter"] = dev.isRouter;
+        deviceObj["lastSeenSecondsAgo"] = dev.lastSeen > 0 ? (millis() - dev.lastSeen) / 1000 : 0;
+
+        JsonArray findings = deviceObj["findings"].to<JsonArray>();
+
+        if (dev.bestRSSI > -50) {
+            score = score > 15 ? score - 15 : 0;
+            findings.add("High signal strength (physical proximity risk)");
+        }
+
+        bool maybeUnencrypted = (dev.packetCount > 10 && strcmp(dev.protocol, "Meshtastic") == 0);
+        if (maybeUnencrypted) {
+            findings.add("Heavy traffic without confirmed encryption");
+        }
+
+        if (dev.isRouter) {
+            score = score > 10 ? score - 10 : 0;
+            findings.add("Router device - elevated attack surface");
+        }
+
+        if (dev.packetCount > 100) {
+            score = score > 15 ? score - 15 : 0;
+            findings.add("Chatty device leaking metadata");
+        }
+
+        if (dev.packetCount < 5) {
+            score = score > 5 ? score - 5 : 0;
+            findings.add("Intermittent transmissions (weak power or sporadic)");
+        }
+
+        if (strstr(dev.firmwareVersion, "v1.x") != nullptr || strstr(dev.firmwareVersion, "v2.0") != nullptr) {
+            score = score > 20 ? score - 20 : 0;
+            findings.add("Outdated firmware signature detected");
+        }
+
+        const char* rating;
+        if (score >= 80) {
+            rating = "secure";
+        } else if (score >= 60) {
+            rating = "moderate";
+            moderateCount++;
+        } else {
+            rating = "vulnerable";
+            vulnerableCount++;
+        }
+
+        deviceObj["score"] = score;
+        deviceObj["riskLevel"] = rating;
+
+        if (findings.size() == 0) {
+            findings.add("No obvious vulnerabilities detected");
+        }
+    }
+
+    JsonObject summary = doc["summary"].to<JsonObject>();
+    summary["totalDevices"] = reconState.numTargetableDevices;
+    summary["vulnerable"] = vulnerableCount;
+    summary["moderate"] = moderateCount;
+    uint8_t secureCount = reconState.numTargetableDevices > vulnerableCount + moderateCount ?
+        reconState.numTargetableDevices - vulnerableCount - moderateCount : 0;
+    summary["secure"] = secureCount;
+
+    const char* statusMessage = "All devices appear secure";
+    if (vulnerableCount > 0) {
+        statusMessage = "High-priority targets identified";
+    } else if (moderateCount > 0) {
+        statusMessage = "Some devices warrant investigation";
+    }
+    summary["status"] = statusMessage;
+
+    JsonArray recommendations = doc["recommendations"].to<JsonArray>();
+    if (vulnerableCount > 0) {
+        recommendations.add("Consider enabling encryption and rotating PSKs");
+        recommendations.add("Update vulnerable nodes to the latest firmware");
+    } else if (moderateCount > 0) {
+        recommendations.add("Monitor moderate-risk nodes for changes in behavior");
+    } else if (reconState.numTargetableDevices == 0) {
+        recommendations.add("No targetable devices detected during this session");
+    } else {
+        recommendations.add("Maintain watch for newly joining devices");
+    }
+
+    String response;
+    serializeJson(doc, response);
+    return response;
+}
+
+String ReconService::buildReplaySlotsJson() {
+    JsonDocument doc;
+    doc["status"] = "success";
+    doc["capacity"] = Config::Replay::MAX_SLOTS;
+    doc["count"] = reconState.getNumCapturedPackets();
+    doc["available"] = Config::Replay::MAX_SLOTS - reconState.getNumCapturedPackets();
+
+    JsonArray slots = doc["slots"].to<JsonArray>();
+    for (uint8_t i = 0; i < reconState.getNumCapturedPackets(); i++) {
+        const CapturedPacket& packet = reconState.getReplayPacket(i);
+        if (!packet.valid) {
+            continue;
+        }
+
+        JsonObject slot = slots.add<JsonObject>();
+        slot["index"] = i + 1;
+        slot["length"] = packet.length;
+        slot["protocol"] = packet.protocol;
+        slot["configIndex"] = packet.configIndex;
+        slot["frequencyMHz"] = reconState.getScanConfig(packet.configIndex).frequency;
+        slot["rssi"] = packet.originalRSSI;
+        slot["capturedSecondsAgo"] = packet.captureTime > 0 ? (millis() - packet.captureTime) / 1000 : 0;
+        
+        // Include decrypted text if available
+        if (packet.decryptedText[0] != '\0') {
+            slot["decryptedText"] = packet.decryptedText;
+        }
+    }
+
+    String response;
+    serializeJson(doc, response);
+    return response;
+}
+
+bool ReconService::clearReplaySlots(String& outMessage) {
+    if (reconState.getNumCapturedPackets() == 0) {
+        outMessage = "No replay slots to clear";
+        return false;
+    }
+
+    reconState.clearReplaySlots();
+    outMessage = "Replay slots cleared";
+    return true;
+}
+
+bool ReconService::startFrequencyTargeting(uint8_t configIndex, String& outMessage) {
+    if (!isInitialized()) {
+        outMessage = "Recon tool not initialized";
+        return false;
+    }
+
+    if (!reconState.isValidConfigIndex(configIndex)) {
+        outMessage = "Invalid frequency configuration";
+        return false;
+    }
+
+    reconTool->startFrequencyTargeting(configIndex);
+    const ScanConfig& cfg = reconState.getScanConfig(configIndex);
+    outMessage = "Frequency targeting started on " + String(cfg.protocol) +
+                 " (" + String(cfg.frequency, 3) + " MHz)";
+    return true;
+}
+
+String ReconService::buildDiagnosticsJson() {
+    JsonDocument doc;
+    doc["status"] = "success";
+
+    TextPacketDiagnostic::DiagnosticStats stats;
+    TextPacketDiagnostic::getStats(stats);
+
+    JsonObject diag = doc["diagnostics"].to<JsonObject>();
+    diag["verboseMode"] = stats.verboseMode;
+    diag["gapCount"] = stats.gapCount;
+    diag["maxGapMs"] = stats.maxGapMs;
+    diag["largeGapCount"] = stats.largeGapCount;
+
+    JsonObject encryption = diag["encryption"].to<JsonObject>();
+    encryption["encryptedPackets"] = stats.encryptedPacketCount;
+    encryption["plaintextPackets"] = stats.plaintextPacketCount;
+    encryption["unknownPackets"] = stats.unknownPacketCount;
+
+    auto fillCategory = [](JsonObject obj, const TextPacketDiagnostic::PacketCategoryStats& cat) {
+        obj["count"] = cat.count;
+        obj["minSize"] = cat.minSize;
+        obj["maxSize"] = cat.maxSize;
+        obj["averageSize"] = cat.averageSize;
+    };
+
+    JsonObject categories = diag["packetTypes"].to<JsonObject>();
+    fillCategory(categories["routing"].to<JsonObject>(), stats.routing);
+    fillCategory(categories["position"].to<JsonObject>(), stats.position);
+    fillCategory(categories["text"].to<JsonObject>(), stats.text);
+    fillCategory(categories["other"].to<JsonObject>(), stats.other);
+
+    JsonArray recommendations = doc["recommendations"].to<JsonArray>();
+    if (stats.largeGapCount > 0) {
+        recommendations.add("Large timing gaps detected; consider reducing verbose output or buffering packets");
+    }
+    if (stats.plaintextPacketCount > 0) {
+        recommendations.add("Plaintext packets observed; inspect for unencrypted traffic");
+    }
+    if (stats.text.count == 0) {
+        recommendations.add("No text messages captured; verify PSK alignment and frequency settings");
+    }
+    if (recommendations.size() == 0) {
+        recommendations.add("Diagnostics nominal; continue monitoring");
+    }
+
+    String response;
+    serializeJson(doc, response);
+    return response;
+}
+
+bool ReconService::setVerboseMode(bool enableVerbose, String& outMessage) {
     bool current = TextPacketDiagnostic::isVerbose();
     if (current == enableVerbose) {
         outMessage = enableVerbose ? "Verbose mode already enabled" : "Quiet mode already enabled";
@@ -319,6 +686,6 @@ bool ReconService::toggleQuietMode(bool enableVerbose, String& outMessage) {
     }
 
     TextPacketDiagnostic::enableVerbose(enableVerbose);
-    outMessage = enableVerbose ? "Verbose mode enabled" : "Quiet mode enabled";
+    outMessage = enableVerbose ? "Verbose diagnostics enabled" : "Quiet mode enabled";
     return true;
 }
