@@ -59,12 +59,9 @@ public:
     static String getRFActivity();
     
 private:
-    static IReconTool* reconTool;
-    
     // Helper methods
     static String createErrorResponse(const String& error);
     static String createSuccessResponse(const String& message);
-    static String createSuccessResponse(const String& message, const JsonDocument& data);
 };
 
 #endif // API_CONTROLLER_H
