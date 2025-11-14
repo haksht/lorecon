@@ -11,6 +11,7 @@ class CommandHandler;
 class OLEDDisplay;
 class RadioController;
 class PacketProcessor;
+class WebServer;
 
 #include "recon_state.h"
 #include "radio_controller.h"

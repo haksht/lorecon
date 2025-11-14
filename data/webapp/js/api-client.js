@@ -10,9 +10,18 @@ class APIClient {
         this.baseURL = window.location.origin;
         this.apiURL = `${this.baseURL}/api`;
         this.ws = null;
-        this.wsReconnectInterval = 5000;
+        this.wsReconnectInterval = 2000;  // Faster reconnect
         this.wsReconnectTimer = null;
         this.eventHandlers = {};
+        this.reconnectAttempts = 0;
+        
+        // Handle page visibility - reconnect when app comes to foreground
+        document.addEventListener('visibilitychange', () => {
+            if (!document.hidden && (!this.ws || this.ws.readyState !== WebSocket.OPEN)) {
+                console.log('Page visible, ensuring WebSocket connection...');
+                this.connectWebSocket();
+            }
+        });
     }
 
     /**
@@ -28,8 +37,10 @@ class APIClient {
         
         this.ws.onopen = () => {
             console.log('✓ WebSocket connected');
+            this.reconnectAttempts = 0;
             this.emit('wsconnect');
             this.clearReconnectTimer();
+            // Server handles ping/pong, no need for client-side pings
         };
         
         this.ws.onmessage = (event) => {
@@ -62,14 +73,27 @@ class APIClient {
     }
 
     /**
-     * Schedule WebSocket reconnection
+     * Schedule WebSocket reconnection with exponential backoff
      */
     scheduleReconnect() {
+        // Don't reconnect if page is hidden
+        if (document.hidden) {
+            console.log('Page hidden, skipping reconnect');
+            return;
+        }
+        
         this.clearReconnectTimer();
+        
+        // Exponential backoff: 2s, 4s, 8s, max 16s
+        const delay = Math.min(this.wsReconnectInterval * Math.pow(2, this.reconnectAttempts), 16000);
+        this.reconnectAttempts++;
+        
+        console.log(`Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts})...`);
+        
         this.wsReconnectTimer = setTimeout(() => {
             console.log('Attempting to reconnect WebSocket...');
             this.connectWebSocket();
-        }, this.wsReconnectInterval);
+        }, delay);
     }
 
     /**

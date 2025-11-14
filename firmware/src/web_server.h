@@ -16,8 +16,27 @@
 #include <Arduino.h>
 #include <ESPAsyncWebServer.h>
 #include <AsyncTCP.h>
+#include <vector>
 #include "irecon_tool.h"
 #include "data_structures.h"
+#include "packet_processor.h"  // For PacketEvent
+
+// Aggregated packet stats for efficient WebSocket updates
+struct AggregatedStats {
+    uint32_t packetCount;
+    uint32_t lastNodeId;
+    const char* lastProtocol;
+    float lastRSSI;
+    float lastSNR;
+    char lastMessage[256];  // Copy message to prevent dangling pointer
+    bool hasMessage;
+    uint32_t timestamp;
+    
+    AggregatedStats() : packetCount(0), lastNodeId(0), lastProtocol("None"),
+                       lastRSSI(0), lastSNR(0), hasMessage(false), timestamp(0) {
+        lastMessage[0] = '\0';
+    }
+};
 
 /**
  * Web Server - Manages HTTP and WebSocket connections
@@ -33,10 +52,14 @@ public:
     bool begin(IReconTool* tool, uint16_t port = 80);
     void stop();
     
-    // Real-time updates via WebSocket
-    void broadcastPacket(uint32_t nodeId, const char* protocol, float rssi, float snr, size_t length, const char* message = nullptr);
+    // Packet event callback (called by PacketProcessor)
+    void handlePacketEvent(const PacketEvent& evt);
+    
+    // Real-time updates via WebSocket (aggregated)
+    void broadcastAggregatedUpdate();
     void broadcastDeviceUpdate(uint32_t nodeId);
     void broadcastStatusUpdate();
+    void periodicUpdate();
     
     // Client management
     size_t getClientCount() const;
@@ -45,6 +68,11 @@ private:
     AsyncWebServer* server;
     AsyncWebSocket* ws;
     IReconTool* reconTool;
+    
+    // Aggregation for efficient WebSocket updates
+    AggregatedStats aggStats;
+    uint32_t lastBroadcast;
+    static constexpr uint32_t BROADCAST_INTERVAL_MS = 500;  // 2 Hz max
     
     // Request handlers
     void setupRoutes();

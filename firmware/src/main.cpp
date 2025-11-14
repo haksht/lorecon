@@ -101,6 +101,13 @@ void loop() {
     // Update WiFi connection monitoring
     wifiManager.update();
     
+    // Maintain WebSocket connections (cleanup and ping)
+    static uint32_t lastWSMaintenance = 0;
+    if (millis() - lastWSMaintenance > 30000) {  // Every 30 seconds
+        webServer.periodicUpdate();
+        lastWSMaintenance = millis();
+    }
+    
     // Small delay to prevent watchdog triggers
     delay(1);
 }

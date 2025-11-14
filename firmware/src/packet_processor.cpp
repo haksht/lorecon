@@ -7,7 +7,6 @@
 #include "recon_state.h"
 #include "oled_display.h"
 #include "text_packet_diagnostic.h"
-#include "web_server.h"
 #include "config.h"
 
 #ifdef ENABLE_PSK_TESTING
@@ -69,6 +68,17 @@ void PacketProcessor::processSinglePacket(const QueuedPacket& qp, OLEDDisplay* d
     // Analyze packet using ProtocolAnalyzer
     PacketInfo info = protocolAnalyzer.analyze(qp.data, qp.length, qp.rssi);
     
+    // Try PSK decryption and store message in PacketInfo if successful
+    #ifdef ENABLE_PSK_TESTING
+    const char* decryptedMsg = PSKDecryption::getLastMessage();
+    if (decryptedMsg && strlen(decryptedMsg) > 0) {
+        strncpy(info.message, decryptedMsg, sizeof(info.message) - 1);
+        info.message[sizeof(info.message) - 1] = '\0';
+        info.hasMessage = true;
+        PSKDecryption::clearLastMessage();
+    }
+    #endif
+    
     // Enhanced packet analysis for Meshtastic (extract GPS position silently)
     if (strcmp(info.protocol, "Meshtastic") == 0) {
         geoIntel.extractPosition(qp.data, qp.length, info.nodeId);
@@ -93,20 +103,18 @@ void PacketProcessor::processSinglePacket(const QueuedPacket& qp, OLEDDisplay* d
         packetLogger.logPacket(qp.data, qp.length, qp.rssi, qp.snr, info.protocol, info.nodeId);
     }
     
-    // Broadcast to web clients if web server is active
-    if (webServer && info.nodeId != 0) {
-        // Get decrypted message if available
-        const char* message = nullptr;
-#ifdef ENABLE_PSK_TESTING
-        message = PSKDecryption::getLastMessage();
-        if (message && strlen(message) == 0) message = nullptr;
-#endif
-        webServer->broadcastPacket(info.nodeId, info.protocol, qp.rssi, qp.snr, qp.length, message);
+    // Emit packet event if callback is registered
+    if (packetCallback && info.nodeId != 0) {
+        PacketEvent evt;
+        evt.nodeId = info.nodeId;
+        evt.protocol = info.protocol;
+        evt.rssi = qp.rssi;
+        evt.snr = qp.snr;
+        evt.length = qp.length;
+        evt.message = info.hasMessage ? info.message : nullptr;
+        evt.timestamp = qp.timestamp;
         
-        // Clear message after broadcasting
-#ifdef ENABLE_PSK_TESTING
-        PSKDecryption::clearLastMessage();
-#endif
+        packetCallback(evt);
     }
 }
 
@@ -140,6 +148,9 @@ void PacketProcessor::handleTargetedPacket(const PacketInfo& info, const uint8_t
     if (display && display->isOn()) {
         display->showPacketReceived(rssi, snr, info.protocol, info.nodeId);
     }
+    
+    // Track RF activity in targeted mode too
+    reconState.updateRFActivity(reconState.scanState.currentConfig, rssi);
     
     #ifdef ENABLE_PSK_TESTING
     // Try decryption on ALL packets to find text messages
