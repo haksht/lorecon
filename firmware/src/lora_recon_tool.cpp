@@ -692,7 +692,10 @@ void LoRaReconTool::handleButtonPress(uint32_t now) {
 
 // Set web server for live packet broadcasting
 void LoRaReconTool::setWebServer(WebServer* ws) {
-    if (packetProcessor) {
-        packetProcessor->setWebServer(ws);
+    if (packetProcessor && ws) {
+        // Wire up callback from PacketProcessor to WebServer
+        packetProcessor->setPacketCallback([ws](const PacketEvent& evt) {
+            ws->handlePacketEvent(evt);
+        });
     }
 }

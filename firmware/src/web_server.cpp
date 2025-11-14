@@ -14,6 +14,7 @@ WebServer::WebServer()
     : server(nullptr)
     , ws(nullptr)
     , reconTool(nullptr)
+    , lastBroadcast(0)
 {
 }
 
@@ -280,44 +281,107 @@ void WebServer::handleWebSocketEvent(AsyncWebSocket* server, AsyncWebSocketClien
 }
 
 void WebServer::handleWebSocketMessage(AsyncWebSocketClient* client, uint8_t* data, size_t len) {
-    // Parse incoming WebSocket messages
-    String message = String((char*)data).substring(0, len);
-    LOG_INFO("WebSocket message from client #%u: %s", client->id(), message.c_str());
+    // Ignore invalid or garbage messages
+    if (len == 0 || len > 1024) {
+        return;  // Silently ignore
+    }
     
-    // Could implement commands via WebSocket if needed
-    // For now, just echo back
-    client->text("{\"status\":\"received\",\"message\":\"" + message + "\"}");
+    // Only log if it looks like valid JSON (starts with '{')
+    if (data[0] == '{') {
+        String message = String((char*)data).substring(0, len);
+        LOG_INFO("WebSocket command from client #%u: %s", client->id(), message.c_str());
+        
+        // Could implement commands via WebSocket if needed in the future
+        // For now, no response needed - server pushes data via broadcast methods
+    }
+    // Silently ignore other messages (pings, pongs, binary data, garbage)
 }
 
 /**
- * Broadcast packet to all connected WebSocket clients
+ * Handle packet event from PacketProcessor (callback)
  */
-void WebServer::broadcastPacket(uint32_t nodeId, const char* protocol, float rssi, float snr, size_t length, const char* message) {
-    if (!ws) return;
+void WebServer::handlePacketEvent(const PacketEvent& evt) {
+    // Aggregate packet data
+    aggStats.packetCount++;
+    aggStats.lastNodeId = evt.nodeId;
+    aggStats.lastProtocol = evt.protocol;
+    aggStats.lastRSSI = evt.rssi;
+    aggStats.lastSNR = evt.snr;
     
+    // Copy message safely to prevent dangling pointer
+    if (evt.message && strlen(evt.message) > 0) {
+        strncpy(aggStats.lastMessage, evt.message, sizeof(aggStats.lastMessage) - 1);
+        aggStats.lastMessage[sizeof(aggStats.lastMessage) - 1] = '\0';
+        aggStats.hasMessage = true;
+    } else {
+        aggStats.lastMessage[0] = '\0';
+        aggStats.hasMessage = false;
+    }
+    
+    aggStats.timestamp = evt.timestamp;
+    
+    // Check if it's time to broadcast (throttle to 500ms intervals)
+    uint32_t now = millis();
+    if (now - lastBroadcast >= BROADCAST_INTERVAL_MS) {
+        broadcastAggregatedUpdate();
+        lastBroadcast = now;
+        aggStats.packetCount = 0;  // Reset counter after broadcast
+    }
+}
+
+/**
+ * Broadcast aggregated packet update to all WebSocket clients
+ */
+void WebServer::broadcastAggregatedUpdate() {
+    // Safety checks: no broadcast if no websocket, no stats, or no clients
+    if (!ws || !server || aggStats.packetCount == 0) {
+        return;
+    }
+    
+    // Extra safety: check client count
+    size_t clientCount = ws->count();
+    if (clientCount == 0) {
+        return;
+    }
+    
+    // Build JSON
     JsonDocument doc;
     doc["type"] = "packet";
-    doc["nodeId"] = String(nodeId, HEX);
-    doc["protocol"] = protocol;
-    doc["rssi"] = rssi;
-    doc["snr"] = snr;
-    doc["length"] = length;
-    doc["timestamp"] = millis();
-    if (message && strlen(message) > 0) {
-        doc["message"] = message;
+    doc["nodeId"] = String(aggStats.lastNodeId, HEX);
+    doc["protocol"] = aggStats.lastProtocol;
+    doc["rssi"] = aggStats.lastRSSI;
+    doc["snr"] = aggStats.lastSNR;
+    doc["count"] = aggStats.packetCount;
+    doc["timestamp"] = aggStats.timestamp;
+    if (aggStats.hasMessage) {
+        doc["message"] = aggStats.lastMessage;
     }
     
     String json;
     serializeJson(doc, json);
     
-    ws->textAll(json);
+    // Only send if we still have clients (double-check before actual send)
+    if (ws && ws->count() > 0) {
+        ws->textAll(json);
+    }
+}
+
+/**
+ * Periodic maintenance - cleanup dead connections
+ */
+void WebServer::periodicUpdate() {
+    if (ws) {
+        ws->cleanupClients();
+        // Ping all clients to keep connection alive
+        ws->pingAll();
+    }
 }
 
 /**
  * Broadcast device update to all connected WebSocket clients
  */
 void WebServer::broadcastDeviceUpdate(uint32_t nodeId) {
-    if (!ws) return;
+    if (!ws || !server || ws->count() == 0) return;
     
     JsonDocument doc;
     doc["type"] = "deviceUpdate";
@@ -327,14 +391,16 @@ void WebServer::broadcastDeviceUpdate(uint32_t nodeId) {
     String json;
     serializeJson(doc, json);
     
-    ws->textAll(json);
+    if (ws && ws->count() > 0) {
+        ws->textAll(json);
+    }
 }
 
 /**
  * Broadcast status update to all connected WebSocket clients
  */
 void WebServer::broadcastStatusUpdate() {
-    if (!ws) return;
+    if (!ws || !server || ws->count() == 0) return;
     
     String statusJson = APIController::getStatus();
     
@@ -346,7 +412,9 @@ void WebServer::broadcastStatusUpdate() {
     String json;
     serializeJson(doc, json);
     
-    ws->textAll(json);
+    if (ws && ws->count() > 0) {
+        ws->textAll(json);
+    }
 }
 
 /**
