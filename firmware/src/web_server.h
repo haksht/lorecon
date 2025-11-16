@@ -95,6 +95,7 @@ private:
     static void handleExportGeoJSON(AsyncWebServerRequest* request);
     static void handleExportKML(AsyncWebServerRequest* request);
     static void handleGetStatus(AsyncWebServerRequest* request);
+    static void handleGetDashboard(AsyncWebServerRequest* request);
     static void handleGetStatistics(AsyncWebServerRequest* request);
     static void handleGetActivity(AsyncWebServerRequest* request);
     static void handleGetConfig(AsyncWebServerRequest* request);

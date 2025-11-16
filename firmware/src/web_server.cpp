@@ -129,6 +129,7 @@ void WebServer::setupRoutes() {
     
     // Status & Config
     server->on("/api/status", HTTP_GET, handleGetStatus);
+    server->on("/api/dashboard", HTTP_GET, handleGetDashboard);
     server->on("/api/statistics", HTTP_GET, handleGetStatistics);
     server->on("/api/activity", HTTP_GET, handleGetActivity);
     server->on("/api/config", HTTP_GET, handleGetConfig);
@@ -255,6 +256,11 @@ void WebServer::handleExportKML(AsyncWebServerRequest* request) {
 
 void WebServer::handleGetStatus(AsyncWebServerRequest* request) {
     String json = APIController::getStatus();
+    request->send(200, "application/json", json);
+}
+
+void WebServer::handleGetDashboard(AsyncWebServerRequest* request) {
+    String json = APIController::getDashboard();
     request->send(200, "application/json", json);
 }
 

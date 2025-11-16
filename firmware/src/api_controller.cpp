@@ -138,6 +138,56 @@ String APIController::getStatus() {
 }
 
 /**
+ * GET /api/dashboard
+ * 
+ * Returns combined data for initial dashboard load
+ * Reduces number of API calls on page load
+ */
+String APIController::getDashboard() {
+    JsonDocument doc;
+    doc["status"] = "success";
+    
+    // Status data
+    JsonDocument statusDoc;
+    deserializeJson(statusDoc, ReconService::buildStatusJson());
+    if (statusDoc.containsKey("status") && statusDoc["status"] == "success") {
+        doc["systemStatus"] = statusDoc;
+    }
+    
+    // Devices list
+    JsonDocument devicesDoc;
+    deserializeJson(devicesDoc, ReconService::buildDevicesJson());
+    if (devicesDoc.containsKey("devices")) {
+        doc["devices"] = devicesDoc["devices"];
+        doc["deviceCount"] = devicesDoc["devices"].size();
+    } else {
+        doc["devices"] = JsonArray();
+        doc["deviceCount"] = 0;
+    }
+    
+    // RF Activity
+    JsonDocument activityDoc;
+    deserializeJson(activityDoc, ReconService::buildActivityJson());
+    if (activityDoc.containsKey("activities")) {
+        doc["activities"] = activityDoc["activities"];
+    }
+    
+    // Replay slots
+    doc["replaySlots"] = reconState.numCapturedPackets;
+    doc["maxReplaySlots"] = MAX_REPLAY_SLOTS;
+    
+    // Basic stats
+    doc["totalPackets"] = reconState.scanState.totalPackets;
+    doc["uptime"] = millis() / 1000;
+    doc["mode"] = reconState.scanState.mode;
+    doc["currentConfig"] = reconState.scanState.currentConfig;
+    
+    String response;
+    serializeJson(doc, response);
+    return response;
+}
+
+/**
  * GET /api/statistics
  * 
  * Returns comprehensive statistics

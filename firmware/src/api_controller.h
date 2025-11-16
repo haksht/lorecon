@@ -48,6 +48,7 @@ public:
     
     // Configuration & Status
     static String getStatus();
+    static String getDashboard();  // Combined endpoint for initial load
     static String getConfig();
     static String setConfig(const String& jsonConfig);
     static String startScan();
