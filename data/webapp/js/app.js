@@ -156,36 +156,41 @@ class ReconApp {
                 const devices = data.devices || 0;
                 const packets = data.totalPackets || 0;
                 
-                // Update sidebar stats
-                this.el.mode.textContent = mode;
-                this.el.devices.textContent = devices;
-                this.el.packets.textContent = packets;
-                this.el.uptime.textContent = uptime;
+                // Update sidebar stats with null checks
+                if (this.el.mode) this.el.mode.textContent = mode;
+                if (this.el.devices) this.el.devices.textContent = devices;
+                if (this.el.packets) this.el.packets.textContent = packets;
+                if (this.el.uptime) this.el.uptime.textContent = uptime;
                 
                 // Update status tab if it exists
-                if (this.el.statusMode) {
-                    this.el.statusMode.textContent = mode;
-                    this.el.statusUptime.textContent = uptime;
-                    this.el.statusPackets.textContent = packets;
-                    this.el.statusDevices.textContent = devices;
-                }
+                if (this.el.statusMode) this.el.statusMode.textContent = mode;
+                if (this.el.statusUptime) this.el.statusUptime.textContent = uptime;
+                if (this.el.statusPackets) this.el.statusPackets.textContent = packets;
+                if (this.el.statusDevices) this.el.statusDevices.textContent = devices;
                 
                 this.setConnected(true);
             }
         } catch (error) {
+            console.error('updateStatus failed:', error);
             this.setConnected(false);
         }
     }
 
     setConnected(connected) {
+        if (!this.el.connection) return;
+        
         const dot = this.el.connection.querySelector('.dot');
         if (dot) {
             if (connected) {
                 dot.classList.add('connected');
-                this.el.connectionText.textContent = 'Connected';
+                if (this.el.connectionText) {
+                    this.el.connectionText.textContent = 'Connected';
+                }
             } else {
                 dot.classList.remove('connected');
-                this.el.connectionText.textContent = 'Disconnected';
+                if (this.el.connectionText) {
+                    this.el.connectionText.textContent = 'Disconnected';
+                }
             }
         }
     }
@@ -198,7 +203,12 @@ class ReconApp {
                 e.preventDefault();
                 const action = btn.dataset.action;
                 const value = btn.dataset.value;
-                this.handleDynamicAction(action, value);
+                try {
+                    this.handleDynamicAction(action, value);
+                } catch (error) {
+                    console.error('Action handler error:', error);
+                    this.showToast('Action failed: ' + error.message, 'error');
+                }
             }
         });
     }
@@ -971,23 +981,39 @@ class ReconApp {
     // ================================================================
 
     async get(endpoint) {
-        const response = await fetch(endpoint);
-        return await response.json();
+        try {
+            const response = await fetch(endpoint);
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
+            return await response.json();
+        } catch (error) {
+            console.error(`GET ${endpoint} failed:`, error);
+            throw error;
+        }
     }
 
     async post(endpoint, body = {}) {
-        const formData = new URLSearchParams();
-        Object.entries(body).forEach(([key, value]) => {
-            formData.append(key, value);
-        });
+        try {
+            const formData = new URLSearchParams();
+            Object.entries(body).forEach(([key, value]) => {
+                formData.append(key, value);
+            });
 
-        const response = await fetch(endpoint, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: formData.toString()
-        });
+            const response = await fetch(endpoint, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: formData.toString()
+            });
 
-        return await response.json();
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
+            return await response.json();
+        } catch (error) {
+            console.error(`POST ${endpoint} failed:`, error);
+            throw error;
+        }
     }
 }
 
