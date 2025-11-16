@@ -133,10 +133,13 @@ void OLEDDisplay::update() {
         return;
     }
     
-    // Check auto-off timeout
-    if (autoOffTimeout > 0 && (millis() - lastActivityTime > autoOffTimeout)) {
-        turnOff();
-        return;
+    // Never turn off during shutdown
+    if (currentMode != MODE_SHUTDOWN) {
+        // Check auto-off timeout
+        if (autoOffTimeout > 0 && (millis() - lastActivityTime > autoOffTimeout)) {
+            turnOff();
+            return;
+        }
     }
     
     // Render current mode
@@ -318,15 +321,13 @@ void OLEDDisplay::renderScanning() {
     snprintf(buffer, sizeof(buffer), "Freq: %s MHz", info.frequency);
     display.drawStr(0, 36, buffer);
     
-    // Spreading Factor
-    snprintf(buffer, sizeof(buffer), "SF: %d", info.sf);
+    // Spreading Factor and Packet count
+    snprintf(buffer, sizeof(buffer), "SF:%d Pkts:%u", info.sf, info.totalPackets);
     display.drawStr(0, 48, buffer);
     
-    // Packet count
-    snprintf(buffer, sizeof(buffer), "Pkts: %u", info.totalPackets);
-    display.drawStr(64, 48, buffer);
-    
-    drawFooter("Press for menu");
+    // Button help on bottom
+    display.setFont(u8g2_font_5x7_tf);
+    display.drawStr(0, 60, "Tap:Menu Hold:OFF");
 }
 
 void OLEDDisplay::renderPacketInfo() {
@@ -393,9 +394,11 @@ void OLEDDisplay::renderTargeting() {
 }
 
 void OLEDDisplay::renderShutdown() {
-    display.setFont(u8g2_font_9x15_tf);
-    display.drawStr(15, 30, "SHUTDOWN");
+    // Large, centered, persistent shutdown message
+    display.setFont(u8g2_font_10x20_tf);
+    display.drawStr(10, 25, "SHUTDOWN");
     
-    display.setFont(u8g2_font_6x10_tf);
-    display.drawStr(5, 50, "Safe to power off");
+    display.setFont(u8g2_font_8x13_tf);
+    display.drawStr(5, 45, "Safe to remove");
+    display.drawStr(25, 60, "power now");
 }
