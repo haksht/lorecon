@@ -847,6 +847,16 @@ class ReconApp {
         this.showTabContent(this.currentTab, html);
     }
 
+    showToast(message, type = 'info') {
+        // Use global toast manager if available
+        if (window.toast) {
+            window.toast.show(message, type);
+        } else {
+            // Fallback to console if toast not loaded yet
+            console.log(`[${type.toUpperCase()}] ${message}`);
+        }
+    }
+
     formatMode(mode) {
         if (!mode) return 'Unknown';
         return mode.toString()
