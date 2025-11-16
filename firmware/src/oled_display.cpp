@@ -325,9 +325,11 @@ void OLEDDisplay::renderScanning() {
     snprintf(buffer, sizeof(buffer), "SF:%d Pkts:%u", info.sf, info.totalPackets);
     display.drawStr(0, 48, buffer);
     
-    // Button help on bottom
+    // Button help at bottom
     display.setFont(u8g2_font_5x7_tf);
-    display.drawStr(0, 60, "Tap:Menu Hold:OFF");
+    display.drawStr(0, 62, "Tap:Hide Hold:OFF");
+    
+    display.sendBuffer();
 }
 
 void OLEDDisplay::renderPacketInfo() {
