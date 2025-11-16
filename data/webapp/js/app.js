@@ -20,7 +20,9 @@ class ReconApp {
             devicesContent: document.getElementById('devices-content'),
             packetsContent: document.getElementById('packets-content'),
             frequencyContent: document.getElementById('frequency-content'),
-            gpsContent: document.getElementById('gps-content')
+            gpsContent: document.getElementById('gps-content'),
+            mobileMenuToggle: document.getElementById('mobile-menu-toggle'),
+            mobileMenuOverlay: document.getElementById('mobile-menu-overlay')
         };
 
         // App state
@@ -28,6 +30,7 @@ class ReconApp {
         this.statusTimer = null;
         this.isQuietMode = false;
         this.currentTab = 'status';
+        this.isMobile = window.innerWidth < 768;
 
         // Start the app
         this.init();
@@ -39,7 +42,52 @@ class ReconApp {
         this.setConnected(true);
         this.setupEventDelegation();
         this.setupTabs();
+        this.setupMobileMenu();
+        this.setupResponsive();
         this.loadTabContent('status');
+    }
+
+    setupMobileMenu() {
+        const sidebar = document.querySelector('.actions-section');
+        
+        // Toggle menu on button click
+        this.el.mobileMenuToggle?.addEventListener('click', () => {
+            sidebar?.classList.toggle('active');
+            this.el.mobileMenuOverlay?.classList.toggle('active');
+        });
+        
+        // Close menu on overlay click
+        this.el.mobileMenuOverlay?.addEventListener('click', () => {
+            sidebar?.classList.remove('active');
+            this.el.mobileMenuOverlay?.classList.remove('active');
+        });
+        
+        // Close menu after action button click
+        document.querySelectorAll('.actions-section .btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                if (this.isMobile) {
+                    sidebar?.classList.remove('active');
+                    this.el.mobileMenuOverlay?.classList.remove('active');
+                }
+            });
+        });
+    }
+
+    setupResponsive() {
+        // Track window resize
+        let resizeTimer;
+        window.addEventListener('resize', () => {
+            clearTimeout(resizeTimer);
+            resizeTimer = setTimeout(() => {
+                const wasMobile = this.isMobile;
+                this.isMobile = window.innerWidth < 768;
+                
+                // Re-render if switching between mobile/desktop
+                if (wasMobile !== this.isMobile && this.currentTab === 'devices') {
+                    this.showMenu();
+                }
+            }, 250);
+        });
     }
 
     setupTabs() {
@@ -194,22 +242,14 @@ class ReconApp {
             const devices = await this.get('/api/devices');
             if (devices.status === 'success' && devices.devices && devices.devices.length > 0) {
                 html += '<h3>Targetable Devices</h3>';
-                html += '<div style="overflow-x: auto;"><table class="table"><thead><tr>';
-                html += '<th>Node ID</th><th>Protocol</th><th>RSSI</th><th>Packets</th><th>Action</th>';
-                html += '</tr></thead><tbody>';
                 
-                devices.devices.forEach((dev, idx) => {
-                    const nodeHex = dev.nodeId || (dev.nodeIdDecimal ? dev.nodeIdDecimal.toString(16).toUpperCase() : '');
-                    html += '<tr>';
-                    html += `<td>0x${nodeHex}</td>`;
-                    html += `<td>${dev.protocol || 'Unknown'}</td>`;
-                    html += `<td>${dev.rssi ? dev.rssi.toFixed(1) : '—'} dBm</td>`;
-                    html += `<td>${dev.packetCount || 0}</td>`;
-                    html += `<td><button class="btn btn-primary" data-action="target-device" data-value="${nodeHex}">Target</button></td>`;
-                    html += '</tr>';
-                });
+                // Render devices responsively - cards on mobile, table on desktop
+                if (this.isMobile) {
+                    html += this.renderDeviceCards(devices.devices);
+                } else {
+                    html += this.renderDeviceTable(devices.devices);
+                }
                 
-                html += '</tbody></table></div>';
                 html += '<div style="margin-top: 1.5rem; padding: 1rem; background: rgba(74, 144, 226, 0.1); border-left: 4px solid #4a90e2; border-radius: 4px;">';
                 html += '<p><strong>💡 How to capture packets:</strong></p>';
                 html += '<p>1. Click <strong>Target</strong> on a device above</p>';
@@ -225,6 +265,80 @@ class ReconApp {
         } catch (error) {
             this.showError('Failed to load menu');
         }
+    }
+
+    renderDeviceTable(devices) {
+        let html = '<div style="overflow-x: auto;"><table class="table"><thead><tr>';
+        html += '<th>Node ID</th><th>Protocol</th><th>RSSI</th><th>Packets</th><th>Action</th>';
+        html += '</tr></thead><tbody>';
+        
+        devices.forEach((dev, idx) => {
+            const nodeHex = dev.nodeId || (dev.nodeIdDecimal ? dev.nodeIdDecimal.toString(16).toUpperCase() : '');
+            html += '<tr>';
+            html += `<td>0x${nodeHex}</td>`;
+            html += `<td>${dev.protocol || 'Unknown'}</td>`;
+            html += `<td>${dev.rssi ? dev.rssi.toFixed(1) : '—'} dBm</td>`;
+            html += `<td>${dev.packetCount || 0}</td>`;
+            html += `<td><button class="btn btn-primary" data-action="target-device" data-value="${nodeHex}">Target</button></td>`;
+            html += '</tr>';
+        });
+        
+        html += '</tbody></table></div>';
+        return html;
+    }
+
+    renderDeviceCards(devices) {
+        let html = '<div class="device-list-mobile">';
+        
+        devices.forEach((dev, idx) => {
+            const nodeHex = dev.nodeId || (dev.nodeIdDecimal ? dev.nodeIdDecimal.toString(16).toUpperCase() : '');
+            const rssi = dev.rssi || 0;
+            const signalQuality = this.getSignalQuality(rssi);
+            
+            html += `
+                <div class="device-card">
+                    <div class="card-header">
+                        <h3 class="node-id">0x${nodeHex}</h3>
+                        <span class="badge">${dev.protocol || 'Unknown'}</span>
+                    </div>
+                    <div class="card-body">
+                        <div class="info-grid">
+                            <div class="info-item">
+                                <span class="label">Signal</span>
+                                <span class="value">${rssi.toFixed(1)} dBm ${signalQuality.icon}</span>
+                            </div>
+                            <div class="info-item">
+                                <span class="label">Packets</span>
+                                <span class="value">${dev.packetCount || 0}</span>
+                            </div>
+                            <div class="info-item">
+                                <span class="label">Device Type</span>
+                                <span class="value">${dev.deviceType || 'Unknown'}</span>
+                            </div>
+                            <div class="info-item">
+                                <span class="label">Frequency</span>
+                                <span class="value">${dev.frequency ? dev.frequency.toFixed(3) + ' MHz' : '—'}</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card-actions">
+                        <button class="btn btn-primary btn-block" data-action="target-device" data-value="${nodeHex}">
+                            🎯 Target Device
+                        </button>
+                    </div>
+                </div>
+            `;
+        });
+        
+        html += '</div>';
+        return html;
+    }
+
+    getSignalQuality(rssi) {
+        if (rssi > -60) return { strength: 'excellent', icon: '📶' };
+        if (rssi > -75) return { strength: 'good', icon: '📡' };
+        if (rssi > -90) return { strength: 'fair', icon: '📉' };
+        return { strength: 'poor', icon: '⚠️' };
     }
 
     async targetDevice(nodeId) {

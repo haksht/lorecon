@@ -10,12 +10,18 @@
 <body>
     <!-- Header -->
     <header class="header">
+        <button class="mobile-menu-toggle" id="mobile-menu-toggle" aria-label="Toggle menu">
+            ☰
+        </button>
         <h1>ESP32 LoRa Recon</h1>
         <div class="status-badge" id="connection">
             <span class="dot"></span>
             <span id="connection-text">Connecting...</span>
         </div>
     </header>
+
+    <!-- Mobile Menu Overlay -->
+    <div class="mobile-menu-overlay" id="mobile-menu-overlay"></div>
 
     <!-- Main Container: Two Column Layout -->
     <div class="main-container">
