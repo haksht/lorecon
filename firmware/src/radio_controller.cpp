@@ -76,7 +76,7 @@ void RadioController::shutdown() {
 
 // Apply complete scan configuration
 bool RadioController::applyConfig(const ScanConfig& config) {
-    Serial.printf("[RADIO] Configuring: %s (%.3f MHz, SF%d, BW%.0f, SW:0x%02X)\n", 
+    Serial.printf("[RADIO] Scanning: %s (%.3f MHz, SF%d, BW%.0f, SW:0x%02X)\n", 
                   config.protocol, config.frequency, config.spreadingFactor, 
                   config.bandwidth, config.syncWord);
     
