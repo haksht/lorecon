@@ -3,6 +3,7 @@
  */
 
 #include "api_controller.h"
+#include "config.h"
 #include "logger.h"
 #include "recon_service.h"
 
@@ -174,7 +175,7 @@ String APIController::getDashboard() {
     
     // Replay slots
     doc["replaySlots"] = reconState.numCapturedPackets;
-    doc["maxReplaySlots"] = MAX_REPLAY_SLOTS;
+    doc["maxReplaySlots"] = Config::Replay::MAX_SLOTS;
     
     // Basic stats
     doc["totalPackets"] = reconState.scanState.totalPackets;
