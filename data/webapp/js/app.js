@@ -31,15 +31,23 @@ class ReconApp {
         this.isQuietMode = false;
         this.currentTab = 'status';
         this.isMobile = window.innerWidth < 768;
+        this.connectionManager = null;
 
         // Start the app
         this.init();
     }
 
     async init() {
+        // Initialize connection manager
+        this.connectionManager = new ConnectionManager(this);
+        await this.connectionManager.init();
+        
+        // Initial status update
         await this.updateStatus();
-        this.statusTimer = setInterval(() => this.updateStatus(), 5000);
-        this.setConnected(true);
+        
+        // Periodic status refresh (less frequent with WebSocket updates)
+        this.statusTimer = setInterval(() => this.updateStatus(), 10000);
+        
         this.setupEventDelegation();
         this.setupTabs();
         this.setupMobileMenu();
@@ -854,6 +862,55 @@ class ReconApp {
         } else {
             // Fallback to console if toast not loaded yet
             console.log(`[${type.toUpperCase()}] ${message}`);
+        }
+    }
+
+    handleRealtimeUpdate(data) {
+        // Handle real-time updates from WebSocket or polling
+        if (!data) return;
+        
+        // Update status if present
+        if (data.mode !== undefined) {
+            const mode = this.formatMode(data.mode);
+            if (this.el.mode) this.el.mode.textContent = mode;
+            if (this.el.statusMode) this.el.statusMode.textContent = mode;
+        }
+        
+        if (data.totalPackets !== undefined) {
+            if (this.el.packets) this.el.packets.textContent = data.totalPackets;
+            if (this.el.statusPackets) this.el.statusPackets.textContent = data.totalPackets;
+        }
+        
+        if (data.deviceCount !== undefined || data.devices !== undefined) {
+            const count = data.deviceCount || (data.devices ? data.devices.length : 0);
+            if (this.el.devices) this.el.devices.textContent = count;
+            if (this.el.statusDevices) this.el.statusDevices.textContent = count;
+        }
+        
+        if (data.uptime !== undefined) {
+            const uptime = this.formatDuration(data.uptime);
+            if (this.el.uptime) this.el.uptime.textContent = uptime;
+            if (this.el.statusUptime) this.el.statusUptime.textContent = uptime;
+        }
+        
+        // Handle packet events
+        if (data.type === 'packet' && data.summary) {
+            console.log('[Packet]', data.summary);
+            // Could show toast for important packets if desired
+        }
+        
+        // Handle device discovery events
+        if (data.type === 'device_discovered') {
+            this.showToast(`📡 New device discovered! (${data.count} total)`, 'info', 2000);
+            // Refresh devices tab if active
+            if (this.currentTab === 'devices') {
+                this.showMenu();
+            }
+        }
+        
+        // Handle capture complete events
+        if (data.type === 'capture_complete' && data.slot !== undefined) {
+            this.showToast(`✓ Packet captured to slot ${data.slot + 1}`, 'success');
         }
     }
 
