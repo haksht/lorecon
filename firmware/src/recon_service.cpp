@@ -592,6 +592,13 @@ String ReconService::buildReplaySlotsJson() {
         slot["rssi"] = packet.originalRSSI;
         slot["capturedSecondsAgo"] = packet.captureTime > 0 ? (millis() - packet.captureTime) / 1000 : 0;
         
+        // Include node ID if available
+        if (packet.nodeId != 0) {
+            char nodeIdHex[9];
+            snprintf(nodeIdHex, sizeof(nodeIdHex), "%08X", packet.nodeId);
+            slot["nodeId"] = nodeIdHex;
+        }
+        
         // Include decrypted text if available
         if (packet.decryptedText[0] != '\0') {
             slot["decryptedText"] = packet.decryptedText;
