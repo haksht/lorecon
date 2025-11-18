@@ -73,10 +73,13 @@ class ReconApp {
         // Close menu after action button click
         document.querySelectorAll('.actions-section .btn').forEach(btn => {
             btn.addEventListener('click', () => {
-                if (this.isMobile) {
-                    sidebar?.classList.remove('active');
-                    this.el.mobileMenuOverlay?.classList.remove('active');
-                }
+                // Use setTimeout to let the onclick handler fire first
+                setTimeout(() => {
+                    if (this.isMobile) {
+                        sidebar?.classList.remove('active');
+                        this.el.mobileMenuOverlay?.classList.remove('active');
+                    }
+                }, 10);
             });
         });
     }

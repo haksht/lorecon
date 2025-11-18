@@ -72,7 +72,6 @@ private:
     AsyncWebServer* server;
     AsyncWebSocket* ws;
     IReconTool* reconTool;
-    mutable SemaphoreHandle_t wsMutex;
     std::atomic<size_t> activeClients;
     
     // Aggregation for efficient WebSocket updates
@@ -80,6 +79,7 @@ private:
     uint32_t lastBroadcast;
     std::atomic<bool> pendingPacketBroadcast;
     std::atomic<bool> pendingClientCleanup;
+    std::atomic<bool> disconnectInProgress;  // Block data processing during disconnect
     static constexpr uint32_t BROADCAST_INTERVAL_MS = 500;  // 2 Hz max
     
     // Request handlers
@@ -121,8 +121,6 @@ private:
     // CORS headers for development
     void addCORSHeaders(AsyncWebServerResponse* response);
 
-    bool acquireWebSocketLock(TickType_t timeout = pdMS_TO_TICKS(100)) const;
-    void releaseWebSocketLock() const;
     bool cleanupWebSocketClients();
 };
 

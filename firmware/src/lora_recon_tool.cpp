@@ -200,7 +200,7 @@ void LoRaReconTool::handleReconnaissanceMode(uint32_t now) {
             
             // Update display with new scanning config
             if (oledDisplay && oledDisplay->isOn()) {
-                char freqStr[16];
+                static char freqStr[16];  // Static to avoid stack issues
                 snprintf(freqStr, sizeof(freqStr), "%.3f", cfg.frequency);
                 oledDisplay->showScanningStatus(freqStr, cfg.spreadingFactor, 
                                                 reconState.scanState.currentConfig, 
@@ -677,13 +677,22 @@ void LoRaReconTool::handleButtonPress(uint32_t now) {
             if (oledDisplay) {
                 oledDisplay->toggle();
                 if (oledDisplay->isOn()) {
-                    // Refresh display with current info
-                    const ScanConfig& cfg = reconState.getScanConfig(reconState.scanState.currentConfig);
-                    char freqStr[16];
-                    snprintf(freqStr, sizeof(freqStr), "%.3f", cfg.frequency);
-                    oledDisplay->showScanningStatus(freqStr, cfg.spreadingFactor, 
-                                                    reconState.scanState.currentConfig, 
-                                                    reconState.getNumConfigs());
+                    // Refresh display with current info - with safety checks
+                    if (reconState.isValidConfigIndex(reconState.scanState.currentConfig)) {
+                        const ScanConfig& cfg = reconState.getScanConfig(reconState.scanState.currentConfig);
+                        // Validate frequency is in reasonable range
+                        if (cfg.frequency >= 100.0 && cfg.frequency <= 1000.0) {
+                            static char freqStr[16];  // Static to avoid stack issues
+                            snprintf(freqStr, sizeof(freqStr), "%.3f", cfg.frequency);
+                            oledDisplay->showScanningStatus(freqStr, cfg.spreadingFactor, 
+                                                            reconState.scanState.currentConfig, 
+                                                            reconState.getNumConfigs());
+                        } else {
+                            LOG_ERROR("Invalid frequency: %.3f", cfg.frequency);
+                        }
+                    } else {
+                        LOG_ERROR("Invalid config index: %d", reconState.scanState.currentConfig);
+                    }
                 }
             }
         }
