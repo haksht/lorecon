@@ -95,6 +95,14 @@ body {
     border-radius: var(--radius);
     padding: 0.6rem;
     text-align: center;
+    transition: all 0.2s ease;
+}
+
+.stat-card:hover {
+    background: rgba(74, 144, 226, 0.1);
+    border-color: var(--primary);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.2);
 }
 
 .stat-label {

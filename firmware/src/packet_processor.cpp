@@ -182,10 +182,19 @@ void PacketProcessor::handleTargetedPacket(const PacketInfo& info, const uint8_t
         // Attempt decryption
         bool decrypted = PSKDecryption::testDefaultPSKs(payload, payloadLen);
         
-        // Auto-capture packet for replay with decrypted text
+        // Extract node ID from packet header if it's a Meshtastic packet (starts with 0xFF 0xFF 0xFF 0xFF)
+        uint32_t nodeId = 0;
+        if (payloadLen >= 16 && payload[0] == 0xFF && payload[1] == 0xFF && 
+            payload[2] == 0xFF && payload[3] == 0xFF) {
+            // Node ID is at bytes 4-7 (little-endian)
+            nodeId = ((uint32_t)payload[4]) | ((uint32_t)payload[5] << 8) |
+                     ((uint32_t)payload[6] << 16) | ((uint32_t)payload[7] << 24);
+        }
+        
+        // Auto-capture packet for replay with decrypted text and node ID
         const char* decryptedText = PSKDecryption::getLastMessage();
         if (reconState.capturePacketForReplay(data, length, reconState.scanState.currentConfig, 
-                                               rssi, info.protocol, decryptedText)) {
+                                               rssi, info.protocol, decryptedText, nodeId)) {
             if (decrypted && decryptedText && decryptedText[0] != '\0') {
                 Serial.printf("   ✅ Packet auto-captured with text: \"%s\"\n", decryptedText);
             } else {

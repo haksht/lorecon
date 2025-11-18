@@ -72,14 +72,15 @@ class ReconApp {
         
         // Close menu after action button click
         document.querySelectorAll('.actions-section .btn').forEach(btn => {
-            btn.addEventListener('click', () => {
-                // Use setTimeout to let the onclick handler fire first
-                setTimeout(() => {
-                    if (this.isMobile) {
+            btn.addEventListener('click', (e) => {
+                // Don't close immediately - let onclick handler execute first
+                // Use requestAnimationFrame to defer menu closing until after current event loop
+                if (this.isMobile) {
+                    requestAnimationFrame(() => {
                         sidebar?.classList.remove('active');
                         this.el.mobileMenuOverlay?.classList.remove('active');
-                    }
-                }, 10);
+                    });
+                }
             });
         });
     }
@@ -495,25 +496,28 @@ class ReconApp {
             html += `<p>Captured Packets: ${data.count}/${data.capacity} slots used</p>`;
             html += '<div style="overflow-x: auto;"><table class="table"><thead><tr>';
             html += '<th style="width: 40px;">#</th>';
-            html += '<th style="width: 140px;">Protocol</th>';
-            html += '<th style="width: 70px;">Bytes</th>';
-            html += '<th style="width: 80px;">Freq MHz</th>';
-            html += '<th style="width: 70px;">RSSI</th>';
-            html += '<th style="width: 60px;">Age</th>';
+            html += '<th style="width: 100px;">Node ID</th>';
+            html += '<th style="width: 120px;">Protocol</th>';
+            html += '<th style="width: 60px;">Bytes</th>';
+            html += '<th style="width: 75px;">Freq MHz</th>';
+            html += '<th style="width: 65px;">RSSI</th>';
+            html += '<th style="width: 55px;">Age</th>';
             html += '<th>Decrypted Text</th>';
             html += '</tr></thead><tbody>';
 
             data.slots.forEach((slot, idx) => {
                 const age = this.formatAge(slot.capturedSecondsAgo || 0);
                 const decryptedText = slot.decryptedText ? `"${slot.decryptedText}"` : '<em style="color: var(--text-muted);">encrypted</em>';
+                const nodeId = slot.nodeId ? `0x${slot.nodeId}` : '<span style="color: var(--text-muted);">—</span>';
                 html += '<tr>';
                 html += `<td>${slot.index || (idx + 1)}</td>`;
+                html += `<td style="font-size: 0.8em;">${nodeId}</td>`;
                 html += `<td style="font-size: 0.8em;">${slot.protocol || 'Unknown'}</td>`;
                 html += `<td>${slot.length}</td>`;
                 html += `<td>${this.formatFreq(slot.frequencyMHz)}</td>`;
                 html += `<td>${slot.rssi ? slot.rssi.toFixed(0) : 'N/A'}</td>`;
                 html += `<td style="font-size: 0.8em;">${age}</td>`;
-                html += `<td style="max-width: 250px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.85em;">${decryptedText}</td>`;
+                html += `<td style="max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.85em;">${decryptedText}</td>`;
                 html += '</tr>';
             });
 
@@ -666,17 +670,18 @@ class ReconApp {
             let html = '<h3>GPS Positions</h3>';
             html += `<p><strong>Total Positions:</strong> ${data.totalPositions || data.positions.length}</p>`;
             html += '<div style="overflow-x: auto;"><table class="table"><thead><tr>';
-            html += '<th>Node ID</th><th>Latitude</th><th>Longitude</th><th>Altitude</th><th>Time</th>';
+            html += '<th style="width: 110px;">Node ID</th><th>Latitude</th><th>Longitude</th><th style="width: 85px;">Altitude</th><th style="width: 95px;">Time</th>';
             html += '</tr></thead><tbody>';
 
             data.positions.forEach(pos => {
                 const time = pos.timestamp ? new Date(pos.timestamp).toLocaleTimeString() : '—';
+                const nodeId = pos.nodeId ? (pos.nodeId.startsWith('0x') ? pos.nodeId : `0x${pos.nodeId}`) : 'Unknown';
                 html += '<tr>';
-                html += `<td>${pos.nodeId || 'Unknown'}</td>`;
+                html += `<td style="font-family: monospace; font-size: 0.85em;">${nodeId}</td>`;
                 html += `<td>${pos.lat ? pos.lat.toFixed(5) : '—'}</td>`;
                 html += `<td>${pos.lon ? pos.lon.toFixed(5) : '—'}</td>`;
                 html += `<td>${pos.alt || 0}m</td>`;
-                html += `<td>${time}</td>`;
+                html += `<td style="font-size: 0.85em;">${time}</td>`;
                 html += '</tr>';
             });
 

@@ -199,11 +199,19 @@ void CommandHandler::cmdCapturePacket(IReconTool* tool) {
         ProtocolAnalyzer analyzer;
         PacketInfo info = analyzer.analyze(data, length, rssi);
         
+        // Extract node ID from packet header if it's a Meshtastic packet
+        uint32_t nodeId = 0;
+        if (length >= 16 && data[0] == 0xFF && data[1] == 0xFF && 
+            data[2] == 0xFF && data[3] == 0xFF) {
+            nodeId = ((uint32_t)data[4]) | ((uint32_t)data[5] << 8) |
+                     ((uint32_t)data[6] << 16) | ((uint32_t)data[7] << 24);
+        }
+        
         // Get decrypted text if available
         const char* decryptedText = PSKDecryption::getLastMessage();
         
         if (reconState.capturePacketForReplay(data, length, reconState.scanState.currentConfig, 
-                                               rssi, info.protocol, decryptedText)) {
+                                               rssi, info.protocol, decryptedText, nodeId)) {
             Serial.println("✅ Packet saved to replay slot!");
             if (decryptedText && decryptedText[0] != '\0') {
                 Serial.printf("   📧 Decrypted text: \"%s\"\n", decryptedText);

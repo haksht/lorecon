@@ -29,19 +29,19 @@
         <aside class="sidebar">
             <!-- Status Cards -->
             <section class="status-section">
-                <div class="stat-card">
+                <div class="stat-card" onclick="app.switchTab('status')" style="cursor: pointer;" title="View system status">
                     <div class="stat-label">Mode</div>
                     <div class="stat-value" id="mode">—</div>
                 </div>
-                <div class="stat-card">
+                <div class="stat-card" onclick="app.switchTab('devices')" style="cursor: pointer;" title="View devices">
                     <div class="stat-label">Devices</div>
                     <div class="stat-value" id="devices">0</div>
                 </div>
-                <div class="stat-card">
+                <div class="stat-card" onclick="app.switchTab('packets')" style="cursor: pointer;" title="View captured packets">
                     <div class="stat-label">Packets</div>
                     <div class="stat-value" id="packets">0</div>
                 </div>
-                <div class="stat-card">
+                <div class="stat-card" onclick="app.switchTab('status')" style="cursor: pointer;" title="View uptime details">
                     <div class="stat-label">Uptime</div>
                     <div class="stat-value" id="uptime">0s</div>
                 </div>
