@@ -60,7 +60,11 @@ bool ReconService::startTargetedCaptureByIndex(uint8_t deviceIndex, String& outM
 
     reconTool->startTargetedCapture(deviceIndex);
     const TargetableDevice& device = reconState.getTargetableDevice(deviceIndex);
-    outMessage = "Targeted capture started on device 0x" + String(device.nodeId, HEX);
+    
+    // Use non-static buffer and explicit String construction to ensure copy
+    char msgBuffer[128];
+    snprintf(msgBuffer, sizeof(msgBuffer), "Targeted capture started on device 0x%08X", device.nodeId);
+    outMessage = String(msgBuffer);
     return true;
 }
 
@@ -623,8 +627,12 @@ bool ReconService::startFrequencyTargeting(uint8_t configIndex, String& outMessa
 
     reconTool->startFrequencyTargeting(configIndex);
     const ScanConfig& cfg = reconState.getScanConfig(configIndex);
-    outMessage = "Frequency targeting started on " + String(cfg.protocol) +
-                 " (" + String(cfg.frequency, 3) + " MHz)";
+    
+    // Use non-static buffer and explicit String construction to ensure copy
+    char msgBuffer[128];
+    snprintf(msgBuffer, sizeof(msgBuffer), "Frequency targeting started on %s (%.3f MHz)",
+             cfg.protocol, cfg.frequency);
+    outMessage = String(msgBuffer);
     return true;
 }
 
