@@ -243,7 +243,13 @@ void OLEDDisplay::showWelcome() {
 
 void OLEDDisplay::showScanningStatus(const char* frequency, uint8_t sf, uint8_t configIndex, uint8_t totalConfigs) {
     currentMode = MODE_SCANNING;
-    strncpy(info.frequency, frequency, sizeof(info.frequency) - 1);
+    // Safety: validate pointer before dereferencing
+    if (frequency != nullptr && ((uintptr_t)frequency >= 0x3FC00000 && (uintptr_t)frequency < 0x40000000)) {
+        strncpy(info.frequency, frequency, sizeof(info.frequency) - 1);
+        info.frequency[sizeof(info.frequency) - 1] = '\0';  // Ensure null termination
+    } else {
+        strcpy(info.frequency, "ERR");
+    }
     info.sf = sf;
     info.configIndex = configIndex;
     info.totalConfigs = totalConfigs;

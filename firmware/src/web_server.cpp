@@ -15,11 +15,11 @@ WebServer::WebServer()
     : server(nullptr)
     , ws(nullptr)
     , reconTool(nullptr)
-    , wsMutex(nullptr)
     , activeClients(0)
     , lastBroadcast(0)
     , pendingPacketBroadcast(false)
     , pendingClientCleanup(false)
+    , disconnectInProgress(false)
 {
 }
 
@@ -51,12 +51,6 @@ bool WebServer::begin(IReconTool* tool, uint16_t port) {
     // Setup WebSocket
     setupWebSocket();
     server->addHandler(ws);
-
-    // Initialize synchronization primitive for safe websocket access
-    wsMutex = xSemaphoreCreateMutex();
-    if (!wsMutex) {
-        LOG_WARN("WebSocket mutex creation failed; concurrency safeguards disabled");
-    }
 
     activeClients.store(0);
     pendingPacketBroadcast.store(false, std::memory_order_relaxed);
@@ -98,11 +92,6 @@ void WebServer::stop() {
     if (ws) {
         delete ws;
         ws = nullptr;
-    }
-
-    if (wsMutex) {
-        vSemaphoreDelete(wsMutex);
-        wsMutex = nullptr;
     }
 
     activeClients.store(0);
@@ -391,18 +380,26 @@ void WebServer::handleWebSocketEvent(AsyncWebSocket* server, AsyncWebSocketClien
                                     AwsEventType type, void* arg, uint8_t* data, size_t len) {
     switch (type) {
         case WS_EVT_CONNECT:
-            LOG_INFO("WebSocket client #%u connected from %s", client->id(), client->remoteIP().toString().c_str());
-            // Send initial status
+            // Don't access client object - can cause heap corruption
+            LOG_INFO("WebSocket client connected");
             if (g_webServer) {
+                g_webServer->disconnectInProgress.store(false, std::memory_order_release);  // Clear flag
                 g_webServer->activeClients.fetch_add(1, std::memory_order_relaxed);
-                g_webServer->broadcastStatusUpdate();
                 g_webServer->lastBroadcast = millis();
+                // Send a simple ACK to keep client heartbeat alive
+                if (g_webServer->ws) {
+                    g_webServer->ws->textAll("{\"type\":\"connected\"}");
+                }
             }
             break;
             
         case WS_EVT_DISCONNECT:
-            LOG_INFO("WebSocket client #%u disconnected", client->id());
+            // Don't access client object - it may already be freed
+            LOG_INFO("WebSocket client disconnected");
             if (g_webServer) {
+                // Set flag FIRST to block any pending data events
+                g_webServer->disconnectInProgress.store(true, std::memory_order_release);
+                
                 size_t previous = g_webServer->activeClients.load(std::memory_order_relaxed);
                 while (previous != 0 && !g_webServer->activeClients.compare_exchange_weak(
                            previous, previous - 1, std::memory_order_relaxed)) {
@@ -416,7 +413,11 @@ void WebServer::handleWebSocketEvent(AsyncWebSocket* server, AsyncWebSocketClien
             break;
             
         case WS_EVT_DATA:
-            handleWebSocketMessage(client, data, len);
+            // CRITICAL: Ignore all data events if disconnect in progress
+            // AsyncWebServer can deliver stale WS_EVT_DATA after WS_EVT_DISCONNECT
+            if (g_webServer && !g_webServer->disconnectInProgress.load(std::memory_order_acquire)) {
+                handleWebSocketMessage(client, data, len);
+            }
             break;
             
         case WS_EVT_PONG:
@@ -426,29 +427,21 @@ void WebServer::handleWebSocketEvent(AsyncWebSocket* server, AsyncWebSocketClien
 }
 
 void WebServer::handleWebSocketMessage(AsyncWebSocketClient* client, uint8_t* data, size_t len) {
+    // Safety checks: validate all inputs
+    // Don't access client methods - it may be freed/disconnected
+    if (!client || !data) {
+        return;
+    }
+    
     // Ignore invalid or garbage messages
     if (len == 0 || len > 1024) {
         return;  // Silently ignore
     }
 
-    if (data[0] == '{') {
-        // Build a bounded, printable preview without assuming null termination
-        const size_t previewLen = std::min(len, static_cast<size_t>(128));
-        String preview;
-        preview.reserve(previewLen + 3);
-        for (size_t i = 0; i < previewLen; ++i) {
-            char c = static_cast<char>(data[i]);
-            if (c >= 32 && c <= 126) {
-                preview += c;
-            } else {
-                preview += '?';
-            }
-        }
-        if (len > previewLen) {
-            preview += "...";
-        }
-
-        LOG_INFO("WebSocket command from client #%u: %s", client->id(), preview.c_str());
+    // Check if it looks like JSON (starts with '{')
+    if (len > 0 && data[0] == '{') {
+        // Just log that we received a message - no client ID access
+        LOG_INFO("WebSocket JSON command (len=%u)", len);
         // Future: handle commands routed over WebSocket
     }
     // Silently ignore other messages (pings, pongs, binary data, garbage)
@@ -505,12 +498,7 @@ void WebServer::broadcastAggregatedUpdate() {
     String json;
     serializeJson(doc, json);
 
-    if (!acquireWebSocketLock()) {
-        return;
-    }
-
     ws->textAll(json);
-    releaseWebSocketLock();
     aggStats.packetCount = 0;
     lastBroadcast = millis();
     pendingPacketBroadcast.store(false, std::memory_order_relaxed);
@@ -520,6 +508,10 @@ void WebServer::broadcastAggregatedUpdate() {
  * Periodic maintenance - cleanup dead connections
  */
 void WebServer::periodicUpdate() {
+    // Disabled - cleanupClients() causes stack overflow
+    // Let AsyncWebServer handle cleanup internally
+    return;
+    
     if (!ws) {
         return;
     }
@@ -528,16 +520,10 @@ void WebServer::periodicUpdate() {
         return;
     }
 
-    if (!acquireWebSocketLock()) {
-        return;
-    }
-
     if (ws) {
         ws->cleanupClients();
         ws->pingAll();
     }
-
-    releaseWebSocketLock();
 }
 
 void WebServer::service() {
@@ -550,9 +536,8 @@ void WebServer::service() {
     }
 
     if (pendingClientCleanup.load(std::memory_order_relaxed)) {
-        if (cleanupWebSocketClients()) {
-            pendingClientCleanup.store(false, std::memory_order_relaxed);
-        }
+        // Just clear the flag - don't call cleanupClients, it causes stack overflow
+        pendingClientCleanup.store(false, std::memory_order_relaxed);
     }
 }
 
@@ -570,12 +555,7 @@ void WebServer::broadcastDeviceUpdate(uint32_t nodeId) {
     String json;
     serializeJson(doc, json);
     
-    if (!acquireWebSocketLock()) {
-        return;
-    }
-
     ws->textAll(json);
-    releaseWebSocketLock();
 }
 
 /**
@@ -594,12 +574,7 @@ void WebServer::broadcastStatusUpdate() {
     String json;
     serializeJson(doc, json);
 
-    if (!acquireWebSocketLock()) {
-        return;
-    }
-
     ws->textAll(json);
-    releaseWebSocketLock();
 }
 
 /**
@@ -609,38 +584,11 @@ size_t WebServer::getClientCount() const {
     return activeClients.load(std::memory_order_relaxed);
 }
 
-bool WebServer::acquireWebSocketLock(TickType_t timeout) const {
-    if (!wsMutex) {
-        return true;
-    }
-
-    if (xSemaphoreTake(wsMutex, timeout) == pdTRUE) {
-        return true;
-    }
-
-    LOG_DEBUG("WebSocket mutex acquisition timed out");
-    return false;
-}
-
-void WebServer::releaseWebSocketLock() const {
-    if (wsMutex) {
-        xSemaphoreGive(wsMutex);
-    }
-}
-
 bool WebServer::cleanupWebSocketClients() {
     if (!ws) {
         return true;
     }
 
-    if (!acquireWebSocketLock()) {
-        return false;
-    }
-
-    if (ws) {
-        ws->cleanupClients();
-    }
-
-    releaseWebSocketLock();
+    ws->cleanupClients();
     return true;
 }
