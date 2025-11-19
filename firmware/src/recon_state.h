@@ -76,7 +76,8 @@ public:
     
     // Packet replay management
     bool capturePacketForReplay(const uint8_t* data, size_t length, uint8_t configIndex, 
-                                float rssi, const char* protocol);
+                                float rssi, const char* protocol, const char* decryptedText = nullptr,
+                                uint32_t nodeId = 0);
     const CapturedPacket& getReplayPacket(uint8_t index) const;
     void clearReplaySlots();
     uint8_t getNumCapturedPackets() const { return numCapturedPackets; }

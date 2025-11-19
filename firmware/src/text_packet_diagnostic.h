@@ -14,6 +14,27 @@
 
 namespace TextPacketDiagnostic {
 
+struct PacketCategoryStats {
+	uint32_t count;
+	uint32_t minSize;
+	uint32_t maxSize;
+	float averageSize;
+};
+
+struct DiagnosticStats {
+	uint32_t gapCount;
+	uint32_t maxGapMs;
+	uint32_t largeGapCount;
+	uint32_t encryptedPacketCount;
+	uint32_t plaintextPacketCount;
+	uint32_t unknownPacketCount;
+	PacketCategoryStats routing;
+	PacketCategoryStats position;
+	PacketCategoryStats text;
+	PacketCategoryStats other;
+	bool verboseMode;
+};
+
 /**
  * Reset all diagnostic counters and statistics
  */
@@ -56,6 +77,11 @@ void enableVerbose(bool enable);
  * Check if verbose mode is enabled
  */
 bool isVerbose();
+
+/**
+ * Capture current diagnostic counters for external reporting.
+ */
+void getStats(DiagnosticStats& stats);
 
 } // namespace TextPacketDiagnostic
 

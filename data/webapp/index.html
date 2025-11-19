@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#1a1a2e">
+    <title>ESP32 LoRa Recon</title>
+    <link rel="stylesheet" href="css/style.css?v=20251119c">
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <button class="mobile-menu-toggle" id="mobile-menu-toggle" aria-label="Toggle menu">
+            ☰
+        </button>
+        <h1>ESP32 LoRa Recon</h1>
+        <div class="status-badge" id="connection">
+            <span class="dot"></span>
+            <span id="connection-text">Connecting...</span>
+        </div>
+    </header>
+
+    <!-- Mobile Menu Overlay -->
+    <div class="mobile-menu-overlay" id="mobile-menu-overlay"></div>
+
+    <!-- Main Container: Two Column Layout -->
+    <div class="main-container">
+        <!-- Left Column: Status + Actions -->
+        <aside class="sidebar">
+            <!-- Status Cards -->
+            <section class="status-section">
+                <div class="stat-card" onclick="app.switchTab('status')" style="cursor: pointer;" title="View system status">
+                    <div class="stat-label">Mode</div>
+                    <div class="stat-value" id="mode">—</div>
+                </div>
+                <div class="stat-card" onclick="app.switchTab('devices')" style="cursor: pointer;" title="View devices">
+                    <div class="stat-label">Devices</div>
+                    <div class="stat-value" id="devices">0</div>
+                </div>
+                <div class="stat-card" onclick="app.switchTab('packets')" style="cursor: pointer;" title="View captured packets">
+                    <div class="stat-label">Packets</div>
+                    <div class="stat-value" id="packets">0</div>
+                </div>
+                <div class="stat-card" onclick="app.switchTab('status')" style="cursor: pointer;" title="View uptime details">
+                    <div class="stat-label">Uptime</div>
+                    <div class="stat-value" id="uptime">0s</div>
+                </div>
+            </section>
+
+            <!-- Target Info Banner (shown when in targeted mode) -->
+            <section class="target-info" id="target-info" style="display: none;">
+                <h3>🎯 Targeting</h3>
+                <div id="target-details">—</div>
+            </section>
+
+            <!-- Actions -->
+            <section class="actions-section">
+                <h2>Commands</h2>
+                <div class="button-list">
+                    <button data-action="show-menu" class="btn">📋 Devices</button>
+                    <button data-action="show-activity" class="btn">📊 Activity</button>
+                    <button data-action="show-device-types" class="btn">📱 Device Types</button>
+                    <button data-action="show-frequency" class="btn">📡 Frequency</button>
+                    <button data-action="show-replay" class="btn">🔁 Packets</button>
+                    <button data-action="show-gps" class="btn">🗺️ GPS</button>
+                    <button data-action="show-security" class="btn">🛡️ Security</button>
+                    <button data-action="export-kml" class="btn">🌍 KML</button>
+                    <button data-action="resume-recon" class="btn btn-primary">▶️ Resume</button>
+                    <button data-action="stop-capture" class="btn btn-secondary">⏹️ Stop</button>
+                </div>
+            </section>
+        </aside>
+
+        <!-- Right Column: Results -->
+        <main class="results-panel">
+            <!-- Tab Navigation -->
+            <nav class="tabs">
+                <button class="tab-btn active" data-tab="status">📊 Status</button>
+                <button class="tab-btn" data-tab="devices">📋 Devices</button>
+                <button class="tab-btn" data-tab="packets">🔁 Packets</button>
+                <button class="tab-btn" data-tab="frequency">📡 Frequency</button>
+                <button class="tab-btn" data-tab="gps">🗺️ GPS</button>
+            </nav>
+            
+            <!-- Tab Content -->
+            <div class="tab-content active" id="tab-status">
+                <div class="status-grid">
+                    <div class="status-card-large">
+                        <h3>System Status</h3>
+                        <div class="status-row">
+                            <span>Mode:</span>
+                            <span id="status-mode" class="status-value">—</span>
+                        </div>
+                        <div class="status-row">
+                            <span>Uptime:</span>
+                            <span id="status-uptime" class="status-value">0s</span>
+                        </div>
+                        <div class="status-row">
+                            <span>Total Packets:</span>
+                            <span id="status-packets" class="status-value">0</span>
+                        </div>
+                        <div class="status-row">
+                            <span>Devices Found:</span>
+                            <span id="status-devices" class="status-value">0</span>
+                        </div>
+                    </div>
+                    
+                    <div class="action-card">
+                        <h3>Quick Actions</h3>
+                        <button data-action="show-activity" class="btn">📊 View Activity</button>
+                        <button data-action="show-device-types" class="btn">📱 Device Types</button>
+                        <button data-action="show-security" class="btn">🛡️ Security</button>
+                        <button data-action="export-kml" class="btn">🌍 Export KML</button>
+                        <button data-action="resume-recon" class="btn btn-primary">▶️ Resume Recon</button>
+                        <button data-action="stop-capture" class="btn btn-secondary">⏹️ Stop Capture</button>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="tab-content" id="tab-devices">
+                <div id="devices-content" class="tab-inner">
+                    <p class="placeholder">Loading devices...</p>
+                </div>
+            </div>
+            
+            <div class="tab-content" id="tab-packets">
+                <div id="packets-content" class="tab-inner">
+                    <p class="placeholder">Loading packets...</p>
+                </div>
+            </div>
+            
+            <div class="tab-content" id="tab-frequency">
+                <div id="frequency-content" class="tab-inner">
+                    <p class="placeholder">Loading frequencies...</p>
+                </div>
+            </div>
+            
+            <div class="tab-content" id="tab-gps">
+                <div id="gps-content" class="tab-inner">
+                    <p class="placeholder">Loading GPS data...</p>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="js/connection.js?v=20251119c"></script>
+    <script src="js/toast.js?v=20251119c"></script>
+    <script src="js/app.js?v=20251119c"></script>
+</body>
+</html>

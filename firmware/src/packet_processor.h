@@ -11,6 +11,7 @@
 #include <Arduino.h>
 #include <queue>
 #include <vector>
+#include <functional>
 #include "data_structures.h"
 #include "protocol_analyzer.h"
 #include "geo_intelligence.h"
@@ -18,6 +19,17 @@
 
 // Forward declarations
 class OLEDDisplay;
+
+// Packet event structure for callbacks
+struct PacketEvent {
+    uint32_t nodeId;
+    const char* protocol;
+    float rssi;
+    float snr;
+    size_t length;
+    const char* message;  // nullptr if no message
+    uint32_t timestamp;
+};
 
 /**
  * PacketProcessor - Manages packet queue and analysis
@@ -32,6 +44,11 @@ class OLEDDisplay;
 class PacketProcessor {
 public:
     PacketProcessor();
+    
+    // Set packet event callback for live updates (web server, loggers, etc.)
+    void setPacketCallback(std::function<void(const PacketEvent&)> callback) {
+        packetCallback = callback;
+    }
     
     // Queue management
     bool queuePacket(const uint8_t* data, size_t length, float rssi, float snr);
@@ -56,6 +73,9 @@ private:
     // Analysis modules
     ProtocolAnalyzer protocolAnalyzer;
     GeoIntelligence geoIntel;
+    
+    // Event callback for live updates (optional)
+    std::function<void(const PacketEvent&)> packetCallback;
     
     // Processing helpers
     void processSinglePacket(const QueuedPacket& qp, OLEDDisplay* display);

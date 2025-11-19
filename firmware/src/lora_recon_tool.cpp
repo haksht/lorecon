@@ -3,6 +3,10 @@
 #include "error_handler.h"
 #include "logger.h"
 #include "packet_logger.h"
+#include "packet_processor.h"
+#include "command_handler.h"
+#include "oled_display.h"
+#include "web_server.h"
 #include "config.h"
 #include <LittleFS.h>
 #include <ArduinoJson.h>
@@ -196,7 +200,7 @@ void LoRaReconTool::handleReconnaissanceMode(uint32_t now) {
             
             // Update display with new scanning config
             if (oledDisplay && oledDisplay->isOn()) {
-                char freqStr[16];
+                static char freqStr[16];  // Static to avoid stack issues
                 snprintf(freqStr, sizeof(freqStr), "%.3f", cfg.frequency);
                 oledDisplay->showScanningStatus(freqStr, cfg.spreadingFactor, 
                                                 reconState.scanState.currentConfig, 
@@ -673,15 +677,34 @@ void LoRaReconTool::handleButtonPress(uint32_t now) {
             if (oledDisplay) {
                 oledDisplay->toggle();
                 if (oledDisplay->isOn()) {
-                    // Refresh display with current info
-                    const ScanConfig& cfg = reconState.getScanConfig(reconState.scanState.currentConfig);
-                    char freqStr[16];
-                    snprintf(freqStr, sizeof(freqStr), "%.3f", cfg.frequency);
-                    oledDisplay->showScanningStatus(freqStr, cfg.spreadingFactor, 
-                                                    reconState.scanState.currentConfig, 
-                                                    reconState.getNumConfigs());
+                    // Refresh display with current info - with safety checks
+                    if (reconState.isValidConfigIndex(reconState.scanState.currentConfig)) {
+                        const ScanConfig& cfg = reconState.getScanConfig(reconState.scanState.currentConfig);
+                        // Validate frequency is in reasonable range
+                        if (cfg.frequency >= 100.0 && cfg.frequency <= 1000.0) {
+                            static char freqStr[16];  // Static to avoid stack issues
+                            snprintf(freqStr, sizeof(freqStr), "%.3f", cfg.frequency);
+                            oledDisplay->showScanningStatus(freqStr, cfg.spreadingFactor, 
+                                                            reconState.scanState.currentConfig, 
+                                                            reconState.getNumConfigs());
+                        } else {
+                            LOG_ERROR("Invalid frequency: %.3f", cfg.frequency);
+                        }
+                    } else {
+                        LOG_ERROR("Invalid config index: %d", reconState.scanState.currentConfig);
+                    }
                 }
             }
         }
+    }
+}
+
+// Set web server for live packet broadcasting
+void LoRaReconTool::setWebServer(WebServer* ws) {
+    if (packetProcessor && ws) {
+        // Wire up callback from PacketProcessor to WebServer
+        packetProcessor->setPacketCallback([ws](const PacketEvent& evt) {
+            ws->handlePacketEvent(evt);
+        });
     }
 }

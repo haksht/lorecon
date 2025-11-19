@@ -27,7 +27,9 @@ struct CapturedPacket {
   uint8_t configIndex;  // Which radio config to use for replay
   float originalRSSI;
   uint32_t captureTime;
+  uint32_t nodeId;      // Node ID extracted from packet header (0 if unknown)
   char protocol[16];
+  char decryptedText[256];  // Stores decrypted message text if available
   bool valid;
 };
 

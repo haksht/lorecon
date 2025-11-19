@@ -11,6 +11,7 @@ class CommandHandler;
 class OLEDDisplay;
 class RadioController;
 class PacketProcessor;
+class WebServer;
 
 #include "recon_state.h"
 #include "radio_controller.h"
@@ -45,6 +46,9 @@ public:
     void startFrequencyTargeting(uint8_t configIndex) override;
     void showReplayMenu() override;
     void replayPacket(uint8_t slotIndex) override;
+    
+    // Web server integration
+    void setWebServer(WebServer* ws);
     
 private:
     // Component instances
