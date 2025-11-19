@@ -21,6 +21,7 @@ The ESP32 LoRa Sniffer now includes a **Progressive Web App (PWA)** for wireless
 ✅ **Packet Replay** - Retransmit captured packets via web UI  
 ✅ **GPS Positions** - View device locations  
 ✅ **Live Dashboard** - Real-time statistics and packet feed  
+✅ **Target Info Display** - See what you're targeting (node ID, frequency, protocol)  
 ✅ **RF Activity Analysis** - View signal strength and protocol stats  
 ✅ **Security Assessment** - Vulnerability analysis  
 ✅ **Device Type Classification** - Identify device categories  
@@ -441,9 +442,26 @@ System status
     "currentConfig": 3,
     "totalConfigs": 16,
     "cyclesCompleted": 2
+  },
+  "target": {
+    "configIndex": 3,
+    "frequency": 906.875,
+    "protocol": "Meshtastic",
+    "bandwidth": 125,
+    "spreadingFactor": 10,
+    "nodeId": "9EA3D744",
+    "deviceType": "TRACKER_APP",
+    "rssi": -68.5,
+    "packetCount": 42
   }
 }
 ```
+
+**Note:** The `target` object only appears when in targeted capture mode. It shows:
+- Which configuration is being monitored
+- The target device details (if targeting a specific device)
+- Current signal quality and packet count
+- The web UI displays this as a blue banner when targeting
 
 #### `GET /api/statistics`
 Comprehensive statistics
@@ -519,12 +537,14 @@ ws.onmessage = (event) => {
 - **Live packet feed** - Real-time packet reception
 - **Statistics cards** - Devices, packets, uptime
 - **System status** - Mode, heap, connection
+- **Target info banner** - Shows targeted device/frequency details when in targeted mode
 
 ### **Devices Tab**
 - **Device list** - All discovered devices
 - **Device cards** - RSSI, SNR, packet count
 - **Target action** - Start targeted capture on specific device
 - **Signal quality indicators** - Visual signal strength
+- **Target visibility** - Banner displays what you're targeting
 
 ### **Packets Tab**
 - **Captured packets** - View all replay slots

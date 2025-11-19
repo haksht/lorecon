@@ -158,6 +158,29 @@ String ReconService::buildStatusJson() {
         scan["totalConfigs"] = reconState.getNumConfigs();
         uint32_t elapsed = millis() - reconState.scanState.reconStartTime;
         scan["cyclesCompleted"] = elapsed / (reconState.getNumConfigs() * Config::Scanning::DWELL_TIME_MS);
+    } else if (reconState.scanState.mode == MODE_TARGETED_CAPTURE) {
+        // Add target information when in targeted mode
+        JsonObject target = doc["target"].to<JsonObject>();
+        
+        // Add config information
+        const ScanConfig& cfg = reconState.getScanConfig(reconState.scanState.targetConfig);
+        target["configIndex"] = reconState.scanState.targetConfig;
+        target["frequency"] = cfg.frequency;
+        target["protocol"] = cfg.protocol;
+        target["bandwidth"] = cfg.bandwidth;
+        target["spreadingFactor"] = cfg.spreadingFactor;
+        
+        // Try to find the targetable device to get node ID
+        for (uint8_t i = 0; i < reconState.numTargetableDevices; i++) {
+            const TargetableDevice& device = reconState.targetableDevices[i];
+            if (device.configIndex == reconState.scanState.targetConfig) {
+                target["nodeId"] = String(device.nodeId, HEX);
+                target["deviceType"] = device.deviceType;
+                target["rssi"] = device.bestRSSI;
+                target["packetCount"] = device.packetCount;
+                break;
+            }
+        }
     }
 
     String response;

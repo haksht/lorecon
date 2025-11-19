@@ -476,6 +476,17 @@ Host: 192.168.4.1
     "currentConfig": 3,
     "totalConfigs": 16,
     "cyclesCompleted": 2
+  },
+  "target": {
+    "configIndex": 3,
+    "frequency": 906.875,
+    "protocol": "Meshtastic",
+    "bandwidth": 125,
+    "spreadingFactor": 10,
+    "nodeId": "9EA3D744",
+    "deviceType": "TRACKER_APP",
+    "rssi": -68.5,
+    "packetCount": 42
   }
 }
 ```
@@ -494,6 +505,16 @@ Host: 192.168.4.1
 | `scan.currentConfig` | number | Current frequency config |
 | `scan.totalConfigs` | number | Total configs to scan |
 | `scan.cyclesCompleted` | number | Full scan cycles completed |
+| `target` | object | **Optional** - Only present in targeted capture mode |
+| `target.configIndex` | number | Configuration index being monitored |
+| `target.frequency` | number | Target frequency in MHz |
+| `target.protocol` | string | Protocol name (e.g., "Meshtastic") |
+| `target.bandwidth` | number | Bandwidth in kHz |
+| `target.spreadingFactor` | number | LoRa spreading factor |
+| `target.nodeId` | string | **Optional** - Node ID if targeting specific device |
+| `target.deviceType` | string | **Optional** - Device type classification |
+| `target.rssi` | number | **Optional** - Current RSSI in dBm |
+| `target.packetCount` | number | **Optional** - Packets received from target |
 
 **cURL Example:**
 ```bash

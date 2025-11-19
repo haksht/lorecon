@@ -343,6 +343,49 @@ body {
     width: auto;
 }
 
+/* Table wrapper for horizontal scroll */
+.table-wrapper {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    margin-bottom: 1rem;
+}
+
+.table-wrapper .table {
+    min-width: 600px; /* Ensure table is wide enough to show all columns */
+}
+
+/* Target Info Banner */
+.target-info {
+    background: linear-gradient(135deg, var(--primary) 0%, #2575fc 100%);
+    color: white;
+    padding: 12px 16px;
+    margin: 16px 0;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+    display: none;
+}
+
+.target-info .target-item {
+    font-size: 14px;
+    line-height: 1.6;
+}
+
+.target-info strong {
+    font-weight: 600;
+    opacity: 0.9;
+}
+
+@media (max-width: 768px) {
+    .target-info {
+        padding: 10px 12px;
+        font-size: 13px;
+    }
+    
+    .target-info .target-item {
+        font-size: 13px;
+    }
+}
+
 /* Content */
 .results-content h3 {
     color: var(--primary);
