@@ -1,4 +1,5 @@
 #include "recon_service.h"
+#include "radio_controller.h"
 #include "config.h"
 #include "logger.h"
 #include "web_server.h"
@@ -619,6 +620,84 @@ bool ReconService::clearReplaySlots(String& outMessage) {
     reconState.clearReplaySlots();
     outMessage = "Replay slots cleared";
     return true;
+}
+
+bool ReconService::replayPacket(uint8_t slotIndex, uint8_t repeatCount, uint16_t delayMs, String& outMessage) {
+    if (!isInitialized()) {
+        outMessage = "Recon tool not initialized";
+        return false;
+    }
+
+    // Validate slot index
+    if (slotIndex >= reconState.getNumCapturedPackets()) {
+        outMessage = "Invalid packet slot";
+        return false;
+    }
+
+    const CapturedPacket& pkt = reconState.getReplayPacket(slotIndex);
+    if (!pkt.valid) {
+        outMessage = "Packet slot is empty";
+        return false;
+    }
+
+    // Validate parameters
+    if (repeatCount == 0 || repeatCount > 100) {
+        outMessage = "Repeat count must be 1-100";
+        return false;
+    }
+
+    if (delayMs < 100 || delayMs > 10000) {
+        outMessage = "Delay must be 100-10000 ms";
+        return false;
+    }
+
+    // Get radio controller
+    RadioController* radioController = reconTool->getRadioController();
+    if (!radioController) {
+        outMessage = "Radio controller not available";
+        return false;
+    }
+
+    // Apply the correct radio configuration for replay
+    const ScanConfig& replayCfg = reconState.getScanConfig(pkt.configIndex);
+    if (!radioController->applyConfig(replayCfg)) {
+        outMessage = "Failed to apply radio configuration";
+        return false;
+    }
+
+    // Create mutable copy for transmission
+    uint8_t txBuffer[256];
+    memcpy(txBuffer, pkt.data, pkt.length);
+
+    // Set transmission power
+    radioController->getRadio().setOutputPower(10);
+
+    // Transmit the packet(s)
+    int successCount = 0;
+    int failCount = 0;
+
+    for (int i = 0; i < repeatCount; i++) {
+        int state = radioController->getRadio().transmit(txBuffer, pkt.length);
+        
+        if (state == RADIOLIB_ERR_NONE) {
+            successCount++;
+        } else {
+            failCount++;
+        }
+
+        // Delay between transmissions (except after last one)
+        if (i < repeatCount - 1) {
+            delay(delayMs);
+        }
+    }
+
+    // Build result message
+    char msgBuffer[128];
+    snprintf(msgBuffer, sizeof(msgBuffer), "Replay complete: %d/%d successful", 
+             successCount, repeatCount);
+    outMessage = String(msgBuffer);
+    
+    return successCount > 0;
 }
 
 bool ReconService::startFrequencyTargeting(uint8_t configIndex, String& outMessage) {

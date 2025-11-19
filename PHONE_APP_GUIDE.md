@@ -1,8 +1,8 @@
 # 📱 ESP32 LoRa Sniffer - Phone App Guide
 
-**Version:** 1.0.0  
+**Version:** 2.0.0  
 **Feature Branch:** `feature/phone-app-integration`  
-**Date:** November 13, 2025
+**Date:** November 19, 2025
 
 ---
 
@@ -17,8 +17,37 @@ The ESP32 LoRa Sniffer now includes a **Progressive Web App (PWA)** for wireless
 ✅ **WebSocket** - Real-time packet updates  
 ✅ **Progressive Web App** - Install to phone homescreen  
 ✅ **Offline Support** - Works without internet connection  
-✅ **Interactive Maps** - View device GPS positions  
+✅ **Device Discovery & Targeting** - View and target devices  
+✅ **Packet Replay** - Retransmit captured packets via web UI  
+✅ **GPS Positions** - View device locations  
 ✅ **Live Dashboard** - Real-time statistics and packet feed  
+✅ **RF Activity Analysis** - View signal strength and protocol stats  
+✅ **Security Assessment** - Vulnerability analysis  
+✅ **Device Type Classification** - Identify device categories  
+
+### **Serial vs. Web Feature Parity**
+
+**Full Parity (Available in Both):**
+- Device discovery and targeting
+- Packet capture and replay
+- Frequency targeting
+- GPS position viewing
+- RF activity analysis
+- Security assessment
+- Device type analysis
+- Resume reconnaissance
+
+**Serial-Only Features:**
+- Detailed packet hex dumps
+- PSK decryption output (decrypted text shown)
+- Verbose diagnostic logging
+- Interactive reboot confirmation
+
+**Web-Only Features:**
+- Progressive Web App installation
+- Multi-client simultaneous access
+- GeoJSON/KML export from browser
+- Mobile-responsive touch interface  
 
 ---
 
@@ -199,6 +228,172 @@ Start targeted capture
 #### `POST /api/capture/stop`
 Stop capture and resume reconnaissance
 
+### **Packet Replay**
+
+#### `GET /api/replay/slots`
+Get all captured packets
+
+**Response:**
+```json
+{
+  "status": "success",
+  "count": 3,
+  "capacity": 10,
+  "slots": [
+    {
+      "index": 0,
+      "valid": true,
+      "protocol": "Meshtastic",
+      "length": 64,
+      "nodeId": "9EA3D744",
+      "frequencyMHz": 906.875,
+      "rssi": -68.5,
+      "configIndex": 0,
+      "capturedSecondsAgo": 120,
+      "decryptedText": "Hello World"
+    }
+  ]
+}
+```
+
+#### `POST /api/replay/transmit`
+Replay (retransmit) a captured packet
+
+**Request Body:**
+```json
+{
+  "slotIndex": "0",
+  "repeatCount": "5",
+  "delayMs": "1000"
+}
+```
+
+**Parameters:**
+- `slotIndex` (required): Packet slot index (0-9)
+- `repeatCount` (optional): Number of times to transmit (1-100, default: 1)
+- `delayMs` (optional): Delay between transmissions in ms (100-10000, default: 1000)
+
+**Response:**
+```json
+{
+  "status": "success",
+  "message": "Replay complete: 5/5 successful"
+}
+```
+
+**Notes:**
+- Uses original packet's radio configuration (frequency, SF, BW)
+- Transmission power: 10 dBm
+- Each transmission takes 0.5-5 seconds depending on spreading factor
+- Multiple repeats useful for testing reliability or battery drain attacks
+
+#### `POST /api/replay/clear`
+Clear all captured packets
+
+**Response:**
+```json
+{
+  "status": "success",
+  "message": "Replay slots cleared"
+}
+```
+
+### **Scan Control**
+
+#### `POST /api/frequency/target`
+Target a specific frequency configuration
+
+**Request Body:**
+```json
+{
+  "configIndex": "3"
+}
+```
+
+**Response:**
+```json
+{
+  "status": "success",
+  "message": "Frequency targeting started on Meshtastic_MedFast (906.875 MHz)"
+}
+```
+
+### **Analysis Endpoints**
+
+#### `GET /api/recon/summary`
+Get reconnaissance summary including RF activity
+
+**Response:**
+```json
+{
+  "status": "success",
+  "summary": {
+    "reconDurationSeconds": 180,
+    "targetableDevices": 5,
+    "nodesTracked": 12,
+    "totalPackets": 1234
+  },
+  "rfActivity": [
+    {
+      "configIndex": 0,
+      "protocol": "Meshtastic_ShortFast",
+      "frequency": 906.875,
+      "packets": 42,
+      "avgRSSI": -68.5,
+      "peakRSSI": -55.2
+    }
+  ]
+}
+```
+
+#### `GET /api/recon/device-types`
+Get device type classification
+
+**Response:**
+```json
+{
+  "status": "success",
+  "summary": {
+    "totalDeviceTypes": 3,
+    "totalDevices": 8,
+    "routersDetected": 2
+  },
+  "deviceTypes": [
+    {
+      "type": "TRACKER_APP",
+      "count": 5,
+      "avgRSSI": -65.3,
+      "routers": 0
+    }
+  ]
+}
+```
+
+#### `GET /api/recon/security`
+Get security vulnerability assessment
+
+**Response:**
+```json
+{
+  "status": "success",
+  "summary": {
+    "status": "vulnerabilities_detected",
+    "vulnerable": 3,
+    "moderate": 2,
+    "secure": 0
+  },
+  "devices": [
+    {
+      "nodeId": "9EA3D744",
+      "deviceType": "TRACKER_APP",
+      "riskLevel": "high",
+      "bestRSSI": -68.5,
+      "packetCount": 42
+    }
+  ]
+}
+```
+
 ### **Geographic Data**
 
 #### `GET /api/positions`
@@ -328,18 +523,34 @@ ws.onmessage = (event) => {
 ### **Devices Tab**
 - **Device list** - All discovered devices
 - **Device cards** - RSSI, SNR, packet count
-- **Actions** - Target device, view details
+- **Target action** - Start targeted capture on specific device
+- **Signal quality indicators** - Visual signal strength
 
-### **Map Tab**
-- **Interactive map** - Leaflet.js powered
-- **Device markers** - GPS positions
-- **Movement trails** - Track device movement
+### **Packets Tab**
+- **Captured packets** - View all replay slots
+- **Packet details** - Protocol, node ID, RSSI, frequency, age
+- **Replay action** - Click any packet to retransmit
+- **Repeat count** - Configure multiple transmissions
+- **Delay configuration** - Set delay between repeats
+- **Clear function** - Clear all replay slots
+
+### **Frequency Tab**
+- **Configuration list** - All 16 scan configs
+- **Activity indicators** - Shows which frequencies have traffic
+- **Direct targeting** - Lock onto specific frequency/SF/BW combination
+- **Protocol details** - Spreading factor and bandwidth info
+
+### **GPS Tab**
+- **Position list** - All captured GPS coordinates
+- **Node tracking** - See which devices broadcast location
+- **Altitude data** - Included when available
 - **Export** - GeoJSON, KML formats
 
 ### **Activity Tab**
 - **RF activity** - Per-frequency statistics
-- **Protocol distribution** - Device types
-- **Comprehensive stats** - System-wide metrics
+- **Protocol distribution** - Device types and counts
+- **Signal analysis** - RSSI averages and peaks
+- **Router detection** - Identifies mesh routing nodes
 
 ### **Offline Support**
 - Service Worker caches app for offline use

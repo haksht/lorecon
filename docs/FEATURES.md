@@ -355,6 +355,35 @@ Reduces serial output by 95% to minimize packet processing time and capture gaps
 
 ---
 
-**Last Updated**: October 4, 2025  
-**Version**: 1.7 Production  
-**Status**: Ready for DefCon preparation phase
+## 🔧 Hardware Capabilities & Limitations
+
+### ✅ What This ESP32 Platform Excels At:
+
+1. **Passive Reconnaissance** - Multi-frequency scanning and device discovery
+2. **Packet Analysis** - Real-time protocol parsing and signal metrics
+3. **Targeted Monitoring** - Deep inspection of individual devices
+4. **Data Collection** - Stream RF data to PC for offline analysis
+5. **Opportunistic Decryption** - Testing weak/default PSKs
+6. **Packet Replay** - Retransmission for network testing
+
+### ❌ What ESP32 Cannot Do:
+
+1. **Cryptographic Brute Force** - AES keyspace too large (2^128 combinations)
+2. **Long-Term Storage** - Flash limited to 8-16 MB (use SD card or PC streaming)
+3. **Complex Graph Analysis** - RAM/CPU insufficient for large-scale network mapping
+4. **Full Protocol Implementation** - Can't act as mesh router/forwarder
+5. **Multi-Frequency Simultaneous Operations** - Single radio limits to sequential scanning
+
+### 🎯 Optimal Architecture:
+
+**ESP32 as field sensor + PC for analysis:**
+- ESP32 captures RF data (packets, RSSI, timing)
+- Streams to laptop/server via serial or WiFi
+- PC performs heavy lifting: database storage, graph analysis, pattern correlation
+- Think: Remote probe, not standalone platform
+
+---
+
+**Last Updated**: November 19, 2025  
+**Version**: 2.0 Production  
+**Status**: Ready for security research and RF experimentation

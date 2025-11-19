@@ -58,6 +58,7 @@ public:
     static String getSecurityAssessment();
     static String getReplaySlots();
     static String clearReplaySlots();
+    static String replayPacket(uint8_t slotIndex, uint8_t repeatCount, uint16_t delayMs);
     static String startFrequencyTargeting(uint8_t configIndex);
     static String getDiagnostics();
     static String setVerboseMode(bool enableVerbose);

@@ -98,9 +98,9 @@ See [ENCRYPTION_REALITY.md](docs/ENCRYPTION_REALITY.md) for details.
 - **[TROUBLESHOOTING_MESHTASTIC.md](docs/TROUBLESHOOTING_MESHTASTIC.md)** - Common issues
 
 ### Advanced Topics
-- **[UNDERSTANDING.md](docs/deepdive/UNDERSTANDING.md)** - Deep technical guide
-- **[architecture.md](docs/architecture.md)** - System design
-- **[conference/](conference/)** - Security research materials
+- **[UNDERSTANDING_v2.md](docs/deepdive/UNDERSTANDING_v2.md)** - Deep technical guide (v2.0 architecture)
+- **[API_REFERENCE.md](API_REFERENCE.md)** - Web API documentation
+- **[PHONE_APP_GUIDE.md](PHONE_APP_GUIDE.md)** - Phone app integration guide
 
 ---
 

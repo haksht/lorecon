@@ -51,16 +51,16 @@
             <section class="actions-section">
                 <h2>Commands</h2>
                 <div class="button-list">
-                    <button onclick="app.showMenu()" class="btn">📋 Devices</button>
-                    <button onclick="app.showActivity()" class="btn">📊 Activity</button>
-                    <button onclick="app.showDeviceTypes()" class="btn">📱 Device Types</button>
-                    <button onclick="app.showFrequencyMenu()" class="btn">📡 Frequency</button>
-                    <button onclick="app.showReplayMenu()" class="btn">🔁 Packets</button>
-                    <button onclick="app.showGPS()" class="btn">🗺️ GPS</button>
-                    <button onclick="app.showSecurity()" class="btn">🛡️ Security</button>
-                    <button onclick="app.exportKML()" class="btn">🌍 KML</button>
-                    <button onclick="app.resumeRecon()" class="btn btn-primary">▶️ Resume</button>
-                    <button onclick="app.stopCapture()" class="btn btn-secondary">⏹️ Stop</button>
+                    <button data-action="show-menu" class="btn">📋 Devices</button>
+                    <button data-action="show-activity" class="btn">📊 Activity</button>
+                    <button data-action="show-device-types" class="btn">📱 Device Types</button>
+                    <button data-action="show-frequency" class="btn">📡 Frequency</button>
+                    <button data-action="show-replay" class="btn">🔁 Packets</button>
+                    <button data-action="show-gps" class="btn">🗺️ GPS</button>
+                    <button data-action="show-security" class="btn">🛡️ Security</button>
+                    <button data-action="export-kml" class="btn">🌍 KML</button>
+                    <button data-action="resume-recon" class="btn btn-primary">▶️ Resume</button>
+                    <button data-action="stop-capture" class="btn btn-secondary">⏹️ Stop</button>
                 </div>
             </section>
         </aside>
@@ -101,12 +101,12 @@
                     
                     <div class="action-card">
                         <h3>Quick Actions</h3>
-                        <button onclick="app.showActivity()" class="btn">📊 View Activity</button>
-                        <button onclick="app.showDeviceTypes()" class="btn">📱 Device Types</button>
-                        <button onclick="app.showSecurity()" class="btn">🛡️ Security</button>
-                        <button onclick="app.exportKML()" class="btn">🌍 Export KML</button>
-                        <button onclick="app.resumeRecon()" class="btn btn-primary">▶️ Resume Recon</button>
-                        <button onclick="app.stopCapture()" class="btn btn-secondary">⏹️ Stop Capture</button>
+                        <button data-action="show-activity" class="btn">📊 View Activity</button>
+                        <button data-action="show-device-types" class="btn">📱 Device Types</button>
+                        <button data-action="show-security" class="btn">🛡️ Security</button>
+                        <button data-action="export-kml" class="btn">🌍 Export KML</button>
+                        <button data-action="resume-recon" class="btn btn-primary">▶️ Resume Recon</button>
+                        <button data-action="stop-capture" class="btn btn-secondary">⏹️ Stop Capture</button>
                     </div>
                 </div>
             </div>

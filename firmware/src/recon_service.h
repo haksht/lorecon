@@ -30,6 +30,7 @@ public:
     static String buildSecurityAssessmentJson();
     static String buildReplaySlotsJson();
     static bool clearReplaySlots(String& outMessage);
+    static bool replayPacket(uint8_t slotIndex, uint8_t repeatCount, uint16_t delayMs, String& outMessage);
     static bool startFrequencyTargeting(uint8_t configIndex, String& outMessage);
     static String buildDiagnosticsJson();
     static bool setVerboseMode(bool enableVerbose, String& outMessage);

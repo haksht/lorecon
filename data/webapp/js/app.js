@@ -200,13 +200,29 @@ class ReconApp {
     }
 
     setupEventDelegation() {
-        // Handle clicks on dynamically created buttons in tab contents
+        // Handle clicks on dynamically created buttons and table rows
         document.addEventListener('click', (e) => {
+            // Check for buttons first
             const btn = e.target.closest('button[data-action]');
             if (btn) {
                 e.preventDefault();
                 const action = btn.dataset.action;
                 const value = btn.dataset.value;
+                try {
+                    this.handleDynamicAction(action, value);
+                } catch (error) {
+                    console.error('Action handler error:', error);
+                    this.showToast('Action failed: ' + error.message, 'error');
+                }
+                return;
+            }
+            
+            // Check for clickable table rows
+            const row = e.target.closest('tr[data-action]');
+            if (row) {
+                e.preventDefault();
+                const action = row.dataset.action;
+                const value = row.dataset.value;
                 try {
                     this.handleDynamicAction(action, value);
                 } catch (error) {
@@ -228,12 +244,41 @@ class ReconApp {
             case 'view-packet':
                 this.viewPacket(parseInt(value));
                 break;
+            case 'replay-packet':
+                this.promptReplayPacket(parseInt(value));
+                break;
             case 'replay-menu':
+            case 'show-replay':
                 this.showReplayMenu();
                 break;
-            case 'clear-replay-slots':
-                this.clearReplaySlots();
+            case 'show-menu':
+                this.showMenu();
                 break;
+            case 'show-activity':
+                this.showActivity();
+                break;
+            case 'show-device-types':
+                this.showDeviceTypes();
+                break;
+            case 'show-frequency':
+                this.showFrequencyMenu();
+                break;
+            case 'show-gps':
+                this.showGPS();
+                break;
+            case 'show-security':
+                this.showSecurity();
+                break;
+            case 'export-kml':
+                this.exportKML();
+                break;
+            case 'resume-recon':
+                this.resumeRecon();
+                break;
+            case 'stop-capture':
+                this.stopCapture();
+                break;
+            case 'clear-replay-slots':
             case 'clear-replay':
                 this.clearReplaySlots();
                 break;
@@ -509,7 +554,7 @@ class ReconApp {
                 const age = this.formatAge(slot.capturedSecondsAgo || 0);
                 const decryptedText = slot.decryptedText ? `"${slot.decryptedText}"` : '<em style="color: var(--text-muted);">encrypted</em>';
                 const nodeId = slot.nodeId ? `0x${slot.nodeId}` : '<span style="color: var(--text-muted);">—</span>';
-                html += '<tr>';
+                html += '<tr style="cursor: pointer;" data-action="replay-packet" data-value="' + (slot.index || idx) + '">';
                 html += `<td>${slot.index || (idx + 1)}</td>`;
                 html += `<td style="font-size: 0.8em;">${nodeId}</td>`;
                 html += `<td style="font-size: 0.8em;">${slot.protocol || 'Unknown'}</td>`;
@@ -524,6 +569,10 @@ class ReconApp {
             html += '</tbody></table></div>';
             html += '<div style="margin-top: 1rem;">';
             html += '<button class="btn" data-action="clear-replay-slots" style="background: var(--danger); color: white;">Clear All Slots</button>';
+            html += '</div>';
+            html += '<div style="margin-top: 1.5rem; padding: 1rem; background: rgba(74, 144, 226, 0.1); border-left: 4px solid #4a90e2; border-radius: 4px;">';
+            html += '<p><strong>💡 How to replay packets:</strong></p>';
+            html += '<p>Click any packet row above to replay it. You can configure repeat count and delay between transmissions.</p>';
             html += '</div>';
             this.showResults('Captured Packets', html);
         } catch (error) {
@@ -642,6 +691,54 @@ class ReconApp {
         } catch (error) {
             console.error('Error clearing replay slots:', error);
             this.showError('Failed to clear replay slots: ' + error.message);
+        }
+    }
+
+    async promptReplayPacket(slotIndex) {
+        const repeatCount = prompt('Repeat count (1-100):', '1');
+        if (!repeatCount || repeatCount === '0') {
+            return;
+        }
+
+        const repeat = parseInt(repeatCount);
+        if (isNaN(repeat) || repeat < 1 || repeat > 100) {
+            this.showToast('Invalid repeat count (must be 1-100)', 'error');
+            return;
+        }
+
+        let delayMs = 1000;
+        if (repeat > 1) {
+            const delayInput = prompt('Delay between packets in ms (100-10000):', '1000');
+            if (delayInput) {
+                delayMs = parseInt(delayInput);
+                if (isNaN(delayMs) || delayMs < 100 || delayMs > 10000) {
+                    this.showToast('Invalid delay (using default 1000ms)', 'warning');
+                    delayMs = 1000;
+                }
+            }
+        }
+
+        await this.replayPacket(slotIndex, repeat, delayMs);
+    }
+
+    async replayPacket(slotIndex, repeatCount, delayMs) {
+        try {
+            this.showToast(`📡 Transmitting packet ${slotIndex + 1}...`, 'info');
+            
+            const data = await this.post('/api/replay/transmit', {
+                slotIndex: slotIndex.toString(),
+                repeatCount: repeatCount.toString(),
+                delayMs: delayMs.toString()
+            });
+
+            if (data.status === 'success') {
+                this.showToast(`✅ ${data.message || 'Replay complete'}`, 'success');
+            } else {
+                this.showToast(`❌ ${data.error || 'Replay failed'}`, 'error');
+            }
+        } catch (error) {
+            console.error('Error replaying packet:', error);
+            this.showToast('Failed to replay packet: ' + error.message, 'error');
         }
     }
 
@@ -851,10 +948,14 @@ class ReconApp {
     }
 
     showResults(title, html) {
-        // Legacy function - route to appropriate tab
+        // Route content to appropriate tab and activate it
         const tabMap = {
             'Discovered Devices': 'devices',
             'Menu': 'devices',
+            'RF Activity': 'devices',           // Activity view goes to devices tab
+            'Device Types': 'devices',          // Device types view goes to devices tab
+            'Security Assessment': 'devices',   // Security view goes to devices tab
+            'Diagnostics': 'devices',           // Diagnostics goes to devices tab
             'Captured Packets': 'packets',
             'Packet Replay': 'packets',
             'Packet Details': 'packets',
@@ -864,7 +965,10 @@ class ReconApp {
         
         const tab = tabMap[title];
         if (tab) {
+            // Update content
             this.showTabContent(tab, html);
+            // Activate the tab so user sees the result
+            this.switchTab(tab);
         }
     }
 
