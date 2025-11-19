@@ -209,9 +209,9 @@ pio --version
 
 - **[QUICKSTART.md](../QUICKSTART.md)**: Getting started guide
 - **[FEATURES.md](FEATURES.md)**: Complete feature documentation
-- **[ARCHITECTURE_REFACTOR_NOV11.md](../ARCHITECTURE_REFACTOR_NOV11.md)**: Architecture details
+- **[PHONE_APP_GUIDE.md](../PHONE_APP_GUIDE.md)**: WiFi/phone workflow overview
 - **[TROUBLESHOOTING_MESHTASTIC.md](TROUBLESHOOTING_MESHTASTIC.md)**: Common issues
-- **[UNDERSTANDING.md](deepdive/UNDERSTANDING.md)**: Deep technical dive
+- **[UNDERSTANDING_v2.md](deepdive/UNDERSTANDING_v2.md)**: Deep technical dive
 
 ---
 

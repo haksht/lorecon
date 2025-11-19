@@ -68,6 +68,17 @@ void PacketProcessor::processSinglePacket(const QueuedPacket& qp, OLEDDisplay* d
     // Analyze packet using ProtocolAnalyzer
     PacketInfo info = protocolAnalyzer.analyze(qp.data, qp.length, qp.rssi);
     
+    // Try PSK decryption and store message in PacketInfo if successful
+    #ifdef ENABLE_PSK_TESTING
+    const char* decryptedMsg = PSKDecryption::getLastMessage();
+    if (decryptedMsg && strlen(decryptedMsg) > 0) {
+        strncpy(info.message, decryptedMsg, sizeof(info.message) - 1);
+        info.message[sizeof(info.message) - 1] = '\0';
+        info.hasMessage = true;
+        PSKDecryption::clearLastMessage();
+    }
+    #endif
+    
     // Enhanced packet analysis for Meshtastic (extract GPS position silently)
     if (strcmp(info.protocol, "Meshtastic") == 0) {
         geoIntel.extractPosition(qp.data, qp.length, info.nodeId);
@@ -90,6 +101,20 @@ void PacketProcessor::processSinglePacket(const QueuedPacket& qp, OLEDDisplay* d
     // Log to SD card if available
     if (packetLogger.isAvailable()) {
         packetLogger.logPacket(qp.data, qp.length, qp.rssi, qp.snr, info.protocol, info.nodeId);
+    }
+    
+    // Emit packet event if callback is registered
+    if (packetCallback && info.nodeId != 0) {
+        PacketEvent evt;
+        evt.nodeId = info.nodeId;
+        evt.protocol = info.protocol;
+        evt.rssi = qp.rssi;
+        evt.snr = qp.snr;
+        evt.length = qp.length;
+        evt.message = info.hasMessage ? info.message : nullptr;
+        evt.timestamp = qp.timestamp;
+        
+        packetCallback(evt);
     }
 }
 
@@ -124,6 +149,9 @@ void PacketProcessor::handleTargetedPacket(const PacketInfo& info, const uint8_t
         display->showPacketReceived(rssi, snr, info.protocol, info.nodeId);
     }
     
+    // Track RF activity in targeted mode too
+    reconState.updateRFActivity(reconState.scanState.currentConfig, rssi);
+    
     #ifdef ENABLE_PSK_TESTING
     // Try decryption on ALL packets to find text messages
     if (length >= 20) {
@@ -153,6 +181,26 @@ void PacketProcessor::handleTargetedPacket(const PacketInfo& info, const uint8_t
         
         // Attempt decryption
         bool decrypted = PSKDecryption::testDefaultPSKs(payload, payloadLen);
+        
+        // Extract node ID from packet header if it's a Meshtastic packet (starts with 0xFF 0xFF 0xFF 0xFF)
+        uint32_t nodeId = 0;
+        if (payloadLen >= 16 && payload[0] == 0xFF && payload[1] == 0xFF && 
+            payload[2] == 0xFF && payload[3] == 0xFF) {
+            // Node ID is at bytes 4-7 (little-endian)
+            nodeId = ((uint32_t)payload[4]) | ((uint32_t)payload[5] << 8) |
+                     ((uint32_t)payload[6] << 16) | ((uint32_t)payload[7] << 24);
+        }
+        
+        // Auto-capture packet for replay with decrypted text and node ID
+        const char* decryptedText = PSKDecryption::getLastMessage();
+        if (reconState.capturePacketForReplay(data, length, reconState.scanState.currentConfig, 
+                                               rssi, info.protocol, decryptedText, nodeId)) {
+            if (decrypted && decryptedText && decryptedText[0] != '\0') {
+                Serial.printf("   ✅ Packet auto-captured with text: \"%s\"\n", decryptedText);
+            } else {
+                Serial.println("   ✅ Packet auto-captured (encrypted)");
+            }
+        }
         
         if (!decrypted && length < 40) {
             Serial.println("(no readable content found)");

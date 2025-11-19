@@ -11,6 +11,8 @@ struct PacketInfo {
     uint8_t powerClass;         // 0=Low, 1=Medium, 2=High power
     bool isRouter;              // true if device appears to be routing traffic
     const char* firmwareVersion; // Estimated firmware version
+    char message[256];          // Decrypted message content storage
+    bool hasMessage;            // True if message field contains valid data
     
     PacketInfo() 
         : protocol("Unknown")
@@ -19,7 +21,10 @@ struct PacketInfo {
         , powerClass(0)
         , isRouter(false)
         , firmwareVersion("Unknown")
-    {}
+        , hasMessage(false)
+    {
+        message[0] = '\0';
+    }
 };
 
 // Protocol analysis class - extracts intelligence from raw LoRa packets
