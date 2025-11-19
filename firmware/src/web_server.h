@@ -106,6 +106,7 @@ private:
     static void handleGetSecurityAssessment(AsyncWebServerRequest* request);
     static void handleGetReplaySlots(AsyncWebServerRequest* request);
     static void handleClearReplaySlots(AsyncWebServerRequest* request);
+    static void handleReplayPacket(AsyncWebServerRequest* request);
     static void handleStartFrequencyTargeting(AsyncWebServerRequest* request);
     static void handleGetDiagnostics(AsyncWebServerRequest* request);
     static void handleSetVerboseMode(AsyncWebServerRequest* request);

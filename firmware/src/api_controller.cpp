@@ -271,6 +271,14 @@ String APIController::clearReplaySlots() {
     return createSuccessResponse(message);
 }
 
+String APIController::replayPacket(uint8_t slotIndex, uint8_t repeatCount, uint16_t delayMs) {
+    String message;
+    if (!ReconService::replayPacket(slotIndex, repeatCount, delayMs, message)) {
+        return createErrorResponse(message);
+    }
+    return createSuccessResponse(message);
+}
+
 String APIController::startFrequencyTargeting(uint8_t configIndex) {
     String message;
     if (!ReconService::startFrequencyTargeting(configIndex, message)) {

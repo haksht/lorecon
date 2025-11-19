@@ -127,6 +127,7 @@ void WebServer::setupRoutes() {
     server->on("/api/recon/security", HTTP_GET, handleGetSecurityAssessment);
     server->on("/api/replay/slots", HTTP_GET, handleGetReplaySlots);
     server->on("/api/replay/clear", HTTP_POST, handleClearReplaySlots);
+    server->on("/api/replay/transmit", HTTP_POST, handleReplayPacket);
     server->on("/api/frequency/target", HTTP_POST, handleStartFrequencyTargeting);
     server->on("/api/diagnostics", HTTP_GET, handleGetDiagnostics);
     server->on("/api/diagnostics/verbose", HTTP_POST, handleSetVerboseMode);
@@ -300,6 +301,43 @@ void WebServer::handleGetReplaySlots(AsyncWebServerRequest* request) {
 
 void WebServer::handleClearReplaySlots(AsyncWebServerRequest* request) {
     String json = APIController::clearReplaySlots();
+    request->send(200, "application/json", json);
+}
+
+void WebServer::handleReplayPacket(AsyncWebServerRequest* request) {
+    // Get parameters from POST body
+    AsyncWebParameter* slotParam = nullptr;
+    AsyncWebParameter* repeatParam = nullptr;
+    AsyncWebParameter* delayParam = nullptr;
+
+    if (request->hasParam("slotIndex", true)) {
+        slotParam = request->getParam("slotIndex", true);
+    } else if (request->hasParam("slotIndex")) {
+        slotParam = request->getParam("slotIndex");
+    }
+
+    if (request->hasParam("repeatCount", true)) {
+        repeatParam = request->getParam("repeatCount", true);
+    } else if (request->hasParam("repeatCount")) {
+        repeatParam = request->getParam("repeatCount");
+    }
+
+    if (request->hasParam("delayMs", true)) {
+        delayParam = request->getParam("delayMs", true);
+    } else if (request->hasParam("delayMs")) {
+        delayParam = request->getParam("delayMs");
+    }
+
+    if (!slotParam) {
+        request->send(400, "application/json", "{\"status\":\"error\",\"error\":\"Missing slotIndex\"}");
+        return;
+    }
+
+    uint8_t slotIndex = strtoul(slotParam->value().c_str(), nullptr, 0);
+    uint8_t repeatCount = repeatParam ? strtoul(repeatParam->value().c_str(), nullptr, 0) : 1;
+    uint16_t delayMs = delayParam ? strtoul(delayParam->value().c_str(), nullptr, 0) : 1000;
+
+    String json = APIController::replayPacket(slotIndex, repeatCount, delayMs);
     request->send(200, "application/json", json);
 }
 
