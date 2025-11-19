@@ -22,7 +22,9 @@ class ReconApp {
             frequencyContent: document.getElementById('frequency-content'),
             gpsContent: document.getElementById('gps-content'),
             mobileMenuToggle: document.getElementById('mobile-menu-toggle'),
-            mobileMenuOverlay: document.getElementById('mobile-menu-overlay')
+            mobileMenuOverlay: document.getElementById('mobile-menu-overlay'),
+            targetInfo: document.getElementById('target-info'),
+            targetDetails: document.getElementById('target-details')
         };
 
         // App state
@@ -32,6 +34,8 @@ class ReconApp {
         this.currentTab = 'status';
         this.isMobile = window.innerWidth < 768;
         this.connectionManager = null;
+        this.closeMobileMenu = null; // Will be initialized in setupMobileMenu
+        this.isLoadingTabContent = false; // Prevent double-loading loops
 
         // Start the app
         this.init();
@@ -59,7 +63,8 @@ class ReconApp {
         const sidebar = document.querySelector('.actions-section');
         
         // Toggle menu on button click
-        this.el.mobileMenuToggle?.addEventListener('click', () => {
+        this.el.mobileMenuToggle?.addEventListener('click', (e) => {
+            e.stopPropagation(); // Prevent bubbling to document click handler
             sidebar?.classList.toggle('active');
             this.el.mobileMenuOverlay?.classList.toggle('active');
         });
@@ -70,19 +75,11 @@ class ReconApp {
             this.el.mobileMenuOverlay?.classList.remove('active');
         });
         
-        // Close menu after action button click
-        document.querySelectorAll('.actions-section .btn').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                // Don't close immediately - let onclick handler execute first
-                // Use requestAnimationFrame to defer menu closing until after current event loop
-                if (this.isMobile) {
-                    requestAnimationFrame(() => {
-                        sidebar?.classList.remove('active');
-                        this.el.mobileMenuOverlay?.classList.remove('active');
-                    });
-                }
-            });
-        });
+        // Store reference to close menu function
+        this.closeMobileMenu = () => {
+            sidebar?.classList.remove('active');
+            this.el.mobileMenuOverlay?.classList.remove('active');
+        };
     }
 
     setupResponsive() {
@@ -124,26 +121,41 @@ class ReconApp {
         });
         
         this.currentTab = tabName;
-        this.loadTabContent(tabName);
+        
+        // Only load content if we're not already loading (prevents loops)
+        if (!this.isLoadingTabContent) {
+            this.loadTabContent(tabName);
+        }
     }
 
     async loadTabContent(tabName) {
-        switch(tabName) {
-            case 'devices':
-                await this.showMenu();
-                break;
-            case 'packets':
-                await this.showReplayMenu();
-                break;
-            case 'frequency':
-                await this.showFrequencyMenu();
-                break;
-            case 'gps':
-                await this.showGPS();
-                break;
-            case 'status':
-                // Status updates automatically
-                break;
+        // Prevent re-entry while loading
+        if (this.isLoadingTabContent) {
+            return;
+        }
+        
+        this.isLoadingTabContent = true;
+        
+        try {
+            switch(tabName) {
+                case 'devices':
+                    await this.showMenu();
+                    break;
+                case 'packets':
+                    await this.showReplayMenu();
+                    break;
+                case 'frequency':
+                    await this.showFrequencyMenu();
+                    break;
+                case 'gps':
+                    await this.showGPS();
+                    break;
+                case 'status':
+                    // Status updates automatically
+                    break;
+            }
+        } finally {
+            this.isLoadingTabContent = false;
         }
     }
 
@@ -172,11 +184,53 @@ class ReconApp {
                 if (this.el.statusPackets) this.el.statusPackets.textContent = packets;
                 if (this.el.statusDevices) this.el.statusDevices.textContent = devices;
                 
+                // Update target info banner if in targeted mode
+                this.updateTargetInfo(data);
+                
                 this.setConnected(true);
             }
         } catch (error) {
             console.error('updateStatus failed:', error);
             this.setConnected(false);
+        }
+    }
+
+    updateTargetInfo(data) {
+        if (!this.el.targetInfo || !this.el.targetDetails) return;
+        
+        // Show target info only when in targeted mode
+        if (data.target && data.mode && data.mode.toLowerCase().includes('target')) {
+            const target = data.target;
+            let html = '<div class="target-item">';
+            
+            if (target.nodeId) {
+                html += `<strong>Node:</strong> 0x${target.nodeId}`;
+                if (target.deviceType) {
+                    html += ` (${target.deviceType})`;
+                }
+            } else {
+                html += `<strong>Config #${target.configIndex + 1}:</strong> ${target.protocol}`;
+            }
+            
+            html += ` | <strong>Freq:</strong> ${target.frequency.toFixed(3)} MHz`;
+            html += ` | <strong>SF:</strong> ${target.spreadingFactor}`;
+            html += ` | <strong>BW:</strong> ${target.bandwidth} kHz`;
+            
+            if (target.rssi) {
+                html += ` | <strong>RSSI:</strong> ${target.rssi.toFixed(1)} dBm`;
+            }
+            
+            if (target.packetCount) {
+                html += ` | <strong>Packets:</strong> ${target.packetCount}`;
+            }
+            
+            html += '</div>';
+            
+            this.el.targetDetails.innerHTML = html;
+            this.el.targetInfo.style.display = 'block';
+        } else {
+            // Hide target info when not in targeted mode
+            this.el.targetInfo.style.display = 'none';
         }
     }
 
@@ -208,11 +262,26 @@ class ReconApp {
                 e.preventDefault();
                 const action = btn.dataset.action;
                 const value = btn.dataset.value;
+                
+                // Close mobile menu after action executes (if on mobile)
+                const shouldCloseMobileMenu = this.isMobile && btn.closest('.actions-section');
+                
                 try {
                     this.handleDynamicAction(action, value);
+                    
+                    // Close mobile menu after successful action
+                    if (shouldCloseMobileMenu && this.closeMobileMenu) {
+                        // Use timeout to ensure action completes first
+                        setTimeout(() => this.closeMobileMenu(), 100);
+                    }
                 } catch (error) {
                     console.error('Action handler error:', error);
                     this.showToast('Action failed: ' + error.message, 'error');
+                    
+                    // Still close menu on error
+                    if (shouldCloseMobileMenu && this.closeMobileMenu) {
+                        setTimeout(() => this.closeMobileMenu(), 100);
+                    }
                 }
                 return;
             }
@@ -335,7 +404,7 @@ class ReconApp {
     }
 
     renderDeviceTable(devices) {
-        let html = '<div style="overflow-x: auto;"><table class="table"><thead><tr>';
+        let html = '<div class="table-wrapper"><table class="table"><thead><tr>';
         html += '<th>Node ID</th><th>Protocol</th><th>RSSI</th><th>Packets</th><th>Action</th>';
         html += '</tr></thead><tbody>';
         
@@ -459,7 +528,7 @@ class ReconApp {
             }
 
             let html = '<h3>RF Activity by Configuration</h3>';
-            html += '<div style="overflow-x: auto;"><table class="table"><thead><tr>';
+            html += '<div class="table-wrapper"><table class="table"><thead><tr>';
             html += '<th>#</th><th>Protocol</th><th>Frequency</th><th>Packets</th><th>Avg RSSI</th><th>Peak RSSI</th>';
             html += '</tr></thead><tbody>';
 
@@ -494,7 +563,7 @@ class ReconApp {
             html += `<p><strong>Total Devices:</strong> ${data.summary?.totalDevices || 0}</p>`;
             html += `<p><strong>Routers Detected:</strong> ${data.summary?.routersDetected || 0}</p>`;
 
-            html += '<div style="overflow-x: auto;"><table class="table"><thead><tr>';
+            html += '<div class="table-wrapper"><table class="table"><thead><tr>';
             html += '<th>Type</th><th>Count</th><th>Avg RSSI</th><th>Routers</th>';
             html += '</tr></thead><tbody>';
 
@@ -539,7 +608,7 @@ class ReconApp {
             }
 
             html += `<p>Captured Packets: ${data.count}/${data.capacity} slots used</p>`;
-            html += '<div style="overflow-x: auto;"><table class="table"><thead><tr>';
+            html += '<div class="table-wrapper"><table class="table"><thead><tr>';
             html += '<th style="width: 40px;">#</th>';
             html += '<th style="width: 100px;">Node ID</th>';
             html += '<th style="width: 120px;">Protocol</th>';
@@ -614,7 +683,7 @@ class ReconApp {
 
             let html = '<h3>Frequency Targeting</h3>';
             html += '<p>Select a configuration to target directly (🔥 = activity detected, ⚪ = no activity):</p>';
-            html += '<div style="overflow-x: auto;"><table class="table"><thead><tr>';
+            html += '<div class="table-wrapper"><table class="table"><thead><tr>';
             html += '<th>#</th><th>Protocol</th><th>Frequency</th><th>Activity</th><th>Action</th>';
             html += '</tr></thead><tbody>';
 
@@ -766,7 +835,7 @@ class ReconApp {
 
             let html = '<h3>GPS Positions</h3>';
             html += `<p><strong>Total Positions:</strong> ${data.totalPositions || data.positions.length}</p>`;
-            html += '<div style="overflow-x: auto;"><table class="table"><thead><tr>';
+            html += '<div class="table-wrapper"><table class="table"><thead><tr>';
             html += '<th style="width: 110px;">Node ID</th><th>Latitude</th><th>Longitude</th><th style="width: 85px;">Altitude</th><th style="width: 95px;">Time</th>';
             html += '</tr></thead><tbody>';
 
@@ -804,7 +873,7 @@ class ReconApp {
             html += `<p><strong>Secure:</strong> ${data.summary.secure || 0}</p>`;
 
             if (data.devices && data.devices.length > 0) {
-                html += '<div style="overflow-x: auto;"><table class="table"><thead><tr>';
+                html += '<div class="table-wrapper"><table class="table"><thead><tr>';
                 html += '<th>Node ID</th><th>Type</th><th>Risk Level</th><th>RSSI</th><th>Packets</th>';
                 html += '</tr></thead><tbody>';
 
@@ -965,10 +1034,19 @@ class ReconApp {
         
         const tab = tabMap[title];
         if (tab) {
-            // Update content
+            // Update content first
             this.showTabContent(tab, html);
+            
+            // Set the loading flag to prevent loadTabContent from being called
+            this.isLoadingTabContent = true;
+            
             // Activate the tab so user sees the result
             this.switchTab(tab);
+            
+            // Reset the flag after tab switch completes
+            setTimeout(() => {
+                this.isLoadingTabContent = false;
+            }, 0);
         }
     }
 
@@ -991,6 +1069,9 @@ class ReconApp {
         // Handle real-time updates from WebSocket or polling
         if (!data) return;
         
+        // Track previous device count to detect changes
+        const previousDeviceCount = this.el.devices ? parseInt(this.el.devices.textContent) || 0 : 0;
+        
         // Update status if present
         if (data.mode !== undefined) {
             const mode = this.formatMode(data.mode);
@@ -1003,10 +1084,13 @@ class ReconApp {
             if (this.el.statusPackets) this.el.statusPackets.textContent = data.totalPackets;
         }
         
+        let deviceCountChanged = false;
         if (data.deviceCount !== undefined || data.devices !== undefined) {
             const count = data.deviceCount || (data.devices ? data.devices.length : 0);
             if (this.el.devices) this.el.devices.textContent = count;
             if (this.el.statusDevices) this.el.statusDevices.textContent = count;
+            // Check if device count actually changed
+            deviceCountChanged = (count !== previousDeviceCount && previousDeviceCount > 0);
         }
         
         if (data.uptime !== undefined) {
@@ -1015,24 +1099,28 @@ class ReconApp {
             if (this.el.statusUptime) this.el.statusUptime.textContent = uptime;
         }
         
-        // Handle packet events
+        // Handle packet events - DO NOT refresh tab on every packet!
         if (data.type === 'packet' && data.summary) {
             console.log('[Packet]', data.summary);
-            // Could show toast for important packets if desired
+            // Only log, don't trigger UI refresh
         }
         
-        // Handle device discovery events
-        if (data.type === 'device_discovered') {
-            this.showToast(`📡 New device discovered! (${data.count} total)`, 'info', 2000);
-            // Refresh devices tab if active
+        // Handle device discovery events - ONLY refresh if device count changed
+        if (data.type === 'device_discovered' || deviceCountChanged) {
+            this.showToast(`📡 New device discovered!`, 'info', 2000);
+            // Refresh devices tab ONLY if currently viewing it
             if (this.currentTab === 'devices') {
                 this.showMenu();
             }
         }
         
-        // Handle capture complete events
+        // Handle capture complete events - refresh packets tab if viewing it
         if (data.type === 'capture_complete' && data.slot !== undefined) {
             this.showToast(`✓ Packet captured to slot ${data.slot + 1}`, 'success');
+            // Refresh packets tab if currently viewing it
+            if (this.currentTab === 'packets') {
+                this.showReplayMenu();
+            }
         }
     }
 
