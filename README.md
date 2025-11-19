@@ -13,7 +13,7 @@ Passive LoRa reconnaissance firmware for ESP32-S3 + SX1262 hardware. The ESP32 h
 
 ## Current Status
 
-- **Branch:** `feature/phone-app-integration`
+- **Branch:** `main`
 - **Hardware:** ESP32-S3 DevKitC-1, SX1262 front-end, optional OLED + SD card.
 - **Focus:** Passive reconnaissance (scan, target, capture, replay, export). All legacy offensive/stress docs and code paths have been removed.
 - **Web UI:** A new lightweight interface served from LittleFS. It exposes every serial command as a button or action so the phone experience equals the USB menu.
