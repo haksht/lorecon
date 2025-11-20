@@ -170,7 +170,8 @@ class ReconApp {
                 const mode = this.formatMode(data.mode);
                 const uptime = this.formatDuration(data.uptime);
                 const devices = data.devices || 0;
-                const packets = data.totalPackets || 0;
+                // Use capturedPackets (replay slots) instead of totalPackets
+                const packets = data.capturedPackets || 0;
                 
                 // Update sidebar stats with null checks
                 if (this.el.mode) this.el.mode.textContent = mode;
@@ -387,11 +388,11 @@ class ReconApp {
                 }
                 
                 html += '<div style="margin-top: 1.5rem; padding: 1rem; background: rgba(74, 144, 226, 0.1); border-left: 4px solid #4a90e2; border-radius: 4px;">';
-                html += '<p><strong>💡 How to capture packets:</strong></p>';
-                html += '<p>1. Click <strong>Target</strong> on a device above</p>';
-                html += '<p>2. Wait for packets to be captured</p>';
-                html += '<p>3. View them in <strong>Packets</strong> menu (left sidebar)</p>';
-                html += '<p><em>Note: Decrypted packet content is only visible via serial monitor (USB connection)</em></p>';
+                html += '<p><strong>💡 Packet Capture:</strong></p>';
+                html += '<p>Packets are automatically captured in <strong>all modes</strong> (reconnaissance, targeted, frequency).</p>';
+                html += '<p>• Click <strong>Target</strong> to focus on a specific device for faster capture</p>';
+                html += '<p>• View captured packets in <strong>Packets</strong> tab (left sidebar)</p>';
+                html += '<p><em>Note: Decrypted text content is only visible via serial monitor (USB connection)</em></p>';
                 html += '</div>';
             } else {
                 html += '<p><em>No devices discovered yet. Reconnaissance is running...</em></p>';
@@ -597,12 +598,18 @@ class ReconApp {
             
             if (!data.slots || data.slots.length === 0) {
                 html += '<p>No packets captured yet.</p>';
-                html += '<p><strong>To capture packets:</strong></p>';
-                html += '<ol>';
-                html += '<li>Target a device or frequency</li>';
-                html += '<li>Wait for packet reception</li>';
-                html += '<li>Packet will be automatically captured</li>';
-                html += '</ol>';
+                html += '<p><strong>Packets are automatically captured when:</strong></p>';
+                html += '<ul>';
+                html += '<li>LoRa traffic is received on any frequency</li>';
+                html += '<li>Device is in reconnaissance, targeted, or frequency scanning mode</li>';
+                html += '<li>Packet size is ≥20 bytes (minimum for valid LoRa packets)</li>';
+                html += '</ul>';
+                html += '<div style="padding: 1rem; background: rgba(74, 144, 226, 0.1); border-left: 4px solid #4a90e2; border-radius: 4px; margin: 1rem 0;">';
+                html += '<p><strong>💡 To increase capture rate:</strong></p>';
+                html += '<p>1. Target a specific device or frequency to listen continuously</p>';
+                html += '<p>2. Or wait for reconnaissance to cycle through frequencies</p>';
+                html += '<p>3. Captured packets will appear here automatically</p>';
+                html += '</div>';
                 this.showResults('Packet Replay', html);
                 return;
             }

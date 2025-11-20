@@ -50,6 +50,9 @@ public:
     // Web server integration
     void setWebServer(WebServer* ws);
     
+    // Display management
+    void refreshDisplay();  // Force display update during long operations
+    
 private:
     // Component instances
     RadioController* radioController;
