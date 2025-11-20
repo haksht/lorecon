@@ -145,6 +145,7 @@ String ReconService::buildStatusJson() {
     doc["uptime"] = millis() / 1000;
     doc["devices"] = reconState.numTargetableDevices;
     doc["totalPackets"] = reconState.scanState.totalPackets;
+    doc["capturedPackets"] = reconState.getNumCapturedPackets();
     doc["freeHeap"] = ESP.getFreeHeap();
     doc["heapSize"] = ESP.getHeapSize();
 

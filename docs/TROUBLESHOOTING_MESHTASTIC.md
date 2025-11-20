@@ -330,6 +330,36 @@ Different Heltec board versions use different pins:
 
 ---
 
+## 💾 **SD Card Configuration (Optional)**
+
+If you want to add SD card logging capability:
+
+### Pin Configuration (Heltec V3)
+- **CS (Chip Select)**: GPIO 5
+- **SPI Bus** (shared with LoRa radio):
+  - SCK: GPIO 9
+  - MISO: GPIO 11
+  - MOSI: GPIO 10
+
+### Important Notes
+- ⚠️ **GPIO 21 is NOT available** - It's used for OLED RST and must not be shared
+- SD card logging is optional; the device works fine without it
+- If SD initialization fails, the system continues normally without logging
+- Use `packet_logger.h` and `packet_logger.cpp` for SD implementation
+
+### Diagnostic
+Check serial output for SD card status:
+```
+[SD] Initializing SD card...
+[SD] Card initialized successfully
+```
+or
+```
+[SD] Card initialization failed
+```
+
+---
+
 ## 🎯 **Quick Win Test**
 
 **Do this right now:**
