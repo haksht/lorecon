@@ -722,10 +722,3 @@ void LoRaReconTool::setWebServer(WebServer* ws) {
         });
     }
 }
-
-// Force display refresh during long init operations
-void LoRaReconTool::refreshDisplay() {
-    if (oledDisplay && oledDisplay->isOn()) {
-        oledDisplay->update();
-    }
-}

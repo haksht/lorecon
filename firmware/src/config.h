@@ -31,7 +31,7 @@ namespace Hardware {
     constexpr uint8_t USER_BUTTON = 0;   // PRG button (active low)
     
     // SD Card (optional)
-    constexpr uint8_t SD_CS = 21;        // SD card chip select
+    constexpr uint8_t SD_CS = 5;         // SD card chip select (GPIO 5, not 21 which conflicts with OLED_RST)
 }
 
 // ============================================================================

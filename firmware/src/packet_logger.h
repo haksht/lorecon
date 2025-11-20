@@ -18,7 +18,7 @@
 #include "data_structures.h"
 
 // SD card configuration (adjust for your hardware)
-#define SD_CS_PIN 21  // Chip select pin for SD card
+#define SD_CS_PIN 5  // Chip select pin for SD card (GPIO 5, not 21 which conflicts with OLED_RST)
 
 /**
  * PacketLogger - Logs reconnaissance data to SD card
