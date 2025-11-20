@@ -125,11 +125,22 @@ bool OLEDDisplay::initialize() {
     Serial.printf("[DISPLAY] OLED ready (128x64, I2C: SDA=%d, SCL=%d, Vext=%d)\n", 
                   OLED_SDA, OLED_SCL, OLED_VEXT);
     
+    // Explicitly ensure display is not in power save mode
+    display.setPowerSave(0);
+    Serial.println("[DISPLAY] Power save disabled");
+    
     return true;
 }
 
 void OLEDDisplay::update() {
+    static uint32_t updateCount = 0;
+    updateCount++;
+    if (updateCount <=10 || updateCount % 100 == 0) {  // Log first 10, then every 100
+        Serial.printf("[DISPLAY] update() #%u: displayOn=%d, mode=%d\n", updateCount, displayOn, currentMode);
+    }
+    
     if (!displayOn) {
+        if (updateCount <= 10) Serial.println("[DISPLAY] Skipping update - display OFF");
         return;
     }
     
@@ -167,6 +178,10 @@ void OLEDDisplay::update() {
     }
     
     display.sendBuffer();
+    
+    if (updateCount <= 5) {
+        Serial.println("[DISPLAY] Buffer sent to display");
+    }
 }
 
 bool OLEDDisplay::reinitialize() {
@@ -215,7 +230,8 @@ void OLEDDisplay::turnOff() {
     if (displayOn) {
         display.setPowerSave(1);
         displayOn = false;
-        Serial.println("[DISPLAY] Display OFF");
+        Serial.printf("[DISPLAY] Display OFF called (mode=%d, timeout=%lu, lastActivity=%lu, now=%lu)\n", 
+                      currentMode, (unsigned long)autoOffTimeout, (unsigned long)lastActivityTime, (unsigned long)millis());
     }
 }
 
@@ -238,10 +254,12 @@ void OLEDDisplay::setAutoOffTimeout(uint32_t timeoutMs) {
 void OLEDDisplay::showWelcome() {
     currentMode = MODE_WELCOME;
     resetAutoOffTimer();
-    update();
+    update();  // Must render during setup() before main loop starts
 }
 
 void OLEDDisplay::showScanningStatus(const char* frequency, uint8_t sf, uint8_t configIndex, uint8_t totalConfigs) {
+    Serial.printf("[DISPLAY] showScanningStatus: freq=%s, SF=%d, cfg=%d/%d\n", 
+                  frequency ? frequency : "NULL", sf, configIndex+1, totalConfigs);
     currentMode = MODE_SCANNING;
     // Safety: validate pointer before dereferencing
     if (frequency != nullptr && ((uintptr_t)frequency >= 0x3FC00000 && (uintptr_t)frequency < 0x40000000)) {
@@ -249,11 +267,19 @@ void OLEDDisplay::showScanningStatus(const char* frequency, uint8_t sf, uint8_t 
         info.frequency[sizeof(info.frequency) - 1] = '\0';  // Ensure null termination
     } else {
         strcpy(info.frequency, "ERR");
+        Serial.printf("[DISPLAY] Invalid frequency pointer: 0x%p\n", frequency);
     }
     info.sf = sf;
     info.configIndex = configIndex;
     info.totalConfigs = totalConfigs;
     resetAutoOffTimer();
+    
+    // Force display to wake up and reset contrast
+    display.setPowerSave(0);
+    display.setContrast(255);
+    
+    Serial.printf("[DISPLAY] Info set: freq='%s', SF=%d, cfg=%d/%d\n", 
+                  info.frequency, info.sf, info.configIndex+1, info.totalConfigs);
 }
 
 void OLEDDisplay::showPacketReceived(float rssi, float snr, const char* protocol, uint32_t nodeId) {
@@ -311,9 +337,19 @@ void OLEDDisplay::renderWelcome() {
     
     display.setFont(u8g2_font_6x10_tf);
     display.drawStr(15, 55, "Initializing...");
+    
+    // Show button instructions at bottom
+    display.setFont(u8g2_font_5x7_tf);
+    display.drawStr(0, 62, "Tap:Hide Hold:OFF");
 }
 
 void OLEDDisplay::renderScanning() {
+    static uint8_t renderCount = 0;
+    if (renderCount++ < 3) {
+        Serial.printf("[DISPLAY] renderScanning #%d: freq='%s', SF=%d, cfg=%d/%d, pkts=%u\n",
+                      renderCount, info.frequency, info.sf, info.configIndex+1, info.totalConfigs, info.totalPackets);
+    }
+    
     drawHeader("SCANNING");
     
     display.setFont(u8g2_font_6x10_tf);
@@ -334,8 +370,6 @@ void OLEDDisplay::renderScanning() {
     // Button help at bottom
     display.setFont(u8g2_font_5x7_tf);
     display.drawStr(0, 62, "Tap:Hide Hold:OFF");
-    
-    display.sendBuffer();
 }
 
 void OLEDDisplay::renderPacketInfo() {
