@@ -11,7 +11,7 @@
 // Note: V3 uses different pins than V2!
 #define OLED_SDA    17  // GPIO 17 for V3
 #define OLED_SCL    18  // GPIO 18 for V3
-#define OLED_RST    21  // GPIO 21 (RST) - REQUIRED for this board variant!
+#define OLED_RST    21  // GPIO 21 (RST) - REQUIRED for this board variant! DO NOT SHARE WITH OTHER PERIPHERALS
 #define OLED_VEXT   36  // GPIO 36 (Vext - power control, active LOW)
 
 /**

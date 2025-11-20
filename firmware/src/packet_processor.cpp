@@ -131,6 +131,47 @@ void PacketProcessor::handleReconPacket(const PacketInfo& info, const uint8_t* d
     
     // Track RF activity (for situational awareness)
     reconState.updateRFActivity(reconState.scanState.currentConfig, rssi);
+    
+    #ifdef ENABLE_PSK_TESTING
+    // Try decryption and capture packet for replay (same as targeted mode)
+    if (length >= 20) {
+        const uint8_t* payload = data;
+        size_t payloadLen = length;
+        
+        // Look for Meshtastic header if not at start
+        if (data[0] != 0xFF && length >= 16) {
+            for (size_t i = 0; i < min(length - 4, size_t(20)); i++) {
+                if (data[i] == 0xFF && data[i+1] == 0xFF && data[i+2] == 0xFF && data[i+3] == 0xFF) {
+                    payload = data + i;
+                    payloadLen = length - i;
+                    break;
+                }
+            }
+        }
+        
+        // Attempt decryption
+        PSKDecryption::testDefaultPSKs(payload, payloadLen);
+        
+        // Extract node ID from packet header if it's a Meshtastic packet
+        uint32_t nodeId = info.nodeId;
+        if (nodeId == 0 && payloadLen >= 16 && payload[0] == 0xFF && payload[1] == 0xFF && 
+            payload[2] == 0xFF && payload[3] == 0xFF) {
+            nodeId = ((uint32_t)payload[4]) | ((uint32_t)payload[5] << 8) |
+                     ((uint32_t)payload[6] << 16) | ((uint32_t)payload[7] << 24);
+        }
+        
+        // Auto-capture packet for replay with decrypted text and node ID
+        const char* decryptedText = PSKDecryption::getLastMessage();
+        if (reconState.capturePacketForReplay(data, length, reconState.scanState.currentConfig, 
+                                               rssi, info.protocol, decryptedText, nodeId)) {
+            if (decryptedText && decryptedText[0] != '\0') {
+                Serial.printf("   ✅ Packet auto-captured with text: \"%s\"\n", decryptedText);
+            } else {
+                Serial.println("   ✅ Packet auto-captured");
+            }
+        }
+    }
+    #endif
 }
 
 // Handle packet in targeted capture mode

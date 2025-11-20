@@ -27,6 +27,7 @@ A production-ready LoRa packet capture and analysis platform for security resear
 - **OLED I2C**: SDA=GPIO 17, SCL=GPIO 18, RST=GPIO 21
 - **Power Control**: Vext=GPIO 36 (active LOW for V3)
 - **Button**: GPIO 0
+- **SD Card** (optional): CS=GPIO 5 (SPI uses default pins: SCK=9, MISO=11, MOSI=10)
 
 #### Features
 - **128x64 SSD1306 display** (I2C 0x3C)

@@ -213,6 +213,15 @@ void OLEDDisplay::turnOn() {
 
 void OLEDDisplay::turnOff() {
     if (displayOn) {
+        // Show "Display OFF" message briefly before turning off
+        display.clearBuffer();
+        display.setFont(u8g2_font_10x20_tf);
+        display.drawStr(5, 30, "Display OFF");
+        display.setFont(u8g2_font_6x10_tf);
+        display.drawStr(8, 50, "(Device running)");
+        display.sendBuffer();
+        delay(800);  // Show message for 800ms
+        
         display.setPowerSave(1);
         displayOn = false;
         Serial.println("[DISPLAY] Display OFF");
@@ -238,15 +247,14 @@ void OLEDDisplay::setAutoOffTimeout(uint32_t timeoutMs) {
 void OLEDDisplay::showWelcome() {
     currentMode = MODE_WELCOME;
     resetAutoOffTimer();
-    update();
+    update();  // Must render during setup() before main loop starts
 }
 
 void OLEDDisplay::showScanningStatus(const char* frequency, uint8_t sf, uint8_t configIndex, uint8_t totalConfigs) {
     currentMode = MODE_SCANNING;
-    // Safety: validate pointer before dereferencing
-    if (frequency != nullptr && ((uintptr_t)frequency >= 0x3FC00000 && (uintptr_t)frequency < 0x40000000)) {
+    if (frequency != nullptr) {
         strncpy(info.frequency, frequency, sizeof(info.frequency) - 1);
-        info.frequency[sizeof(info.frequency) - 1] = '\0';  // Ensure null termination
+        info.frequency[sizeof(info.frequency) - 1] = '\0';
     } else {
         strcpy(info.frequency, "ERR");
     }
@@ -311,6 +319,10 @@ void OLEDDisplay::renderWelcome() {
     
     display.setFont(u8g2_font_6x10_tf);
     display.drawStr(15, 55, "Initializing...");
+    
+    // Show button instructions at bottom
+    display.setFont(u8g2_font_5x7_tf);
+    display.drawStr(0, 62, "BTN:Off Long:Shutdown");
 }
 
 void OLEDDisplay::renderScanning() {
@@ -333,9 +345,7 @@ void OLEDDisplay::renderScanning() {
     
     // Button help at bottom
     display.setFont(u8g2_font_5x7_tf);
-    display.drawStr(0, 62, "Tap:Hide Hold:OFF");
-    
-    display.sendBuffer();
+    display.drawStr(0, 62, "BTN:Off Long:Shutdown");
 }
 
 void OLEDDisplay::renderPacketInfo() {
