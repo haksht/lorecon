@@ -63,15 +63,12 @@ void setup() {
     
 #ifdef ENABLE_PSK_TESTING
     Serial.println("\n🧪 Running PSK Decryption Tests...");
-    reconTool.refreshDisplay();  // Keep display alive during PSK tests
     PSKTests::runAll();
     delay(2000);  // Give time to read results
-    reconTool.refreshDisplay();  // Refresh again after PSK tests
 #endif
 
     // Initialize WiFi Access Point
     LOG_INFO("\n=== Starting WiFi & Web Server ===");
-    reconTool.refreshDisplay();  // Keep display alive during WiFi init
     if (wifiManager.startAP(WIFI_AP_SSID, WIFI_AP_PASSWORD)) {
         // Start mDNS for easy access
         wifiManager.startMDNS(MDNS_HOSTNAME);

@@ -125,22 +125,11 @@ bool OLEDDisplay::initialize() {
     Serial.printf("[DISPLAY] OLED ready (128x64, I2C: SDA=%d, SCL=%d, Vext=%d)\n", 
                   OLED_SDA, OLED_SCL, OLED_VEXT);
     
-    // Explicitly ensure display is not in power save mode
-    display.setPowerSave(0);
-    Serial.println("[DISPLAY] Power save disabled");
-    
     return true;
 }
 
 void OLEDDisplay::update() {
-    static uint32_t updateCount = 0;
-    updateCount++;
-    if (updateCount <=10 || updateCount % 100 == 0) {  // Log first 10, then every 100
-        Serial.printf("[DISPLAY] update() #%u: displayOn=%d, mode=%d\n", updateCount, displayOn, currentMode);
-    }
-    
     if (!displayOn) {
-        if (updateCount <= 10) Serial.println("[DISPLAY] Skipping update - display OFF");
         return;
     }
     
@@ -178,10 +167,6 @@ void OLEDDisplay::update() {
     }
     
     display.sendBuffer();
-    
-    if (updateCount <= 5) {
-        Serial.println("[DISPLAY] Buffer sent to display");
-    }
 }
 
 bool OLEDDisplay::reinitialize() {
@@ -228,10 +213,18 @@ void OLEDDisplay::turnOn() {
 
 void OLEDDisplay::turnOff() {
     if (displayOn) {
+        // Show "Display OFF" message briefly before turning off
+        display.clearBuffer();
+        display.setFont(u8g2_font_10x20_tf);
+        display.drawStr(5, 30, "Display OFF");
+        display.setFont(u8g2_font_6x10_tf);
+        display.drawStr(8, 50, "(Device running)");
+        display.sendBuffer();
+        delay(800);  // Show message for 800ms
+        
         display.setPowerSave(1);
         displayOn = false;
-        Serial.printf("[DISPLAY] Display OFF called (mode=%d, timeout=%lu, lastActivity=%lu, now=%lu)\n", 
-                      currentMode, (unsigned long)autoOffTimeout, (unsigned long)lastActivityTime, (unsigned long)millis());
+        Serial.println("[DISPLAY] Display OFF");
     }
 }
 
@@ -258,28 +251,17 @@ void OLEDDisplay::showWelcome() {
 }
 
 void OLEDDisplay::showScanningStatus(const char* frequency, uint8_t sf, uint8_t configIndex, uint8_t totalConfigs) {
-    Serial.printf("[DISPLAY] showScanningStatus: freq=%s, SF=%d, cfg=%d/%d\n", 
-                  frequency ? frequency : "NULL", sf, configIndex+1, totalConfigs);
     currentMode = MODE_SCANNING;
-    // Safety: validate pointer before dereferencing
-    if (frequency != nullptr && ((uintptr_t)frequency >= 0x3FC00000 && (uintptr_t)frequency < 0x40000000)) {
+    if (frequency != nullptr) {
         strncpy(info.frequency, frequency, sizeof(info.frequency) - 1);
-        info.frequency[sizeof(info.frequency) - 1] = '\0';  // Ensure null termination
+        info.frequency[sizeof(info.frequency) - 1] = '\0';
     } else {
         strcpy(info.frequency, "ERR");
-        Serial.printf("[DISPLAY] Invalid frequency pointer: 0x%p\n", frequency);
     }
     info.sf = sf;
     info.configIndex = configIndex;
     info.totalConfigs = totalConfigs;
     resetAutoOffTimer();
-    
-    // Force display to wake up and reset contrast
-    display.setPowerSave(0);
-    display.setContrast(255);
-    
-    Serial.printf("[DISPLAY] Info set: freq='%s', SF=%d, cfg=%d/%d\n", 
-                  info.frequency, info.sf, info.configIndex+1, info.totalConfigs);
 }
 
 void OLEDDisplay::showPacketReceived(float rssi, float snr, const char* protocol, uint32_t nodeId) {
@@ -340,16 +322,10 @@ void OLEDDisplay::renderWelcome() {
     
     // Show button instructions at bottom
     display.setFont(u8g2_font_5x7_tf);
-    display.drawStr(0, 62, "Tap:Hide Hold:OFF");
+    display.drawStr(0, 62, "BTN:Off Long:Shutdown");
 }
 
 void OLEDDisplay::renderScanning() {
-    static uint8_t renderCount = 0;
-    if (renderCount++ < 3) {
-        Serial.printf("[DISPLAY] renderScanning #%d: freq='%s', SF=%d, cfg=%d/%d, pkts=%u\n",
-                      renderCount, info.frequency, info.sf, info.configIndex+1, info.totalConfigs, info.totalPackets);
-    }
-    
     drawHeader("SCANNING");
     
     display.setFont(u8g2_font_6x10_tf);
@@ -369,7 +345,7 @@ void OLEDDisplay::renderScanning() {
     
     // Button help at bottom
     display.setFont(u8g2_font_5x7_tf);
-    display.drawStr(0, 62, "Tap:Hide Hold:OFF");
+    display.drawStr(0, 62, "BTN:Off Long:Shutdown");
 }
 
 void OLEDDisplay::renderPacketInfo() {
