@@ -14,7 +14,10 @@ Passive LoRa reconnaissance firmware for ESP32-S3 + SX1262 hardware. The ESP32 h
 ## Current Status
 
 - **Branch:** `main`
-- **Hardware:** ESP32-S3 DevKitC-1, SX1262 front-end, optional OLED + SD card.
+- **Hardware:** **Heltec WiFi LoRa 32 V3** (ESP32-S3 + SX1262 + OLED). Optional SD card.
+  - ✅ **Fully Supported:** Heltec WiFi LoRa 32 V3 (tested, production-ready)
+  - ⚠️ **Not Supported:** T-Deck variants (hardware incompatibilities - see `docs/TDECK_PLUS_INVESTIGATION.md` for details)
+  - ℹ️ **Note:** Codebase is Heltec-specific. Other boards would require porting.
 - **Focus:** Passive reconnaissance (scan, target, capture, replay, export). All legacy offensive/stress docs and code paths have been removed.
 - **Web UI:** A new lightweight interface served from LittleFS. It exposes every serial command as a button or action so the phone experience equals the USB menu.
 

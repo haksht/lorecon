@@ -251,7 +251,9 @@ void LoRaReconTool::handlePacketReception() {
         }
         
         // Queue the packet for processing
-        if (!packetProcessor->queuePacket(tempBuffer, length, rssi, snr)) {
+        uint8_t configIndex = reconState.scanState.currentConfig;
+        float frequency = reconState.getScanConfig(configIndex).frequency;
+        if (!packetProcessor->queuePacket(tempBuffer, length, rssi, snr, configIndex, frequency)) {
             Serial.println("[WARNING] Packet queue full - packet dropped!");
         }
     }

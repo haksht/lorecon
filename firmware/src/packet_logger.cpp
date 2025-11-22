@@ -14,6 +14,8 @@ PacketLogger packetLogger;
 
 PacketLogger::PacketLogger() 
     : sdAvailable(false)
+    , currentSessionFile("")
+    , currentSessionId("")
     , sessionStartTime(0)
     , packetsLogged(0)
 {
@@ -86,6 +88,10 @@ bool PacketLogger::startSession(const char* sessionName) {
     } else {
         currentSessionFile = String(sessionName) + ".csv";
     }
+    currentSessionId = currentSessionFile;
+    if (currentSessionId.endsWith(".csv")) {
+        currentSessionId.remove(currentSessionId.length() - 4);
+    }
     
     // Create directory if needed
     if (!SD.exists("/logs")) {
@@ -124,27 +130,66 @@ void PacketLogger::endSession() {
                   packetsLogged, duration);
     
     currentSessionFile = "";
+    currentSessionId = "";
     sessionStartTime = 0;
 }
 
-bool PacketLogger::logPacket(const uint8_t* data, size_t length, float rssi, 
-                             float snr, const char* protocol, uint32_t nodeId) {
+bool PacketLogger::logPacket(const PacketLogRecord& record, const uint8_t* data, size_t length) {
     if (!sessionFile) {
         return false;
     }
     
-    // CSV format: timestamp,nodeId,protocol,rssi,snr,length,hex_data
-    sessionFile.print(millis());
+    sessionFile.print(record.timestampMs);
     sessionFile.print(",");
-    sessionFile.printf("0x%08X", nodeId);
+    sessionFile.print(currentSessionId);
     sessionFile.print(",");
-    sessionFile.print(protocol);
+    if (record.nodeId != 0) {
+        char nodeStr[9];
+        snprintf(nodeStr, sizeof(nodeStr), "%08X", record.nodeId);
+        sessionFile.print(nodeStr);
+    }
     sessionFile.print(",");
-    sessionFile.print(rssi, 1);
+    sessionFile.print(record.protocol ? record.protocol : "Unknown");
     sessionFile.print(",");
-    sessionFile.print(snr, 1);
+    sessionFile.print(record.frequencyMHz, 3);
     sessionFile.print(",");
-    sessionFile.print(length);
+    sessionFile.print(record.configIndex);
+    sessionFile.print(",");
+    sessionFile.print(record.rssiDbm, 1);
+    sessionFile.print(",");
+    sessionFile.print(record.snrDb, 1);
+    sessionFile.print(",");
+    sessionFile.print(record.lengthBytes);
+    sessionFile.print(",");
+    sessionFile.print(record.packetType ? record.packetType : "unknown");
+    sessionFile.print(",");
+    sessionFile.print(record.encrypted ? 1 : 0);
+    sessionFile.print(",");
+    sessionFile.print(record.pskResult ? record.pskResult : "none");
+    sessionFile.print(",");
+    if (record.pskId && record.pskId[0] != '\0') {
+        sessionFile.print(record.pskId);
+    }
+    sessionFile.print(",");
+    if (record.hasPosition) {
+        sessionFile.print(record.latitudeDeg, 6);
+        sessionFile.print(",");
+        sessionFile.print(record.longitudeDeg, 6);
+        sessionFile.print(",");
+        sessionFile.print(record.altitudeM, 1);
+    } else {
+        sessionFile.print(",,");
+    }
+    sessionFile.print(",");
+    if (record.hopCount >= 0) {
+        sessionFile.print(record.hopCount);
+    }
+    sessionFile.print(",");
+    sessionFile.print(record.isRouter ? 1 : 0);
+    sessionFile.print(",");
+    if (record.powerClass >= 0) {
+        sessionFile.print(record.powerClass);
+    }
     sessionFile.print(",");
     sessionFile.println(bytesToHex(data, length));
     
@@ -298,16 +343,10 @@ void PacketLogger::printStatus() {
 // Private helper methods
 
 String PacketLogger::generateSessionFilename() {
-    // Format: recon_HHMMSS.csv
-    uint32_t seconds = millis() / 1000;
-    uint32_t hours = (seconds / 3600) % 24;
-    uint32_t minutes = (seconds / 60) % 60;
-    uint32_t secs = seconds % 60;
-    
+    // Format: snf_<millis>.csv (millis since boot keeps filenames unique)
+    uint32_t nowMs = millis();
     char filename[32];
-    snprintf(filename, sizeof(filename), "recon_%02u%02u%02u.csv", 
-             hours, minutes, secs);
-    
+    snprintf(filename, sizeof(filename), "snf_%lu.csv", static_cast<unsigned long>(nowMs));
     return String(filename);
 }
 
@@ -316,7 +355,7 @@ bool PacketLogger::writeCSVHeader() {
         return false;
     }
     
-    sessionFile.println("timestamp,nodeId,protocol,rssi,snr,length,hex_data");
+    sessionFile.println("timestamp_ms,session_id,node_id_hex,protocol,frequency_mhz,config_index,rssi_dbm,snr_db,length_bytes,packet_type,encrypted,psk_result,psk_id,lat_deg,lon_deg,alt_m,hop_count,is_router,power_class,raw_hex");
     sessionFile.flush();
     return true;
 }

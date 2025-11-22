@@ -19,7 +19,8 @@ PacketProcessor::PacketProcessor() {
 }
 
 // Queue a packet for processing
-bool PacketProcessor::queuePacket(const uint8_t* data, size_t length, float rssi, float snr) {
+bool PacketProcessor::queuePacket(const uint8_t* data, size_t length, float rssi, float snr,
+                                  uint8_t configIndex, float frequencyMHz) {
     if (isQueueFull()) {
         Serial.println("[QUEUE] Full - dropping packet!");
         return false;
@@ -31,6 +32,8 @@ bool PacketProcessor::queuePacket(const uint8_t* data, size_t length, float rssi
     qp.rssi = rssi;
     qp.snr = snr;
     qp.timestamp = millis();
+    qp.configIndex = configIndex;
+    qp.frequencyMHz = frequencyMHz;
     packetQueue.push(qp);
     
     return true;
@@ -80,8 +83,13 @@ void PacketProcessor::processSinglePacket(const QueuedPacket& qp, OLEDDisplay* d
     #endif
     
     // Enhanced packet analysis for Meshtastic (extract GPS position silently)
+    bool positionExtracted = false;
+    const GeoPoint* loggedPoint = nullptr;
     if (strcmp(info.protocol, "Meshtastic") == 0) {
-        geoIntel.extractPosition(qp.data, qp.length, info.nodeId);
+        positionExtracted = geoIntel.extractPosition(qp.data, qp.length, info.nodeId);
+        if (positionExtracted && info.nodeId != 0) {
+            loggedPoint = geoIntel.findNodePosition(info.nodeId);
+        }
     }
     
     // Track as targetable device in ALL modes if we have a real node ID
@@ -100,7 +108,29 @@ void PacketProcessor::processSinglePacket(const QueuedPacket& qp, OLEDDisplay* d
     
     // Log to SD card if available
     if (packetLogger.isAvailable()) {
-        packetLogger.logPacket(qp.data, qp.length, qp.rssi, qp.snr, info.protocol, info.nodeId);
+        PacketLogRecord record;
+        record.timestampMs = qp.timestamp;
+        record.nodeId = info.nodeId;
+        record.protocol = info.protocol;
+        record.frequencyMHz = qp.frequencyMHz;
+        record.configIndex = qp.configIndex;
+        record.rssiDbm = qp.rssi;
+        record.snrDb = qp.snr;
+        record.lengthBytes = qp.length;
+        record.packetType = positionExtracted ? "position" : (info.hasMessage ? "text" : (info.isRouter ? "routing" : "unknown"));
+        record.encrypted = info.hasMessage;
+        record.pskResult = info.hasMessage ? "hit" : "none";
+        record.pskId = nullptr;
+        record.hasPosition = positionExtracted && loggedPoint;
+        if (record.hasPosition) {
+            record.latitudeDeg = loggedPoint->latitude;
+            record.longitudeDeg = loggedPoint->longitude;
+            record.altitudeM = loggedPoint->altitude;
+        }
+        record.hopCount = -1;
+        record.isRouter = info.isRouter;
+        record.powerClass = static_cast<int>(info.powerClass);
+        packetLogger.logPacket(record, qp.data, qp.length);
     }
     
     // Emit packet event if callback is registered
@@ -119,8 +149,8 @@ void PacketProcessor::processSinglePacket(const QueuedPacket& qp, OLEDDisplay* d
 }
 
 // Handle packet in reconnaissance mode
-void PacketProcessor::handleReconPacket(const PacketInfo& info, const uint8_t* data, size_t length,
-                                       float rssi, float snr, OLEDDisplay* display) {
+void PacketProcessor::handleReconPacket(const PacketInfo& info, const uint8_t* data, size_t length, 
+                                        float rssi, float snr, OLEDDisplay* display) {
     Serial.printf("[RECON] Packet #%d: %s, %d bytes, %.1f dBm, %.1f dB SNR\n",
                   reconState.scanState.totalPackets, info.protocol, length, rssi, snr);
     
@@ -175,8 +205,8 @@ void PacketProcessor::handleReconPacket(const PacketInfo& info, const uint8_t* d
 }
 
 // Handle packet in targeted capture mode
-void PacketProcessor::handleTargetedPacket(const PacketInfo& info, const uint8_t* data, size_t length,
-                                          float rssi, float snr, OLEDDisplay* display) {
+void PacketProcessor::handleTargetedPacket(const PacketInfo& info, const uint8_t* data, size_t length, 
+                                           float rssi, float snr, OLEDDisplay* display) {
     // Show ALL packets with full decryption to find text messages
     if (length < 40) {
         Serial.printf("\n[SMALL %d bytes] ", length);

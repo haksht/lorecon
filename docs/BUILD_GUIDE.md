@@ -192,7 +192,10 @@ pio --version
 
 ### **⚠️ Build System Requirements**
 - **PlatformIO Core**: This system requires PlatformIO (not Arduino IDE)
-- **ESP32-S3**: Heltec WiFi LoRa 32 V3 or compatible hardware
+- **Supported Hardware**:
+  - ✅ **Heltec WiFi LoRa 32 V3** (ESP32-S3 + SX1262 + OLED) - ONLY supported board
+  - ⚠️ **T-Deck variants** - Not supported. No implementation exists. See `TDECK_PLUS_INVESTIGATION.md` for investigation findings.
+  - ℹ️ **Other boards** - Would require porting (display drivers, pin configs, etc.)
 - **RadioLib 6.4.2**: Specific version required for SX1262 support
 - **ArduinoJson 7.0.4**: For data serialization
 

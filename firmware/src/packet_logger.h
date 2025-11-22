@@ -20,6 +20,48 @@
 // SD card configuration (adjust for your hardware)
 #define SD_CS_PIN 5  // Chip select pin for SD card (GPIO 5, not 21 which conflicts with OLED_RST)
 
+struct PacketLogRecord {
+    uint64_t timestampMs;
+    uint32_t nodeId;
+    const char* protocol;
+    float frequencyMHz;
+    uint8_t configIndex;
+    float rssiDbm;
+    float snrDb;
+    size_t lengthBytes;
+    const char* packetType;
+    bool encrypted;
+    const char* pskResult;
+    const char* pskId;
+    bool hasPosition;
+    double latitudeDeg;
+    double longitudeDeg;
+    double altitudeM;
+    int hopCount;
+    bool isRouter;
+    int powerClass;
+
+    PacketLogRecord()
+        : timestampMs(0)
+        , nodeId(0)
+        , protocol("Unknown")
+        , frequencyMHz(0.0f)
+        , configIndex(0)
+        , rssiDbm(0.0f)
+        , snrDb(0.0f)
+        , lengthBytes(0)
+        , packetType("unknown")
+        , encrypted(false)
+        , pskResult("none")
+        , pskId(nullptr)
+        , hasPosition(false)
+        , latitudeDeg(0.0)
+        , longitudeDeg(0.0)
+        , altitudeM(0.0)
+        , hopCount(-1)
+        , isRouter(false)
+        , powerClass(-1) {}
+};
 /**
  * PacketLogger - Logs reconnaissance data to SD card
  * 
@@ -45,8 +87,7 @@ public:
     String getCurrentSessionFile() const { return currentSessionFile; }
     
     // Logging methods
-    bool logPacket(const uint8_t* data, size_t length, float rssi, float snr, 
-                   const char* protocol, uint32_t nodeId = 0);
+    bool logPacket(const PacketLogRecord& record, const uint8_t* data, size_t length);
     bool logDevice(uint32_t nodeId, const char* deviceType, const char* protocol,
                    float avgRSSI, float bestRSSI, uint8_t configIndex);
     bool logGPSPosition(uint32_t nodeId, double latitude, double longitude, 
@@ -65,6 +106,7 @@ private:
     bool sdAvailable;
     File sessionFile;
     String currentSessionFile;
+        String currentSessionId;
     uint32_t sessionStartTime;
     uint32_t packetsLogged;
     

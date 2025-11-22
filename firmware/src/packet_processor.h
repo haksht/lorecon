@@ -51,7 +51,8 @@ public:
     }
     
     // Queue management
-    bool queuePacket(const uint8_t* data, size_t length, float rssi, float snr);
+    bool queuePacket(const uint8_t* data, size_t length, float rssi, float snr,
+                     uint8_t configIndex, float frequencyMHz);
     void processQueue(OLEDDisplay* display = nullptr);
     size_t getQueueSize() const { return packetQueue.size(); }
     bool isQueueFull() const { return packetQueue.size() >= Config::PacketProcessing::QUEUE_SIZE; }
