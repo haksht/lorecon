@@ -265,10 +265,10 @@ class ReconApp {
         
         // Check if in targeted mode (either frequency or device)
         if (mode.includes('target') && target.configIndex !== undefined) {
-            // Distinguish between frequency-only and device targeting
-            // If nodeId exists, it's device targeting; otherwise frequency-only
+            // Use targetedByDevice flag from firmware to distinguish modes
+            const isDeviceTargeting = target.targetedByDevice === true;
             
-            if (target.nodeId) {
+            if (isDeviceTargeting && target.nodeId) {
                 // Device targeting mode
                 let html = '<div class="target-item">';
                 html += `<strong>Node:</strong> 0x${target.nodeId}`;
@@ -293,7 +293,7 @@ class ReconApp {
                 this.el.targetInfo.style.display = 'block';
                 
             } else {
-                // Frequency targeting mode (no specific device)
+                // Frequency targeting mode
                 const configNum = target.configIndex + 1;
                 const freq = target.frequency ? target.frequency.toFixed(3) : '?';
                 const protocol = target.protocol || 'Unknown';
@@ -307,6 +307,15 @@ class ReconApp {
                 if (target.bandwidth) {
                     html += ` | <strong>BW:</strong> ${target.bandwidth} kHz`;
                 }
+                
+                // Show device info if one was found on this frequency (but keep "Frequency Targeting" header)
+                if (target.nodeId) {
+                    html += ` | <strong>Device Found:</strong> 0x${target.nodeId}`;
+                    if (target.packetCount) {
+                        html += ` (${target.packetCount} pkts)`;
+                    }
+                }
+                
                 html += '</div>';
                 
                 // Update header text

@@ -271,6 +271,7 @@ void LoRaReconTool::startTargetedCapture(uint8_t deviceIndex) {
     
     reconState.scanState.mode = MODE_TARGETED_CAPTURE;
     reconState.scanState.targetConfig = target.configIndex;
+    reconState.scanState.targetedByDevice = true;  // Device targeting
     reconState.scanState.currentConfig = target.configIndex;
     
     Serial.println("\n" + String('=').substring(0,60));
@@ -329,6 +330,7 @@ void LoRaReconTool::startFrequencyTargeting(uint8_t configIndex) {
     // Set up targeting mode
     reconState.scanState.mode = MODE_TARGETED_CAPTURE;
     reconState.scanState.targetConfig = configIndex;
+    reconState.scanState.targetedByDevice = false;  // Frequency targeting
     reconState.scanState.currentConfig = configIndex;
     
     if (radioController->applyConfig(cfg)) {
