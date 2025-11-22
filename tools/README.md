@@ -134,3 +134,28 @@ Currently displays only. Future enhancements:
 ---
 
 **Perfect companion tool for ESP32 LoRa security research and conference demonstrations.**
+
+## Session Analyzer (SD Log Dashboard)
+
+Offline dashboard for SD-card CSV captures produced by the firmware's packet logger.
+
+### Highlights
+
+- **Portable story** – replay any field capture without needing live RF traffic.
+- **2×2 dashboard** – timeline, top devices, frequency usage, and GPS scatter in one view.
+- **Analyzer-friendly CSV** – consumes the enhanced schema written by `PacketLogger`.
+
+### Usage
+
+```bash
+python tools/session_analyzer.py /path/to/logs/snf_123456.csv \
+   --bin-seconds 60 --top-n 8
+```
+
+### Workflow
+
+1. Insert SD card after a field session and copy the generated `snf_*.csv` file.
+2. Run `session_analyzer.py` with the CSV path (adjust `--bin-seconds` for different timelines).
+3. Project the matplotlib window or save a screenshot for slides.
+
+> Tip: pair the analyzer with live captures for a two-part conference demo—live RF when available, SD replay when the spectrum is quiet.

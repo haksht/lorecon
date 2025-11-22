@@ -1,3 +1,5 @@
+#ifdef BOARD_HELTEC_V3
+
 #include "oled_display.h"
 #include <Wire.h>
 #include <esp_task_wdt.h>  // For watchdog reset during init
@@ -420,3 +422,5 @@ void OLEDDisplay::renderShutdown() {
     display.drawStr(5, 45, "Safe to remove");
     display.drawStr(25, 60, "power now");
 }
+
+#endif // BOARD_HELTEC_V3

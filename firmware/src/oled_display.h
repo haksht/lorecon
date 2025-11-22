@@ -1,6 +1,8 @@
 #ifndef OLED_DISPLAY_H
 #define OLED_DISPLAY_H
 
+#ifdef BOARD_HELTEC_V3
+
 #include <Arduino.h>
 #include <U8g2lib.h>
 #include "data_structures.h"
@@ -101,4 +103,5 @@ private:
     void clearInfo();
 };
 
+#endif // BOARD_HELTEC_V3
 #endif // OLED_DISPLAY_H

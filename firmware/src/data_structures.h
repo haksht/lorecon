@@ -40,6 +40,8 @@ struct QueuedPacket {
     float rssi;
     float snr;
     uint32_t timestamp;
+    uint8_t configIndex;
+    float frequencyMHz;
 };
 
 // Frequency scan configuration
