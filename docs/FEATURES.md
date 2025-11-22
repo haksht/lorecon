@@ -49,15 +49,21 @@ A production-ready LoRa packet capture and analysis platform for security resear
 **Architecture**: LoRaReconTool (orchestrator) + ReconState (tracking)  
 **Files**: `lora_recon_tool.cpp/.h`, `recon_state.cpp/.h`
 
-- **16 scan configurations** (Meshtastic, LoRaWAN, ISM band)
-- **Sequential frequency scanning** (12s dwell time per config)
-- **RF activity monitoring** (RSSI tracking, peak detection)
+- **26 scan configurations** covering comprehensive US LoRa spectrum:
+  - **Meshtastic** (11 configs): ShortFast/Slow, MedFast/Slow, LongFast/Slow, VLongSlow variants across 902-907 MHz
+  - **LoRaWAN/TTN** (7 configs): The Things Network uplink channels 903.9-911.9 MHz
+  - **Helium Network** (6 configs): Uplink (904.3, 904.5 MHz) + Downlink (923-925 MHz)
+  - **ISM Band** (2 configs): Generic 915/920 MHz experimental frequencies
+- **Sequential frequency scanning** (~12s dwell time per config, ~5 minute full cycle)
+- **RF activity monitoring** (RSSI tracking, peak detection per config)
 - **Device enumeration** (node IDs, signal strength, device types)
-- **Protocol detection** (Meshtastic, LoRaWAN, generic)
-- **Interactive targeting** (select discovered devices for focused capture)
+- **Protocol detection** (Meshtastic, LoRaWAN, Helium, generic)
+- **Interactive targeting** (select discovered devices or frequencies for focused capture)
 - **Resume capability** ('r' command keeps discovered devices)
 
-**What it does**: Automatically scans 16 LoRa configurations to discover active devices in your area, tracks signal strength, and lets you target specific devices for deeper analysis. Resume feature allows restarting scans without losing device history.
+**What it does**: Automatically scans 26 LoRa configurations to discover active devices across Meshtastic mesh networks, The Things Network (TTN) gateways, Helium hotspots, and experimental ISM band activity. Tracks signal strength and lets you target specific devices or frequencies for deeper analysis. Resume feature allows restarting scans without losing device history.
+
+**Network Coverage**: Optimized for US frequency plan (902-928 MHz). Includes all common Meshtastic modem presets, TTN uplink channels, and Helium Network uplink/downlink frequencies.
 
 ---
 
@@ -229,8 +235,9 @@ Reduces serial output by 95% to minimize packet processing time and capture gaps
 ### 🎨 User Interface (ESSENTIAL)
 **Status**: ✅ Production Ready  
 **Build Flag**: Always enabled  
-**Files**: `user_interface.cpp`, `ui_components.cpp`
+**Files**: `user_interface.cpp`, `ui_components.cpp`, `data/webapp/`
 
+#### Serial Interface
 - **Interactive menu system** (press 'm' to see options)
 - **Device selection** (numbered list, pick target)
 - **RF activity visualization** (frequency heatmap in serial output)
@@ -238,7 +245,48 @@ Reduces serial output by 95% to minimize packet processing time and capture gaps
 - **Device type analysis** (breakdown by device type, power class)
 - **Real-time statistics** (packet counts, uptime, error rates)
 
-**What it does**: Provides a clean, interactive interface via serial terminal for controlling the tool and viewing results.
+#### Web Interface (v2.1 - November 2025)
+**Files**: `data/webapp/index.html`, `js/app.js`, `js/audio.js`, `js/stats.js`, `js/packet-stream.js`, `js/network-map.js`
+
+**8-Tab Interface:**
+1. **Status Tab** - System overview with quick actions
+2. **Live Stream Tab** - Real-time packet feed with color-coded syntax highlighting
+3. **Stats Tab** - Protocol statistics with pie/bar chart visualization
+4. **Network Tab** - Interactive topology map with RSSI-based node positioning
+5. **Devices Tab** - Discovered devices with one-click targeting
+6. **Packets Tab** - Replay menu with transmission controls
+7. **Frequency Tab** - 26 scan configuration targeting
+8. **GPS Tab** - Geographic positions with KML/GeoJSON export
+
+**Audio Feedback System** ("Geiger Counter for LoRa"):
+- **Protocol-specific tones**: Meshtastic (800 Hz), LoRaWAN (600 Hz), Helium (500 Hz)
+- **Event sounds**: Device discovery (click), capture complete (two-tone)
+- **Toggle control**: Enable/disable via button in Live Stream tab
+- **Web Audio API**: Browser-native, no external dependencies
+
+**Protocol Statistics Dashboard**:
+- **Visual breakdown**: Pie chart (desktop) or bar chart (mobile)
+- **Color-coded**: Meshtastic (blue), LoRaWAN (orange), Helium (green)
+- **Live updates**: Real-time packet counts and percentages
+- **Canvas-based**: 60fps smooth animations
+
+**Live Packet Stream** (Wireshark-style):
+- **Syntax highlighting**: Color-coded fields (node ID, frequency, RSSI)
+- **Protocol badges**: Visual indicators for Meshtastic/LoRaWAN/Helium
+- **Encryption status**: 🔒 Encrypted / 📖 Plaintext badges
+- **RSSI indicators**: Color-coded signal strength (excellent/good/fair/poor)
+- **Decrypted text display**: Shows plaintext when PSK succeeds
+- **Controls**: Pause/resume, clear, auto-scroll
+
+**Interactive Network Map**:
+- **RSSI positioning**: Nodes placed by signal strength (50-300px from center)
+- **Canvas rendering**: 60fps smooth animations with hover effects
+- **Signal bars**: Visual signal strength indicators per node
+- **Click-to-details**: Node info panel with targeting button
+- **Protocol colors**: Meshtastic (blue), LoRaWAN (orange), Helium (green)
+- **Real-time updates**: 2-second polling for topology changes
+
+**What it does**: Provides three interface options (serial, OLED, web) for different use cases. Web UI adds impressive visualizations perfect for conference demonstrations and field deployment with mobile devices.
 
 ---
 
@@ -296,12 +344,18 @@ Reduces serial output by 95% to minimize packet processing time and capture gaps
 ## 🎯 Conference Demo Focus
 
 ### What We'll Demonstrate
-1. **Reconnaissance Phase** - Discover nearby LoRa devices (2-3 minutes)
-2. **Device Targeting** - Lock onto specific device for capture
-3. **Packet Replay** - Capture and retransmit packets
-4. **PSK Exploitation** - Decrypt default-key Meshtastic networks
-5. **Geographic Intelligence** - Show GPS positions on map
-6. **SD Card Logging** - Demonstrate field deployment with post-analysis
+1. **Live Network Visualization** ⭐ - Interactive network map showing devices appearing in real-time
+2. **Audio Feedback** ⭐ - "Geiger counter" effect with different tones per protocol (Meshtastic/LoRaWAN/Helium)
+3. **Protocol Statistics** ⭐ - Real-time pie chart breakdown of captured traffic
+4. **Live Packet Stream** ⭐ - Wireshark-style feed with syntax highlighting and encryption indicators
+5. **Reconnaissance Phase** - Discover nearby LoRa devices across 26 frequency configs (~5 min cycle)
+6. **Device Targeting** - Lock onto specific device for focused capture
+7. **Packet Replay** - Capture and retransmit packets
+8. **PSK Exploitation** - Decrypt default-key Meshtastic broadcasts and channel messages
+9. **Geographic Intelligence** - Show GPS positions extracted from decrypted POSITION_APP packets
+10. **Multi-Network Detection** - Demonstrate coverage of Meshtastic, TTN/LoRaWAN, and Helium Network
+
+⭐ = New visualization features added November 2025 for maximum audience impact
 
 ### What We Won't Demonstrate
 - Session management (not implemented)
