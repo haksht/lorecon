@@ -805,3 +805,111 @@ body {
     border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
+/* ======================
+   Network Map Visualization
+   ====================== */
+.network-map-container {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    overflow: hidden;
+}
+
+#network-canvas {
+    flex: 1;
+    width: 100%;
+    height: 100%;
+    cursor: default;
+}
+
+.node-details-panel {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    width: 320px;
+    max-height: calc(100% - 40px);
+    background: rgba(26, 26, 46, 0.95);
+    border: 2px solid var(--primary);
+    border-radius: var(--radius);
+    padding: 1.5rem;
+    display: none;
+    overflow-y: auto;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(10px);
+}
+
+.node-details-panel h3 {
+    color: var(--primary);
+    margin-bottom: 1rem;
+    font-size: 1.2rem;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 0.5rem;
+}
+
+.node-details-panel .detail-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.node-details-panel .detail-row:last-of-type {
+    border-bottom: none;
+}
+
+.node-details-panel .label {
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+}
+
+.node-details-panel .value {
+    color: var(--text-primary);
+    font-weight: 600;
+    text-align: right;
+    font-family: 'Courier New', monospace;
+}
+
+.node-details-panel .btn-primary {
+    width: 100%;
+    margin-top: 1rem;
+    padding: 0.75rem;
+    background: var(--primary);
+    color: white;
+    border: none;
+    border-radius: var(--radius);
+    cursor: pointer;
+    font-size: 0.95rem;
+    font-weight: 600;
+    transition: all 0.2s;
+}
+
+.node-details-panel .btn-primary:hover {
+    background: #3a7bc8;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(74, 144, 226, 0.4);
+}
+
+.node-details-panel .btn-primary:active {
+    transform: translateY(0);
+}
+
+/* Mobile responsive */
+@media (max-width: 768px) {
+    .node-details-panel {
+        width: 280px;
+        right: 10px;
+        top: 10px;
+        padding: 1rem;
+        max-height: calc(100% - 20px);
+    }
+    
+    .node-details-panel h3 {
+        font-size: 1rem;
+    }
+    
+    .node-details-panel .label,
+    .node-details-panel .value {
+        font-size: 0.85rem;
+    }
+}

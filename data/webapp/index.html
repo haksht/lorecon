@@ -76,6 +76,7 @@
             <!-- Tab Navigation -->
             <nav class="tabs">
                 <button class="tab-btn active" data-tab="status">📊 Status</button>
+                <button class="tab-btn" data-tab="network">🕸️ Network</button>
                 <button class="tab-btn" data-tab="devices">📋 Devices</button>
                 <button class="tab-btn" data-tab="packets">🔁 Packets</button>
                 <button class="tab-btn" data-tab="frequency">📡 Frequency</button>
@@ -117,6 +118,13 @@
                 </div>
             </div>
             
+            <div class="tab-content" id="tab-network">
+                <div class="network-map-container">
+                    <canvas id="network-canvas"></canvas>
+                    <div id="node-details" class="node-details-panel"></div>
+                </div>
+            </div>
+            
             <div class="tab-content" id="tab-devices">
                 <div id="devices-content" class="tab-inner">
                     <p class="placeholder">Loading devices...</p>
@@ -145,6 +153,7 @@
 
     <script src="js/connection.js?v=20251119c"></script>
     <script src="js/toast.js?v=20251119c"></script>
+    <script src="js/network-map.js?v=20251120a"></script>
     <script src="js/app.js?v=20251119c"></script>
 </body>
 </html>
