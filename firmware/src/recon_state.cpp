@@ -31,7 +31,19 @@ const ScanConfig ReconState::scanConfigs[] = {
   {904.3,   125.0,  9, 0x12, "TTN_CH2_SF9"},
   {904.5,   125.0, 10, 0x12, "TTN_CH3_SF10"},
   
-  // Helium Network US915 (downlink sub-bands)
+  // LoRaWAN US915 uplink channels (commercial deployments)
+  {902.3,   125.0,  7, 0x12, "LoRaWAN_US_UP0"},
+  {902.5,   125.0,  8, 0x12, "LoRaWAN_US_UP1"},
+  {911.9,   125.0,  9, 0x12, "LoRaWAN_US_UP63"},
+  
+  // Meshtastic LongSlow preset (maximum range)
+  {906.875, 125.0, 12, 0x48, "Meshtastic_LongSlow"},
+  
+  // Helium Network US915 (uplink - catch sensor transmissions)or transmissions)
+  {904.3,   125.0,  9, 0x12, "Helium_US_UL1"},
+  {904.5,   125.0, 10, 0x12, "Helium_US_UL2"},
+  
+  // Helium Network US915 (downlink - hotspot transmissions)
   {923.3,   500.0, 10, 0x12, "Helium_US_DL1"},
   {923.9,   500.0, 10, 0x12, "Helium_US_DL2"},
   {924.5,   500.0,  9, 0x12, "Helium_US_DL3"},
