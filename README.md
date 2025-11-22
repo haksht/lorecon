@@ -25,10 +25,10 @@ Passive LoRa reconnaissance firmware for ESP32-S3 + SX1262 hardware. The ESP32 h
 
 | Area | Highlights |
 | --- | --- |
-| Radio Control | `RadioController` wraps RadioLib with atomic ISR flagging and cached RSSI/SNR reads. The recon state cycles through 16 Meshtastic/LoRaWAN configs (12 s dwell). |
-| Packet Processing | `PacketProcessor` queues interrupt captures, runs protocol analysis, PSK decryption, diagnostics, replay capture, and emits events to the web server. |
-| Recon State | `ReconState` tracks RF activity, targetable nodes, replay slots, quiet mode, and device intelligence. |
-| UI Surfaces | 1) Serial menu (command handler with dispatch table). 2) OLED quick-look cards. 3) WiFi phone UI served from LittleFS with REST + WebSocket plumbing. |
+| Radio Control | `RadioController` wraps RadioLib with atomic ISR flagging and cached RSSI/SNR reads. The recon state cycles through 26 LoRa configs including Meshtastic, LoRaWAN/TTN, Helium Network, and ISM band (5 min cycle). |
+| Packet Processing | `PacketProcessor` queues interrupt captures, runs protocol analysis, PSK decryption, diagnostics, replay capture, and emits events to the web server with audio feedback. |
+| Recon State | `ReconState` tracks RF activity, targetable nodes, replay slots, quiet mode, and device intelligence across all 26 frequency configurations. |
+| UI Surfaces | 1) Serial menu (command handler with dispatch table). 2) OLED quick-look cards. 3) **WiFi Web UI** with interactive network map, live packet stream, protocol statistics, and audio feedback. |
 | Storage / Export | Optional SD logging (`packet_logger`), KML/GeoJSON exports, diagnostics report, JSON APIs for scripting. |
 
 ## Build & Flash
@@ -41,15 +41,21 @@ pio device monitor
 
 LittleFS is still used purely for serving the HTML/JS bundle. If you prefer to embed assets in PROGMEM or host them elsewhere, remove the LittleFS mount in `main.cpp` and adjust `web_server.cpp` to serve strings via `send_P`.
 
-## Phone Workflow (New Minimal UI)
+## Phone Workflow (Enhanced Visualization UI)
 
 1. Power the ESP32 and wait for `ESP32-LoRa-Sniffer` WiFi AP.
 2. Connect a phone/laptop, browse to `http://192.168.4.1`.
-3. Use the single-page UI:
-   - **Recon panel:** start/stop recon, toggle quiet mode, view RF stats.
-   - **Devices panel:** inspect nodes, start targeted capture, capture/replay packets.
-   - **Exports panel:** geo exports, diagnostics dump, reboot, resume recon.
-4. WebSocket updates stream packet summaries so the page reflects serial output without manual refresh.
+3. Use the interactive web UI with **8 tabs**:
+   - **Status:** System overview, uptime, packet counts, quick actions
+   - **Live Stream:** Real-time packet feed with syntax highlighting and audio feedback (Geiger counter effect)
+   - **Stats:** Protocol breakdown with pie/bar charts (Meshtastic/LoRaWAN/Helium)
+   - **Network:** Interactive topology map with RSSI-based positioning and signal strength visualization
+   - **Devices:** Discovered devices with targeting controls
+   - **Packets:** Replay menu for captured packets
+   - **Frequency:** 26-config targeting menu
+   - **GPS:** Geographic positions with export options
+4. **Audio Feedback:** Different tones for different protocols (Meshtastic: high, LoRaWAN: medium, Helium: low)
+5. WebSocket updates stream real-time data to all visualization components
 
 All buttons call the same handlers used by serial commands, so parity is guaranteed (no duplicated business logic in JavaScript).
 
