@@ -36,6 +36,7 @@ class ReconApp {
         this.connectionManager = null;
         this.closeMobileMenu = null; // Will be initialized in setupMobileMenu
         this.isLoadingTabContent = false; // Prevent double-loading loops
+        this.networkMap = null; // Network visualization
 
         // Start the app
         this.init();
@@ -110,6 +111,11 @@ class ReconApp {
     }
 
     switchTab(tabName) {
+        // Stop network map polling when switching away from network tab
+        if (this.currentTab === 'network' && tabName !== 'network') {
+            this.stopNetworkMapPolling();
+        }
+        
         // Update active tab button
         document.querySelectorAll('.tab-btn').forEach(btn => {
             btn.classList.toggle('active', btn.dataset.tab === tabName);
@@ -138,6 +144,9 @@ class ReconApp {
         
         try {
             switch(tabName) {
+                case 'network':
+                    await this.loadNetworkMap();
+                    break;
                 case 'devices':
                     await this.showMenu();
                     break;
@@ -156,6 +165,57 @@ class ReconApp {
             }
         } finally {
             this.isLoadingTabContent = false;
+        }
+    }
+
+    // ================================================================
+    // Network Map Visualization
+    // ================================================================
+
+    async loadNetworkMap() {
+        // Initialize network map if not already done
+        if (!this.networkMap && typeof NetworkMap !== 'undefined') {
+            this.networkMap = new NetworkMap('network-canvas', 'node-details');
+            
+            // Start polling for device updates
+            this.startNetworkMapPolling();
+        }
+        
+        // Refresh device data
+        await this.updateNetworkMap();
+    }
+
+    async updateNetworkMap() {
+        if (!this.networkMap) return;
+        
+        try {
+            const data = await this.get('/api/devices');
+            if (data.status === 'success' && data.devices) {
+                this.networkMap.updateDevices(data.devices);
+            }
+        } catch (error) {
+            console.error('Failed to update network map:', error);
+        }
+    }
+
+    startNetworkMapPolling() {
+        // Clear any existing timer
+        if (this.networkMapTimer) {
+            clearInterval(this.networkMapTimer);
+        }
+        
+        // Poll every 2 seconds for real-time updates
+        this.networkMapTimer = setInterval(() => {
+            if (this.currentTab === 'network') {
+                this.updateNetworkMap();
+            }
+        }, 2000);
+    }
+
+    stopNetworkMapPolling() {
+        if (this.networkMapTimer) {
+            clearInterval(this.networkMapTimer);
+            this.networkMapTimer = null;
         }
     }
 
@@ -490,6 +550,12 @@ class ReconApp {
         } catch (error) {
             this.showToast('Failed to start capture', 'error');
         }
+    }
+
+    // Wrapper for network map - accepts decimal nodeId
+    async startTargetedCapture(nodeIdDecimal) {
+        const nodeIdHex = nodeIdDecimal.toString(16).toUpperCase();
+        await this.targetDevice(nodeIdHex);
     }
 
     async resumeRecon() {
