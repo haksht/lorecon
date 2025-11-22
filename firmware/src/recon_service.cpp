@@ -162,6 +162,7 @@ String ReconService::buildStatusJson() {
     } else if (reconState.scanState.mode == MODE_TARGETED_CAPTURE) {
         // Add target information when in targeted mode
         JsonObject target = doc["target"].to<JsonObject>();
+        target["targetedByDevice"] = reconState.scanState.targetedByDevice;
         
         // Add config information
         const ScanConfig& cfg = reconState.getScanConfig(reconState.scanState.targetConfig);

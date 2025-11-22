@@ -79,6 +79,7 @@ void ReconState::initialize() {
     scanState.mode = MODE_RECONNAISSANCE;
     scanState.currentConfig = 0;
     scanState.targetConfig = 0;
+    scanState.targetedByDevice = false;
     scanState.lastScanSwitch = millis();
     scanState.totalPackets = 0;
     scanState.totalDetections = 0;
