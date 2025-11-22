@@ -259,38 +259,65 @@ class ReconApp {
     updateTargetInfo(data) {
         if (!this.el.targetInfo || !this.el.targetDetails) return;
         
-        // Show target info only when in targeted mode
-        if (data.target && data.mode && data.mode.toLowerCase().includes('target')) {
-            const target = data.target;
-            let html = '<div class="target-item">';
+        // Update banner based on mode and target data
+        const mode = (data.mode || '').toLowerCase();
+        const target = data.target || {};
+        
+        // Check if in targeted mode (either frequency or device)
+        if (mode.includes('target') && target.configIndex !== undefined) {
+            // Distinguish between frequency-only and device targeting
+            // If nodeId exists, it's device targeting; otherwise frequency-only
             
             if (target.nodeId) {
+                // Device targeting mode
+                let html = '<div class="target-item">';
                 html += `<strong>Node:</strong> 0x${target.nodeId}`;
                 if (target.deviceType) {
                     html += ` (${target.deviceType})`;
                 }
+                html += ` | <strong>Freq:</strong> ${target.frequency.toFixed(3)} MHz`;
+                
+                if (target.rssi) {
+                    html += ` | <strong>RSSI:</strong> ${target.rssi.toFixed(1)} dBm`;
+                }
+                if (target.packetCount) {
+                    html += ` | <strong>Packets:</strong> ${target.packetCount}`;
+                }
+                html += '</div>';
+                
+                // Update header text
+                const h3 = this.el.targetInfo.querySelector('h3');
+                if (h3) h3.textContent = '🎯 Targeting Device';
+                
+                this.el.targetDetails.innerHTML = html;
+                this.el.targetInfo.style.display = 'block';
+                
             } else {
-                html += `<strong>Config #${target.configIndex + 1}:</strong> ${target.protocol}`;
+                // Frequency targeting mode (no specific device)
+                const configNum = target.configIndex + 1;
+                const freq = target.frequency ? target.frequency.toFixed(3) : '?';
+                const protocol = target.protocol || 'Unknown';
+                
+                let html = '<div class="target-item">';
+                html += `<strong>Config #${configNum}:</strong> ${protocol} @ ${freq} MHz`;
+                
+                if (target.spreadingFactor) {
+                    html += ` | <strong>SF:</strong> ${target.spreadingFactor}`;
+                }
+                if (target.bandwidth) {
+                    html += ` | <strong>BW:</strong> ${target.bandwidth} kHz`;
+                }
+                html += '</div>';
+                
+                // Update header text
+                const h3 = this.el.targetInfo.querySelector('h3');
+                if (h3) h3.textContent = '📡 Frequency Targeting';
+                
+                this.el.targetDetails.innerHTML = html;
+                this.el.targetInfo.style.display = 'block';
             }
-            
-            html += ` | <strong>Freq:</strong> ${target.frequency.toFixed(3)} MHz`;
-            html += ` | <strong>SF:</strong> ${target.spreadingFactor}`;
-            html += ` | <strong>BW:</strong> ${target.bandwidth} kHz`;
-            
-            if (target.rssi) {
-                html += ` | <strong>RSSI:</strong> ${target.rssi.toFixed(1)} dBm`;
-            }
-            
-            if (target.packetCount) {
-                html += ` | <strong>Packets:</strong> ${target.packetCount}`;
-            }
-            
-            html += '</div>';
-            
-            this.el.targetDetails.innerHTML = html;
-            this.el.targetInfo.style.display = 'block';
         } else {
-            // Hide target info when not in targeted mode
+            // Hide banner in reconnaissance mode
             this.el.targetInfo.style.display = 'none';
         }
     }
