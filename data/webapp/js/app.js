@@ -36,6 +36,9 @@ class ReconApp {
         this.connectionManager = null;
         this.closeMobileMenu = null; // Will be initialized in setupMobileMenu
         this.isLoadingTabContent = false; // Prevent double-loading loops
+        this.networkMap = null; // Network visualization
+        this.protocolStats = null; // Protocol statistics
+        this.packetStream = null; // Live packet stream
 
         // Start the app
         this.init();
@@ -45,6 +48,24 @@ class ReconApp {
         // Initialize connection manager
         this.connectionManager = new ConnectionManager(this);
         await this.connectionManager.init();
+        
+        // Initialize audio feedback
+        if (window.audioFeedback) {
+            console.log('[Audio] Audio feedback initialized');
+        }
+        
+        // Initialize protocol stats
+        if (typeof ProtocolStats !== 'undefined') {
+            this.protocolStats = new ProtocolStats('stats-canvas', 'stats-details');
+        }
+        
+        // Initialize packet stream
+        if (typeof PacketStream !== 'undefined') {
+            this.packetStream = new PacketStream('packet-stream', 50);
+        }
+        
+        // Setup stream controls
+        this.setupStreamControls();
         
         // Initial status update
         await this.updateStatus();
@@ -57,6 +78,44 @@ class ReconApp {
         this.setupMobileMenu();
         this.setupResponsive();
         this.loadTabContent('status');
+    }
+
+    setupStreamControls() {
+        // Audio toggle
+        const audioToggle = document.getElementById('audio-toggle');
+        if (audioToggle && window.audioFeedback) {
+            audioToggle.addEventListener('click', () => {
+                const enabled = window.audioFeedback.toggle();
+                audioToggle.textContent = enabled ? '🔊 Audio On' : '🔇 Audio Off';
+                this.showToast(enabled ? 'Audio feedback enabled' : 'Audio feedback disabled');
+            });
+        }
+        
+        // Stream pause/resume
+        const streamPause = document.getElementById('stream-pause');
+        if (streamPause && this.packetStream) {
+            let paused = false;
+            streamPause.addEventListener('click', () => {
+                paused = !paused;
+                if (paused) {
+                    this.packetStream.pause();
+                    streamPause.textContent = '▶️ Resume';
+                } else {
+                    this.packetStream.resume();
+                    streamPause.textContent = '⏸️ Pause';
+                }
+                this.showToast(paused ? 'Stream paused' : 'Stream resumed');
+            });
+        }
+        
+        // Stream clear
+        const streamClear = document.getElementById('stream-clear');
+        if (streamClear && this.packetStream) {
+            streamClear.addEventListener('click', () => {
+                this.packetStream.clear();
+                this.showToast('Stream cleared');
+            });
+        }
     }
 
     setupMobileMenu() {
@@ -110,6 +169,11 @@ class ReconApp {
     }
 
     switchTab(tabName) {
+        // Stop network map polling when switching away from network tab
+        if (this.currentTab === 'network' && tabName !== 'network') {
+            this.stopNetworkMapPolling();
+        }
+        
         // Update active tab button
         document.querySelectorAll('.tab-btn').forEach(btn => {
             btn.classList.toggle('active', btn.dataset.tab === tabName);
@@ -138,6 +202,15 @@ class ReconApp {
         
         try {
             switch(tabName) {
+                case 'stream':
+                    // Packet stream updates automatically via handleRealtimeUpdate
+                    break;
+                case 'stats':
+                    await this.updateProtocolStats();
+                    break;
+                case 'network':
+                    await this.loadNetworkMap();
+                    break;
                 case 'devices':
                     await this.showMenu();
                     break;
@@ -156,6 +229,74 @@ class ReconApp {
             }
         } finally {
             this.isLoadingTabContent = false;
+        }
+    }
+
+    // ================================================================
+    // Protocol Statistics
+    // ================================================================
+
+    async updateProtocolStats() {
+        if (!this.protocolStats) return;
+        
+        try {
+            const data = await this.get('/api/devices');
+            if (data.status === 'success' && data.devices) {
+                this.protocolStats.update(data.devices);
+            }
+        } catch (error) {
+            console.error('Failed to update protocol stats:', error);
+        }
+    }
+
+    // ================================================================
+    // Network Map Visualization
+    // ================================================================
+
+    async loadNetworkMap() {
+        // Initialize network map if not already done
+        if (!this.networkMap && typeof NetworkMap !== 'undefined') {
+            this.networkMap = new NetworkMap('network-canvas', 'node-details');
+            
+            // Start polling for device updates
+            this.startNetworkMapPolling();
+        }
+        
+        // Refresh device data
+        await this.updateNetworkMap();
+    }
+
+    async updateNetworkMap() {
+        if (!this.networkMap) return;
+        
+        try {
+            const data = await this.get('/api/devices');
+            if (data.status === 'success' && data.devices) {
+                this.networkMap.updateDevices(data.devices);
+            }
+        } catch (error) {
+            console.error('Failed to update network map:', error);
+        }
+    }
+
+    startNetworkMapPolling() {
+        // Clear any existing timer
+        if (this.networkMapTimer) {
+            clearInterval(this.networkMapTimer);
+        }
+        
+        // Poll every 2 seconds for real-time updates
+        this.networkMapTimer = setInterval(() => {
+            if (this.currentTab === 'network') {
+                this.updateNetworkMap();
+            }
+        }, 2000);
+    }
+
+    stopNetworkMapPolling() {
+        if (this.networkMapTimer) {
+            clearInterval(this.networkMapTimer);
+            this.networkMapTimer = null;
         }
     }
 
@@ -199,38 +340,74 @@ class ReconApp {
     updateTargetInfo(data) {
         if (!this.el.targetInfo || !this.el.targetDetails) return;
         
-        // Show target info only when in targeted mode
-        if (data.target && data.mode && data.mode.toLowerCase().includes('target')) {
-            const target = data.target;
-            let html = '<div class="target-item">';
+        // Update banner based on mode and target data
+        const mode = (data.mode || '').toLowerCase();
+        const target = data.target || {};
+        
+        // Check if in targeted mode (either frequency or device)
+        if (mode.includes('target') && target.configIndex !== undefined) {
+            // Use targetedByDevice flag from firmware to distinguish modes
+            const isDeviceTargeting = target.targetedByDevice === true;
             
-            if (target.nodeId) {
+            if (isDeviceTargeting && target.nodeId) {
+                // Device targeting mode
+                let html = '<div class="target-item">';
                 html += `<strong>Node:</strong> 0x${target.nodeId}`;
                 if (target.deviceType) {
                     html += ` (${target.deviceType})`;
                 }
+                html += ` | <strong>Freq:</strong> ${target.frequency.toFixed(3)} MHz`;
+                
+                if (target.rssi) {
+                    html += ` | <strong>RSSI:</strong> ${target.rssi.toFixed(1)} dBm`;
+                }
+                if (target.packetCount) {
+                    html += ` | <strong>Packets:</strong> ${target.packetCount}`;
+                }
+                html += '</div>';
+                
+                // Update header text
+                const h3 = this.el.targetInfo.querySelector('h3');
+                if (h3) h3.textContent = '🎯 Targeting Device';
+                
+                this.el.targetDetails.innerHTML = html;
+                this.el.targetInfo.style.display = 'block';
+                
             } else {
-                html += `<strong>Config #${target.configIndex + 1}:</strong> ${target.protocol}`;
+                // Frequency targeting mode
+                const configNum = target.configIndex + 1;
+                const freq = target.frequency ? target.frequency.toFixed(3) : '?';
+                const protocol = target.protocol || 'Unknown';
+                
+                let html = '<div class="target-item">';
+                html += `<strong>Config #${configNum}:</strong> ${protocol} @ ${freq} MHz`;
+                
+                if (target.spreadingFactor) {
+                    html += ` | <strong>SF:</strong> ${target.spreadingFactor}`;
+                }
+                if (target.bandwidth) {
+                    html += ` | <strong>BW:</strong> ${target.bandwidth} kHz`;
+                }
+                
+                // Show device info if one was found on this frequency (but keep "Frequency Targeting" header)
+                if (target.nodeId) {
+                    html += ` | <strong>Device Found:</strong> 0x${target.nodeId}`;
+                    if (target.packetCount) {
+                        html += ` (${target.packetCount} pkts)`;
+                    }
+                }
+                
+                html += '</div>';
+                
+                // Update header text
+                const h3 = this.el.targetInfo.querySelector('h3');
+                if (h3) h3.textContent = '📡 Frequency Targeting';
+                
+                this.el.targetDetails.innerHTML = html;
+                this.el.targetInfo.style.display = 'block';
             }
-            
-            html += ` | <strong>Freq:</strong> ${target.frequency.toFixed(3)} MHz`;
-            html += ` | <strong>SF:</strong> ${target.spreadingFactor}`;
-            html += ` | <strong>BW:</strong> ${target.bandwidth} kHz`;
-            
-            if (target.rssi) {
-                html += ` | <strong>RSSI:</strong> ${target.rssi.toFixed(1)} dBm`;
-            }
-            
-            if (target.packetCount) {
-                html += ` | <strong>Packets:</strong> ${target.packetCount}`;
-            }
-            
-            html += '</div>';
-            
-            this.el.targetDetails.innerHTML = html;
-            this.el.targetInfo.style.display = 'block';
         } else {
-            // Hide target info when not in targeted mode
+            // Hide banner in reconnaissance mode
             this.el.targetInfo.style.display = 'none';
         }
     }
@@ -490,6 +667,12 @@ class ReconApp {
         } catch (error) {
             this.showToast('Failed to start capture', 'error');
         }
+    }
+
+    // Wrapper for network map - accepts decimal nodeId
+    async startTargetedCapture(nodeIdDecimal) {
+        const nodeIdHex = nodeIdDecimal.toString(16).toUpperCase();
+        await this.targetDevice(nodeIdHex);
     }
 
     async resumeRecon() {
@@ -1106,27 +1289,78 @@ class ReconApp {
             if (this.el.statusUptime) this.el.statusUptime.textContent = uptime;
         }
         
-        // Handle packet events - DO NOT refresh tab on every packet!
+        // Handle packet events - add to stream and play audio
         if (data.type === 'packet' && data.summary) {
             console.log('[Packet]', data.summary);
-            // Only log, don't trigger UI refresh
+            
+            // Add to packet stream
+            if (this.packetStream) {
+                this.packetStream.addPacket({
+                    protocol: data.summary.protocol || 'Unknown',
+                    nodeId: data.summary.nodeId,
+                    frequencyMHz: data.summary.frequency,
+                    rssi: data.summary.rssi,
+                    length: data.summary.size,
+                    decryptedText: data.summary.text,
+                    encrypted: !data.summary.text
+                });
+            }
+            
+            // Play audio feedback
+            if (window.audioFeedback) {
+                window.audioFeedback.playPacketCapture(data.summary.protocol || 'Unknown');
+            }
+            
+            // Update stats if on stats tab
+            if (this.currentTab === 'stats') {
+                this.updateProtocolStats();
+            }
         }
         
-        // Handle device discovery events - ONLY refresh if device count changed
+        // Handle device discovery events - play audio and refresh UI
         if (data.type === 'device_discovered' || deviceCountChanged) {
             this.showToast(`📡 New device discovered!`, 'info', 2000);
+            
+            // Play discovery audio
+            if (window.audioFeedback) {
+                window.audioFeedback.playDeviceDiscovered();
+            }
+            
             // Refresh devices tab ONLY if currently viewing it
             if (this.currentTab === 'devices') {
                 this.showMenu();
             }
+            
+            // Update network map if visible
+            if (this.currentTab === 'network' && this.networkMap) {
+                this.updateNetworkMap();
+            }
+            
+            // Update stats if on stats tab
+            if (this.currentTab === 'stats') {
+                this.updateProtocolStats();
+            }
         }
         
-        // Handle capture complete events - refresh packets tab if viewing it
+        // Handle capture complete events - play audio and refresh packets tab
         if (data.type === 'capture_complete' && data.slot !== undefined) {
             this.showToast(`✓ Packet captured to slot ${data.slot + 1}`, 'success');
+            
+            // Play success audio
+            if (window.audioFeedback) {
+                window.audioFeedback.playCaptureComplete();
+            }
+            
             // Refresh packets tab if currently viewing it
             if (this.currentTab === 'packets') {
                 this.showReplayMenu();
+            }
+        }
+        
+        // Handle mode changes - play audio
+        if (data.type === 'mode_change') {
+            if (window.audioFeedback) {
+                window.audioFeedback.playModeChange();
             }
         }
     }

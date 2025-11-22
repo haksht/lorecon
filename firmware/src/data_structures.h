@@ -97,6 +97,7 @@ struct ScanState {
   OperationMode mode;
   uint8_t currentConfig;
   uint8_t targetConfig;     // For targeted capture mode
+  bool targetedByDevice;    // true = device targeting, false = frequency targeting
   uint32_t lastScanSwitch;
   uint32_t totalPackets;
   uint32_t totalDetections;
