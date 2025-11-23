@@ -12,6 +12,7 @@ class ReconService {
 public:
     static void initialize(IReconTool* tool);
     static bool isInitialized();
+    static IReconTool* getReconTool() { return reconTool; }
 
     static bool startTargetedCaptureByNodeId(uint32_t nodeId, String& outMessage);
     static bool startTargetedCaptureByIndex(uint8_t deviceIndex, String& outMessage);

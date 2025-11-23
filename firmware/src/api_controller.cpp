@@ -6,6 +6,7 @@
 #include "config.h"
 #include "logger.h"
 #include "recon_service.h"
+#include "radio_controller.h"
 
 /**
  * Set reconnaissance tool reference
@@ -233,7 +234,25 @@ String APIController::getConfig() {
  * Start or resume reconnaissance scan
  */
 String APIController::startScan() {
+    // Resume reconnaissance WITHOUT clearing discovered devices/data
+    LOG_INFO("API: Resuming reconnaissance scan");
+    
+    // Reset scan state to restart the cycle
     reconState.scanState.mode = MODE_RECONNAISSANCE;
+    reconState.scanState.currentConfig = 0;
+    reconState.scanState.lastScanSwitch = millis();
+    reconState.scanState.packetPending = false;
+    reconState.scanState.waitingForUserInput = false;
+    
+    // Apply first config and start receiving via ReconService
+    IReconTool* tool = ReconService::getReconTool();
+    if (tool) {
+        const ScanConfig& cfg = reconState.getScanConfig(0);
+        tool->getRadioController()->applyConfig(cfg);
+        tool->getRadioController()->startReceive();
+        LOG_INFO("Radio reconfigured for reconnaissance");
+    }
+    
     return createSuccessResponse("Reconnaissance scan started");
 }
 
