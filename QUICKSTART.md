@@ -48,7 +48,7 @@ Press **'m'** anytime to see the menu:
 ## 📊 What This Tool Does
 
 ### Core Capabilities
-✅ **Reconnaissance** - Scans 16 LoRa configurations automatically  
+✅ **Reconnaissance** - Scans 26 LoRa configurations automatically  
 ✅ **Packet Capture** - Interrupt-driven, real-time packet reception  
 ✅ **Device Discovery** - Identifies Meshtastic nodes and LoRaWAN devices  
 ✅ **Protocol Analysis** - Parses Meshtastic/LoRaWAN packet structures  

@@ -7,8 +7,6 @@
 #ifndef PSK_TESTS_H
 #define PSK_TESTS_H
 
-#ifdef ENABLE_PSK_TESTING
-
 #include <Arduino.h>
 #include "psk_decryption_simple.h"
 
@@ -107,7 +105,5 @@ private:
         return 0;
     }
 };
-
-#endif // ENABLE_PSK_TESTING
 
 #endif // PSK_TESTS_H

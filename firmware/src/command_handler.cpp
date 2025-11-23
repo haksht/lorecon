@@ -21,10 +21,7 @@
 #include "ui_components.h"
 #include "text_packet_diagnostic.h"  // For diagnostic reporting
 #include "psk_decryption_simple.h"   // For accessing decrypted text
-
-#ifdef ENABLE_PSK_TESTING
 #include "psk_tests.h"
-#endif
 
 // Explicit definition required for constexpr static members (C++ linkage rule)
 constexpr CommandHandler::CommandEntry CommandHandler::commands[];

@@ -7,11 +7,8 @@
 #include "recon_state.h"
 #include "oled_display.h"
 #include "text_packet_diagnostic.h"
-#include "config.h"
-
-#ifdef ENABLE_PSK_TESTING
 #include "psk_decryption_simple.h"
-#endif
+#include "config.h"
 
 // Constructor
 PacketProcessor::PacketProcessor() {
@@ -72,7 +69,6 @@ void PacketProcessor::processSinglePacket(const QueuedPacket& qp, OLEDDisplay* d
     PacketInfo info = protocolAnalyzer.analyze(qp.data, qp.length, qp.rssi);
     
     // Try PSK decryption and store message in PacketInfo if successful
-    #ifdef ENABLE_PSK_TESTING
     const char* decryptedMsg = PSKDecryption::getLastMessage();
     if (decryptedMsg && strlen(decryptedMsg) > 0) {
         strncpy(info.message, decryptedMsg, sizeof(info.message) - 1);
@@ -80,7 +76,6 @@ void PacketProcessor::processSinglePacket(const QueuedPacket& qp, OLEDDisplay* d
         info.hasMessage = true;
         PSKDecryption::clearLastMessage();
     }
-    #endif
     
     // Enhanced packet analysis for Meshtastic (extract GPS position silently)
     bool positionExtracted = false;
@@ -162,7 +157,6 @@ void PacketProcessor::handleReconPacket(const PacketInfo& info, const uint8_t* d
     // Track RF activity (for situational awareness)
     reconState.updateRFActivity(reconState.scanState.currentConfig, rssi);
     
-    #ifdef ENABLE_PSK_TESTING
     // Try decryption and capture packet for replay (same as targeted mode)
     if (length >= 20) {
         const uint8_t* payload = data;
@@ -223,7 +217,6 @@ void PacketProcessor::handleTargetedPacket(const PacketInfo& info, const uint8_t
     // Track RF activity in targeted mode too
     reconState.updateRFActivity(reconState.scanState.currentConfig, rssi);
     
-    #ifdef ENABLE_PSK_TESTING
     // Try decryption on ALL packets to find text messages
     if (length >= 20) {
         if (length < 40) {

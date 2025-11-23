@@ -36,10 +36,8 @@ public:
     CapturedPacket replaySlots[Config::Replay::MAX_SLOTS];
     uint8_t numCapturedPackets;
     
-    // Optional modules state
-    #ifdef ENABLE_PSK_TESTING
+    // PSK decryption statistics
     PSKStats pskStats;
-    #endif
     
     // Constructor and initialization
     ReconState();

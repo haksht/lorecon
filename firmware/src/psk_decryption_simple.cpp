@@ -6,9 +6,6 @@
  */
 
 #include "psk_decryption_simple.h"
-
-#ifdef ENABLE_PSK_TESTING
-
 #include <mbedtls/aes.h>
 #include <mbedtls/base64.h>
 #include "geo_intelligence.h"
@@ -492,5 +489,3 @@ void PSKDecryption::printStats() {
     }
     Serial.println();
 }
-
-#endif // ENABLE_PSK_TESTING

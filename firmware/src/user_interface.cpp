@@ -27,10 +27,6 @@ static bool waitForSerialInput(uint32_t timeoutMs = SERIAL_INPUT_TIMEOUT_MS) {
   return true;
 }
 
-#ifdef ENABLE_STRESS_TESTING
-#include "hardware_stress_tester.h"
-#endif
-
 // Display device type analysis summary for targetable devices
 void showDeviceTypeSummary() {
   Serial.println("\nTARGETABLE DEVICE TYPE ANALYSIS:");
@@ -456,12 +452,6 @@ void showReconResults() {
   Serial.println("b   : Reboot device (clears all data)");
   Serial.println("s   : Show summary again");
   Serial.println("v   : Security vulnerability assessment");
-#ifdef ENABLE_STRESS_TESTING
-  Serial.println("t   : Hardware stress testing");
-#endif
-#ifdef ENABLE_OFFENSIVE_TESTING
-  Serial.println("A   : Attack menu (offensive testing)");
-#endif
   Serial.print("\nSelect target (1-" + String(reconState.numTargetableDevices) + ") or command: ");
 }
 
@@ -484,7 +474,6 @@ void printStats() {
     }
   }
   
-  #ifdef ENABLE_PSK_TESTING
   if (pskStats.attempts > 0) {
     Serial.println("\n--- PSK Testing Stats ---");
     Serial.printf("Attempts: %d, Successes: %d (%.1f%%)\n", 
@@ -497,9 +486,8 @@ void printStats() {
       }
     }
   }
-  #endif
   
-  Serial.println("==============================\n");
+  Serial.println("==============================\\n");
 }
 
 void displayWelcomeMessage() {

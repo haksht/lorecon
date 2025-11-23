@@ -151,9 +151,8 @@ namespace Logging {
 }
 
 // ============================================================================
-// PSK DECRYPTION (Optional Feature)
+// PSK DECRYPTION
 // ============================================================================
-#ifdef ENABLE_PSK_TESTING
 namespace PSK {
     // Number of default PSKs to test
     constexpr uint8_t NUM_DEFAULT_KEYS = 14;
@@ -164,7 +163,6 @@ namespace PSK {
     // Nonce size for AES-CTR (bytes)
     constexpr uint8_t NONCE_SIZE = 16;
 }
-#endif
 
 // ============================================================================
 // RADIO CONFIGURATION

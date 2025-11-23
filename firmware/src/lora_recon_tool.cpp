@@ -8,13 +8,10 @@
 #include "oled_display.h"
 #include "web_server.h"
 #include "config.h"
+#include "psk_decryption_simple.h"
 #include <LittleFS.h>
 #include <ArduinoJson.h>
 #include <esp_task_wdt.h>
-
-#ifdef ENABLE_PSK_TESTING
-#include "psk_decryption_simple.h"
-#endif
 
 // Global pointer for tool instance
 LoRaReconTool* g_reconTool = nullptr;
@@ -127,9 +124,7 @@ bool LoRaReconTool::initialize() {
     }
     
     // Initialize PSK decryption system
-    #ifdef ENABLE_PSK_TESTING
     PSKDecryption::initialize();
-    #endif
     
     // Initialize command handler
     commandHandler = new CommandHandler(this);
