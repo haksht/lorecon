@@ -16,15 +16,23 @@ This project is a **production-ready LoRa reconnaissance platform** using Platfo
 ## 🚀 **Quick Build Commands**
 
 ```bash
-# Build and upload to ESP32
+# Build and upload firmware to ESP32
 pio run --target upload
+
+# Upload web app files to LittleFS filesystem
+pio run --target uploadfs
 
 # Monitor serial output
 pio device monitor
 
 # Build, upload, and monitor (all-in-one)
 pio run --target upload --target monitor
+
+# Full setup (firmware + filesystem + monitor)
+pio run --target upload --target uploadfs --target monitor
 ```
+
+**Note:** The `uploadfs` target uploads the web interface files from `data/webapp/` to the ESP32's LittleFS filesystem. This is required for the phone/browser UI to work. You only need to run this once, or when web files change.
 
 ---
 
@@ -32,7 +40,7 @@ pio run --target upload --target monitor
 
 | Capability | Status | Notes |
 |------------|--------|-------|
-| **📡 LoRa Packet Capture** | ✅ Production | 16 frequency configurations, interrupt-driven |
+| **📡 LoRa Packet Capture** | ✅ Production | 26 frequency configurations, interrupt-driven |
 | **🔓 PSK Decryption** | ✅ Production | 14 default keys, Meshtastic channel messages |
 | **📍 GPS Position Parsing** | ✅ Production | Latitude/longitude extraction from POSITION_APP |
 | **🎯 Device Targeting** | ✅ Production | Interactive menu, frequency locking |
@@ -194,7 +202,7 @@ pio --version
 - **PlatformIO Core**: This system requires PlatformIO (not Arduino IDE)
 - **Supported Hardware**:
   - ✅ **Heltec WiFi LoRa 32 V3** (ESP32-S3 + SX1262 + OLED) - ONLY supported board
-  - ⚠️ **T-Deck variants** - Not supported. No implementation exists. See `TDECK_PLUS_INVESTIGATION.md` for investigation findings.
+  - ⚠️ **T-Deck variants** - Not supported. No implementation exists. See `docs/hardware/TDECK_STATUS.md` and `docs/TDECK_PLUS_INVESTIGATION.md` for investigation findings.
   - ℹ️ **Other boards** - Would require porting (display drivers, pin configs, etc.)
 - **RadioLib 6.4.2**: Specific version required for SX1262 support
 - **ArduinoJson 7.0.4**: For data serialization

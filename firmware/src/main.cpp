@@ -25,11 +25,8 @@
 #include "wifi_manager.h"
 #include "web_server.h"
 #include "recon_service.h"
-#include <LittleFS.h>
-
-#ifdef ENABLE_PSK_TESTING
 #include "psk_tests.h"
-#endif
+#include <LittleFS.h>
 
 // Global instances
 LoRaReconTool reconTool;
@@ -61,11 +58,9 @@ void setup() {
 
     ReconService::initialize(&reconTool);
     
-#ifdef ENABLE_PSK_TESTING
     Serial.println("\n🧪 Running PSK Decryption Tests...");
     PSKTests::runAll();
     delay(2000);  // Give time to read results
-#endif
 
     // Initialize WiFi Access Point
     LOG_INFO("\n=== Starting WiFi & Web Server ===");

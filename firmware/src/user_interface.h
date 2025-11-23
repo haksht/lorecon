@@ -41,9 +41,6 @@ void displayReconStartMessage();
 // State management - now using ReconState class instead of globals
 #include "recon_state.h"
 extern ReconState reconState;
-
-#ifdef ENABLE_PSK_TESTING
 extern PSKStats pskStats;
-#endif
 
 #endif // USER_INTERFACE_H

@@ -108,7 +108,7 @@ struct ScanState {
   bool waitingForUserInput;
 };
 
-#ifdef ENABLE_PSK_TESTING
+// PSK decryption statistics
 struct PSKStats {
   uint16_t attempts;
   uint16_t successes;
@@ -118,7 +118,6 @@ struct PSKStats {
     memset(hitCount, 0, sizeof(hitCount));
   }
 };
-#endif
 
 // Geographic intelligence data
 struct GeoPoint {

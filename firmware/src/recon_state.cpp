@@ -87,9 +87,7 @@ void ReconState::initialize() {
     scanState.reconStartTime = millis();
     scanState.waitingForUserInput = false;
     
-    #ifdef ENABLE_PSK_TESTING
     pskStats = PSKStats();  // Use constructor instead of memset
-    #endif
 }
 
 void ReconState::reset() {
