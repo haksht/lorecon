@@ -7,7 +7,7 @@ class AudioFeedback {
     constructor() {
         this.audioContext = null;
         this.enabled = true;
-        this.volume = 0.3; // Default volume (0.0 - 1.0)
+        this.volume = 0.7; // Increased default volume (0.0 - 1.0)
         this.lastPacketTime = 0;
         this.packetCount = 0;
         

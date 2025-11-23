@@ -229,6 +229,14 @@ void LoRaReconTool::handleReconnaissanceMode(uint32_t now) {
 
 // Handle targeted capture mode operations
 void LoRaReconTool::handleTargetedCaptureMode(uint32_t now) {
+    // Update display to show targeting status
+    if (oledDisplay && oledDisplay->isOn()) {
+        const ScanConfig& cfg = reconState.getScanConfig(reconState.scanState.targetConfig);
+        static char targetInfo[32];
+        snprintf(targetInfo, sizeof(targetInfo), "%.3f MHz", cfg.frequency);
+        oledDisplay->showTargetingMode(targetInfo);
+    }
+    
     handlePacketReception();
 }
 
@@ -288,6 +296,14 @@ void LoRaReconTool::startTargetedCapture(uint8_t deviceIndex) {
     Serial.println("Monitoring for packets...\n");
     
     const ScanConfig& targetCfg = reconState.getScanConfig(reconState.scanState.targetConfig);
+    
+    // Update display to show targeting mode
+    if (oledDisplay && oledDisplay->isOn()) {
+        static char targetInfo[32];
+        snprintf(targetInfo, sizeof(targetInfo), "0x%08X", target.nodeId);
+        oledDisplay->showTargetingMode(targetInfo);
+    }
+    
     radioController->applyConfig(targetCfg);
     radioController->startReceive();
 }
@@ -332,6 +348,13 @@ void LoRaReconTool::startFrequencyTargeting(uint8_t configIndex) {
     reconState.scanState.targetConfig = configIndex;
     reconState.scanState.targetedByDevice = false;  // Frequency targeting
     reconState.scanState.currentConfig = configIndex;
+    
+    // Update display to show targeting mode
+    if (oledDisplay && oledDisplay->isOn()) {
+        static char targetInfo[32];
+        snprintf(targetInfo, sizeof(targetInfo), "%.3f MHz", cfg.frequency);
+        oledDisplay->showTargetingMode(targetInfo);
+    }
     
     if (radioController->applyConfig(cfg)) {
         radioController->startReceive();

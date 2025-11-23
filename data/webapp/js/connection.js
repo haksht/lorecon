@@ -64,6 +64,13 @@ class ConnectionManager {
                 this.lastMessageTime = Date.now();
                 this.app.setConnected(true);
                 
+                // Update debug panel
+                const debugWsEl = document.getElementById('debug-ws-status');
+                if (debugWsEl) {
+                    debugWsEl.textContent = 'WebSocket: Connected ✓';
+                    debugWsEl.style.color = '#10b981';
+                }
+                
                 // Start heartbeat monitor
                 this.startHeartbeatMonitor();
             };

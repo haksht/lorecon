@@ -34,11 +34,11 @@ class ReconApp {
         this.currentTab = 'status';
         this.isMobile = window.innerWidth < 768;
         this.connectionManager = null;
-        this.closeMobileMenu = null; // Will be initialized in setupMobileMenu
-        this.isLoadingTabContent = false; // Prevent double-loading loops
-        this.networkMap = null; // Network visualization
-        this.protocolStats = null; // Protocol statistics
-        this.packetStream = null; // Live packet stream
+        this.closeMobileMenu = null;
+        this.isLoadingTabContent = false;
+        this.networkMap = null;
+        this.warRoom = null;
+        this.scanMonitor = null;
 
         // Start the app
         this.init();
@@ -49,23 +49,16 @@ class ReconApp {
         this.connectionManager = new ConnectionManager(this);
         await this.connectionManager.init();
         
-        // Initialize audio feedback
-        if (window.audioFeedback) {
-            console.log('[Audio] Audio feedback initialized');
+        // Initialize components
+        if (typeof WarRoom !== 'undefined') {
+            this.warRoom = new WarRoom('war-room-container');
         }
-        
-        // Initialize protocol stats
-        if (typeof ProtocolStats !== 'undefined') {
-            this.protocolStats = new ProtocolStats('stats-canvas', 'stats-details');
+        if (typeof ScanMonitor !== 'undefined') {
+            this.scanMonitor = new ScanMonitor('scan-monitor-container');
         }
-        
-        // Initialize packet stream
-        if (typeof PacketStream !== 'undefined') {
-            this.packetStream = new PacketStream('packet-stream', 50);
+        if (typeof NetworkMap !== 'undefined') {
+            this.networkMap = new NetworkMap('network-map');
         }
-        
-        // Setup stream controls
-        this.setupStreamControls();
         
         // Initial status update
         await this.updateStatus();
@@ -78,44 +71,6 @@ class ReconApp {
         this.setupMobileMenu();
         this.setupResponsive();
         this.loadTabContent('status');
-    }
-
-    setupStreamControls() {
-        // Audio toggle
-        const audioToggle = document.getElementById('audio-toggle');
-        if (audioToggle && window.audioFeedback) {
-            audioToggle.addEventListener('click', () => {
-                const enabled = window.audioFeedback.toggle();
-                audioToggle.textContent = enabled ? '🔊 Audio On' : '🔇 Audio Off';
-                this.showToast(enabled ? 'Audio feedback enabled' : 'Audio feedback disabled');
-            });
-        }
-        
-        // Stream pause/resume
-        const streamPause = document.getElementById('stream-pause');
-        if (streamPause && this.packetStream) {
-            let paused = false;
-            streamPause.addEventListener('click', () => {
-                paused = !paused;
-                if (paused) {
-                    this.packetStream.pause();
-                    streamPause.textContent = '▶️ Resume';
-                } else {
-                    this.packetStream.resume();
-                    streamPause.textContent = '⏸️ Pause';
-                }
-                this.showToast(paused ? 'Stream paused' : 'Stream resumed');
-            });
-        }
-        
-        // Stream clear
-        const streamClear = document.getElementById('stream-clear');
-        if (streamClear && this.packetStream) {
-            streamClear.addEventListener('click', () => {
-                this.packetStream.clear();
-                this.showToast('Stream cleared');
-            });
-        }
     }
 
     setupMobileMenu() {
@@ -206,7 +161,8 @@ class ReconApp {
                     // Packet stream updates automatically via handleRealtimeUpdate
                     break;
                 case 'stats':
-                    await this.updateProtocolStats();
+                    // Update war room with current status
+                    await this.updateWarRoom();
                     break;
                 case 'network':
                     await this.loadNetworkMap();
@@ -233,19 +189,24 @@ class ReconApp {
     }
 
     // ================================================================
-    // Protocol Statistics
+    // War Room Dashboard
     // ================================================================
 
-    async updateProtocolStats() {
-        if (!this.protocolStats) return;
+    async updateWarRoom() {
+        if (!this.warRoom) {
+            console.log('[WarRoom] warRoom not initialized');
+            return;
+        }
         
         try {
-            const data = await this.get('/api/devices');
-            if (data.status === 'success' && data.devices) {
-                this.protocolStats.update(data.devices);
+            console.log('[WarRoom] Fetching status from /api/status');
+            const data = await this.get('/api/status');
+            console.log('[WarRoom] Received data:', data);
+            if (data.status === 'success') {
+                this.warRoom.update(data);
             }
         } catch (error) {
-            console.error('Failed to update protocol stats:', error);
+            console.error('Failed to update war room:', error);
         }
     }
 
@@ -1289,37 +1250,43 @@ class ReconApp {
             if (this.el.statusUptime) this.el.statusUptime.textContent = uptime;
         }
         
-        // Handle packet events - add to stream and play audio
-        if (data.type === 'packet' && data.summary) {
-            console.log('[Packet]', data.summary);
-            
-            // Add to packet stream
-            if (this.packetStream) {
-                this.packetStream.addPacket({
-                    protocol: data.summary.protocol || 'Unknown',
-                    nodeId: data.summary.nodeId,
-                    frequencyMHz: data.summary.frequency,
-                    rssi: data.summary.rssi,
-                    length: data.summary.size,
-                    decryptedText: data.summary.text,
-                    encrypted: !data.summary.text
-                });
-            }
-            
+        // Update war room with realtime data
+        if (this.warRoom && this.currentTab === 'stats') {
+            this.warRoom.update(data);
+        }
+        
+        // Update scan monitor with realtime data
+        if (this.scanMonitor && this.currentTab === 'scan') {
+            this.scanMonitor.update(data);
+        }
+        
+        // Handle packet events for audio and war room
+        if (data.type === 'packet') {
             // Play audio feedback
             if (window.audioFeedback) {
-                window.audioFeedback.playPacketCapture(data.summary.protocol || 'Unknown');
+                window.audioFeedback.playPacketCapture(data.protocol || 'Unknown');
             }
             
-            // Update stats if on stats tab
+            // Update war room
+            if (this.warRoom && data.rssi) {
+                this.warRoom.updateAvgRSSI(data.rssi);
+                this.warRoom.addEvent('packet', `${data.protocol} packet: ${data.nodeId} (${data.rssi}dBm)`);
+            }
+            
+            // Update war room if on stats tab
             if (this.currentTab === 'stats') {
-                this.updateProtocolStats();
+                this.updateWarRoom();
             }
         }
         
         // Handle device discovery events - play audio and refresh UI
         if (data.type === 'device_discovered' || deviceCountChanged) {
             this.showToast(`📡 New device discovered!`, 'info', 2000);
+            
+            // Update war room
+            if (this.warRoom) {
+                this.warRoom.addEvent('device', 'New device discovered');
+            }
             
             // Play discovery audio
             if (window.audioFeedback) {
@@ -1336,15 +1303,20 @@ class ReconApp {
                 this.updateNetworkMap();
             }
             
-            // Update stats if on stats tab
+            // Update war room if on stats tab
             if (this.currentTab === 'stats') {
-                this.updateProtocolStats();
+                this.updateWarRoom();
             }
         }
         
         // Handle capture complete events - play audio and refresh packets tab
         if (data.type === 'capture_complete' && data.slot !== undefined) {
             this.showToast(`✓ Packet captured to slot ${data.slot + 1}`, 'success');
+            
+            // Update war room
+            if (this.warRoom) {
+                this.warRoom.addEvent('capture', `Packet saved to slot ${data.slot + 1}`);
+            }
             
             // Play success audio
             if (window.audioFeedback) {

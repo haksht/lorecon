@@ -120,24 +120,14 @@
                 </div>
             </div>
             
-            <div class="tab-content" id="tab-stream">
-                <div class="stream-controls">
-                    <h3>📡 Live Packet Stream</h3>
-                    <div class="stream-buttons">
-                        <button class="btn btn-sm" id="audio-toggle">🔊 Audio On</button>
-                        <button class="btn btn-sm" id="stream-pause">⏸️ Pause</button>
-                        <button class="btn btn-sm" id="stream-clear">🗑️ Clear</button>
-                    </div>
-                </div>
-                <div id="packet-stream" class="packet-stream-container"></div>
+            <div class="tab-content" id="tab-scan">
+                <h3>🔄 Frequency Scan Monitor</h3>
+                <div id="scan-monitor-container"></div>
             </div>
             
             <div class="tab-content" id="tab-stats">
-                <h3>📈 Protocol Statistics</h3>
-                <div class="stats-container">
-                    <canvas id="stats-canvas"></canvas>
-                </div>
-                <div id="stats-details" class="stats-details"></div>
+                <h3>⚔️ War Room</h3>
+                <div id="war-room-container"></div>
             </div>
             
             <div class="tab-content" id="tab-network">
@@ -176,7 +166,7 @@
     <script src="js/connection.js?v=20251119c"></script>
     <script src="js/toast.js?v=20251119c"></script>
     <script src="js/audio.js?v=20251122a"></script>
-    <script src="js/stats.js?v=20251122a"></script>
+    <script src="js/war-room.js?v=20251123a"></script>
     <script src="js/packet-stream.js?v=20251122a"></script>
     <script src="js/network-map.js?v=20251120a"></script>
     <script src="js/app.js?v=20251122a"></script>
