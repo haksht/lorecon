@@ -148,3 +148,11 @@ if (document.readyState === 'loading') {
 } else {
     window.toast = new ToastManager();
 }
+
+// Global helper function for backward compatibility
+function showToast(message, type = 'info', duration = 3000) {
+    if (window.toast) {
+        return window.toast.show(message, type, duration);
+    }
+    console.warn('Toast system not initialized');
+}

@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#1a1a2e">
+    <title>ESP32 LoRa Recon</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <button class="mobile-menu-toggle" id="mobile-menu-toggle" aria-label="Toggle menu">☰</button>
+        <h1>ESP32 LoRa Recon</h1>
+        <div class="status-badge" id="connection">
+            <span class="dot"></span>
+            <span id="connection-text">Connecting...</span>
+        </div>
+    </header>
+
+    <!-- Mobile Menu Overlay -->
+    <div class="mobile-menu-overlay" id="mobile-menu-overlay"></div>
+
+    <!-- Main Container -->
+    <div class="main-container">
+        <!-- Sidebar: Status + Controls -->
+        <aside class="sidebar">
+            <!-- Status Cards -->
+            <section class="status-section">
+                <div class="stat-card">
+                    <div class="stat-label">Mode</div>
+                    <div class="stat-value" id="mode">—</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Devices</div>
+                    <div class="stat-value" id="devices">0</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Packets</div>
+                    <div class="stat-value" id="packets">0</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Uptime</div>
+                    <div class="stat-value" id="uptime">0s</div>
+                </div>
+            </section>
+
+            <!-- Target Banner -->
+            <section class="target-info" id="target-info" style="display: none;">
+                <h3>🎯 Target</h3>
+                <div id="target-details"></div>
+            </section>
+
+            <!-- Controls -->
+            <section class="actions-section">
+                <h2>Controls</h2>
+                <button data-action="resume-recon" class="btn btn-primary">▶️ Resume Scan</button>
+                <button data-action="stop-capture" class="btn btn-secondary">⏹️ Stop</button>
+                <button data-action="export-kml" class="btn">🌍 Export KML</button>
+            </section>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="results-panel">
+            <!-- Tabs -->
+            <nav class="tabs">
+                <button class="tab-btn active" data-tab="devices">📋 Devices</button>
+                <button class="tab-btn" data-tab="packets">🔁 Packets</button>
+                <button class="tab-btn" data-tab="network">🕸️ Network</button>
+                <button class="tab-btn" data-tab="stats">📊 Stats</button>
+                <button class="tab-btn" data-tab="info">ℹ️ Info</button>
+            </nav>
+            
+            <!-- Tab Content -->
+            <div class="tab-content active" id="tab-devices">
+                <div id="devices-content" class="tab-inner">
+                    <p class="placeholder">Loading devices...</p>
+                </div>
+            </div>
+            
+            <div class="tab-content" id="tab-packets">
+                <div id="packets-content" class="tab-inner">
+                    <p class="placeholder">Loading packets...</p>
+                </div>
+            </div>
+            
+            <div class="tab-content" id="tab-network">
+                <div class="network-map-container">
+                    <canvas id="network-canvas"></canvas>
+                    <div id="node-details" class="node-details-panel"></div>
+                </div>
+            </div>
+            
+            <div class="tab-content" id="tab-stats">
+                <div id="war-room-container"></div>
+            </div>
+            
+            <div class="tab-content" id="tab-info">
+                <div class="tab-inner">
+                    <h3>System Information</h3>
+                    <div id="info-content">
+                        <p><strong>Mode:</strong> <span id="info-mode">—</span></p>
+                        <p><strong>Uptime:</strong> <span id="info-uptime">—</span></p>
+                        <p><strong>Total Packets:</strong> <span id="info-packets">—</span></p>
+                        <p><strong>Devices Found:</strong> <span id="info-devices">—</span></p>
+                        <p><strong>Free Heap:</strong> <span id="info-heap">—</span></p>
+                    </div>
+                    
+                    <h3>GPS Data</h3>
+                    <div id="gps-content">
+                        <p class="placeholder">No GPS data</p>
+                    </div>
+                    
+                    <h3>Frequency Analysis</h3>
+                    <div id="frequency-content">
+                        <p class="placeholder">Loading...</p>
+                    </div>
+                    
+                    <h3>Security Analysis</h3>
+                    <div id="security-content">
+                        <p class="placeholder">Loading...</p>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Scripts -->
+    <script src="js/toast.js"></script>
+    <script src="js/war-room.js"></script>
+    <script src="js/network-map.js"></script>
+    <script src="js/connection.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>
