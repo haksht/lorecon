@@ -4,11 +4,10 @@ Passive LoRa reconnaissance firmware for ESP32-S3 + SX1262 hardware. The ESP32 h
 
 ## Quick Links
 
-- `QUICKSTART.md` – build/upload/monitor steps.
-- `PHONE_APP_GUIDE.md` – WiFi setup and phone workflow (mirrors the serial menu).
-- `docs/BUILD_GUIDE.md` – supported hardware + PlatformIO notes.
-- `docs/FEATURES.md` – feature inventory and configuration knobs.
-- `docs/TROUBLESHOOTING_MESHTASTIC.md` & `docs/ENCRYPTION_REALITY.md` – protocol gotchas.
+- `GETTING_STARTED.md` – complete setup guide with serial, OLED, and web interfaces.
+- `docs/user-guides/BUILD_GUIDE.md` – supported hardware + PlatformIO notes.
+- `docs/user-guides/FEATURES.md` – feature inventory and configuration knobs.
+- `docs/user-guides/TROUBLESHOOTING.md` & `docs/technical/ENCRYPTION.md` – protocol gotchas.
 - `API_REFERENCE.md` – HTTP + WebSocket surface area for custom tooling.
 
 ## Current Status
@@ -16,7 +15,7 @@ Passive LoRa reconnaissance firmware for ESP32-S3 + SX1262 hardware. The ESP32 h
 - **Branch:** `main`
 - **Hardware:** **Heltec WiFi LoRa 32 V3** (ESP32-S3 + SX1262 + OLED). Optional SD card.
   - ✅ **Fully Supported:** Heltec WiFi LoRa 32 V3 (tested, production-ready)
-  - ⚠️ **Not Supported:** T-Deck variants (hardware incompatibilities - see `docs/TDECK_PLUS_INVESTIGATION.md` for details)
+  - ⚠️ **Not Supported:** T-Deck variants (hardware incompatibilities - see `docs/hardware/TDECK_PLUS_INVESTIGATION.md` for details)
   - ℹ️ **Note:** Codebase is Heltec-specific. Other boards would require porting.
 - **Focus:** Passive reconnaissance (scan, target, capture, replay, export). All legacy offensive/stress docs and code paths have been removed.
 - **Web UI:** A new lightweight interface served from LittleFS. It exposes every serial command as a button or action so the phone experience equals the USB menu.
@@ -97,8 +96,10 @@ data/webapp/
   assets/                   -> inline CSS/JS bundle (small footprint)
 
 docs/
-  BUILD_GUIDE.md, FEATURES.md, TROUBLESHOOTING_MESHTASTIC.md,
-  ENCRYPTION_REALITY.md, deepdive references
+  user-guides/        -> BUILD_GUIDE.md, FEATURES.md, TROUBLESHOOTING.md
+  technical/          -> ARCHITECTURE.md, ENCRYPTION.md, NETWORK_HUNTING_GUIDE.md
+  hardware/           -> TDECK_STATUS.md, TDECK_PLUS_INVESTIGATION.md
+  api/                -> recon_service.md
 
 tools/
   live_visualizer.py, pc_analyzer.py, analyze_logs.py

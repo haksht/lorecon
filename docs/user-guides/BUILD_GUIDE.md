@@ -202,7 +202,7 @@ pio --version
 - **PlatformIO Core**: This system requires PlatformIO (not Arduino IDE)
 - **Supported Hardware**:
   - ✅ **Heltec WiFi LoRa 32 V3** (ESP32-S3 + SX1262 + OLED) - ONLY supported board
-  - ⚠️ **T-Deck variants** - Not supported. No implementation exists. See `docs/hardware/TDECK_STATUS.md` and `docs/TDECK_PLUS_INVESTIGATION.md` for investigation findings.
+  - ⚠️ **T-Deck variants** - Not supported. No implementation exists. See `../hardware/TDECK_PLUS_INVESTIGATION.md` for investigation findings.
   - ℹ️ **Other boards** - Would require porting (display drivers, pin configs, etc.)
 - **RadioLib 6.4.2**: Specific version required for SX1262 support
 - **ArduinoJson 7.0.4**: For data serialization
@@ -210,7 +210,7 @@ pio --version
 ### **💡 Best Practices**
 - **Clean Builds**: Run `pio run --target clean` after major changes
 - **Serial Monitor**: Always monitor during first upload to catch errors
-- **Documentation**: Check QUICKSTART.md and FEATURES.md for usage
+- **Documentation**: Check GETTING_STARTED.md and FEATURES.md for usage
 - **Version Control**: Commit before making major architectural changes
 - **Hardware**: Verify antenna connection before powering on
 
@@ -218,11 +218,10 @@ pio --version
 
 ## 📚 **Additional Resources**
 
-- **[QUICKSTART.md](../QUICKSTART.md)**: Getting started guide
+- **[GETTING_STARTED.md](../../GETTING_STARTED.md)**: Complete setup and usage guide
 - **[FEATURES.md](FEATURES.md)**: Complete feature documentation
-- **[PHONE_APP_GUIDE.md](../PHONE_APP_GUIDE.md)**: WiFi/phone workflow overview
-- **[TROUBLESHOOTING_MESHTASTIC.md](TROUBLESHOOTING_MESHTASTIC.md)**: Common issues
-- **[UNDERSTANDING_v2.md](deepdive/UNDERSTANDING_v2.md)**: Deep technical dive
+- **[TROUBLESHOOTING.md](TROUBLESHOOTING.md)**: Common issues
+- **[../technical/ARCHITECTURE.md](../technical/ARCHITECTURE.md)**: Deep technical dive
 
 ---
 
