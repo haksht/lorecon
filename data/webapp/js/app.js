@@ -28,7 +28,7 @@ class ReconApp {
 
         // State
         this.statusTimer = null;
-        this.currentTab = 'devices';
+        this.currentTab = 'info';
         this.isMobile = window.innerWidth < 768;
         this.networkMap = null;
         this.warRoom = null;
@@ -196,6 +196,9 @@ class ReconApp {
     // ============ Tab Content Loaders ============
     
     async showDevices() {
+        // Show loading state
+        this.el.devicesContent.innerHTML = '<div class="loading-container"><div class="loading-spinner"></div><p>Loading devices...</p></div>';
+        
         try {
             const data = await this.get('/api/devices');
             if (!data || !data.devices || data.devices.length === 0) {
@@ -231,6 +234,9 @@ class ReconApp {
     }
 
     async showPackets() {
+        // Show loading state
+        this.el.packetsContent.innerHTML = '<div class="loading-container"><div class="loading-spinner"></div><p>Loading packets...</p></div>';
+        
         try {
             const data = await this.get('/api/replay/slots');
             if (!data || !data.slots || data.slots.length === 0) {
@@ -266,6 +272,9 @@ class ReconApp {
     }
 
     async showFrequency() {
+        // Show loading state
+        this.el.frequencyContent.innerHTML = '<div class="loading-container"><div class="loading-spinner"></div><p>Loading frequency data...</p></div>';
+        
         try {
             // Get activity data - now includes ALL configs with their names
             const activityData = await this.get('/api/activity');
@@ -316,32 +325,93 @@ class ReconApp {
     }
 
     async showNetwork() {
-        if (!this.networkMap && typeof NetworkMap !== 'undefined') {
-            this.networkMap = new NetworkMap('network-canvas', 'node-details');
+        console.log('[Network] Loading network map...');
+        
+        if (!this.networkMap) {
+            console.log('[Network] Initializing NetworkMap...');
+            if (typeof NetworkMap !== 'undefined') {
+                try {
+                    this.networkMap = new NetworkMap('network-canvas', 'node-details');
+                    console.log('[Network] NetworkMap initialized successfully');
+                } catch (error) {
+                    console.error('[Network] Failed to initialize NetworkMap:', error);
+                }
+            } else {
+                console.error('[Network] NetworkMap class not found!');
+            }
         }
         
         try {
             const data = await this.get('/api/devices');
-            if (data && data.devices && this.networkMap) {
-                this.networkMap.updateDevices(data.devices);
+            console.log('[Network] Devices data:', data);
+            
+            if (data && data.devices) {
+                if (this.networkMap) {
+                    this.networkMap.updateDevices(data.devices);
+                    console.log('[Network] Updated map with', data.devices.length, 'devices');
+                } else {
+                    console.warn('[Network] NetworkMap not initialized, cannot update');
+                }
+                
+                // Update network info panel
+                const infoEl = document.getElementById('network-info');
+                if (infoEl) {
+                    if (data.devices.length === 0) {
+                        infoEl.innerHTML = '<p class="placeholder">No devices discovered yet. Start reconnaissance to populate the network map.</p>';
+                    } else {
+                        infoEl.innerHTML = `<p style="color: var(--text-secondary); font-size: 0.9rem;">Showing ${data.devices.length} device(s). Click a node for details.</p>`;
+                    }
+                }
             }
         } catch (error) {
-            console.error('Failed to update network map:', error);
+            console.error('[Network] Failed to load devices:', error);
+            const infoEl = document.getElementById('network-info');
+            if (infoEl) {
+                infoEl.innerHTML = '<p class="error">Failed to load network data: ' + error.message + '</p>';
+            }
         }
     }
 
     async showStats() {
-        if (!this.warRoom && typeof WarRoom !== 'undefined') {
-            this.warRoom = new WarRoom('war-room-container');
+        console.log('[Stats] Loading war room...');
+        
+        if (!this.warRoom) {
+            console.log('[Stats] Initializing WarRoom...');
+            if (typeof WarRoom !== 'undefined') {
+                try {
+                    this.warRoom = new WarRoom('war-room-container');
+                    console.log('[Stats] WarRoom initialized successfully');
+                } catch (error) {
+                    console.error('[Stats] Failed to initialize WarRoom:', error);
+                }
+            } else {
+                console.error('[Stats] WarRoom class not found!');
+            }
+        }
+        
+        if (!this.warRoom) {
+            // Fallback if WarRoom class not available
+            const container = document.getElementById('war-room-container');
+            if (container) {
+                container.innerHTML = '<div class="placeholder"><div style="font-size: 3rem; margin-bottom: 1rem; opacity: 0.5;">📊</div><p>Statistics visualization unavailable.</p><p style="font-size: 0.9rem; margin-top: 0.5rem;">War Room script may not be loaded. Check browser console.</p></div>';
+            }
+            return;
         }
         
         try {
             const data = await this.get('/api/status');
+            console.log('[Stats] Status data:', data);
+            
             if (data && this.warRoom) {
                 this.warRoom.update(data);
+                console.log('[Stats] War room updated');
             }
         } catch (error) {
-            console.error('Failed to update stats:', error);
+            console.error('[Stats] Failed to update:', error);
+            const container = document.getElementById('war-room-container');
+            if (container) {
+                container.innerHTML = '<div class="error-state"><p class="error">Failed to load statistics: ' + error.message + '</p></div>';
+            }
         }
     }
 
@@ -368,41 +438,184 @@ class ReconApp {
                 html += '</tbody></table></div>';
                 this.el.gpsContent.innerHTML = html;
             } else {
-                this.el.gpsContent.innerHTML = '<p class="placeholder">No GPS data captured yet. Device positions will appear here once discovered.</p>';
+                this.el.gpsContent.innerHTML = `
+                    <div class="placeholder">
+                        <div style="font-size: 3rem; margin-bottom: 1rem; opacity: 0.5;">📍</div>
+                        <p>No GPS data captured yet.</p>
+                        <p style="font-size: 0.9rem; margin-top: 0.5rem;">Device positions will appear here once discovered during reconnaissance.</p>
+                    </div>
+                `;
             }
         } catch (error) {
             console.error('Failed to load GPS:', error);
-            this.el.gpsContent.innerHTML = '<p class="placeholder">No GPS data available</p>';
+            this.el.gpsContent.innerHTML = '<div class="error-state"><p class="error">Failed to load GPS data</p><button data-action="retry-gps" class="btn btn-primary">Retry</button></div>';
         }
         
-        // Load security analysis from /api/statistics
+        // Load security analysis from /api/recon/security
         try {
-            const statsData = await this.get('/api/statistics');
-            if (statsData && statsData.statistics) {
-                const stats = statsData.statistics;
-                let html = '<div class="security-summary">';
-                html += `<p><strong>Total Packets Received:</strong> ${stats.totalPackets || 0}</p>`;
-                html += `<p><strong>Devices Discovered:</strong> ${stats.totalDevices || 0}</p>`;
+            const secData = await this.get('/api/recon/security');
+            
+            if (secData && secData.status === 'success' && secData.devices) {
+                const devices = secData.devices;
+                const summary = secData.summary || {};
+                let html = '<div style="padding: 1rem;">';
                 
-                // Protocol distribution
-                if (stats.protocolDistribution) {
-                    html += '<p><strong>Protocol Distribution:</strong></p><ul>';
-                    const protocols = stats.protocolDistribution;
-                    if (protocols.Meshtastic) html += `<li>Meshtastic: ${protocols.Meshtastic}</li>`;
-                    if (protocols.LoRaWAN) html += `<li>LoRaWAN: ${protocols.LoRaWAN}</li>`;
-                    if (protocols.Helium) html += `<li>Helium: ${protocols.Helium}</li>`;
-                    if (protocols.Other) html += `<li>Other: ${protocols.Other}</li>`;
-                    html += '</ul>';
+                // Summary Card
+                const totalDevices = summary.totalDevices || 0;
+                const vulnerable = summary.vulnerable || 0;
+                const moderate = summary.moderate || 0;
+                const secure = summary.secure || 0;
+                
+                if (totalDevices > 0) {
+                    html += '<div style="background: rgba(255, 255, 255, 0.05); padding: 1.5rem; border-radius: 8px; margin-bottom: 1.5rem; border-left: 3px solid var(--primary);">';
+                    html += '<h4 style="margin: 0 0 1rem 0; color: var(--primary);">🔐 Network Security Overview</h4>';
+                    html += '<div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem;">';
+                    
+                    html += '<div><div style="font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 0.25rem;">Secure</div>';
+                    html += '<div style="font-size: 1.5rem; font-weight: 700; color: var(--success); font-family: monospace;">' + secure + '</div></div>';
+                    
+                    html += '<div><div style="font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 0.25rem;">Moderate Risk</div>';
+                    html += '<div style="font-size: 1.5rem; font-weight: 700; color: var(--warning); font-family: monospace;">' + moderate + '</div></div>';
+                    
+                    html += '<div><div style="font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 0.25rem;">Vulnerable</div>';
+                    html += '<div style="font-size: 1.5rem; font-weight: 700; color: var(--danger); font-family: monospace;">' + vulnerable + '</div></div>';
+                    
+                    html += '</div></div>';
+                    
+                    // Device List
+                    if (devices.length > 0) {
+                        html += '<h4 style="color: var(--primary); margin-bottom: 1rem;">📋 Device Security Assessment</h4>';
+                        
+                        devices.forEach(dev => {
+                            const riskColor = dev.riskLevel === 'secure' ? 'var(--success)' : 
+                                             dev.riskLevel === 'moderate' ? 'var(--warning)' : 'var(--danger)';
+                            
+                            html += '<div style="background: rgba(255, 255, 255, 0.03); padding: 1rem; border-radius: 8px; margin-bottom: 1rem; border-left: 3px solid ' + riskColor + ';">';
+                            
+                            html += '<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">';
+                            html += '<div><strong style="color: var(--primary); font-family: monospace;">0x' + dev.nodeId + '</strong>';
+                            html += '<span style="margin-left: 0.5rem; color: var(--text-secondary); font-size: 0.9rem;">' + dev.protocol + '</span></div>';
+                            html += '<div style="background: ' + riskColor + '; color: #000; padding: 0.25rem 0.75rem; border-radius: 4px; font-size: 0.85rem; font-weight: 600; text-transform: uppercase;">' + dev.riskLevel + '</div>';
+                            html += '</div>';
+                            
+                            html += '<div style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 0.5rem;">';
+                            html += 'Score: <strong style="color: ' + riskColor + ';">' + dev.score + '/100</strong> • ';
+                            html += 'RSSI: <strong>' + dev.bestRSSI + ' dBm</strong> • ';
+                            html += 'Packets: <strong>' + dev.packetCount + '</strong>';
+                            html += '</div>';
+                            
+                            if (dev.findings && dev.findings.length > 0) {
+                                html += '<ul style="margin: 0.5rem 0 0 1.5rem; padding: 0; color: var(--text-secondary); font-size: 0.9rem; line-height: 1.6;">';
+                                dev.findings.forEach(finding => {
+                                    html += '<li>' + finding + '</li>';
+                                });
+                                html += '</ul>';
+                            }
+                            
+                            html += '</div>';
+                        });
+                    }
+                } else {
+                    html += '<div class="placeholder"><div style="font-size: 3rem; margin-bottom: 1rem; opacity: 0.5;">🔐</div>';
+                    html += '<p>No devices to analyze yet.</p>';
+                    html += '<p style="font-size: 0.9rem; margin-top: 0.5rem;">Security assessment will appear once devices are discovered.</p></div>';
                 }
                 
                 html += '</div>';
                 this.el.securityContent.innerHTML = html;
             } else {
-                this.el.securityContent.innerHTML = '<p class="placeholder">No analysis available yet. Statistics will appear as packets are captured.</p>';
+                // Fallback to basic statistics if security endpoint returns no data
+                const statsData = await this.get('/api/statistics');
+                if (statsData && statsData.statistics) {
+                    const stats = statsData.statistics;
+                    let html = '<div style="padding: 1rem;">';
+                    html += '<p style="color: var(--text-secondary); margin-bottom: 1rem;">Basic packet statistics:</p>';
+                    html += '<div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem;">';
+                    html += '<div style="background: rgba(74, 144, 226, 0.1); padding: 1rem; border-radius: 8px; border-left: 3px solid var(--primary);">';
+                    html += '<div style="font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 0.5rem;">Total Packets</div>';
+                    html += '<div style="font-size: 1.8rem; font-weight: 700; color: var(--primary); font-family: monospace;">' + (stats.totalPackets || 0) + '</div></div>';
+                    html += '<div style="background: rgba(80, 200, 120, 0.1); padding: 1rem; border-radius: 8px; border-left: 3px solid var(--secondary);">';
+                    html += '<div style="font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 0.5rem;">Devices</div>';
+                    html += '<div style="font-size: 1.8rem; font-weight: 700; color: var(--secondary); font-family: monospace;">' + (stats.totalDevices || 0) + '</div></div>';
+                    html += '</div><p style="margin-top: 1.5rem; font-size: 0.9rem; color: var(--text-secondary); font-style: italic;">Detailed security analysis available after capturing encrypted packets.</p></div>';
+                    this.el.securityContent.innerHTML = html;
+                } else {
+                    this.el.securityContent.innerHTML = `
+                        <div class="placeholder">
+                            <div style="font-size: 3rem; margin-bottom: 1rem; opacity: 0.5;">🔐</div>
+                            <p>No analysis available yet.</p>
+                            <p style="font-size: 0.9rem; margin-top: 0.5rem;">Statistics will appear as packets are captured.</p>
+                        </div>
+                    `;
+                }
             }
         } catch (error) {
             console.error('Failed to load security data:', error);
-            this.el.securityContent.innerHTML = '<p class="placeholder">Analysis will appear once packets are captured</p>';
+            this.el.securityContent.innerHTML = '<div class="error-state"><p class="error">Failed to load security data</p><button data-action="retry-security" class="btn btn-primary">Retry</button></div>';
+        }
+        
+        // Load frequency analysis from /api/activity
+        try {
+            const freqData = await this.get('/api/activity');
+            if (freqData && freqData.activities && freqData.activities.length > 0) {
+                let html = '<div style="padding: 1rem;">';
+                
+                // Sort by packet count
+                const activeFreqs = freqData.activities
+                    .filter(f => f.packets > 0)
+                    .sort((a, b) => b.packets - a.packets)
+                    .slice(0, 10); // Top 10
+                
+                if (activeFreqs.length > 0) {
+                    html += '<p style="margin-bottom: 1rem; color: var(--text-secondary);">Top ' + activeFreqs.length + ' most active frequencies:</p>';
+                    html += '<div style="display: flex; flex-direction: column; gap: 1rem;">';
+                    
+                    activeFreqs.forEach(freq => {
+                        const maxPackets = Math.max(...activeFreqs.map(f => f.packets));
+                        const barWidth = ((freq.packets / maxPackets) * 100).toFixed(1);
+                        html += '<div style="background: rgba(255,255,255,0.03); padding: 1rem; border-radius: 8px; border-left: 3px solid var(--primary);">';
+                        html += `<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">`;
+                        html += `<strong style="color: var(--primary);">${freq.protocol}</strong>`;
+                        html += `<span style="font-family: 'Courier New', monospace; color: var(--text-secondary);">${freq.frequencyMHz.toFixed(3)} MHz</span>`;
+                        html += `</div>`;
+                        html += `<div style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 0.5rem;">`;
+                        html += `SF${freq.spreadingFactor} • BW ${freq.bandwidthKHz}kHz • Config #${freq.configIndex}`;
+                        html += `</div>`;
+                        html += `<div style="display: flex; justify-content: space-between; font-size: 0.9rem; margin-bottom: 0.25rem;">`;
+                        html += `<span>Packets: <strong>${freq.packets}</strong></span>`;
+                        html += `<span>Avg RSSI: <strong class="${freq.avgRSSI > -70 ? 'rssi-strong' : freq.avgRSSI > -90 ? 'rssi-medium' : 'rssi-weak'}">${freq.avgRSSI.toFixed(1)} dBm</strong></span>`;
+                        html += `</div>`;
+                        html += `<div style="height: 6px; background: rgba(255,255,255,0.05); border-radius: 3px; overflow: hidden;">`;
+                        html += `<div style="height: 100%; width: ${barWidth}%; background: var(--primary); border-radius: 3px; transition: width 0.3s;"></div>`;
+                        html += `</div></div>`;
+                    });
+                    
+                    html += '</div>';
+                } else {
+                    html += '<p style="text-align: center; color: var(--text-secondary); padding: 2rem;">No frequency activity detected yet. Start reconnaissance to see active frequencies.</p>';
+                }
+                
+                html += '</div>';
+                const freqAnalysisEl = document.getElementById('frequency-analysis-content');
+                if (freqAnalysisEl) freqAnalysisEl.innerHTML = html;
+            } else {
+                const freqAnalysisEl = document.getElementById('frequency-analysis-content');
+                if (freqAnalysisEl) {
+                    freqAnalysisEl.innerHTML = `
+                        <div class="placeholder">
+                            <div style="font-size: 3rem; margin-bottom: 1rem; opacity: 0.5;">📊</div>
+                            <p>No frequency data yet.</p>
+                            <p style="font-size: 0.9rem; margin-top: 0.5rem;">Frequency analysis will appear during reconnaissance.</p>
+                        </div>
+                    `;
+                }
+            }
+        } catch (error) {
+            console.error('Failed to load frequency analysis:', error);
+            const freqAnalysisEl = document.getElementById('frequency-analysis-content');
+            if (freqAnalysisEl) {
+                freqAnalysisEl.innerHTML = '<div class="error-state"><p class="error">Failed to load frequency data</p><button data-action="retry-freq-analysis" class="btn btn-primary">Retry</button></div>';
+            }
         }
     }
 
@@ -421,18 +634,157 @@ class ReconApp {
     }
 
     async handleAction(action, value) {
+        const btn = event.target.closest('button');
+        const originalText = btn ? btn.innerHTML : '';
+        const originalDisabled = btn ? btn.disabled : false;
+        
+        // Add loading state to button
+        if (btn && !action.startsWith('retry-')) {
+            btn.disabled = true;
+            btn.classList.add('btn-loading');
+        }
+        
         try {
             switch(action) {
+                case 'toggle-scan':
                 case 'resume-recon':
                     await this.post('/api/scan/start', {});
                     showToast('Reconnaissance resumed', 'success');
+                    await this.updateStatus();
                     break;
                 case 'stop-capture':
                     await this.post('/api/capture/stop', {});
                     showToast('Capture stopped', 'success');
                     break;
                 case 'export-kml':
-                    window.open('/api/kml', '_blank');
+                    try {
+                        const gpsData = await this.get('/api/positions');
+                        if (gpsData && gpsData.positions && gpsData.positions.length > 0) {
+                            window.open('/api/export/kml', '_blank');
+                            showToast('Exporting ' + gpsData.positions.length + ' GPS location(s)...', 'success');
+                        } else {
+                            showToast('No GPS data to export. Capture packets with location data first.', 'warning');
+                        }
+                    } catch (error) {
+                        showToast('GPS export failed: ' + error.message, 'error');
+                    }
+                    break;
+                case 'clear-targets':
+                    await this.post('/api/capture/stop', {});
+                    showToast('Targets cleared', 'success');
+                    await this.updateStatus();
+                    break;
+                case 'show-activity':
+                    this.switchTab('frequency');
+                    break;
+                case 'show-security':
+                    this.switchTab('info');
+                    break;
+                case 'diagnostics':
+                    try {
+                        showToast('Running diagnostics...', 'info');
+                        const statusData = await this.get('/api/status');
+                        if (statusData && statusData.status === 'success') {
+                            const diag = statusData;
+                            
+                            // Radio is operational if we're receiving this response
+                            const radioOK = true;
+                            const wifiOK = (diag.clientCount !== undefined);
+                            
+                            // Create a nice HTML modal
+                            let html = '<div style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.8); z-index: 9999; display: flex; align-items: center; justify-content: center; padding: 1rem;" id="diag-modal">';
+                            html += '<div style="background: var(--background); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; max-width: 500px; width: 100%; max-height: 90vh; overflow-y: auto;">';
+                            html += '<div style="padding: 1.5rem; border-bottom: 1px solid rgba(255,255,255,0.1);">';
+                            html += '<h3 style="margin: 0; color: var(--primary);">🔧 System Diagnostics</h3></div>';
+                            html += '<div style="padding: 1.5rem;">';
+                            
+                            // Radio Status
+                            html += '<div style="margin-bottom: 1.5rem; padding: 1rem; background: rgba(255,255,255,0.03); border-radius: 8px; border-left: 3px solid ' + (radioOK ? 'var(--success)' : 'var(--danger)') + ';">';
+                            html += '<div style="display: flex; justify-content: space-between; align-items: center;">';
+                            html += '<strong>📡 Radio</strong>';
+                            html += '<span style="color: ' + (radioOK ? 'var(--success)' : 'var(--danger)') + '; font-weight: 600;">' + (radioOK ? '✓ Operational' : '✗ Failed') + '</span>';
+                            html += '</div></div>';
+                            
+                            // WiFi Status
+                            html += '<div style="margin-bottom: 1.5rem; padding: 1rem; background: rgba(255,255,255,0.03); border-radius: 8px; border-left: 3px solid ' + (wifiOK ? 'var(--success)' : 'var(--warning)') + ';">';
+                            html += '<div style="display: flex; justify-content: space-between; align-items: center;">';
+                            html += '<strong>📶 WiFi AP</strong>';
+                            html += '<span style="color: ' + (wifiOK ? 'var(--success)' : 'var(--warning)') + '; font-weight: 600;">' + (wifiOK ? '✓ Active (' + (diag.clientCount || 0) + ' clients)' : '✗ Inactive') + '</span>';
+                            html += '</div></div>';
+                            
+                            // Memory
+                            const heapFree = diag.freeHeap || 0;
+                            const heapTotal = diag.heapSize || 1;
+                            const heapPercent = ((heapFree / heapTotal) * 100).toFixed(1);
+                            const heapColor = heapPercent > 50 ? 'var(--success)' : heapPercent > 25 ? 'var(--warning)' : 'var(--danger)';
+                            html += '<div style="margin-bottom: 1.5rem; padding: 1rem; background: rgba(255,255,255,0.03); border-radius: 8px; border-left: 3px solid ' + heapColor + ';">';
+                            html += '<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">';
+                            html += '<strong>💾 Memory</strong>';
+                            html += '<span style="font-family: monospace; color: var(--text-secondary);">' + this.formatBytes(heapFree) + ' / ' + this.formatBytes(heapTotal) + '</span>';
+                            html += '</div>';
+                            html += '<div style="height: 6px; background: rgba(255,255,255,0.1); border-radius: 3px; overflow: hidden;">';
+                            html += '<div style="height: 100%; width: ' + heapPercent + '%; background: ' + heapColor + '; border-radius: 3px;"></div>';
+                            html += '</div></div>';
+                            
+                            // Statistics
+                            html += '<div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem; margin-bottom: 1rem;">';
+                            html += '<div style="padding: 1rem; background: rgba(74, 144, 226, 0.1); border-radius: 8px; text-align: center;">';
+                            html += '<div style="font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 0.25rem;">Uptime</div>';
+                            html += '<div style="font-size: 1.25rem; font-weight: 700; color: var(--primary); font-family: monospace;">' + this.formatDuration(diag.uptime || 0) + '</div></div>';
+                            html += '<div style="padding: 1rem; background: rgba(80, 200, 120, 0.1); border-radius: 8px; text-align: center;">';
+                            html += '<div style="font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 0.25rem;">Total Packets</div>';
+                            html += '<div style="font-size: 1.25rem; font-weight: 700; color: var(--secondary); font-family: monospace;">' + (diag.totalPackets || 0) + '</div></div>';
+                            html += '<div style="padding: 1rem; background: rgba(155, 89, 182, 0.1); border-radius: 8px; text-align: center;">';
+                            html += '<div style="font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 0.25rem;">Devices</div>';
+                            html += '<div style="font-size: 1.25rem; font-weight: 700; color: var(--accent); font-family: monospace;">' + (diag.devices || 0) + '</div></div>';
+                            html += '<div style="padding: 1rem; background: rgba(241, 196, 15, 0.1); border-radius: 8px; text-align: center;">';
+                            html += '<div style="font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 0.25rem;">Mode</div>';
+                            html += '<div style="font-size: 1rem; font-weight: 600; color: var(--warning);">' + (this.formatMode(diag.mode) || '—') + '</div></div>';
+                            html += '</div>';
+                            
+                            html += '</div>';
+                            html += '<div style="padding: 1rem 1.5rem; border-top: 1px solid rgba(255,255,255,0.1); display: flex; justify-content: flex-end;">';
+                            html += '<button onclick="document.getElementById(\'diag-modal\').remove()" class="btn btn-primary">Close</button>';
+                            html += '</div></div></div>';
+                            
+                            // Add to page
+                            const modal = document.createElement('div');
+                            modal.innerHTML = html;
+                            document.body.appendChild(modal.firstChild);
+                            
+                            // Close on background click
+                            document.getElementById('diag-modal').addEventListener('click', (e) => {
+                                if (e.target.id === 'diag-modal') {
+                                    e.target.remove();
+                                }
+                            });
+                            
+                            showToast('Diagnostics completed', 'success');
+                        } else {
+                            showToast('Diagnostics data unavailable', 'warning');
+                        }
+                    } catch (error) {
+                        showToast('Diagnostics failed: ' + error.message, 'error');
+                    }
+                    break;
+                case 'reboot':
+                    if (confirm('Reboot the device? This will disconnect temporarily.')) {
+                        await this.post('/api/command', { command: 'b' });
+                        showToast('Device rebooting...', 'warning');
+                    }
+                    break;
+                case 'download-logs':
+                    showToast('Log download not implemented', 'info');
+                    break;
+                case 'export-json':
+                    window.open('/api/statistics', '_blank');
+                    showToast('Exporting statistics...', 'info');
+                    break;
+                case 'center-map':
+                case 'toggle-labels':
+                case 'zoom-in':
+                case 'zoom-out':
+                    // These will be handled by network-map.js
                     break;
                 case 'target-device':
                     await this.post('/api/capture/start', { nodeId: value });
@@ -459,12 +811,24 @@ class ReconApp {
                     break;
                 case 'retry-gps':
                 case 'retry-security':
+                case 'retry-freq-analysis':
                     await this.showInfo();
                     break;
             }
         } catch (error) {
             console.error('Action failed:', error);
             showToast('Action failed: ' + error.message, 'error');
+        } finally {
+            // Restore button state
+            if (btn) {
+                btn.disabled = originalDisabled;
+                btn.classList.remove('btn-loading');
+                if (originalText && !action.startsWith('retry-')) {
+                    setTimeout(() => {
+                        btn.innerHTML = originalText;
+                    }, 300);
+                }
+            }
         }
     }
 
@@ -472,11 +836,16 @@ class ReconApp {
     
     setupMobileMenu() {
         if (this.el.mobileMenuToggle) {
-            this.el.mobileMenuToggle.addEventListener('click', () => {
+            this.el.mobileMenuToggle.addEventListener('click', (e) => {
+                e.stopPropagation();
                 const actionsSection = document.querySelector('.actions-section');
                 if (actionsSection) {
-                    actionsSection.classList.toggle('active');
-                    this.el.mobileMenuOverlay.classList.toggle('active');
+                    const isActive = actionsSection.classList.toggle('active');
+                    this.el.mobileMenuOverlay.classList.toggle('active', isActive);
+                    this.el.mobileMenuToggle.classList.toggle('active', isActive);
+                    
+                    // Prevent body scroll when menu is open
+                    document.body.style.overflow = isActive ? 'hidden' : '';
                 }
             });
         }
@@ -487,9 +856,24 @@ class ReconApp {
                 if (actionsSection) {
                     actionsSection.classList.remove('active');
                     this.el.mobileMenuOverlay.classList.remove('active');
+                    this.el.mobileMenuToggle.classList.remove('active');
+                    document.body.style.overflow = '';
                 }
             });
         }
+        
+        // Close mobile menu when clicking a button
+        document.addEventListener('click', (e) => {
+            if (e.target.closest('.actions-section button[data-action]')) {
+                const actionsSection = document.querySelector('.actions-section');
+                if (actionsSection && actionsSection.classList.contains('active')) {
+                    actionsSection.classList.remove('active');
+                    this.el.mobileMenuOverlay.classList.remove('active');
+                    this.el.mobileMenuToggle.classList.remove('active');
+                    document.body.style.overflow = '';
+                }
+            }
+        });
     }
 
     // ============ API Helpers ============

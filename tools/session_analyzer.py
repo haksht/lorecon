@@ -4,6 +4,8 @@
 Loads the enhanced SD-card CSV output (packet logger) and renders a
 2x2 matplotlib dashboard showing timeline activity, top devices,
 frequency distribution, and geographic hits.
+
+Optional: Export interactive HTML map with --export-map
 """
 from __future__ import annotations
 
@@ -16,6 +18,13 @@ from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Tuple
 
 import matplotlib.pyplot as plt
+
+# Optional folium for interactive maps
+try:
+    import folium
+    FOLIUM_AVAILABLE = True
+except ImportError:
+    FOLIUM_AVAILABLE = False
 
 
 @dataclass
@@ -226,7 +235,135 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--top-n", type=int, default=8, help="Number of devices to show in the top-device panel"
     )
+    parser.add_argument(
+        "--export-map", action="store_true", help="Export interactive HTML map (requires folium)"
+    )
+    parser.add_argument(
+        "--map-output", type=str, default="lora_session_map.html", 
+        help="Output filename for interactive map"
+    )
     return parser.parse_args()
+
+
+def export_interactive_map(packets: List[Packet], output_file: str) -> bool:
+    """Export interactive HTML map using folium"""
+    if not FOLIUM_AVAILABLE:
+        print("[!] Folium not available - install with: pip install folium")
+        return False
+    
+    # Get packets with GPS data
+    gps_packets = [p for p in packets if p.lat_deg is not None and p.lon_deg is not None]
+    
+    if not gps_packets:
+        print("[!] No GPS data to export")
+        return False
+    
+    # Calculate map center
+    avg_lat = sum(p.lat_deg for p in gps_packets) / len(gps_packets)
+    avg_lon = sum(p.lon_deg for p in gps_packets) / len(gps_packets)
+    
+    # Create map
+    m = folium.Map(
+        location=[avg_lat, avg_lon],
+        zoom_start=13,
+        tiles='OpenStreetMap'
+    )
+    
+    # Group by node_id
+    nodes = defaultdict(list)
+    for pkt in gps_packets:
+        if pkt.node_id:
+            nodes[pkt.node_id].append(pkt)
+    
+    # Protocol color mapping
+    color_map = {
+        'Meshtastic': 'blue',
+        'LoRaWAN': 'orange',
+        'Helium': 'green',
+        'Unknown': 'gray'
+    }
+    
+    # Add markers for each node
+    for node_id, node_packets in nodes.items():
+        # Use most recent position
+        latest = max(node_packets, key=lambda p: p.timestamp_ms)
+        color = color_map.get(latest.protocol, 'gray')
+        
+        # Calculate stats
+        avg_rssi = sum(p.rssi_dbm for p in node_packets) / len(node_packets)
+        
+        # Create popup
+        popup_html = f"""
+            <b>Device: 0x{node_id}</b><br>
+            Protocol: {latest.protocol}<br>
+            Packets: {len(node_packets)}<br>
+            Avg RSSI: {avg_rssi:.1f} dBm<br>
+            Lat: {latest.lat_deg:.6f}<br>
+            Lon: {latest.lon_deg:.6f}<br>
+            Alt: {latest.alt_m if latest.alt_m else 'N/A'} m
+        """
+        
+        folium.Marker(
+            location=[latest.lat_deg, latest.lon_deg],
+            popup=folium.Popup(popup_html, max_width=250),
+            tooltip=f"0x{node_id[:8]} ({latest.protocol})",
+            icon=folium.Icon(color=color, icon='info-sign')
+        ).add_to(m)
+        
+        # Add trail if device moved
+        if len(node_packets) > 1:
+            trail = [[p.lat_deg, p.lon_deg] for p in sorted(node_packets, key=lambda x: x.timestamp_ms)]
+            # Remove duplicates while preserving order
+            unique_trail = []
+            for coord in trail:
+                if not unique_trail or coord != unique_trail[-1]:
+                    unique_trail.append(coord)
+            
+            if len(unique_trail) > 1:
+                folium.PolyLine(
+                    unique_trail,
+                    color=color_map.get(latest.protocol, 'gray'),
+                    weight=2,
+                    opacity=0.6,
+                    popup=f"0x{node_id[:8]} trail"
+                ).add_to(m)
+    
+    # Add legend
+    legend_html = """
+    <div style="position: fixed; 
+                top: 10px; right: 10px; 
+                background-color: white;
+                border: 2px solid grey;
+                border-radius: 5px;
+                padding: 10px;
+                font-size: 14px;
+                z-index: 9999;">
+        <p><b>ESP32 LoRa Session</b></p>
+        <p>🔵 Meshtastic</p>
+        <p>🟠 LoRaWAN</p>
+        <p>🟢 Helium</p>
+        <p>⚪ Unknown</p>
+        <hr>
+        <p><small>Devices: {}</small></p>
+        <p><small>Positions: {}</small></p>
+    </div>
+    """.format(len(nodes), len(gps_packets))
+    m.get_root().html.add_child(folium.Element(legend_html))
+    
+    # Save map
+    output_path = Path(output_file)
+    m.save(str(output_path))
+    print(f"[🗺️] Interactive map saved: {output_path}")
+    
+    # Try to open in browser
+    try:
+        import webbrowser
+        webbrowser.open(f'file://{output_path.absolute()}')
+        print(f"[🌐] Map opened in browser")
+    except Exception:
+        print(f"[!] Could not auto-open browser. Manually open: {output_path}")
+    
+    return True
 
 
 def main() -> None:
@@ -242,6 +379,10 @@ def main() -> None:
     if not stats:
         raise SystemExit("Unable to compute statistics from the provided CSV.")
 
+    # Export interactive map if requested
+    if args.export_map:
+        export_interactive_map(packets, args.map_output)
+    
     plot_dashboard(stats, top_n=max(1, args.top_n))
 
 
