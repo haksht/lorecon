@@ -195,7 +195,6 @@ void PacketProcessor::handleReconPacket(const PacketInfo& info, const uint8_t* d
             }
         }
     }
-    #endif
 }
 
 // Handle packet in targeted capture mode
@@ -270,5 +269,4 @@ void PacketProcessor::handleTargetedPacket(const PacketInfo& info, const uint8_t
             Serial.println("(no readable content found)");
         }
     }
-    #endif
 }

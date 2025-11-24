@@ -520,23 +520,21 @@ void WebServer::broadcastAggregatedUpdate() {
         return;
     }
 
-    // Build JSON
+    // Build JSON (keep it small)
     JsonDocument doc;
     doc["type"] = "packet";
     doc["nodeId"] = String(aggStats.lastNodeId, HEX);
-    doc["protocol"] = aggStats.lastProtocol;
     doc["rssi"] = aggStats.lastRSSI;
-    doc["snr"] = aggStats.lastSNR;
     doc["count"] = aggStats.packetCount;
-    doc["timestamp"] = aggStats.timestamp;
-    if (aggStats.hasMessage) {
-        doc["message"] = aggStats.lastMessage;
-    }
     
     String json;
     serializeJson(doc, json);
 
-    ws->textAll(json);
+    // Non-blocking send
+    if (json.length() < 256) {  // Safety limit
+        ws->textAll(json);
+    }
+    
     aggStats.packetCount = 0;
     lastBroadcast = millis();
     pendingPacketBroadcast.store(false, std::memory_order_relaxed);
@@ -565,18 +563,17 @@ void WebServer::periodicUpdate() {
 }
 
 void WebServer::service() {
-    bool broadcastPending = pendingPacketBroadcast.load(std::memory_order_relaxed);
-    if (broadcastPending) {
-        uint32_t now = millis();
-        if (now - lastBroadcast >= BROADCAST_INTERVAL_MS) {
+    // Throttled broadcast to prevent watchdog timeout
+    uint32_t now = millis();
+    if (now - lastBroadcast >= BROADCAST_INTERVAL_MS) {
+        bool broadcastPending = pendingPacketBroadcast.load(std::memory_order_relaxed);
+        if (broadcastPending && activeClients.load(std::memory_order_relaxed) > 0) {
             broadcastAggregatedUpdate();
         }
     }
 
-    if (pendingClientCleanup.load(std::memory_order_relaxed)) {
-        // Just clear the flag - don't call cleanupClients, it causes stack overflow
-        pendingClientCleanup.store(false, std::memory_order_relaxed);
-    }
+    // Clear cleanup flag
+    pendingClientCleanup.store(false, std::memory_order_relaxed);
 }
 
 /**

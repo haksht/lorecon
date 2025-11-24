@@ -264,6 +264,80 @@ body {
     font-style: italic;
 }
 
+/* Loading Spinner */
+.loading-spinner {
+    display: inline-block;
+    width: 40px;
+    height: 40px;
+    border: 4px solid rgba(74, 144, 226, 0.1);
+    border-top-color: var(--primary);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin: 2rem auto;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+.loading-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 3rem 1rem;
+    gap: 1rem;
+}
+
+.loading-container p {
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+}
+
+/* Skeleton Loading */
+.skeleton {
+    background: linear-gradient(
+        90deg,
+        rgba(255, 255, 255, 0.05) 25%,
+        rgba(255, 255, 255, 0.1) 50%,
+        rgba(255, 255, 255, 0.05) 75%
+    );
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite;
+    border-radius: var(--radius);
+}
+
+@keyframes shimmer {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+}
+
+.skeleton-text {
+    height: 1rem;
+    margin-bottom: 0.5rem;
+}
+
+.skeleton-text:last-child {
+    width: 60%;
+}
+
+/* Error State */
+.error-state {
+    text-align: center;
+    padding: 2rem 1rem;
+}
+
+.error-state .error {
+    color: var(--danger);
+    font-weight: 600;
+    margin-bottom: 1rem;
+}
+
+.error-state .btn {
+    width: auto;
+    min-width: 120px;
+}
+
 /* Buttons */
 .btn {
     padding: 0.7rem 1rem;
@@ -273,15 +347,39 @@ body {
     color: var(--text-primary);
     font-size: 0.85rem;
     cursor: pointer;
-    transition: all 0.15s;
+    transition: all 0.15s ease;
     text-align: left;
     width: 100%;
+    position: relative;
+    overflow: hidden;
+}
+
+.btn::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 0;
+    height: 0;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.1);
+    transform: translate(-50%, -50%);
+    transition: width 0.6s, height 0.6s;
+}
+
+.btn:active::before {
+    width: 300px;
+    height: 300px;
 }
 
 .btn:hover {
     background: var(--bg-hover);
     border-color: var(--primary);
     transform: translateX(3px);
+}
+
+.btn:active {
+    transform: translateX(3px) scale(0.98);
 }
 
 .btn-primary {
@@ -294,12 +392,182 @@ body {
 .btn-primary:hover {
     background: #3a7bc8;
     transform: translateX(3px);
+    box-shadow: 0 4px 12px rgba(74, 144, 226, 0.3);
+}
+
+.btn-primary:active {
+    transform: translateX(3px) scale(0.98);
 }
 
 .btn-secondary {
     background: var(--warning);
     border-color: var(--warning);
     color: white;
+}
+
+.btn-secondary:hover {
+    background: #e68900;
+}
+
+.btn-small, .btn-sm {
+    padding: 0.4rem 0.8rem;
+    font-size: 0.75rem;
+    width: auto;
+    min-height: auto;
+}
+
+/* Protocol Badge */
+.protocol-badge {
+    display: inline-block;
+    padding: 0.25rem 0.6rem;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    background: rgba(74, 144, 226, 0.2);
+    color: var(--primary);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+/* RSSI Indicators */
+.rssi-strong {
+    color: var(--success);
+    font-weight: 600;
+}
+
+.rssi-medium {
+    color: var(--warning);
+    font-weight: 600;
+}
+
+.rssi-weak {
+    color: var(--danger);
+    font-weight: 600;
+}
+
+/* Frequency Tab Intro */
+.frequency-intro {
+    background: rgba(74, 144, 226, 0.1);
+    border-left: 3px solid var(--primary);
+    padding: 1rem;
+    margin-bottom: 1.5rem;
+    border-radius: var(--radius);
+}
+
+.frequency-intro p {
+    margin: 0;
+    color: var(--text-primary);
+    font-size: 0.9rem;
+    line-height: 1.6;
+}
+
+/* Inactive Config Styling */
+.inactive-card {
+    opacity: 0.6;
+    border-left-color: var(--text-muted);
+}
+
+.inactive-card:hover {
+    opacity: 0.8;
+    border-left-color: var(--primary);
+}
+
+.inactive-row {
+    opacity: 0.5;
+}
+
+.inactive-badge {
+    background: rgba(122, 122, 138, 0.2);
+    color: var(--text-muted);
+}
+
+.text-muted {
+    color: var(--text-muted);
+}
+
+/* Frequency-specific cards */
+.freq-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--primary);
+    border-radius: var(--radius);
+    padding: 1rem;
+    transition: all 0.2s;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.freq-card:hover {
+    border-left-color: #3a7bc8;
+    box-shadow: 0 4px 12px rgba(74, 144, 226, 0.3);
+    transform: translateY(-2px);
+}
+
+.config-number {
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: var(--primary);
+    margin: 0;
+}
+
+.freq-specs {
+    margin: 0.75rem 0;
+    padding: 0.75rem;
+    background: rgba(255, 255, 255, 0.02);
+    border-radius: 4px;
+    border-left: 2px solid var(--primary);
+}
+
+.freq-value {
+    font-size: 1.1rem;
+    font-weight: 700;
+    font-family: 'Courier New', monospace;
+    color: var(--primary);
+    margin-bottom: 0.25rem;
+}
+
+.freq-params {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    font-family: 'Courier New', monospace;
+}
+
+.freq-stats {
+    display: flex;
+    justify-content: space-between;
+    margin: 0.75rem 0;
+    padding: 0.5rem 0;
+    border-top: 1px solid var(--border);
+    font-size: 0.85rem;
+}
+
+.freq-stats span {
+    display: flex;
+    flex-direction: column;
+}
+
+.freq-stats strong {
+    font-size: 1rem;
+    margin-bottom: 0.1rem;
+}
+
+/* Frequency table - compact cell layout */
+.freq-table .freq-cell {
+    padding: 0.4rem 0.5rem;
+}
+
+.freq-main {
+    font-size: 0.9rem;
+    font-weight: 700;
+    font-family: 'Courier New', monospace;
+    color: var(--primary);
+    line-height: 1.3;
+}
+
+.freq-sub {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    font-family: 'Courier New', monospace;
+    margin-top: 0.1rem;
 }
 
 /* Tables with Scroll */
@@ -335,12 +603,6 @@ body {
 .table tbody tr:hover {
     background: rgba(74, 144, 226, 0.08);
     border-left-color: var(--primary);
-}
-
-.table .btn {
-    padding: 0.4rem 0.8rem;
-    font-size: 0.75rem;
-    width: auto;
 }
 
 /* Table wrapper for horizontal scroll */
@@ -408,54 +670,102 @@ body {
     font-size: 0.85rem;
 }
 
+/* Responsive Display Utilities */
+.mobile-only {
+    display: block;
+}
+
+.desktop-only {
+    display: none;
+}
+
+@media (min-width: 768px) {
+    .mobile-only {
+        display: none;
+    }
+    
+    .desktop-only {
+        display: block;
+    }
+}
+
+/* Card List Container */
+.card-list {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
 /* Device Cards for Mobile */
 .device-card {
     background: var(--bg-card);
     border: 1px solid var(--border);
+    border-left: 3px solid var(--primary);
     border-radius: var(--radius);
     padding: 1rem;
-    margin-bottom: 0.75rem;
     transition: all 0.2s;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
 }
 
 .device-card:hover {
-    border-color: var(--primary);
-    box-shadow: 0 2px 8px rgba(74, 144, 226, 0.2);
+    border-left-color: #3a7bc8;
+    box-shadow: 0 4px 12px rgba(74, 144, 226, 0.3);
+    transform: translateY(-2px);
 }
 
 .device-card .card-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 0.75rem;
+    margin-bottom: 1rem;
     padding-bottom: 0.75rem;
     border-bottom: 1px solid var(--border);
 }
 
 .device-card .node-id {
-    font-size: 0.95rem;
-    font-family: monospace;
+    font-size: 1rem;
+    font-family: 'Courier New', monospace;
     color: var(--primary);
+    font-weight: 700;
     margin: 0;
 }
 
 .device-card .badge {
-    padding: 0.25rem 0.5rem;
-    border-radius: 4px;
-    font-size: 0.75rem;
-    font-weight: 600;
+    padding: 0.3rem 0.6rem;
+    border-radius: 12px;
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
     background: rgba(74, 144, 226, 0.2);
     color: var(--primary);
+    border: 1px solid rgba(74, 144, 226, 0.3);
+}
+
+.config-badge {
+    background: var(--border);
+    color: var(--text-secondary);
+    font-size: 0.7rem;
+    padding: 0.15rem 0.4rem;
+    margin-left: 0.5rem;
+    border-radius: 8px;
+    font-weight: 600;
+}
+
+.config-name {
+    margin: 0;
+    font-size: 1rem;
+    color: var(--text);
 }
 
 .device-card .card-body {
-    margin-bottom: 0.75rem;
+    margin-bottom: 1rem;
 }
 
 .device-card .info-grid {
     display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 0.5rem;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.75rem;
 }
 
 .device-card .info-item {
@@ -465,20 +775,23 @@ body {
 
 .device-card .info-item .label {
     font-size: 0.7rem;
-    color: var(--text-muted);
+    color: var(--text-secondary);
     text-transform: uppercase;
     letter-spacing: 0.5px;
-    margin-bottom: 0.25rem;
+    margin-bottom: 0.3rem;
+    font-weight: 600;
 }
 
 .device-card .info-item .value {
-    font-size: 0.9rem;
+    font-size: 0.95rem;
     color: var(--text-primary);
-    font-weight: 500;
+    font-weight: 600;
+    font-family: 'Courier New', monospace;
 }
 
 .device-card .card-actions {
     display: flex;
+    flex-direction: column;
     gap: 0.5rem;
 }
 
@@ -569,7 +882,8 @@ body {
     
     /* Hide actions section on mobile, show hamburger menu */
     .actions-section {
-        display: none;
+        display: flex;
+        flex-direction: column;
         position: fixed;
         top: 0;
         left: 0;
@@ -578,13 +892,12 @@ body {
         background: var(--bg-card);
         z-index: 999;
         transform: translateX(-100%);
-        transition: transform 0.3s;
+        transition: transform 0.3s ease;
         overflow-y: auto;
         border-right: 2px solid var(--border);
     }
     
     .actions-section.active {
-        display: flex;
         transform: translateX(0);
     }
     

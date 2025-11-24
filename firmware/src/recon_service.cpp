@@ -235,22 +235,30 @@ String ReconService::buildActivityJson() {
     JsonArray activities = doc["activities"].to<JsonArray>();
     for (uint8_t i = 0; i < reconState.getNumConfigs(); i++) {
         const RFActivity& activity = reconState.getRFActivity(i);
-        if (activity.activityCount == 0) {
-            continue;
-        }
-
-        JsonObject obj = activities.add<JsonObject>();
         const ScanConfig& cfg = reconState.getScanConfig(i);
-        obj["frequency"] = cfg.frequency;
+        
+        JsonObject obj = activities.add<JsonObject>();
+        obj["configIndex"] = i;
+        obj["frequencyMHz"] = cfg.frequency;
+        obj["spreadingFactor"] = cfg.spreadingFactor;
+        obj["bandwidthKHz"] = cfg.bandwidth;
+        obj["syncWord"] = cfg.syncWord;
         obj["protocol"] = cfg.protocol;
-        obj["packets"] = activity.activityCount;
-        obj["peakRSSI"] = activity.peakRSSI;
-        obj["avgRSSI"] = activity.avgRSSI;
-        obj["lastActivity"] = activity.lastActivity;
-        obj["activityLevel"] = activity.activityLevel ? activity.activityLevel : "UNKNOWN";
+        
+        if (activity.activityCount > 0) {
+            obj["packets"] = activity.activityCount;
+            obj["peakRSSI"] = activity.peakRSSI;
+            obj["avgRSSI"] = activity.avgRSSI;
+            obj["lastActivity"] = activity.lastActivity;
+            obj["activityLevel"] = activity.activityLevel ? activity.activityLevel : "UNKNOWN";
+        } else {
+            obj["packets"] = 0;
+            obj["avgRSSI"] = 0;
+            obj["activityLevel"] = "NONE";
+        }
     }
 
-    doc["totalActivities"] = activities.size();
+    doc["totalConfigs"] = activities.size();
 
     String response;
     serializeJson(doc, response);

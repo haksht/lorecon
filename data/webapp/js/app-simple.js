@@ -51,8 +51,8 @@ class ReconApp {
             await this.updateStatus();
             this.statusTimer = setInterval(() => this.updateStatus(), 10000);
             
-            // Load first tab (Info)
-            this.loadTabContent('info');
+            // Load first tab
+            this.loadTabContent('devices');
         } catch (error) {
             console.error('Init error:', error);
         }
@@ -178,9 +178,6 @@ class ReconApp {
             case 'packets':
                 await this.showPackets();
                 break;
-            case 'frequency':
-                await this.showFrequency();
-                break;
             case 'network':
                 await this.showNetwork();
                 break;
@@ -198,120 +195,63 @@ class ReconApp {
     async showDevices() {
         try {
             const data = await this.get('/api/devices');
-            if (!data || !data.devices || data.devices.length === 0) {
-                this.el.devicesContent.innerHTML = '<p class="placeholder">No devices found. Devices will appear as they are discovered during scanning.</p>';
+            if (!data || !data.devices) {
+                this.el.devicesContent.innerHTML = '<p class="placeholder">No devices found</p>';
                 return;
             }
             
-            let html = '<div class="table-wrapper">';
-            html += '<table class="table"><thead><tr>';
-            html += '<th>Node ID</th><th>Type</th><th>Protocol</th><th>Packets</th><th>RSSI</th><th>Frequency</th><th>Last Seen</th><th>Actions</th>';
+            let html = '<table class="data-table"><thead><tr>';
+            html += '<th>Node ID</th><th>Type</th><th>Packets</th><th>RSSI</th><th>Last Seen</th><th>Actions</th>';
             html += '</tr></thead><tbody>';
             
             data.devices.forEach(device => {
-                const rssiClass = (device.rssi || -100) > -70 ? 'rssi-strong' : (device.rssi || -100) > -90 ? 'rssi-medium' : 'rssi-weak';
                 html += '<tr>';
                 html += `<td><code>0x${device.nodeId}</code></td>`;
                 html += `<td>${device.deviceType || 'Unknown'}</td>`;
-                html += `<td><code>${device.protocol || '—'}</code></td>`;
                 html += `<td>${device.packetCount || 0}</td>`;
-                html += `<td><span class="${rssiClass}">${device.rssi || '—'} dBm</span></td>`;
-                html += `<td>${(device.frequency || 0).toFixed(3)} MHz</td>`;
+                html += `<td>${device.bestRSSI || '—'} dBm</td>`;
                 html += `<td>${this.formatDuration((Date.now() - device.lastSeen) / 1000)} ago</td>`;
-                html += `<td><button data-action="target-device" data-value="${device.nodeId}" class="btn btn-primary btn-small">🎯 Target</button></td>`;
+                html += `<td><button data-action="target-device" data-value="${device.nodeId}" class="btn-small">Target</button></td>`;
                 html += '</tr>';
             });
             
-            html += '</tbody></table></div>';
+            html += '</tbody></table>';
             this.el.devicesContent.innerHTML = html;
         } catch (error) {
             console.error('Failed to load devices:', error);
-            this.el.devicesContent.innerHTML = '<div class="error-state"><p class="error">Failed to load devices</p><button data-action="retry-devices" class="btn btn-primary">Retry</button></div>';
+            this.el.devicesContent.innerHTML = '<p class="error">Failed to load devices</p>';
         }
     }
 
     async showPackets() {
         try {
-            const data = await this.get('/api/replay/slots');
-            if (!data || !data.slots || data.slots.length === 0) {
-                this.el.packetsContent.innerHTML = '<p class="placeholder">No packets captured yet. Packets will appear here when targeting a device.</p>';
+            const data = await this.get('/api/packets');
+            if (!data || !data.packets || data.packets.length === 0) {
+                this.el.packetsContent.innerHTML = '<p class="placeholder">No packets captured</p>';
                 return;
             }
             
-            let html = '<div class="table-wrapper">';
-            html += '<table class="table"><thead><tr>';
-            html += '<th>Slot</th><th>Protocol</th><th>Node ID</th><th>Size</th><th>RSSI</th><th>Frequency</th><th>Message</th><th>Actions</th>';
+            let html = '<table class="data-table"><thead><tr>';
+            html += '<th>#</th><th>From</th><th>To</th><th>Size</th><th>RSSI</th><th>SNR</th><th>Actions</th>';
             html += '</tr></thead><tbody>';
             
-            data.slots.forEach((pkt, idx) => {
-                const rssiClass = (pkt.rssi || -100) > -70 ? 'rssi-strong' : (pkt.rssi || -100) > -90 ? 'rssi-medium' : 'rssi-weak';
+            data.packets.forEach((pkt, idx) => {
                 html += '<tr>';
-                html += `<td><strong>${pkt.index || idx + 1}</strong></td>`;
-                html += `<td><code>${pkt.protocol || 'Unknown'}</code></td>`;
-                html += `<td>${pkt.nodeId ? '<code>0x' + pkt.nodeId + '</code>' : '—'}</td>`;
-                html += `<td>${pkt.length || 0} B</td>`;
-                html += `<td><span class="${rssiClass}">${pkt.rssi || '—'} dBm</span></td>`;
-                html += `<td>${(pkt.frequencyMHz || 0).toFixed(3)} MHz</td>`;
-                html += `<td>${pkt.decryptedText || '—'}</td>`;
-                html += `<td><button data-action="replay-packet" data-value="${idx}" class="btn btn-primary btn-small">🔁 Replay</button></td>`;
+                html += `<td>${idx + 1}</td>`;
+                html += `<td><code>0x${pkt.from || '?'}</code></td>`;
+                html += `<td><code>0x${pkt.to || '?'}</code></td>`;
+                html += `<td>${pkt.size || 0} B</td>`;
+                html += `<td>${pkt.rssi || '—'} dBm</td>`;
+                html += `<td>${pkt.snr || '—'}</td>`;
+                html += `<td><button data-action="replay-packet" data-value="${idx}" class="btn-small">Replay</button></td>`;
                 html += '</tr>';
             });
             
-            html += '</tbody></table></div>';
+            html += '</tbody></table>';
             this.el.packetsContent.innerHTML = html;
         } catch (error) {
             console.error('Failed to load packets:', error);
-            this.el.packetsContent.innerHTML = '<div class="error-state"><p class="error">Failed to load packets</p><button data-action="retry-packets" class="btn btn-primary">Retry</button></div>';
-        }
-    }
-
-    async showFrequency() {
-        try {
-            // Get activity data - now includes ALL configs with their names
-            const activityData = await this.get('/api/activity');
-            
-            if (!activityData || !activityData.activities || activityData.activities.length === 0) {
-                this.el.frequencyContent.innerHTML = '<p class="placeholder">Frequency configurations loading...</p>';
-                return;
-            }
-            
-            const allConfigs = activityData.activities;
-            const totalConfigs = activityData.totalConfigs || allConfigs.length;
-            
-            let html = '<div class="frequency-intro">';
-            html += `<p><strong>${totalConfigs} frequency configurations available.</strong> Target any config to focus packet capture on that frequency.</p>`;
-            html += '</div>';
-            
-            html += '<div class="table-wrapper">';
-            html += '<table class="table freq-table"><thead><tr>';
-            html += '<th>Protocol</th><th>Frequency</th><th>SF</th><th>BW</th><th>Packets</th><th>RSSI</th><th>Actions</th>';
-            html += '</tr></thead><tbody>';
-            
-            allConfigs.forEach(act => {
-                const isActive = act.packets > 0;
-                const rssiClass = act.avgRSSI > -70 ? 'rssi-strong' : act.avgRSSI > -90 ? 'rssi-medium' : 'rssi-weak';
-                const rowClass = isActive ? '' : 'inactive-row';
-                html += `<tr class="${rowClass}">`;
-                html += `<td><strong>${act.protocol}</strong> <span class="badge config-badge">#${act.configIndex}</span></td>`;
-                html += `<td>${act.frequencyMHz.toFixed(3)} MHz</td>`;
-                html += `<td>SF${act.spreadingFactor}</td>`;
-                html += `<td>${act.bandwidthKHz} kHz</td>`;
-                if (isActive) {
-                    html += `<td>${act.packets}</td>`;
-                    html += `<td><span class="${rssiClass}">${act.avgRSSI} dBm</span></td>`;
-                } else {
-                    html += '<td class="text-muted">—</td>';
-                    html += '<td class="text-muted">—</td>';
-                }
-                html += `<td><button data-action="target-frequency" data-value="${act.configIndex}" class="btn btn-primary btn-small">🎯 Target</button></td>`;
-                html += '</tr>';
-            });
-            
-            html += '</tbody></table></div>';
-            this.el.frequencyContent.innerHTML = html;
-        } catch (error) {
-            console.error('Failed to load frequency data:', error);
-            this.el.frequencyContent.innerHTML = '<div class="error-state"><p class="error">Failed to load frequency data</p><button data-action="retry-frequency" class="btn btn-primary">Retry</button></div>';
+            this.el.packetsContent.innerHTML = '<p class="error">Failed to load packets</p>';
         }
     }
 
@@ -348,61 +288,69 @@ class ReconApp {
     async showInfo() {
         // Status already updated via handleStatusUpdate
         
-        // Load GPS data from /api/positions
+        // Load GPS data
         try {
-            const gpsData = await this.get('/api/positions');
-            if (gpsData && gpsData.positions && gpsData.positions.length > 0) {
-                let html = '<div class="table-wrapper"><table class="table"><thead><tr>';
+            const gpsData = await this.get('/api/gps');
+            if (gpsData && gpsData.locations && gpsData.locations.length > 0) {
+                let html = '<table class="data-table"><thead><tr>';
                 html += '<th>Node ID</th><th>Latitude</th><th>Longitude</th><th>Altitude</th>';
                 html += '</tr></thead><tbody>';
                 
-                gpsData.positions.forEach(pos => {
+                gpsData.locations.forEach(loc => {
                     html += '<tr>';
-                    html += `<td><code>0x${pos.nodeId}</code></td>`;
-                    html += `<td>${pos.lat.toFixed(6)}</td>`;
-                    html += `<td>${pos.lon.toFixed(6)}</td>`;
-                    html += `<td>${pos.alt || '—'} m</td>`;
+                    html += `<td><code>0x${loc.nodeId}</code></td>`;
+                    html += `<td>${loc.latitude.toFixed(6)}</td>`;
+                    html += `<td>${loc.longitude.toFixed(6)}</td>`;
+                    html += `<td>${loc.altitude || '—'} m</td>`;
                     html += '</tr>';
                 });
                 
-                html += '</tbody></table></div>';
+                html += '</tbody></table>';
                 this.el.gpsContent.innerHTML = html;
             } else {
-                this.el.gpsContent.innerHTML = '<p class="placeholder">No GPS data captured yet. Device positions will appear here once discovered.</p>';
+                this.el.gpsContent.innerHTML = '<p class="placeholder">No GPS data available</p>';
             }
         } catch (error) {
             console.error('Failed to load GPS:', error);
-            this.el.gpsContent.innerHTML = '<p class="placeholder">No GPS data available</p>';
         }
         
-        // Load security analysis from /api/statistics
+        // Load frequency analysis
         try {
-            const statsData = await this.get('/api/statistics');
-            if (statsData && statsData.statistics) {
-                const stats = statsData.statistics;
+            const freqData = await this.get('/api/activity');
+            if (freqData && freqData.activities && freqData.activities.length > 0) {
+                let html = '<table class="data-table"><thead><tr>';
+                html += '<th>Frequency</th><th>Protocol</th><th>Packets</th><th>Avg RSSI</th>';
+                html += '</tr></thead><tbody>';
+                
+                freqData.activities.forEach(act => {
+                    html += '<tr>';
+                    html += `<td>${act.frequency.toFixed(3)} MHz</td>`;
+                    html += `<td>${act.protocol}</td>`;
+                    html += `<td>${act.packets}</td>`;
+                    html += `<td>${act.avgRSSI} dBm</td>`;
+                    html += '</tr>';
+                });
+                
+                html += '</tbody></table>';
+                this.el.frequencyContent.innerHTML = html;
+            }
+        } catch (error) {
+            console.error('Failed to load frequency data:', error);
+        }
+        
+        // Load security analysis
+        try {
+            const secData = await this.get('/api/security');
+            if (secData && secData.summary) {
                 let html = '<div class="security-summary">';
-                html += `<p><strong>Total Packets Received:</strong> ${stats.totalPackets || 0}</p>`;
-                html += `<p><strong>Devices Discovered:</strong> ${stats.totalDevices || 0}</p>`;
-                
-                // Protocol distribution
-                if (stats.protocolDistribution) {
-                    html += '<p><strong>Protocol Distribution:</strong></p><ul>';
-                    const protocols = stats.protocolDistribution;
-                    if (protocols.Meshtastic) html += `<li>Meshtastic: ${protocols.Meshtastic}</li>`;
-                    if (protocols.LoRaWAN) html += `<li>LoRaWAN: ${protocols.LoRaWAN}</li>`;
-                    if (protocols.Helium) html += `<li>Helium: ${protocols.Helium}</li>`;
-                    if (protocols.Other) html += `<li>Other: ${protocols.Other}</li>`;
-                    html += '</ul>';
-                }
-                
+                html += `<p><strong>Encrypted Packets:</strong> ${secData.summary.encryptedPackets || 0}</p>`;
+                html += `<p><strong>Unencrypted Packets:</strong> ${secData.summary.unencryptedPackets || 0}</p>`;
+                html += `<p><strong>Default Keys Detected:</strong> ${secData.summary.defaultKeys || 0}</p>`;
                 html += '</div>';
                 this.el.securityContent.innerHTML = html;
-            } else {
-                this.el.securityContent.innerHTML = '<p class="placeholder">No analysis available yet. Statistics will appear as packets are captured.</p>';
             }
         } catch (error) {
             console.error('Failed to load security data:', error);
-            this.el.securityContent.innerHTML = '<p class="placeholder">Analysis will appear once packets are captured</p>';
         }
     }
 
@@ -437,29 +385,10 @@ class ReconApp {
                 case 'target-device':
                     await this.post('/api/capture/start', { nodeId: value });
                     showToast(`Targeting device 0x${value}`, 'success');
-                    await this.updateStatus();
                     break;
                 case 'replay-packet':
                     await this.post('/api/replay', { slot: value });
-                    showToast(`Replaying packet ${parseInt(value) + 1}`, 'success');
-                    break;
-                case 'target-frequency':
-                    await this.post('/api/frequency/target', { configIndex: value });
-                    showToast(`Targeting frequency config ${value}`, 'success');
-                    await this.updateStatus();
-                    break;
-                case 'retry-devices':
-                    await this.showDevices();
-                    break;
-                case 'retry-packets':
-                    await this.showPackets();
-                    break;
-                case 'retry-frequency':
-                    await this.showFrequency();
-                    break;
-                case 'retry-gps':
-                case 'retry-security':
-                    await this.showInfo();
+                    showToast(`Replaying packet ${value}`, 'success');
                     break;
             }
         } catch (error) {
@@ -473,21 +402,15 @@ class ReconApp {
     setupMobileMenu() {
         if (this.el.mobileMenuToggle) {
             this.el.mobileMenuToggle.addEventListener('click', () => {
-                const actionsSection = document.querySelector('.actions-section');
-                if (actionsSection) {
-                    actionsSection.classList.toggle('active');
-                    this.el.mobileMenuOverlay.classList.toggle('active');
-                }
+                document.querySelector('.sidebar').classList.toggle('show');
+                this.el.mobileMenuOverlay.classList.toggle('show');
             });
         }
         
         if (this.el.mobileMenuOverlay) {
             this.el.mobileMenuOverlay.addEventListener('click', () => {
-                const actionsSection = document.querySelector('.actions-section');
-                if (actionsSection) {
-                    actionsSection.classList.remove('active');
-                    this.el.mobileMenuOverlay.classList.remove('active');
-                }
+                document.querySelector('.sidebar').classList.remove('show');
+                this.el.mobileMenuOverlay.classList.remove('show');
             });
         }
     }
