@@ -918,9 +918,9 @@ ws.on('error', (error) => {
 
 ## 🔗 Related Documentation
 
-- [PHONE_APP_GUIDE.md](PHONE_APP_GUIDE.md) - Phone app usage guide
+- [GETTING_STARTED.md](GETTING_STARTED.md) - Complete setup and usage guide
 - [README.md](README.md) - Main project documentation
-- [FEATURES.md](docs/FEATURES.md) - Complete feature list
+- [docs/user-guides/FEATURES.md](docs/user-guides/FEATURES.md) - Complete feature list
 
 ---
 

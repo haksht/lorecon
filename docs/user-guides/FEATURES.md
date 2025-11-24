@@ -149,7 +149,7 @@ A production-ready LoRa packet capture and analysis platform for security resear
 
 **Current Status**: Code complete and working. Successfully decrypts position broadcasts, telemetry, and channel messages sent with default PSKs. Direct messages require PKC decryption (not feasible without private key).
 
-**See also**: [ENCRYPTION_REALITY.md](../docs/ENCRYPTION_REALITY.md) for complete explanation of what's decryptable vs. PKC-protected.
+**See also**: [../technical/ENCRYPTION.md](../technical/ENCRYPTION.md) for complete explanation of what's decryptable vs. PKC-protected.
 
 ---
 

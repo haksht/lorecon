@@ -97,9 +97,9 @@ If you're considering porting to new hardware, review the investigation document
 
 ## Getting Help
 
-- For Heltec V3 issues: Check `docs/TROUBLESHOOTING_MESHTASTIC.md` and `QUICKSTART.md`
-- For T-Deck Plus questions: See `docs/TDECK_PLUS_INVESTIGATION.md`
-- For build issues: See `docs/BUILD_GUIDE.md`
+- For Heltec V3 issues: Check `../user-guides/TROUBLESHOOTING.md` and `../../GETTING_STARTED.md`
+- For T-Deck Plus questions: See `TDECK_PLUS_INVESTIGATION.md`
+- For build issues: See `../user-guides/BUILD_GUIDE.md`
 
 ---
 
