@@ -676,9 +676,20 @@ class ReconApp {
                     break;
                 case 'show-activity':
                     this.switchTab('frequency');
+                    this.closeMobileMenu();
                     break;
                 case 'show-security':
-                    this.switchTab('info');
+                    // Show security assessment modal
+                    await this.showSecurityAssessment();
+                    this.closeMobileMenu();
+                    break;
+                case 'export-pcap':
+                    try {
+                        showToast('Downloading PCAP capture...', 'info');
+                        window.open('/api/export/pcap', '_blank');
+                    } catch (error) {
+                        showToast('PCAP export failed: ' + error.message, 'error');
+                    }
                     break;
                 case 'diagnostics':
                     try {
@@ -852,13 +863,7 @@ class ReconApp {
         
         if (this.el.mobileMenuOverlay) {
             this.el.mobileMenuOverlay.addEventListener('click', () => {
-                const actionsSection = document.querySelector('.actions-section');
-                if (actionsSection) {
-                    actionsSection.classList.remove('active');
-                    this.el.mobileMenuOverlay.classList.remove('active');
-                    this.el.mobileMenuToggle.classList.remove('active');
-                    document.body.style.overflow = '';
-                }
+                this.closeMobileMenu();
             });
         }
         
@@ -867,13 +872,101 @@ class ReconApp {
             if (e.target.closest('.actions-section button[data-action]')) {
                 const actionsSection = document.querySelector('.actions-section');
                 if (actionsSection && actionsSection.classList.contains('active')) {
-                    actionsSection.classList.remove('active');
-                    this.el.mobileMenuOverlay.classList.remove('active');
-                    this.el.mobileMenuToggle.classList.remove('active');
-                    document.body.style.overflow = '';
+                    this.closeMobileMenu();
                 }
             }
         });
+    }
+    
+    closeMobileMenu() {
+        const actionsSection = document.querySelector('.actions-section');
+        if (actionsSection) {
+            actionsSection.classList.remove('active');
+        }
+        if (this.el.mobileMenuOverlay) {
+            this.el.mobileMenuOverlay.classList.remove('active');
+        }
+        if (this.el.mobileMenuToggle) {
+            this.el.mobileMenuToggle.classList.remove('active');
+        }
+        document.body.style.overflow = '';
+    }
+    
+    async showSecurityAssessment() {
+        try {
+            const devices = await this.get('/api/devices');
+            if (!devices || !devices.devices || devices.devices.length === 0) {
+                showToast('No devices to assess', 'warning');
+                return;
+            }
+            
+            // Calculate security statistics
+            let totalDevices = devices.devices.length;
+            let vulnerable = 0;
+            let encrypted = 0;
+            let unencrypted = 0;
+            let defaultPSK = 0;
+            
+            devices.devices.forEach(d => {
+                if (d.hasDefaultPSK || !d.encrypted) vulnerable++;
+                if (d.encrypted) encrypted++;
+                else unencrypted++;
+                if (d.hasDefaultPSK) defaultPSK++;
+            });
+            
+            // Create modal
+            let html = '<div style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.8); z-index: 9999; display: flex; align-items: center; justify-content: center; padding: 1rem;" id="security-modal">';
+            html += '<div style="background: var(--background); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; max-width: 500px; width: 100%; max-height: 90vh; overflow-y: auto;">';
+            html += '<div style="padding: 1.5rem; border-bottom: 1px solid rgba(255,255,255,0.1);">';
+            html += '<h3 style="margin: 0; color: var(--danger);">🔒 Security Assessment</h3></div>';
+            html += '<div style="padding: 1.5rem;">';
+            
+            // Summary
+            const vulnPercent = ((vulnerable / totalDevices) * 100).toFixed(0);
+            const vulnColor = vulnPercent > 50 ? 'var(--danger)' : vulnPercent > 25 ? 'var(--warning)' : 'var(--success)';
+            
+            html += '<div style="margin-bottom: 1.5rem; padding: 1rem; background: rgba(255,255,255,0.03); border-radius: 8px; border-left: 3px solid ' + vulnColor + ';">';
+            html += '<div style="font-size: 2rem; font-weight: 700; color: ' + vulnColor + '; text-align: center; margin-bottom: 0.5rem;">' + vulnPercent + '%</div>';
+            html += '<div style="text-align: center; color: var(--text-secondary);">Potentially Vulnerable</div>';
+            html += '</div>';
+            
+            // Details
+            html += '<div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem; margin-bottom: 1rem;">';
+            html += '<div style="padding: 1rem; background: rgba(74, 144, 226, 0.1); border-radius: 8px; text-align: center;">';
+            html += '<div style="font-size: 1.5rem; font-weight: 700; color: var(--primary);">' + totalDevices + '</div>';
+            html += '<div style="font-size: 0.75rem; color: var(--text-secondary);">Total Devices</div></div>';
+            
+            html += '<div style="padding: 1rem; background: rgba(231, 76, 60, 0.1); border-radius: 8px; text-align: center;">';
+            html += '<div style="font-size: 1.5rem; font-weight: 700; color: var(--danger);">' + vulnerable + '</div>';
+            html += '<div style="font-size: 0.75rem; color: var(--text-secondary);">Vulnerable</div></div>';
+            
+            html += '<div style="padding: 1rem; background: rgba(46, 204, 113, 0.1); border-radius: 8px; text-align: center;">';
+            html += '<div style="font-size: 1.5rem; font-weight: 700; color: var(--success);">' + encrypted + '</div>';
+            html += '<div style="font-size: 0.75rem; color: var(--text-secondary);">Encrypted</div></div>';
+            
+            html += '<div style="padding: 1rem; background: rgba(241, 196, 15, 0.1); border-radius: 8px; text-align: center;">';
+            html += '<div style="font-size: 1.5rem; font-weight: 700; color: var(--warning);">' + defaultPSK + '</div>';
+            html += '<div style="font-size: 0.75rem; color: var(--text-secondary);">Default PSK</div></div>';
+            html += '</div>';
+            
+            // Recommendations
+            html += '<div style="padding: 1rem; background: rgba(241, 196, 15, 0.05); border-radius: 8px; border: 1px solid rgba(241, 196, 15, 0.3);">';
+            html += '<div style="font-weight: 600; margin-bottom: 0.5rem; color: var(--warning);">⚠️ Recommendations</div>';
+            html += '<ul style="margin: 0; padding-left: 1.5rem; font-size: 0.9rem;">';
+            if (defaultPSK > 0) html += '<li>Change default PSKs on ' + defaultPSK + ' device(s)</li>';
+            if (unencrypted > 0) html += '<li>Enable encryption on ' + unencrypted + ' device(s)</li>';
+            html += '<li>Monitor for unusual traffic patterns</li>';
+            html += '</ul></div>';
+            
+            html += '</div>';
+            html += '<div style="padding: 1rem 1.5rem; border-top: 1px solid rgba(255,255,255,0.1); display: flex; justify-content: flex-end;">';
+            html += '<button onclick="document.getElementById(\'security-modal\').remove()" class="btn btn-primary">Close</button>';
+            html += '</div></div></div>';
+            
+            document.body.insertAdjacentHTML('beforeend', html);
+        } catch (error) {
+            showToast('Security assessment failed: ' + error.message, 'error');
+        }
     }
 
     // ============ API Helpers ============
