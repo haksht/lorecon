@@ -60,12 +60,39 @@ class NetworkMap {
     }
     
     setupEventListeners() {
+        // Mouse events for desktop
         this.canvas.addEventListener('mousemove', (e) => this.handleMouseMove(e));
         this.canvas.addEventListener('click', (e) => this.handleClick(e));
         this.canvas.addEventListener('mouseleave', () => {
             this.hoveredNode = null;
             this.canvas.style.cursor = 'default';
         });
+        
+        // Touch events for mobile/iPhone
+        this.canvas.addEventListener('touchstart', (e) => this.handleTouch(e), { passive: false });
+        this.canvas.addEventListener('touchend', (e) => {
+            // Clear hover state on touch end
+            this.hoveredNode = null;
+        }, { passive: true });
+    }
+    
+    handleTouch(e) {
+        e.preventDefault(); // Prevent scroll/zoom
+        const touch = e.touches[0];
+        const rect = this.canvas.getBoundingClientRect();
+        const x = touch.clientX - rect.left;
+        const y = touch.clientY - rect.top;
+        
+        const node = this.findNodeAtPosition(x, y);
+        if (node) {
+            this.selectedNode = node;
+            this.showNodeDetails(node);
+            this.canvas.style.cursor = 'pointer';
+        } else {
+            this.selectedNode = null;
+            this.hideNodeDetails();
+            this.canvas.style.cursor = 'default';
+        }
     }
     
     handleMouseMove(e) {
@@ -110,6 +137,13 @@ class NetworkMap {
     }
     
     updateDevices(devices) {
+        // Sort by vulnerability score (highest first = most vulnerable)
+        devices.sort((a, b) => {
+            const scoreA = this.calculateVulnerabilityScore(a);
+            const scoreB = this.calculateVulnerabilityScore(b);
+            return scoreB - scoreA; // Descending order
+        });
+        
         // Calculate positions for all devices
         this.devices = devices.map((device, index) => {
             // Convert RSSI to distance (higher RSSI = closer = smaller radius)
@@ -126,9 +160,32 @@ class NetworkMap {
             return {
                 ...device,
                 position: { x, y },
-                angle: angle
+                angle: angle,
+                vulnerabilityScore: this.calculateVulnerabilityScore(device)
             };
         });
+    }
+    
+    calculateVulnerabilityScore(device) {
+        let score = 0;
+        
+        // High RSSI = device is close = more vulnerable to attack (0-3 points)
+        const rssi = device.rssi || device.avgRSSI || -100;
+        if (rssi > -50) score += 3;
+        else if (rssi > -70) score += 2;
+        else if (rssi > -90) score += 1;
+        
+        // Unencrypted or default PSK = highly vulnerable (0-4 points)
+        if (device.hasDefaultPSK) score += 4;
+        if (device.encrypted === false) score += 3;
+        
+        // Router devices are high-value targets (0-2 points)
+        if (device.isRouter) score += 2;
+        
+        // High packet count = active device = valuable target (0-1 point)
+        if (device.packetCount > 100) score += 1;
+        
+        return score; // Range: 0-10
     }
     
     rssiToDistance(rssi) {
@@ -353,10 +410,61 @@ class NetworkMap {
     }
     
     showNodeDetails(device) {
-        if (!this.detailsPanel) return;
+        if (!this.detailsPanel) {
+            console.error('Details panel element not found');
+            return;
+        }
         
         const rssi = device.rssi || device.avgRSSI || 0;
         const lastSeen = device.lastSeen ? new Date(device.lastSeen * 1000).toLocaleTimeString() : 'Unknown';
+        const vulnScore = device.vulnerabilityScore || this.calculateVulnerabilityScore(device);
+        
+        // Determine vulnerability level and color
+        let vulnLevel = 'Low';
+        let vulnColor = 'var(--success)';
+        if (vulnScore >= 7) {
+            vulnLevel = 'High';
+            vulnColor = 'var(--danger)';
+        } else if (vulnScore >= 4) {
+            vulnLevel = 'Medium';
+            vulnColor = 'var(--warning)';
+        }
+        
+        let html = '<div class="node-details-card" style="padding: 1rem; background: rgba(0,0,0,0.5); border-radius: 8px; border: 1px solid rgba(255,255,255,0.1);">';
+        html += `<h3 style="margin: 0 0 1rem 0; color: var(--primary); font-size: 1.1rem;">📡 Device 0x${device.nodeId || 'Unknown'}</h3>`;
+        
+        html += '<div style="display: grid; gap: 0.5rem; font-size: 0.9rem;">';
+        html += `<div style="display: flex; justify-content: space-between;"><span style="color: var(--text-secondary);">Protocol:</span><strong>${device.protocol || 'Unknown'}</strong></div>`;
+        html += `<div style="display: flex; justify-content: space-between;"><span style="color: var(--text-secondary);">Device Type:</span><strong>${device.deviceType || 'Unknown'}</strong></div>`;
+        html += `<div style="display: flex; justify-content: space-between;"><span style="color: var(--text-secondary);">RSSI:</span><strong>${rssi.toFixed(1)} dBm</strong></div>`;
+        html += `<div style="display: flex; justify-content: space-between;"><span style="color: var(--text-secondary);">Packets:</span><strong>${device.packetCount || 0}</strong></div>`;
+        html += `<div style="display: flex; justify-content: space-between;"><span style="color: var(--text-secondary);">Last Seen:</span><strong>${lastSeen}</strong></div>`;
+        
+        // Vulnerability indicator
+        html += `<div style="margin-top: 0.5rem; padding: 0.5rem; background: rgba(255,255,255,0.05); border-radius: 4px; border-left: 3px solid ${vulnColor};">`;
+        html += `<div style="display: flex; justify-content: space-between; align-items: center;">`;
+        html += `<span style="color: var(--text-secondary);">Vulnerability:</span>`;
+        html += `<strong style="color: ${vulnColor};">${vulnLevel} (${vulnScore}/10)</strong>`;
+        html += '</div>';
+        
+        // Vulnerability details
+        if (device.hasDefaultPSK) {
+            html += '<div style="margin-top: 0.25rem; font-size: 0.8rem; color: var(--danger);">⚠️ Default PSK detected</div>';
+        }
+        if (device.encrypted === false) {
+            html += '<div style="margin-top: 0.25rem; font-size: 0.8rem; color: var(--warning);">⚠️ Unencrypted</div>';
+        }
+        if (device.isRouter) {
+            html += '<div style="margin-top: 0.25rem; font-size: 0.8rem; color: var(--primary);">🔀 Router/Gateway</div>';
+        }
+        html += '</div>';
+        
+        html += '</div>';
+        html += '</div>';
+        
+        this.detailsPanel.innerHTML = html;
+        this.detailsPanel.style.display = 'block';
+    }
         
         this.detailsPanel.innerHTML = `
             <h3>Device Details</h3>
