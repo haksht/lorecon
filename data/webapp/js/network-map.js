@@ -9,7 +9,19 @@ class NetworkMap {
     constructor(canvasId, detailsPanelId) {
         this.canvas = document.getElementById(canvasId);
         this.detailsPanel = document.getElementById(detailsPanelId);
+        
+        if (!this.canvas) {
+            console.error(`[NetworkMap] Canvas element '${canvasId}' not found!`);
+            throw new Error(`Canvas element '${canvasId}' not found`);
+        }
+        
         this.ctx = this.canvas.getContext('2d');
+        if (!this.ctx) {
+            console.error('[NetworkMap] Failed to get 2D context');
+            throw new Error('Failed to get 2D context');
+        }
+        
+        console.log('[NetworkMap] Canvas initialized:', this.canvas.width, 'x', this.canvas.height);
         
         // State
         this.devices = [];
@@ -36,8 +48,17 @@ class NetworkMap {
             text: '#ffffff',
             weakSignal: '#e74c3c',
             mediumSignal: '#f39c12',
-            strongSignal: '#27ae60'
+            strongSignal: '#27ae60',
+            threatHigh: '#e74c3c',      // Red - vulnerable
+            threatMedium: '#f39c12',    // Orange - moderate risk
+            threatLow: '#27ae60',       // Green - secure
+            heatmapHigh: 'rgba(231, 76, 60, 0.3)',   // Red overlay
+            heatmapMedium: 'rgba(243, 156, 18, 0.2)', // Orange overlay
+            heatmapLow: 'rgba(39, 174, 96, 0.1)'      // Green overlay
         };
+        
+        this.showThreatColors = true;  // Toggle for threat vs protocol colors
+        this.showHeatmap = true;        // Toggle for signal heatmap
         
         this.setupCanvas();
         this.setupEventListeners();
@@ -48,10 +69,21 @@ class NetworkMap {
         // Make canvas responsive
         const resizeCanvas = () => {
             const container = this.canvas.parentElement;
+            if (!container) {
+                console.error('[NetworkMap] Canvas has no parent element');
+                return;
+            }
+            
+            const oldWidth = this.canvas.width;
+            const oldHeight = this.canvas.height;
+            
             this.canvas.width = container.clientWidth;
             this.canvas.height = container.clientHeight;
             this.centerX = this.canvas.width / 2;
             this.centerY = this.canvas.height / 2;
+            
+            console.log(`[NetworkMap] Canvas resized from ${oldWidth}x${oldHeight} to ${this.canvas.width}x${this.canvas.height}`);
+            
             this.redraw();
         };
         
@@ -137,6 +169,8 @@ class NetworkMap {
     }
     
     updateDevices(devices) {
+        console.log('[NetworkMap] Updating with', devices.length, 'devices');
+        
         // Sort by vulnerability score (highest first = most vulnerable)
         devices.sort((a, b) => {
             const scoreA = this.calculateVulnerabilityScore(a);
@@ -188,6 +222,23 @@ class NetworkMap {
         return score; // Range: 0-10
     }
     
+    getNodeColor(device) {
+        if (this.showThreatColors) {
+            // Use threat level colors based on vulnerability score
+            const score = device.vulnerabilityScore || this.calculateVulnerabilityScore(device);
+            if (score >= 7) return this.colors.threatHigh;      // 7-10: High threat
+            if (score >= 4) return this.colors.threatMedium;    // 4-6: Medium threat
+            return this.colors.threatLow;                        // 0-3: Low threat
+        } else {
+            // Use protocol-based colors
+            const protocol = (device.protocol || 'unknown').toLowerCase();
+            if (protocol.includes('meshtastic')) return this.colors.meshtastic;
+            if (protocol.includes('lorawan')) return this.colors.lorawan;
+            if (protocol.includes('helium')) return this.colors.helium;
+            return this.colors.unknown;
+        }
+    }
+    
     rssiToDistance(rssi) {
         // Map RSSI to canvas distance
         // -30 dBm (strong) = 50px from center
@@ -225,6 +276,11 @@ class NetworkMap {
         
         // Draw signal range circles
         this.drawRangeCircles();
+        
+        // Draw signal strength heatmap (before nodes)
+        if (this.showHeatmap) {
+            this.drawHeatmap();
+        }
         
         // Draw connection lines (if devices have hop relationships)
         this.drawConnections();
@@ -270,6 +326,50 @@ class NetworkMap {
         this.ctx.fillText('SNIFFER', this.centerX, this.centerY + 35);
     }
     
+    drawHeatmap() {
+        // Draw signal strength heatmap for each device
+        this.devices.forEach(device => {
+            if (!device.position) return;
+            
+            const rssi = device.rssi || device.avgRSSI || -100;
+            const score = device.vulnerabilityScore || this.calculateVulnerabilityScore(device);
+            
+            // Determine heatmap radius based on RSSI (stronger signal = larger radius)
+            let heatmapRadius = 80;
+            if (rssi > -50) heatmapRadius = 120;
+            else if (rssi > -70) heatmapRadius = 100;
+            else if (rssi > -90) heatmapRadius = 80;
+            else heatmapRadius = 60;
+            
+            // Create radial gradient based on threat level
+            const gradient = this.ctx.createRadialGradient(
+                device.position.x, device.position.y, 0,
+                device.position.x, device.position.y, heatmapRadius
+            );
+            
+            // Color based on threat level
+            let centerColor, edgeColor;
+            if (score >= 7) {
+                centerColor = 'rgba(231, 76, 60, 0.4)';  // Red
+                edgeColor = 'rgba(231, 76, 60, 0)';
+            } else if (score >= 4) {
+                centerColor = 'rgba(243, 156, 18, 0.3)'; // Orange
+                edgeColor = 'rgba(243, 156, 18, 0)';
+            } else {
+                centerColor = 'rgba(39, 174, 96, 0.2)';  // Green
+                edgeColor = 'rgba(39, 174, 96, 0)';
+            }
+            
+            gradient.addColorStop(0, centerColor);
+            gradient.addColorStop(1, edgeColor);
+            
+            this.ctx.fillStyle = gradient;
+            this.ctx.beginPath();
+            this.ctx.arc(device.position.x, device.position.y, heatmapRadius, 0, 2 * Math.PI);
+            this.ctx.fill();
+        });
+    }
+    
     drawRangeCircles() {
         const ranges = [50, 150, 250];
         this.ctx.strokeStyle = this.colors.grid;
@@ -307,12 +407,8 @@ class NetworkMap {
             const isSelected = this.selectedNode && this.selectedNode.nodeIdDecimal === device.nodeIdDecimal;
             const isHovered = this.hoveredNode && this.hoveredNode.nodeIdDecimal === device.nodeIdDecimal;
             
-            // Get color based on protocol
-            const protocol = (device.protocol || 'unknown').toLowerCase();
-            let nodeColor = this.colors.unknown;
-            if (protocol.includes('meshtastic')) nodeColor = this.colors.meshtastic;
-            else if (protocol.includes('lorawan')) nodeColor = this.colors.lorawan;
-            else if (protocol.includes('helium')) nodeColor = this.colors.helium;
+            // Get color based on threat level or protocol
+            const nodeColor = this.getNodeColor(device);
             
             // Draw outer glow if selected
             if (isSelected) {

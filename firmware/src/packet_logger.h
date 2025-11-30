@@ -15,6 +15,7 @@
 
 #include <Arduino.h>
 #include <SD.h>
+#include "pcap_logger.h"
 #include "data_structures.h"
 
 // SD card configuration (adjust for your hardware)
@@ -109,6 +110,7 @@ private:
         String currentSessionId;
     uint32_t sessionStartTime;
     uint32_t packetsLogged;
+    PCAPSession pcapSession;
     
     // Helper methods
     String generateSessionFilename();

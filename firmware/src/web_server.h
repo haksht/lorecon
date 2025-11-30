@@ -110,6 +110,7 @@ private:
     static void handleStartFrequencyTargeting(AsyncWebServerRequest* request);
     static void handleGetDiagnostics(AsyncWebServerRequest* request);
     static void handleSetVerboseMode(AsyncWebServerRequest* request);
+    static void handleExportPCAP(AsyncWebServerRequest* request);
     
     // WebSocket handlers
     static void handleWebSocketEvent(AsyncWebSocket* server, AsyncWebSocketClient* client,

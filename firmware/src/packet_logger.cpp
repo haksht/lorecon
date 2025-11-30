@@ -6,6 +6,7 @@
  */
 
 #include "packet_logger.h"
+#include "pcap_logger.h"
 #include <SPI.h>
 #include <time.h>
 
@@ -18,6 +19,7 @@ PacketLogger::PacketLogger()
     , currentSessionId("")
     , sessionStartTime(0)
     , packetsLogged(0)
+    , pcapSession()
 {
 }
 
@@ -114,6 +116,17 @@ bool PacketLogger::startSession(const char* sessionName) {
     writeCSVHeader();
     
     Serial.printf("[SD] ✅ Session started: %s\n", fullPath.c_str());
+    
+    // Start PCAP capture session
+    #ifdef ENABLE_PCAP_EXPORT
+    String pcapFilename = "/logs/" + currentSessionId + ".pcap";
+    if (pcapSession.startSession(pcapFilename.c_str())) {
+        Serial.printf("[PCAP] ✅ PCAP capture started: %s\n", pcapFilename.c_str());
+    } else {
+        Serial.println("[PCAP] ⚠️  PCAP capture failed to start");
+    }
+    #endif
+    
     return true;
 }
 
@@ -199,6 +212,13 @@ bool PacketLogger::logPacket(const PacketLogRecord& record, const uint8_t* data,
     if (packetsLogged % 10 == 0) {
         sessionFile.flush();
     }
+    
+    // Also log to PCAP if enabled
+    #ifdef ENABLE_PCAP_EXPORT
+    if (pcapSession.isActive()) {
+        pcapSession.logPacket(data, length, record.rssiDbm, record.snrDb, record.frequencyMHz);
+    }
+    #endif
     
     return true;
 }

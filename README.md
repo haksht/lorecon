@@ -1,6 +1,6 @@
 # ESP32 LoRa Packet Sniffer & Reconnaissance Tool
 
-Passive LoRa reconnaissance firmware for ESP32-S3 + SX1262 hardware. The ESP32 handles radio control, packet capture, replay slots, PSK testing, GPS extraction, and WiFi access-point hosting so that a phone—or a serial console—can drive the entire workflow in the field.
+Passive LoRa reconnaissance firmware for ESP32-S3 + SX1262 hardware. The ESP32 handles radio control, packet capture, replay slots, PSK testing, GPS extraction, PCAP export, and WiFi access-point hosting so that a phone—or a serial console—can drive the entire workflow in the field.
 
 ## Quick Links
 
@@ -13,50 +13,62 @@ Passive LoRa reconnaissance firmware for ESP32-S3 + SX1262 hardware. The ESP32 h
 ## Current Status
 
 - **Branch:** `main`
+- **Version:** 2.1.0 (PCAP Export + Enhanced Visualization)
 - **Hardware:** **Heltec WiFi LoRa 32 V3** (ESP32-S3 + SX1262 + OLED). Optional SD card.
   - ✅ **Fully Supported:** Heltec WiFi LoRa 32 V3 (tested, production-ready)
   - ⚠️ **Not Supported:** T-Deck variants (hardware incompatibilities - see `docs/hardware/TDECK_PLUS_INVESTIGATION.md` for details)
   - ℹ️ **Note:** Codebase is Heltec-specific. Other boards would require porting.
 - **Focus:** Passive reconnaissance (scan, target, capture, replay, export). All legacy offensive/stress docs and code paths have been removed.
-- **Web UI:** A new lightweight interface served from LittleFS. It exposes every serial command as a button or action so the phone experience equals the USB menu.
+- **Web UI:** Lightweight interface served from LittleFS with interactive network visualization, threat assessment, and real-time packet analysis.
 
 ## Feature Snapshot
 
 | Area | Highlights |
 | --- | --- |
 | Radio Control | `RadioController` wraps RadioLib with atomic ISR flagging and cached RSSI/SNR reads. The recon state cycles through 26 LoRa configs including Meshtastic, LoRaWAN/TTN, Helium Network, and ISM band (5 min cycle). |
-| Packet Processing | `PacketProcessor` queues interrupt captures, runs protocol analysis, PSK decryption, diagnostics, replay capture, and emits events to the web server with audio feedback. |
-| Recon State | `ReconState` tracks RF activity, targetable nodes, replay slots, quiet mode, and device intelligence across all 26 frequency configurations. |
-| UI Surfaces | 1) Serial menu (command handler with dispatch table). 2) OLED quick-look cards. 3) **WiFi Web UI** with interactive network map, live packet stream, protocol statistics, and audio feedback. |
-| Storage / Export | Optional SD logging (`packet_logger`), KML/GeoJSON exports, diagnostics report, JSON APIs for scripting. |
+| Packet Processing | `PacketProcessor` queues interrupt captures, runs protocol analysis, PSK decryption, diagnostics, and replay capture with dual logging (CSV + PCAP). |
+| Recon State | `ReconState` tracks RF activity, targetable nodes, replay slots, quiet mode, and device intelligence with multi-factor security scoring. |
+| UI Surfaces | 1) Serial menu (command handler with dispatch table). 2) OLED quick-look cards. 3) **WiFi Web UI** with threat-colored network map, signal heatmaps, vulnerability assessment, and live packet visualization. |
+| Storage / Export | Optional SD logging (`packet_logger` with CSV + PCAP), KML/GeoJSON exports, Wireshark-compatible PCAP with LoRa metadata, security assessment reports, JSON APIs for scripting. |
 
 ## Build & Flash
 
 ```powershell
 # from repo root
-pio run --target upload
-pio device monitor
+pio run --target upload          # Flash firmware
+pio run --target uploadfs        # Upload web UI files
+pio device monitor               # View serial output
 ```
 
-LittleFS is still used purely for serving the HTML/JS bundle. If you prefer to embed assets in PROGMEM or host them elsewhere, remove the LittleFS mount in `main.cpp` and adjust `web_server.cpp` to serve strings via `send_P`.
+LittleFS serves the web UI assets. SD card is optional but required for PCAP export and long-term logging.
 
-## Phone Workflow (Enhanced Visualization UI)
+## Web Interface Features
 
 1. Power the ESP32 and wait for `ESP32-LoRa-Sniffer` WiFi AP.
 2. Connect a phone/laptop, browse to `http://192.168.4.1`.
-3. Use the interactive web UI with **8 tabs**:
-   - **Status:** System overview, uptime, packet counts, quick actions
-   - **Live Stream:** Real-time packet feed with syntax highlighting and audio feedback (Geiger counter effect)
-   - **Stats:** Protocol breakdown with pie/bar charts (Meshtastic/LoRaWAN/Helium)
-   - **Network:** Interactive topology map with RSSI-based positioning and signal strength visualization
-   - **Devices:** Discovered devices with targeting controls
-   - **Packets:** Replay menu for captured packets
-   - **Frequency:** 26-config targeting menu
-   - **GPS:** Geographic positions with export options
-4. **Audio Feedback:** Different tones for different protocols (Meshtastic: high, LoRaWAN: medium, Helium: low)
-5. WebSocket updates stream real-time data to all visualization components
+3. Use the interactive web UI with **6 tabs**:
+   - **Info:** System status, GPS data, security assessment, frequency analysis
+   - **Devices:** Discovered devices with targeting controls and packet counts
+   - **Packets:** Captured packets with formatted timestamps and replay controls
+   - **Frequencies:** 26-config targeting menu with activity indicators
+   - **Network:** Interactive canvas map with:
+     - Threat-level color coding (red/orange/green based on vulnerability score)
+     - Signal strength heatmaps with radial gradients
+     - RSSI-based device positioning
+     - Touch-friendly controls for mobile
+     - Real-time device discovery animation
+   - **Stats:** Protocol breakdown with war room dashboard
+4. **Security Assessment:**
+   - Multi-factor vulnerability scoring (0-100 scale)
+   - Considers: RSSI proximity, encryption status, router role, traffic patterns, firmware version
+   - Consistent scoring across Info tab and Security modal
+5. **PCAP Export:**
+   - Wireshark-compatible packet captures with custom LoRa pseudo-header
+   - Preserves RSSI, SNR, frequency, timestamp metadata
+   - Download via Quick Actions menu
+   - Automatic error handling with user feedback
 
-All buttons call the same handlers used by serial commands, so parity is guaranteed (no duplicated business logic in JavaScript).
+WebSocket streams real-time updates to all connected clients with automatic reconnection.
 
 ## Serial Command Reference (still available over USB)
 

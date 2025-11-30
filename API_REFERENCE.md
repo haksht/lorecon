@@ -449,6 +449,71 @@ curl -X GET http://192.168.4.1/api/export/kml > positions.kml
 
 ---
 
+### **GET /api/export/pcap**
+
+Downloads Wireshark-compatible PCAP file with LoRa packet captures.
+
+**Request:**
+```http
+GET /api/export/pcap HTTP/1.1
+Host: 192.168.4.1
+```
+
+**Response (Success - 200):**
+- **Content-Type:** `application/vnd.tcpdump.pcap`
+- **Body:** Binary PCAP stream with global header and packet records
+
+**Response (Error - 404):**
+```json
+{
+  "status": "error",
+  "message": "No PCAP session active or SD card unavailable"
+}
+```
+
+**Response (Error - 501):**
+```json
+{
+  "status": "error",
+  "message": "PCAP export not enabled in firmware"
+}
+```
+
+**PCAP Structure:**
+- **Global Header:** PCAP 2.4 format with `DLT_USER0` (147) link type
+- **Packet Records:** 24-byte LoRa pseudo-header followed by payload
+  ```c
+  struct LoRaPseudoHeader {
+    int16_t rssi;           // Signal strength in dBm
+    float snr;              // Signal-to-noise ratio
+    uint32_t frequency;     // Frequency in Hz
+    uint8_t spreadingFactor; // 7-12
+    uint16_t bandwidth;     // kHz (125, 250, 500)
+    uint8_t codingRate;     // 5-8
+    uint32_t timestamp;     // Unix epoch
+    uint16_t payloadLength; // Actual LoRa payload size
+  };
+  ```
+
+**Wireshark Usage:**
+```bash
+curl http://192.168.4.1/api/export/pcap -o capture.pcap
+wireshark capture.pcap
+```
+
+**Dissector Notes:**
+- LoRa metadata preserved in pseudo-header for RF analysis
+- Custom Wireshark dissector needed to parse 24-byte header
+- Payload decryption requires PSK or AES256 keys depending on protocol
+- See `docs/technical/ENCRYPTION.md` for decryption workflow
+
+**cURL Example:**
+```bash
+curl -X GET http://192.168.4.1/api/export/pcap -o lora_capture.pcap
+```
+
+---
+
 ## 📊 Status & Statistics
 
 ### **GET /api/status**

@@ -246,18 +246,18 @@ class ReconApp {
             
             let html = '<div class="table-wrapper">';
             html += '<table class="table"><thead><tr>';
-            html += '<th>Slot</th><th>Protocol</th><th>Node ID</th><th>Size</th><th>RSSI</th><th>Frequency</th><th>Message</th><th>Actions</th>';
+            html += '<th>Protocol</th><th>Node ID</th><th>Size</th><th>RSSI</th><th>Frequency</th><th>Captured</th><th>Message</th><th>Actions</th>';
             html += '</tr></thead><tbody>';
             
             data.slots.forEach((pkt, idx) => {
                 const rssiClass = (pkt.rssi || -100) > -70 ? 'rssi-strong' : (pkt.rssi || -100) > -90 ? 'rssi-medium' : 'rssi-weak';
                 html += '<tr>';
-                html += `<td><strong>${pkt.index || idx + 1}</strong></td>`;
                 html += `<td><code>${pkt.protocol || 'Unknown'}</code></td>`;
                 html += `<td>${pkt.nodeId ? '<code>0x' + pkt.nodeId + '</code>' : '—'}</td>`;
                 html += `<td>${pkt.length || 0} B</td>`;
                 html += `<td><span class="${rssiClass}">${pkt.rssi || '—'} dBm</span></td>`;
                 html += `<td>${(pkt.frequencyMHz || 0).toFixed(3)} MHz</td>`;
+                html += `<td>${this.formatDuration(pkt.capturedSecondsAgo || 0)} ago</td>`;
                 html += `<td>${pkt.decryptedText || '—'}</td>`;
                 html += `<td><button data-action="replay-packet" data-value="${idx}" class="btn btn-primary btn-small">🔁 Replay</button></td>`;
                 html += '</tr>';
@@ -331,7 +331,8 @@ class ReconApp {
             console.log('[Network] Initializing NetworkMap...');
             if (typeof NetworkMap !== 'undefined') {
                 try {
-                    this.networkMap = new NetworkMap('network-canvas', 'node-details');
+                    // Use network-info as the details panel (it exists in HTML)
+                    this.networkMap = new NetworkMap('network-canvas', 'network-info');
                     console.log('[Network] NetworkMap initialized successfully');
                 } catch (error) {
                     console.error('[Network] Failed to initialize NetworkMap:', error);
@@ -339,6 +340,13 @@ class ReconApp {
             } else {
                 console.error('[Network] NetworkMap class not found!');
             }
+        }
+        
+        // Force canvas resize on tab switch
+        if (this.networkMap && this.networkMap.canvas) {
+            // Trigger resize to ensure canvas dimensions are correct
+            const resizeEvent = new Event('resize');
+            window.dispatchEvent(resizeEvent);
         }
         
         try {
@@ -675,8 +683,16 @@ class ReconApp {
                     await this.updateStatus();
                     break;
                 case 'show-activity':
-                    this.switchTab('frequency');
+                    // Show frequency analysis section in Info tab
+                    this.switchTab('info');
                     this.closeMobileMenu();
+                    // Scroll to frequency analysis
+                    setTimeout(() => {
+                        const freqSection = document.getElementById('frequency-analysis-content');
+                        if (freqSection) {
+                            freqSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                        }
+                    }, 100);
                     break;
                 case 'show-security':
                     // Show security assessment modal
@@ -685,10 +701,41 @@ class ReconApp {
                     break;
                 case 'export-pcap':
                     try {
+                        // Check if there's an active session first
+                        const statusData = await this.get('/api/status');
+                        if (!statusData || statusData.mode === 'idle') {
+                            showToast('No active reconnaissance session. Start scanning first.', 'warning');
+                            break;
+                        }
+                        
                         showToast('Downloading PCAP capture...', 'info');
-                        window.open('/api/export/pcap', '_blank');
+                        
+                        // Try to download PCAP
+                        const response = await fetch('/api/export/pcap');
+                        
+                        if (response.status === 404) {
+                            const error = await response.json();
+                            showToast(error.message || 'No PCAP file available', 'error');
+                        } else if (response.status === 501) {
+                            showToast('PCAP export is disabled on this device', 'error');
+                        } else if (response.ok) {
+                            // Download successful - trigger download
+                            const blob = await response.blob();
+                            const url = window.URL.createObjectURL(blob);
+                            const a = document.createElement('a');
+                            a.href = url;
+                            a.download = 'lora_capture_' + Date.now() + '.pcap';
+                            document.body.appendChild(a);
+                            a.click();
+                            window.URL.revokeObjectURL(url);
+                            a.remove();
+                            showToast('PCAP downloaded successfully', 'success');
+                        } else {
+                            showToast('PCAP export failed: HTTP ' + response.status, 'error');
+                        }
                     } catch (error) {
                         showToast('PCAP export failed: ' + error.message, 'error');
+                        console.error('PCAP export error:', error);
                     }
                     break;
                 case 'diagnostics':
@@ -894,25 +941,19 @@ class ReconApp {
     
     async showSecurityAssessment() {
         try {
-            const devices = await this.get('/api/devices');
-            if (!devices || !devices.devices || devices.devices.length === 0) {
+            // Use backend security assessment for consistency
+            const secData = await this.get('/api/recon/security');
+            if (!secData || !secData.devices || secData.devices.length === 0) {
                 showToast('No devices to assess', 'warning');
                 return;
             }
             
-            // Calculate security statistics
-            let totalDevices = devices.devices.length;
-            let vulnerable = 0;
-            let encrypted = 0;
-            let unencrypted = 0;
-            let defaultPSK = 0;
-            
-            devices.devices.forEach(d => {
-                if (d.hasDefaultPSK || !d.encrypted) vulnerable++;
-                if (d.encrypted) encrypted++;
-                else unencrypted++;
-                if (d.hasDefaultPSK) defaultPSK++;
-            });
+            const devices = secData.devices;
+            const summary = secData.summary || {};
+            const totalDevices = summary.totalDevices || 0;
+            const vulnerable = summary.vulnerable || 0;
+            const moderate = summary.moderate || 0;
+            const secure = summary.secure || 0;
             
             // Create modal
             let html = '<div style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.8); z-index: 9999; display: flex; align-items: center; justify-content: center; padding: 1rem;" id="security-modal">';
@@ -922,12 +963,12 @@ class ReconApp {
             html += '<div style="padding: 1.5rem;">';
             
             // Summary
-            const vulnPercent = ((vulnerable / totalDevices) * 100).toFixed(0);
+            const vulnPercent = totalDevices > 0 ? ((vulnerable / totalDevices) * 100).toFixed(0) : 0;
             const vulnColor = vulnPercent > 50 ? 'var(--danger)' : vulnPercent > 25 ? 'var(--warning)' : 'var(--success)';
             
             html += '<div style="margin-bottom: 1.5rem; padding: 1rem; background: rgba(255,255,255,0.03); border-radius: 8px; border-left: 3px solid ' + vulnColor + ';">';
             html += '<div style="font-size: 2rem; font-weight: 700; color: ' + vulnColor + '; text-align: center; margin-bottom: 0.5rem;">' + vulnPercent + '%</div>';
-            html += '<div style="text-align: center; color: var(--text-secondary);">Potentially Vulnerable</div>';
+            html += '<div style="text-align: center; color: var(--text-secondary);">High Risk Devices</div>';
             html += '</div>';
             
             // Details
@@ -940,23 +981,26 @@ class ReconApp {
             html += '<div style="font-size: 1.5rem; font-weight: 700; color: var(--danger);">' + vulnerable + '</div>';
             html += '<div style="font-size: 0.75rem; color: var(--text-secondary);">Vulnerable</div></div>';
             
-            html += '<div style="padding: 1rem; background: rgba(46, 204, 113, 0.1); border-radius: 8px; text-align: center;">';
-            html += '<div style="font-size: 1.5rem; font-weight: 700; color: var(--success);">' + encrypted + '</div>';
-            html += '<div style="font-size: 0.75rem; color: var(--text-secondary);">Encrypted</div></div>';
-            
             html += '<div style="padding: 1rem; background: rgba(241, 196, 15, 0.1); border-radius: 8px; text-align: center;">';
-            html += '<div style="font-size: 1.5rem; font-weight: 700; color: var(--warning);">' + defaultPSK + '</div>';
-            html += '<div style="font-size: 0.75rem; color: var(--text-secondary);">Default PSK</div></div>';
+            html += '<div style="font-size: 1.5rem; font-weight: 700; color: var(--warning);">' + moderate + '</div>';
+            html += '<div style="font-size: 0.75rem; color: var(--text-secondary);">Moderate Risk</div></div>';
+            
+            html += '<div style="padding: 1rem; background: rgba(46, 204, 113, 0.1); border-radius: 8px; text-align: center;">';
+            html += '<div style="font-size: 1.5rem; font-weight: 700; color: var(--success);">' + secure + '</div>';
+            html += '<div style="font-size: 0.75rem; color: var(--text-secondary);">Secure</div></div>';
             html += '</div>';
             
             // Recommendations
-            html += '<div style="padding: 1rem; background: rgba(241, 196, 15, 0.05); border-radius: 8px; border: 1px solid rgba(241, 196, 15, 0.3);">';
-            html += '<div style="font-weight: 600; margin-bottom: 0.5rem; color: var(--warning);">⚠️ Recommendations</div>';
-            html += '<ul style="margin: 0; padding-left: 1.5rem; font-size: 0.9rem;">';
-            if (defaultPSK > 0) html += '<li>Change default PSKs on ' + defaultPSK + ' device(s)</li>';
-            if (unencrypted > 0) html += '<li>Enable encryption on ' + unencrypted + ' device(s)</li>';
-            html += '<li>Monitor for unusual traffic patterns</li>';
-            html += '</ul></div>';
+            const recommendations = secData.recommendations || [];
+            if (recommendations.length > 0) {
+                html += '<div style="padding: 1rem; background: rgba(241, 196, 15, 0.05); border-radius: 8px; border: 1px solid rgba(241, 196, 15, 0.3);">';
+                html += '<div style="font-weight: 600; margin-bottom: 0.5rem; color: var(--warning);">⚠️ Recommendations</div>';
+                html += '<ul style="margin: 0; padding-left: 1.5rem; font-size: 0.9rem;">';
+                recommendations.forEach(rec => {
+                    html += '<li>' + rec + '</li>';
+                });
+                html += '</ul></div>';
+            }
             
             html += '</div>';
             html += '<div style="padding: 1rem 1.5rem; border-top: 1px solid rgba(255,255,255,0.1); display: flex; justify-content: flex-end;">';
