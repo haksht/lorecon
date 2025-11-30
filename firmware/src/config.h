@@ -76,6 +76,16 @@ namespace Replay {
 }
 
 // ============================================================================
+// DATA LOGGING
+// ============================================================================
+namespace Logging {
+    // Enable PCAP export for offline analysis with Wireshark/LoRa_Craft
+    // PCAP files preserve RF metadata (RSSI/SNR/frequency) in pseudo-header
+    // Set to false to save SD space if you only need CSV logs
+    #define ENABLE_PCAP_EXPORT true
+}
+
+// ============================================================================
 // DEVICE TRACKING
 // ============================================================================
 namespace Tracking {

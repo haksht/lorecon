@@ -6,7 +6,9 @@
 #include "api_controller.h"
 #include "logger.h"
 #include "recon_state.h"
+#include "packet_logger.h"
 #include <LittleFS.h>
+#include <SD.h>
 
 // Global instance for static handlers
 WebServer* g_webServer = nullptr;
@@ -115,6 +117,7 @@ void WebServer::setupRoutes() {
     server->on("/api/positions", HTTP_GET, handleGetPositions);
     server->on("/api/export/geojson", HTTP_GET, handleExportGeoJSON);
     server->on("/api/export/kml", HTTP_GET, handleExportKML);
+    server->on("/api/export/pcap", HTTP_GET, handleExportPCAP);
     
     // Status & Config
     server->on("/api/status", HTTP_GET, handleGetStatus);
@@ -242,6 +245,35 @@ void WebServer::handleExportGeoJSON(AsyncWebServerRequest* request) {
 void WebServer::handleExportKML(AsyncWebServerRequest* request) {
     String kml = APIController::exportKML();
     request->send(200, "application/vnd.google-earth.kml+xml", kml);
+}
+
+void WebServer::handleExportPCAP(AsyncWebServerRequest* request) {
+    #ifdef ENABLE_PCAP_EXPORT
+    // Get current PCAP session file from packet logger
+    extern PacketLogger packetLogger;
+    String pcapFile = packetLogger.getCurrentSessionFile();
+    
+    // Convert .csv extension to .pcap
+    if (pcapFile.endsWith(".csv")) {
+        pcapFile.replace(".csv", ".pcap");
+    }
+    
+    // Check if PCAP file exists
+    if (SD.exists(pcapFile.c_str())) {
+        // Send file with proper MIME type and force download
+        request->send(SD, pcapFile, "application/vnd.tcpdump.pcap", true);
+        LOG_INFO("PCAP file downloaded: %s", pcapFile.c_str());
+    } else {
+        // No PCAP file available
+        request->send(404, "application/json", 
+            "{\"status\":\"error\",\"message\":\"No PCAP capture available. Start reconnaissance to generate capture file.\"}");
+        LOG_WARN("PCAP download requested but file not found: %s", pcapFile.c_str());
+    }
+    #else
+    // PCAP export disabled
+    request->send(501, "application/json", 
+        "{\"status\":\"error\",\"message\":\"PCAP export is disabled. Enable ENABLE_PCAP_EXPORT in config.h and recompile.\"}");
+    #endif
 }
 
 void WebServer::handleGetStatus(AsyncWebServerRequest* request) {
