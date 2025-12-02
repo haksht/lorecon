@@ -201,6 +201,9 @@ void ReconState::addTargetableDevice(uint32_t nodeId, uint8_t configIndex, float
             device->firmwareVersion[sizeof(device->firmwareVersion) - 1] = '\0';
         }
         
+        // Increment total detections counter when new device is added
+        scanState.totalDetections++;
+        
         Serial.printf("[TARGET] New targetable device: 0x%08X (%s) on %s (%.1f dBm)\n", 
                       nodeId, device->deviceType, getScanConfig(configIndex).protocol, rssi);
     }

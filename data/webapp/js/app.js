@@ -717,12 +717,12 @@ class ReconApp {
             e.preventDefault();
             const action = btn.dataset.action;
             const value = btn.dataset.value;
-            this.handleAction(action, value);
+            this.handleAction(action, value, e);
         });
     }
 
-    async handleAction(action, value) {
-        const btn = event.target.closest('button');
+    async handleAction(action, value, event) {
+        const btn = event ? event.target.closest('button') : null;
         const originalText = btn ? btn.innerHTML : '';
         const originalDisabled = btn ? btn.disabled : false;
         
@@ -945,7 +945,7 @@ class ReconApp {
                     await this.updateStatus();
                     break;
                 case 'replay-packet':
-                    await this.post('/api/replay', { slot: value });
+                    await this.post('/api/replay/transmit', { slotIndex: value, repeatCount: 1, delayMs: 1000 });
                     showToast(`Replaying packet ${parseInt(value) + 1}`, 'success');
                     break;
                 case 'target-frequency':

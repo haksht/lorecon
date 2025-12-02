@@ -734,6 +734,17 @@ bool ReconService::replayPacket(uint8_t slotIndex, uint8_t repeatCount, uint16_t
              successCount, repeatCount);
     outMessage = String(msgBuffer);
     
+    // Restore scanning configuration and restart receive mode
+    if (reconTool) {
+        const ScanConfig& scanCfg = reconState.getScanConfig(reconState.scanState.currentConfig);
+        if (radioController->applyConfig(scanCfg)) {
+            radioController->startReceive();
+            Serial.println("[REPLAY] Radio configuration restored, receive mode resumed");
+        } else {
+            Serial.println("[REPLAY] Warning: Failed to restore radio configuration");
+        }
+    }
+    
     return successCount > 0;
 }
 
