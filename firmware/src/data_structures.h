@@ -101,6 +101,8 @@ struct ScanState {
   uint32_t lastScanSwitch;
   uint32_t totalPackets;
   uint32_t totalDetections;
+  uint32_t droppedPackets;      // Packets dropped due to queue full
+  uint32_t peakQueueSize;       // Maximum queue depth observed
   bool packetPending;
   char lastPacket[Config::PacketProcessing::MAX_PACKET_SIZE];  // Fixed buffer instead of String
   size_t lastPacketLength;           // Track actual length

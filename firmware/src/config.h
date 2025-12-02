@@ -56,7 +56,8 @@ namespace Scanning {
 namespace PacketProcessing {
     // Maximum queued packets before dropping
     // Balance: Memory usage vs. handling burst traffic
-    constexpr size_t QUEUE_SIZE = 10;
+    // Increased to 100 to handle busy ISM bands without silent drops
+    constexpr size_t QUEUE_SIZE = 100;
     
     // Maximum packet size (LoRa protocol limit)
     constexpr size_t MAX_PACKET_SIZE = 256;

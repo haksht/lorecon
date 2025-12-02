@@ -31,7 +31,7 @@ struct PacketLogRecord {
     float snrDb;
     size_t lengthBytes;
     const char* packetType;
-    bool encrypted;
+    bool encrypted;  // True if packet is still encrypted (could not decrypt), false if cleartext/decrypted
     const char* pskResult;
     const char* pskId;
     bool hasPosition;
