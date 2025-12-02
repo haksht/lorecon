@@ -25,6 +25,14 @@ bool PacketProcessor::queuePacket(const uint8_t* data, size_t length, float rssi
         return false;
     }
     
+    // Validate packet length to prevent buffer overflow
+    if (length > Config::PacketProcessing::MAX_PACKET_SIZE) {
+        Serial.printf("[QUEUE] Rejecting oversized packet (%d bytes > %d max)\n", 
+                      length, Config::PacketProcessing::MAX_PACKET_SIZE);
+        reconState.scanState.droppedPackets++;
+        return false;
+    }
+    
     QueuedPacket qp;
     memcpy(qp.data, data, length);
     qp.length = length;
@@ -75,15 +83,6 @@ void PacketProcessor::processSinglePacket(const QueuedPacket& qp, OLEDDisplay* d
     
     // Analyze packet using ProtocolAnalyzer
     PacketInfo info = protocolAnalyzer.analyze(qp.data, qp.length, qp.rssi);
-    
-    // Try PSK decryption and store message in PacketInfo if successful
-    const char* decryptedMsg = PSKDecryption::getLastMessage();
-    if (decryptedMsg && strlen(decryptedMsg) > 0) {
-        strncpy(info.message, decryptedMsg, sizeof(info.message) - 1);
-        info.message[sizeof(info.message) - 1] = '\0';
-        info.hasMessage = true;
-        PSKDecryption::clearLastMessage();
-    }
     
     // Enhanced packet analysis for Meshtastic (extract GPS position silently)
     bool positionExtracted = false;
@@ -182,11 +181,11 @@ void PacketProcessor::handleReconPacket(const PacketInfo& info, const uint8_t* d
         }
         
         // Attempt decryption
-        PSKDecryption::testDefaultPSKs(payload, payloadLen);
+        bool decrypted = PSKDecryption::testDefaultPSKs(payload, payloadLen);
         
-        // Extract node ID from packet header if it's a Meshtastic packet
-        uint32_t nodeId = info.nodeId;
-        if (nodeId == 0 && payloadLen >= 16 && payload[0] == 0xFF && payload[1] == 0xFF && 
+        // Extract node ID from packet header if it's a Meshtastic packet (starts with 0xFF 0xFF 0xFF 0xFF)
+        uint32_t nodeId = 0;
+        if (payloadLen >= 16 && payload[0] == 0xFF && payload[1] == 0xFF && 
             payload[2] == 0xFF && payload[3] == 0xFF) {
             nodeId = ((uint32_t)payload[4]) | ((uint32_t)payload[5] << 8) |
                      ((uint32_t)payload[6] << 16) | ((uint32_t)payload[7] << 24);

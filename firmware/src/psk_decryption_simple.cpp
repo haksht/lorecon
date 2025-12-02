@@ -313,7 +313,7 @@ bool PSKDecryption::testDefaultPSKs(const uint8_t* data, size_t length) {
         int keyLen = decodeBase64(DEFAULT_PSKS[i], key, sizeof(key));
         
         // Validate key length
-        if (keyLen != 16 && keyLen != 1) {
+        if (keyLen != 16 && keyLen != 32 && keyLen != 1 && keyLen != 8) {
             continue;  // Invalid key length
         }
         
@@ -327,8 +327,16 @@ bool PSKDecryption::testDefaultPSKs(const uint8_t* data, size_t length) {
         } else if (keyLen == 32) {
             memcpy(expandedKey, key, 32);
             keyBits = 256;
+        } else if (keyLen == 1) {
+            // Single byte: expand to 16 bytes by repeating
+            memset(expandedKey, key[0], 16);
+            keyBits = 128;
+        } else if (keyLen == 8) {
+            // 8-byte key: duplicate to fill 16 bytes
+            memcpy(expandedKey, key, 8);
+            memcpy(expandedKey + 8, key, 8);
+            keyBits = 128;
         } else {
-            // Single byte: skip (key #2 in list has full key)
             continue;
         }
         
