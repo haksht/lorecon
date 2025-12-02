@@ -83,6 +83,8 @@ void ReconState::initialize() {
     scanState.lastScanSwitch = millis();
     scanState.totalPackets = 0;
     scanState.totalDetections = 0;
+    scanState.droppedPackets = 0;
+    scanState.peakQueueSize = 0;
     scanState.packetPending = false;
     scanState.reconStartTime = millis();
     scanState.waitingForUserInput = false;

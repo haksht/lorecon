@@ -87,7 +87,9 @@ void ReconService::fillDevice(JsonObject& deviceObj, const TargetableDevice& dev
     deviceObj["rssi"] = device.bestRSSI;
     deviceObj["avgRSSI"] = device.avgRSSI;
     deviceObj["packetCount"] = device.packetCount;
-    deviceObj["lastSeen"] = device.lastSeen;
+    // Calculate seconds since last seen for frontend display
+    deviceObj["lastSeen"] = device.lastSeen > 0 ? (millis() - device.lastSeen) : 0;
+    deviceObj["lastSeenSecondsAgo"] = device.lastSeen > 0 ? (millis() - device.lastSeen) / 1000 : 0;
     deviceObj["powerClass"] = device.powerClass;
     deviceObj["isRouter"] = device.isRouter;
 }
@@ -145,6 +147,8 @@ String ReconService::buildStatusJson() {
     doc["uptime"] = millis() / 1000;
     doc["devices"] = reconState.numTargetableDevices;
     doc["totalPackets"] = reconState.scanState.totalPackets;
+    doc["droppedPackets"] = reconState.scanState.droppedPackets;
+    doc["peakQueueSize"] = reconState.scanState.peakQueueSize;
     doc["capturedPackets"] = reconState.getNumCapturedPackets();
     doc["freeHeap"] = ESP.getFreeHeap();
     doc["heapSize"] = ESP.getHeapSize();

@@ -28,6 +28,7 @@ class ReconApp {
 
         // State
         this.statusTimer = null;
+        this.lastDropWarning = null;  // Track queue warning timestamp
         this.currentTab = 'info';
         this.isMobile = window.innerWidth < 768;
         this.networkMap = null;
@@ -86,6 +87,16 @@ class ReconApp {
     }
 
     handleStatusUpdate(data) {
+        // Check for queue drops and show warning if significant
+        if (data.droppedPackets > 0 && data.totalPackets > 0) {
+            const totalReceived = data.totalPackets + data.droppedPackets;
+            const dropRate = ((data.droppedPackets / totalReceived) * 100).toFixed(1);
+            if (dropRate > 5 && (!this.lastDropWarning || Date.now() - this.lastDropWarning > 60000)) {
+                showToast(`⚠️ Queue overload: ${data.droppedPackets} packets dropped (${dropRate}%)`, 'warning');
+                this.lastDropWarning = Date.now();
+            }
+        }
+        
         // Update sidebar stats
         if (this.el.mode) this.el.mode.textContent = this.formatMode(data.mode);
         if (this.el.devices) this.el.devices.textContent = data.devices || 0;
@@ -206,21 +217,72 @@ class ReconApp {
                 return;
             }
             
+            // Fetch security assessment to get vulnerability scores
+            let securityData = null;
+            try {
+                securityData = await this.get('/api/recon/security');
+            } catch (err) {
+                console.warn('Security data not available, sorting by discovery order');
+            }
+            
+            // Create a map of nodeId to vulnerability score
+            const scoreMap = new Map();
+            if (securityData && securityData.devices) {
+                securityData.devices.forEach(secDev => {
+                    scoreMap.set(secDev.nodeIdDecimal, {
+                        score: secDev.score,
+                        riskLevel: secDev.riskLevel
+                    });
+                });
+            }
+            
+            // Enrich devices with security scores and sort by vulnerability (lowest score first)
+            const enrichedDevices = data.devices.map(device => {
+                const secInfo = scoreMap.get(device.nodeIdDecimal) || { score: 100, riskLevel: 'unknown' };
+                return {
+                    ...device,
+                    vulnerabilityScore: secInfo.score,
+                    riskLevel: secInfo.riskLevel
+                };
+            });
+            
+            // Sort by vulnerability score (lowest first = most vulnerable first)
+            enrichedDevices.sort((a, b) => a.vulnerabilityScore - b.vulnerabilityScore);
+            
             let html = '<div class="table-wrapper">';
             html += '<table class="table"><thead><tr>';
-            html += '<th>Node ID</th><th>Type</th><th>Protocol</th><th>Packets</th><th>RSSI</th><th>Frequency</th><th>Last Seen</th><th>Actions</th>';
+            html += '<th>Node ID</th><th>Risk</th><th>Type</th><th>Protocol</th><th>Packets</th><th>RSSI</th><th>Frequency</th><th>Last Seen</th><th>Actions</th>';
             html += '</tr></thead><tbody>';
             
-            data.devices.forEach(device => {
+            enrichedDevices.forEach(device => {
                 const rssiClass = (device.rssi || -100) > -70 ? 'rssi-strong' : (device.rssi || -100) > -90 ? 'rssi-medium' : 'rssi-weak';
+                
+                // Risk badge styling
+                let riskBadge = '';
+                let riskClass = '';
+                if (device.riskLevel === 'vulnerable') {
+                    riskBadge = '🔴 High';
+                    riskClass = 'risk-high';
+                } else if (device.riskLevel === 'moderate') {
+                    riskBadge = '🟡 Med';
+                    riskClass = 'risk-medium';
+                } else if (device.riskLevel === 'secure') {
+                    riskBadge = '🟢 Low';
+                    riskClass = 'risk-low';
+                } else {
+                    riskBadge = '⚪ —';
+                    riskClass = 'risk-unknown';
+                }
+                
                 html += '<tr>';
                 html += `<td><code>0x${device.nodeId}</code></td>`;
+                html += `<td><span class="${riskClass}">${riskBadge}</span></td>`;
                 html += `<td>${device.deviceType || 'Unknown'}</td>`;
                 html += `<td><code>${device.protocol || '—'}</code></td>`;
                 html += `<td>${device.packetCount || 0}</td>`;
                 html += `<td><span class="${rssiClass}">${device.rssi || '—'} dBm</span></td>`;
                 html += `<td>${(device.frequency || 0).toFixed(3)} MHz</td>`;
-                html += `<td>${this.formatDuration((Date.now() - device.lastSeen) / 1000)} ago</td>`;
+                html += `<td>${this.formatLastSeen(device.lastSeenSecondsAgo)}</td>`;
                 html += `<td><button data-action="target-device" data-value="${device.nodeId}" class="btn btn-primary btn-small">🎯 Target</button></td>`;
                 html += '</tr>';
             });
@@ -326,19 +388,34 @@ class ReconApp {
 
     async showNetwork() {
         console.log('[Network] Loading network map...');
+        console.log('[Network] NetworkMap available?', typeof NetworkMap !== 'undefined');
+        console.log('[Network] window.NetworkMap?', typeof window.NetworkMap !== 'undefined');
         
         if (!this.networkMap) {
             console.log('[Network] Initializing NetworkMap...');
-            if (typeof NetworkMap !== 'undefined') {
+            // Check both direct and window scope
+            const NetworkMapClass = window.NetworkMap || NetworkMap;
+            if (typeof NetworkMapClass !== 'undefined') {
                 try {
                     // Use network-info as the details panel (it exists in HTML)
-                    this.networkMap = new NetworkMap('network-canvas', 'network-info');
+                    this.networkMap = new NetworkMapClass('network-canvas', 'network-info');
                     console.log('[Network] NetworkMap initialized successfully');
                 } catch (error) {
                     console.error('[Network] Failed to initialize NetworkMap:', error);
+                    // Show error in network info panel
+                    const infoEl = document.getElementById('network-info');
+                    if (infoEl) {
+                        infoEl.innerHTML = '<div class="error-state"><p class="error">Network visualization unavailable: ' + error.message + '</p><p style="font-size: 0.9rem; margin-top: 0.5rem;">Check browser console for details.</p></div>';
+                    }
                 }
             } else {
-                console.error('[Network] NetworkMap class not found!');
+                console.error('[Network] NetworkMap class not found! Scripts may not have loaded.');
+                console.error('[Network] Available globals:', Object.keys(window).filter(k => k.includes('Map') || k.includes('Network') || k.includes('War')));
+                // Show error message
+                const infoEl = document.getElementById('network-info');
+                if (infoEl) {
+                    infoEl.innerHTML = '<div class="error-state"><p class="error">Network Map unavailable</p><p style="font-size: 0.9rem; margin-top: 0.5rem;">The network-map.js script failed to load. Try refreshing the page or check SD card/LittleFS.</p></div>';
+                }
             }
         }
         
@@ -490,11 +567,14 @@ class ReconApp {
                     
                     html += '</div></div>';
                     
-                    // Device List
+                    // Device List - Sort by vulnerability score (lowest first = most vulnerable)
                     if (devices.length > 0) {
                         html += '<h4 style="color: var(--primary); margin-bottom: 1rem;">📋 Device Security Assessment</h4>';
                         
-                        devices.forEach(dev => {
+                        // Sort devices by vulnerability score (ascending)
+                        const sortedDevices = [...devices].sort((a, b) => a.score - b.score);
+                        
+                        sortedDevices.forEach(dev => {
                             const riskColor = dev.riskLevel === 'secure' ? 'var(--success)' : 
                                              dev.riskLevel === 'moderate' ? 'var(--warning)' : 'var(--danger)';
                             
@@ -795,6 +875,21 @@ class ReconApp {
                             html += '<div style="padding: 1rem; background: rgba(155, 89, 182, 0.1); border-radius: 8px; text-align: center;">';
                             html += '<div style="font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 0.25rem;">Devices</div>';
                             html += '<div style="font-size: 1.25rem; font-weight: 700; color: var(--accent); font-family: monospace;">' + (diag.devices || 0) + '</div></div>';
+                            
+                            // Queue health metrics
+                            if (diag.droppedPackets !== undefined) {
+                                const totalReceived = (diag.totalPackets || 0) + (diag.droppedPackets || 0);
+                                const dropRate = totalReceived > 0 ? ((diag.droppedPackets / totalReceived) * 100).toFixed(1) : 0;
+                                const dropColor = dropRate > 10 ? 'var(--danger)' : dropRate > 5 ? 'var(--warning)' : 'var(--success)';
+                                html += '<div style="padding: 1rem; background: rgba(231, 76, 60, 0.1); border-radius: 8px; text-align: center;">';
+                                html += '<div style="font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 0.25rem;">Dropped</div>';
+                                html += '<div style="font-size: 1.25rem; font-weight: 700; color: ' + dropColor + '; font-family: monospace;">' + (diag.droppedPackets || 0) + '</div>';
+                                html += '<div style="font-size: 0.7rem; margin-top: 0.25rem; color: ' + dropColor + ';">' + dropRate + '%</div></div>';
+                                html += '<div style="padding: 1rem; background: rgba(52, 152, 219, 0.1); border-radius: 8px; text-align: center;">';
+                                html += '<div style="font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 0.25rem;">Peak Queue</div>';
+                                html += '<div style="font-size: 1.25rem; font-weight: 700; color: var(--info); font-family: monospace;">' + (diag.peakQueueSize || 0) + '</div>';
+                                html += '<div style="font-size: 0.7rem; margin-top: 0.25rem; color: var(--text-secondary);">of 100</div></div>';
+                            }
                             html += '<div style="padding: 1rem; background: rgba(241, 196, 15, 0.1); border-radius: 8px; text-align: center;">';
                             html += '<div style="font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 0.25rem;">Mode</div>';
                             html += '<div style="font-size: 1rem; font-weight: 600; color: var(--warning);">' + (this.formatMode(diag.mode) || '—') + '</div></div>';
@@ -1058,6 +1153,26 @@ class ReconApp {
         if (m > 0) parts.push(`${m}m`);
         parts.push(`${s}s`);
         return parts.join(' ');
+    }
+
+    formatLastSeen(secondsAgo) {
+        // Backend now provides lastSeenSecondsAgo directly
+        if (secondsAgo === undefined || secondsAgo === null) return 'Never';
+        
+        if (secondsAgo === 0) return 'Just now';
+        
+        if (secondsAgo < 60) {
+            return `${Math.floor(secondsAgo)}s ago`;
+        } else if (secondsAgo < 3600) {
+            const mins = Math.floor(secondsAgo / 60);
+            return `${mins}m ago`;
+        } else if (secondsAgo < 86400) {
+            const hours = Math.floor(secondsAgo / 3600);
+            return `${hours}h ago`;
+        } else {
+            const days = Math.floor(secondsAgo / 86400);
+            return `${days}d ago`;
+        }
     }
 
     formatBytes(bytes) {

@@ -739,6 +739,31 @@ body {
     font-weight: 600;
 }
 
+/* Risk level badges */
+.risk-high {
+    color: var(--danger);
+    font-weight: 700;
+    font-size: 0.9rem;
+}
+
+.risk-medium {
+    color: var(--warning);
+    font-weight: 600;
+    font-size: 0.9rem;
+}
+
+.risk-low {
+    color: var(--success);
+    font-weight: 600;
+    font-size: 0.9rem;
+}
+
+.risk-unknown {
+    color: var(--text-muted);
+    font-weight: 400;
+    font-size: 0.9rem;
+}
+
 /* Protocol Badge */
 .protocol-badge {
     display: inline-block;

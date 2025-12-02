@@ -19,7 +19,9 @@ PacketProcessor::PacketProcessor() {
 bool PacketProcessor::queuePacket(const uint8_t* data, size_t length, float rssi, float snr,
                                   uint8_t configIndex, float frequencyMHz) {
     if (isQueueFull()) {
-        Serial.println("[QUEUE] Full - dropping packet!");
+        reconState.scanState.droppedPackets++;
+        Serial.printf("[QUEUE] Full (100 packets) - dropping packet! Total drops: %u\n", 
+                      reconState.scanState.droppedPackets);
         return false;
     }
     
@@ -32,6 +34,12 @@ bool PacketProcessor::queuePacket(const uint8_t* data, size_t length, float rssi
     qp.configIndex = configIndex;
     qp.frequencyMHz = frequencyMHz;
     packetQueue.push(qp);
+    
+    // Track peak queue size for observability
+    size_t currentSize = packetQueue.size();
+    if (currentSize > reconState.scanState.peakQueueSize) {
+        reconState.scanState.peakQueueSize = currentSize;
+    }
     
     return true;
 }
@@ -113,7 +121,7 @@ void PacketProcessor::processSinglePacket(const QueuedPacket& qp, OLEDDisplay* d
         record.snrDb = qp.snr;
         record.lengthBytes = qp.length;
         record.packetType = positionExtracted ? "position" : (info.hasMessage ? "text" : (info.isRouter ? "routing" : "unknown"));
-        record.encrypted = info.hasMessage;
+        record.encrypted = !info.hasMessage;  // False when successfully decrypted (now cleartext)
         record.pskResult = info.hasMessage ? "hit" : "none";
         record.pskId = nullptr;
         record.hasPosition = positionExtracted && loggedPoint;

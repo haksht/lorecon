@@ -251,11 +251,31 @@ void WebServer::handleExportPCAP(AsyncWebServerRequest* request) {
     #ifdef ENABLE_PCAP_EXPORT
     // Get current PCAP session file from packet logger
     extern PacketLogger packetLogger;
-    String pcapFile = packetLogger.getCurrentSessionFile();
     
-    // Convert .csv extension to .pcap
-    if (pcapFile.endsWith(".csv")) {
-        pcapFile.replace(".csv", ".pcap");
+    // Check if SD card is available
+    if (!packetLogger.isAvailable()) {
+        request->send(404, "application/json", 
+            "{\"status\":\"error\",\"message\":\"SD card not available. Insert SD card and restart device to enable PCAP capture.\"}");
+        LOG_WARN("PCAP download requested but SD card not available");
+        return;
+    }
+    
+    String sessionFile = packetLogger.getCurrentSessionFile();
+    
+    // Check if a session is active (session file is just the filename, e.g. "snf_12345.csv")
+    if (sessionFile.isEmpty()) {
+        request->send(404, "application/json", 
+            "{\"status\":\"error\",\"message\":\"No active logging session. Wait for packet capture to start.\"}");
+        LOG_WARN("PCAP download requested but no active session");
+        return;
+    }
+    
+    // Build PCAP file path: /logs/<session>.pcap
+    String pcapFile = "/logs/";
+    if (sessionFile.endsWith(".csv")) {
+        pcapFile += sessionFile.substring(0, sessionFile.length() - 4) + ".pcap";
+    } else {
+        pcapFile += sessionFile + ".pcap";
     }
     
     // Check if PCAP file exists
@@ -264,10 +284,20 @@ void WebServer::handleExportPCAP(AsyncWebServerRequest* request) {
         request->send(SD, pcapFile, "application/vnd.tcpdump.pcap", true);
         LOG_INFO("PCAP file downloaded: %s", pcapFile.c_str());
     } else {
-        // No PCAP file available
-        request->send(404, "application/json", 
-            "{\"status\":\"error\",\"message\":\"No PCAP capture available. Start reconnaissance to generate capture file.\"}");
-        LOG_WARN("PCAP download requested but file not found: %s", pcapFile.c_str());
+        // PCAP file doesn't exist - provide helpful error message
+        String csvPath = "/logs/" + sessionFile;
+        bool csvExists = SD.exists(csvPath.c_str());
+        
+        String errorMsg;
+        if (csvExists) {
+            errorMsg = "{\"status\":\"error\",\"message\":\"PCAP file not found. CSV logging is active but PCAP generation may have failed. Check SD card space and PCAP logger status.\"}";
+        } else {
+            errorMsg = "{\"status\":\"error\",\"message\":\"No packet capture file available. Ensure SD card is inserted and packets have been captured.\"}";
+        }
+        
+        request->send(404, "application/json", errorMsg);
+        LOG_WARN("PCAP download requested but file not found: %s (CSV exists: %s)", 
+                 pcapFile.c_str(), csvExists ? "yes" : "no");
     }
     #else
     // PCAP export disabled
