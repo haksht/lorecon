@@ -96,6 +96,10 @@ void CommandHandler::showCommands() {
 
 void CommandHandler::cmdShowMenu(IReconTool* tool) {
     reconState.scanState.mode = MODE_INTERACTIVE_MENU;
+    // Track when menu mode was entered for auto-timeout
+    if (g_reconTool) {
+        g_reconTool->setMenuModeEntered();
+    }
     showReconResults();
 }
 
@@ -129,6 +133,11 @@ void CommandHandler::cmdResumeRecon(IReconTool* tool) {
     reconState.scanState.mode = MODE_RECONNAISSANCE;
     reconState.scanState.currentConfig = 0;
     reconState.scanState.lastScanSwitch = millis();
+    
+    // Clear menu timeout since we're leaving menu mode
+    if (g_reconTool) {
+        g_reconTool->clearMenuTimeout();
+    }
     reconState.scanState.packetPending = false;
     reconState.scanState.waitingForUserInput = false;
     
@@ -181,6 +190,9 @@ void CommandHandler::cmdShowSummary(IReconTool* tool) {
 void CommandHandler::cmdSecurityAssessment(IReconTool* tool) {
     showSecurityAssessment();
     reconState.scanState.mode = MODE_INTERACTIVE_MENU;
+    if (g_reconTool) {
+        g_reconTool->setMenuModeEntered();
+    }
     showReconResults();
 }
 

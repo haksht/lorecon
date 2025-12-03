@@ -128,6 +128,11 @@ namespace UI {
     // Auto-return to normal operation after idle
     constexpr uint32_t INPUT_TIMEOUT_MS = 30000;       // 30 seconds
     
+    // Menu mode auto-resume timeout (milliseconds)
+    // Prevents "left in menu mode overnight" issue where radio stops scanning
+    // Set to 5 minutes - long enough for configuration, short enough to catch mistakes
+    constexpr uint32_t MENU_TIMEOUT_MS = 5 * 60 * 1000;  // 5 minutes
+    
     // Main loop polling delay (milliseconds)
     constexpr uint32_t LOOP_POLLING_DELAY_MS = 10;
 }

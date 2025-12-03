@@ -554,6 +554,9 @@ void showFrequencyTargetingMenu() {
 void handleFrequencyTargetingInput() {
   if (!waitForSerialInput()) {
     reconState.scanState.mode = MODE_INTERACTIVE_MENU;
+    if (g_reconTool) {
+        g_reconTool->setMenuModeEntered();
+    }
     showReconResults();
     return;
   }
@@ -590,6 +593,9 @@ void handleFrequencyTargetingInput() {
     Serial.println("\nPress any key to continue...");
     if (!waitForSerialInput()) {
       reconState.scanState.mode = MODE_INTERACTIVE_MENU;
+      if (g_reconTool) {
+          g_reconTool->setMenuModeEntered();
+      }
       showReconResults();
       return;
     }
@@ -597,6 +603,9 @@ void handleFrequencyTargetingInput() {
     showFrequencyTargetingMenu();
   } else if (cmd == 'r' || cmd == 'R') {
     reconState.scanState.mode = MODE_INTERACTIVE_MENU;
+    if (g_reconTool) {
+        g_reconTool->setMenuModeEntered();
+    }
     showReconResults();
   } else {
     Serial.println("❌ Invalid selection");

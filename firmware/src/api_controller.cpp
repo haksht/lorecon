@@ -262,7 +262,10 @@ String APIController::startScan() {
  * Stop current scan
  */
 String APIController::stopScan() {
-    reconState.scanState.mode = MODE_TARGETED_CAPTURE;  // Use as idle/paused state
+    reconState.scanState.mode = MODE_INTERACTIVE_MENU;
+    if (g_reconTool) {
+        g_reconTool->setMenuModeEntered();
+    }
     return createSuccessResponse("Scan stopped");
 }
 
