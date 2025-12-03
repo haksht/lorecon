@@ -50,6 +50,10 @@ public:
     // Web server integration
     void setWebServer(WebServer* ws);
     
+    // Menu timeout tracking (public for CommandHandler access)
+    void setMenuModeEntered() { menuModeEnteredAt = millis(); }
+    void clearMenuTimeout() { menuModeEnteredAt = 0; }
+    
 private:
     // Component instances
     RadioController* radioController;
@@ -61,6 +65,9 @@ private:
     bool buttonPressed;
     uint32_t buttonPressStart;
     bool shutdownInitiated;
+    
+    // Menu mode timeout tracking
+    uint32_t menuModeEnteredAt;
     
     // Button handler
     void handleButtonPress(uint32_t now);

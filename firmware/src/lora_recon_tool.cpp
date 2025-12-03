@@ -25,6 +25,7 @@ LoRaReconTool::LoRaReconTool()
     , buttonPressed(false)
     , buttonPressStart(0)
     , shutdownInitiated(false)
+    , menuModeEnteredAt(0)
 {
     g_reconTool = this;
 }
@@ -175,6 +176,12 @@ void LoRaReconTool::update() {
             break;
             
         case MODE_INTERACTIVE_MENU:
+            // Auto-resume after timeout to prevent "left in menu mode" issue
+            if (menuModeEnteredAt > 0 && (now - menuModeEnteredAt) >= Config::UI::MENU_TIMEOUT_MS) {
+                Serial.println("\n[!] Menu timeout - auto-resuming reconnaissance mode");
+                reconState.scanState.mode = MODE_RECONNAISSANCE;
+                menuModeEnteredAt = 0;
+            }
             // Just wait for user input
             delay(Config::UI::BUTTON_DEBOUNCE_MS);
             return;
@@ -357,6 +364,7 @@ void LoRaReconTool::startFrequencyTargeting(uint8_t configIndex) {
     } else {
         Serial.println("❌ Failed to configure radio for targeting");
         reconState.scanState.mode = MODE_INTERACTIVE_MENU;
+        setMenuModeEntered();
     }
 }
 
@@ -384,6 +392,7 @@ void LoRaReconTool::showReplayMenu() {
         }
         if (Serial.available()) Serial.read();
         reconState.scanState.mode = MODE_INTERACTIVE_MENU;
+        setMenuModeEntered();
         showReconResults();
         return;
     }
@@ -416,6 +425,7 @@ void LoRaReconTool::showReplayMenu() {
     if (millis() - startTime > 30000) {  // 30 second timeout
       Serial.println("\n[TIMEOUT] Returning to main menu...");
       reconState.scanState.mode = MODE_INTERACTIVE_MENU;
+      setMenuModeEntered();
       showReconResults();
       return;
     }
@@ -456,6 +466,7 @@ void LoRaReconTool::showReplayMenu() {
         showReplayMenu();
     } else if (cmd == 'm' || cmd == 'M') {
         reconState.scanState.mode = MODE_INTERACTIVE_MENU;
+        setMenuModeEntered();
         showReconResults();
     } else {
         Serial.println("❌ Invalid option");
