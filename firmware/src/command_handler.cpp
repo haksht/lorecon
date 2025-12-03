@@ -13,6 +13,7 @@
 #include <esp_task_wdt.h>
 #include "command_handler.h"
 #include "irecon_tool.h"  // Interface only
+#include "lora_recon_tool.h"  // For g_reconTool global
 #include "radio_controller.h"  // Need full definition for method calls
 #include "user_interface.h"
 #include "recon_state.h"

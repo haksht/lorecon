@@ -7,6 +7,7 @@
 #include "logger.h"
 #include "recon_service.h"
 #include "radio_controller.h"
+#include "lora_recon_tool.h"  // For g_reconTool global
 
 /**
  * Set reconnaissance tool reference
