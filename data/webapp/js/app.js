@@ -786,7 +786,7 @@ class ReconApp {
             this.el.settingsContent.innerHTML = html;
         } catch (error) {
             console.error('Failed to load settings:', error);
-            this.el.settingsContent.innerHTML = '<div class="error-state"><p class="error">Failed to load configuration</p></div>';
+            this.el.settingsContent.innerHTML = '<div class="error-state"><p class="error">Failed to load configuration</p><p style="font-size: 0.85em; color: #999; margin-top: 0.5rem;">' + error.message + '</p></div>';
         }
         
         // Setup OTA form handler
@@ -1282,9 +1282,20 @@ class ReconApp {
     // ============ API Helpers ============
     
     async get(endpoint) {
-        const response = await fetch(endpoint);
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        return await response.json();
+        try {
+            console.log('[GET]', endpoint);
+            const response = await fetch(endpoint);
+            console.log('[GET]', endpoint, 'status:', response.status);
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            const data = await response.json();
+            console.log('[GET]', endpoint, 'success');
+            return data;
+        } catch (error) {
+            console.error('[GET]', endpoint, 'error:', error);
+            throw error;
+        }
     }
 
     async post(endpoint, body = {}) {
