@@ -63,6 +63,9 @@ public:
     static String getDiagnostics();
     static String setVerboseMode(bool enableVerbose);
     
+    // System configuration (read-only)
+    static String getSystemConfig();
+    
     // Statistics
     static String getStatistics();
     static String getActivityAnalysis();

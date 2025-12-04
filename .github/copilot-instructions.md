@@ -85,6 +85,9 @@ No exceptions (embedded C++). Return `bool` for success/failure. Use `LOG_ERROR(
 5. **Frequency Configs**: 26 configs define Meshtastic, LoRaWAN, Helium presets. Cycle time = 26 × 12s = 5min. Don't suggest random frequency additions.
 6. **No Arduino String**: Use `std::string` or C-strings. Arduino `String` class avoided for memory fragmentation reasons.
 7. **Web UI Script Loading**: Scripts load in order: `toast.js`, `war-room.js`, `network-map.js`, `app.js`. If "NetworkMap class not found" error occurs, re-run `uploadfs` to ensure all files uploaded correctly to LittleFS.
+8. **PSK Key Count**: Always use `Config::PSK::NUM_DEFAULT_KEYS` constant (14) or `PSKDecryption::getDefaultPSKCount()` function. Never hardcode key counts.
+9. **Queue Overflow**: 100-packet queue can overflow in high-traffic (50+ devices). Drops are tracked and displayed. Trade-off: continuous coverage vs perfect capture. See TROUBLESHOOTING.md for mitigation strategies.
+10. **strcpy Safety**: Use `strncpy` with explicit null termination for buffer safety, even when copying string literals.
 
 ## Testing Approach
 

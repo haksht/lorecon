@@ -1,5 +1,17 @@
 /* ESP32 LoRa Recon - Simplified Client */
 
+// Dependency checks - ensure scripts loaded in correct order
+if (typeof showToast === 'undefined') {
+    console.error('FATAL: toast.js must be loaded before app.js');
+    alert('Script loading error - please refresh the page');
+}
+if (typeof WarRoom === 'undefined') {
+    console.warn('WARNING: war-room.js not loaded - War Room tab will be disabled');
+}
+if (typeof NetworkMap === 'undefined') {
+    console.warn('WARNING: network-map.js not loaded - Network Map will be disabled');
+}
+
 class ReconApp {
     constructor() {
         // DOM references
@@ -13,6 +25,7 @@ class ReconApp {
             devicesContent: document.getElementById('devices-content'),
             packetsContent: document.getElementById('packets-content'),
             frequencyContent: document.getElementById('frequency-content'),
+            settingsContent: document.getElementById('settings-content'),
             gpsContent: document.getElementById('gps-content'),
             securityContent: document.getElementById('security-content'),
             infoMode: document.getElementById('info-mode'),
@@ -197,6 +210,9 @@ class ReconApp {
                 break;
             case 'stats':
                 await this.showStats();
+                break;
+            case 'settings':
+                await this.showSettings();
                 break;
             case 'info':
                 await this.showInfo();
@@ -705,6 +721,161 @@ class ReconApp {
                 freqAnalysisEl.innerHTML = '<div class="error-state"><p class="error">Failed to load frequency data</p><button data-action="retry-freq-analysis" class="btn btn-primary">Retry</button></div>';
             }
         }
+    }
+
+    async showSettings() {
+        // Show loading state
+        this.el.settingsContent.innerHTML = '<div class="loading-container"><div class="loading-spinner"></div><p>Loading configuration...</p></div>';
+        
+        try {
+            const config = await this.get('/api/config/system');
+            if (!config) {
+                this.el.settingsContent.innerHTML = '<p class="placeholder">Configuration unavailable.</p>';
+                return;
+            }
+            
+            let html = '<div style="padding: 1rem;">';
+            
+            // Scanning Configuration
+            html += '<div class="info-section"><h3>🔍 Scanning Configuration</h3><div class="content-area">';
+            html += '<div class="status-row"><span>Dwell Time</span><span class="status-value">' + config.scanning.dwellTimeMs + ' ms</span></div>';
+            html += '<div class="status-row"><span>Num Configs</span><span class="status-value">' + config.scanning.numConfigs + '</span></div>';
+            html += '<div class="status-row"><span>Full Cycle Time</span><span class="status-value">' + config.scanning.cycleTimeMinutes + ' minutes</span></div>';
+            html += '</div></div>';
+            
+            // Processing Configuration
+            html += '<div class="info-section"><h3>⚙️ Processing Configuration</h3><div class="content-area">';
+            html += '<div class="status-row"><span>Queue Size</span><span class="status-value">' + config.processing.queueSize + '</span></div>';
+            html += '<div class="status-row"><span>Max Packet Size</span><span class="status-value">' + config.processing.maxPacketSize + ' bytes</span></div>';
+            html += '<div class="status-row"><span>Metric Cache</span><span class="status-value">' + config.processing.metricCacheMs + ' ms</span></div>';
+            html += '</div></div>';
+            
+            // Tracking Limits
+            html += '<div class="info-section"><h3>📊 Tracking Limits & Usage</h3><div class="content-area">';
+            html += '<div class="status-row"><span>Max Devices</span><span class="status-value">' + config.tracking.maxDevices + ' (using ' + config.usage.devices + ')</span></div>';
+            html += '<div class="status-row"><span>Max Nodes</span><span class="status-value">' + config.tracking.maxNodes + ' (using ' + config.usage.nodes + ')</span></div>';
+            html += '<div class="status-row"><span>Max Geo Points</span><span class="status-value">' + config.tracking.maxGeoPoints + '</span></div>';
+            html += '<div class="status-row"><span>Replay Slots</span><span class="status-value">' + config.replay.maxSlots + ' (using ' + config.usage.replaySlots + ')</span></div>';
+            html += '</div></div>';
+            
+            // Queue Statistics
+            html += '<div class="info-section"><h3>📦 Queue Statistics</h3><div class="content-area">';
+            html += '<div class="status-row"><span>Total Packets</span><span class="status-value">' + config.usage.totalPackets + '</span></div>';
+            html += '<div class="status-row"><span>Dropped Packets</span><span class="status-value">' + config.usage.droppedPackets + '</span></div>';
+            const dropRate = config.usage.totalPackets > 0 ? ((config.usage.droppedPackets / (config.usage.totalPackets + config.usage.droppedPackets)) * 100).toFixed(2) : 0;
+            html += '<div class="status-row"><span>Drop Rate</span><span class="status-value">' + dropRate + '%</span></div>';
+            html += '</div></div>';
+            
+            // PSK Configuration
+            html += '<div class="info-section"><h3>🔐 PSK Configuration</h3><div class="content-area">';
+            html += '<div class="status-row"><span>Default Keys</span><span class="status-value">' + config.psk.numDefaultKeys + '</span></div>';
+            html += '<div class="status-row"><span>Key Size</span><span class="status-value">' + config.psk.keySize + ' bytes</span></div>';
+            html += '</div></div>';
+            
+            // System Info
+            html += '<div class="info-section"><h3>💻 System Information</h3><div class="content-area">';
+            html += '<div class="status-row"><span>Board</span><span class="status-value">' + config.hardware.board + '</span></div>';
+            html += '<div class="status-row"><span>OLED Display</span><span class="status-value">' + (config.hardware.hasOLED ? '✅ Yes' : '❌ No') + '</span></div>';
+            html += '<div class="status-row"><span>SD Card</span><span class="status-value">' + (config.hardware.hasSD ? '✅ Yes' : '❌ No') + '</span></div>';
+            html += '<div class="status-row"><span>Free Heap</span><span class="status-value">' + this.formatBytes(config.system.freeHeap) + '</span></div>';
+            html += '<div class="status-row"><span>Min Free Heap</span><span class="status-value">' + this.formatBytes(config.system.minFreeHeap) + '</span></div>';
+            html += '<div class="status-row"><span>Uptime</span><span class="status-value">' + this.formatDuration(config.system.uptimeMs / 1000) + '</span></div>';
+            html += '</div></div>';
+            
+            html += '</div>';
+            this.el.settingsContent.innerHTML = html;
+        } catch (error) {
+            console.error('Failed to load settings:', error);
+            this.el.settingsContent.innerHTML = '<div class="error-state"><p class="error">Failed to load configuration</p></div>';
+        }
+        
+        // Setup OTA form handler
+        this.setupOTAUpload();
+    }
+
+    setupOTAUpload() {
+        const otaForm = document.getElementById('ota-form');
+        if (!otaForm) return;
+        
+        otaForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const fileInput = document.getElementById('firmware-file');
+            const file = fileInput.files[0];
+            
+            if (!file) {
+                showToast('Please select a firmware file', 'warning');
+                return;
+            }
+            
+            if (!file.name.endsWith('.bin')) {
+                showToast('Only .bin files are supported', 'error');
+                return;
+            }
+            
+            if (file.size > 2 * 1024 * 1024) {
+                showToast('Firmware file is too large (max 2MB)', 'error');
+                return;
+            }
+            
+            if (!confirm('Upload firmware and reboot device? This will disconnect temporarily.')) {
+                return;
+            }
+            
+            const uploadBtn = document.getElementById('ota-upload-btn');
+            const progressContainer = document.getElementById('ota-progress');
+            const progressBar = document.getElementById('ota-progress-bar');
+            const progressText = document.getElementById('ota-progress-text');
+            
+            try {
+                // Disable button and show progress
+                uploadBtn.disabled = true;
+                progressContainer.style.display = 'block';
+                
+                const formData = new FormData();
+                formData.append('firmware', file);
+                
+                const xhr = new XMLHttpRequest();
+                
+                xhr.upload.addEventListener('progress', (e) => {
+                    if (e.lengthComputable) {
+                        const percent = Math.round((e.loaded / e.total) * 100);
+                        progressBar.style.width = percent + '%';
+                        progressText.textContent = percent + '%';
+                    }
+                });
+                
+                xhr.addEventListener('load', () => {
+                    if (xhr.status === 200) {
+                        showToast('Firmware uploaded successfully! Device rebooting...', 'success');
+                        progressText.textContent = 'Rebooting...';
+                        
+                        // Wait 10 seconds then try to reconnect
+                        setTimeout(() => {
+                            window.location.reload();
+                        }, 10000);
+                    } else {
+                        showToast('Upload failed: HTTP ' + xhr.status, 'error');
+                        uploadBtn.disabled = false;
+                        progressContainer.style.display = 'none';
+                    }
+                });
+                
+                xhr.addEventListener('error', () => {
+                    showToast('Upload failed: Network error', 'error');
+                    uploadBtn.disabled = false;
+                    progressContainer.style.display = 'none';
+                });
+                
+                xhr.open('POST', '/api/firmware/upload');
+                xhr.send(formData);
+                
+            } catch (error) {
+                showToast('Upload failed: ' + error.message, 'error');
+                uploadBtn.disabled = false;
+                progressContainer.style.display = 'none';
+            }
+        });
     }
 
     // ============ Button Handlers ============

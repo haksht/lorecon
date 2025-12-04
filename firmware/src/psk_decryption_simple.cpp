@@ -21,7 +21,18 @@ char PSKDecryption::lastMessage[PSKDecryption::MAX_MESSAGE_LEN] = {0};
 #define ASCII_PRINTABLE_MAX         126  // Last printable ASCII character
 #define MAX_VARINT_BYTES            5    // Maximum bytes in a varint encoding
 
-// Known Meshtastic default PSKs
+// Known Meshtastic default PSKs (Base64-encoded)
+// 
+// These are the most common pre-shared keys found in Meshtastic networks:
+// - Keys 1-5: Official default keys from Meshtastic firmware
+// - Keys 6-10: Common custom keys used in public channels  
+// - Keys 11-14: Test/development keys
+//
+// Security Note: These keys are publicly documented. Production networks
+// should use unique PSKs. This tool tests default keys for research/analysis.
+//
+// Key Format: Base64-encoded AES keys (8, 16, or 32 bytes when decoded)
+// Decoding: Base64 → binary key → AES-256-CTR decryption
 static constexpr const char* DEFAULT_PSKS[] = {
     "AQ==",                      // #1: Single byte (0x01) - often expanded to 16 bytes
     "1PG7OiApB1nwvP+rz05pAQ==",  // #2: Standard 16-byte key (most common)

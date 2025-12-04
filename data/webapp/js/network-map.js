@@ -171,6 +171,12 @@ class NetworkMap {
     updateDevices(devices) {
         console.log('[NetworkMap] Updating with', devices.length, 'devices');
         
+        if (!devices || devices.length === 0) {
+            this.devices = [];
+            console.log('[NetworkMap] No devices to display');
+            return;
+        }
+        
         // Sort by vulnerability score (highest first = most vulnerable)
         devices.sort((a, b) => {
             const scoreA = this.calculateVulnerabilityScore(a);
@@ -191,6 +197,8 @@ class NetworkMap {
             const x = this.centerX + Math.cos(angle) * distance;
             const y = this.centerY + Math.sin(angle) * distance;
             
+            console.log(`[NetworkMap] Device ${index}: nodeId=${device.nodeId}, rssi=${rssi}, pos=(${x.toFixed(0)},${y.toFixed(0)})`);
+            
             return {
                 ...device,
                 position: { x, y },
@@ -198,6 +206,8 @@ class NetworkMap {
                 vulnerabilityScore: this.calculateVulnerabilityScore(device)
             };
         });
+        
+        console.log('[NetworkMap] Positioned', this.devices.length, 'devices');
     }
     
     calculateVulnerabilityScore(device) {
@@ -559,48 +569,6 @@ class NetworkMap {
         html += '</div>';
         
         this.detailsPanel.innerHTML = html;
-        this.detailsPanel.style.display = 'block';
-    }
-        
-        this.detailsPanel.innerHTML = `
-            <h3>Device Details</h3>
-            <div class="detail-row">
-                <span class="label">Node ID:</span>
-                <span class="value">${device.nodeId || 'Unknown'}</span>
-            </div>
-            <div class="detail-row">
-                <span class="label">Protocol:</span>
-                <span class="value">${device.protocol || 'Unknown'}</span>
-            </div>
-            <div class="detail-row">
-                <span class="label">Type:</span>
-                <span class="value">${device.deviceType || 'Unknown'}</span>
-            </div>
-            <div class="detail-row">
-                <span class="label">RSSI:</span>
-                <span class="value">${rssi.toFixed(1)} dBm</span>
-            </div>
-            <div class="detail-row">
-                <span class="label">Packets:</span>
-                <span class="value">${device.packetCount || 0}</span>
-            </div>
-            <div class="detail-row">
-                <span class="label">Last Seen:</span>
-                <span class="value">${lastSeen}</span>
-            </div>
-            <div class="detail-row">
-                <span class="label">Power Class:</span>
-                <span class="value">${device.powerClass || 'Unknown'}</span>
-            </div>
-            <div class="detail-row">
-                <span class="label">Router:</span>
-                <span class="value">${device.isRouter ? 'Yes' : 'No'}</span>
-            </div>
-            <button class="btn-primary" onclick="app.startTargetedCapture(${device.nodeIdDecimal})">
-                Target This Device
-            </button>
-        `;
-        
         this.detailsPanel.style.display = 'block';
     }
     

@@ -16,6 +16,18 @@ PacketProcessor::PacketProcessor() {
 }
 
 // Queue a packet for processing
+// 
+// QUEUE OVERFLOW BEHAVIOR:
+// When queue is full (100 packets), incoming packets are DROPPED and counted.
+// This occurs in high-traffic environments (e.g., conferences with 50+ devices).
+// 
+// Drop rate calculation: droppedPackets / (totalPackets + droppedPackets) * 100%
+// Web UI shows warning when drop rate exceeds 5%.
+// 
+// Trade-off: Dropping packets preserves system stability vs implementing backpressure
+// (pausing radio reception) which would create coverage gaps on current frequency.
+// 
+// Monitor drops via: Serial output, /api/status endpoint, or web UI warning toast.
 bool PacketProcessor::queuePacket(const uint8_t* data, size_t length, float rssi, float snr,
                                   uint8_t configIndex, float frequencyMHz) {
     if (isQueueFull()) {

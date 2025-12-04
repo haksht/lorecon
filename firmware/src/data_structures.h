@@ -114,7 +114,7 @@ struct ScanState {
 struct PSKStats {
   uint16_t attempts;
   uint16_t successes;
-  uint8_t hitCount[14]; // NUM_DEFAULT_PSKS (updated to match actual key count)
+  uint8_t hitCount[Config::PSK::NUM_DEFAULT_KEYS];
   
   PSKStats() : attempts(0), successes(0) {
     memset(hitCount, 0, sizeof(hitCount));

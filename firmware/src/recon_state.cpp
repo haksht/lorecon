@@ -186,7 +186,8 @@ void ReconState::addTargetableDevice(uint32_t nodeId, uint8_t configIndex, float
         device->protocol[sizeof(device->protocol) - 1] = '\0';
         
         // Initialize device type
-        strcpy(device->deviceType, "Unknown Device");
+        strncpy(device->deviceType, "Unknown Device", sizeof(device->deviceType) - 1);
+        device->deviceType[sizeof(device->deviceType) - 1] = '\0';
         
         // Perform device type identification
         if (packetData && packetLength > 0) {
@@ -224,8 +225,10 @@ const TargetableDevice& ReconState::getTargetableDevice(uint8_t index) const {
     static bool initialized = false;
     if (!initialized) {
         memset(&emptyDevice, 0, sizeof(emptyDevice));
-        strcpy(emptyDevice.deviceType, "Unknown");
-        strcpy(emptyDevice.firmwareVersion, "Unknown");
+        strncpy(emptyDevice.deviceType, "Unknown", sizeof(emptyDevice.deviceType) - 1);
+        emptyDevice.deviceType[sizeof(emptyDevice.deviceType) - 1] = '\0';
+        strncpy(emptyDevice.firmwareVersion, "Unknown", sizeof(emptyDevice.firmwareVersion) - 1);
+        emptyDevice.firmwareVersion[sizeof(emptyDevice.firmwareVersion) - 1] = '\0';
         initialized = true;
     }
     if (index >= numTargetableDevices) return emptyDevice;

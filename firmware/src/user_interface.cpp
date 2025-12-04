@@ -7,6 +7,7 @@
 
 #include "user_interface.h"
 #include "lora_recon_tool.h"
+#include "psk_decryption_simple.h"
 #include <Arduino.h>
 #include <esp_task_wdt.h>
 
@@ -480,7 +481,7 @@ void printStats() {
                   pskStats.attempts, pskStats.successes,
                   (float)pskStats.successes / pskStats.attempts * 100.0);
     
-    for (uint8_t i = 0; i < 14; i++) { // NUM_DEFAULT_PSKS
+    for (uint8_t i = 0; i < PSKDecryption::getDefaultPSKCount(); i++) {
       if (pskStats.hitCount[i] > 0) {
         Serial.printf("  Key #%d: %d hits\n", i + 1, pskStats.hitCount[i]);
       }
