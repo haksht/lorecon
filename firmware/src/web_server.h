@@ -99,6 +99,7 @@ private:
     static void handleGetStatistics(AsyncWebServerRequest* request);
     static void handleGetActivity(AsyncWebServerRequest* request);
     static void handleGetConfig(AsyncWebServerRequest* request);
+    static void handleGetSystemConfig(AsyncWebServerRequest* request);
     static void handleStartScan(AsyncWebServerRequest* request);
     static void handleStopScan(AsyncWebServerRequest* request);
     static void handleGetReconSummary(AsyncWebServerRequest* request);

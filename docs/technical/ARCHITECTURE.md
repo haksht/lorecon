@@ -455,6 +455,35 @@ private:
 };
 ```
 
+### **Queue Overflow Handling**
+
+The packet queue has a fixed capacity of 100 packets (`Config::PacketProcessing::QUEUE_SIZE`).
+
+**When queue is full:**
+- New packets are **dropped** (not queued)
+- Drop counter incremented: `reconState.scanState.droppedPackets`
+- Serial warning printed with total drop count
+- Web UI shows toast warning when drop rate exceeds 5%
+
+**Drop rate calculation:**
+```
+dropRate = droppedPackets / (totalPackets + droppedPackets) * 100%
+```
+
+**When does overflow occur?**
+- High-traffic environments (conferences, festivals with 50+ devices)
+- Burst transmissions (20+ packets in <1 second)
+- Slow SD card writes blocking queue processing
+
+**Why not backpressure?**
+Alternative approach: Stop radio reception when queue fills, drain queue, resume.
+
+**Trade-off analysis:**
+- Current (drop): Random packet loss across all frequencies, but continuous coverage
+- Backpressure: No drops, but creates blind spots (missed all traffic during pause)
+
+For reconnaissance, **continuous coverage > perfect capture**. Dropped packets are tracked and visible to user.
+
 ### **Processing Pipeline**
 
 ```cpp
@@ -967,7 +996,7 @@ void constructNonce(uint32_t packetId, uint32_t fromNode, uint8_t nonce[16]) {
 bool PSKDecryption::tryDecrypt(const uint8_t* encryptedData, 
                                size_t length,
                                uint8_t* decrypted) {
-    // Try each default PSK
+    // Try each default PSK (Config::PSK::NUM_DEFAULT_KEYS = 14)
     for (uint8_t i = 0; i < NUM_PSKS; i++) {
         uint8_t key[32];
         size_t keyLen = decodeBase64(DEFAULT_PSKS[i], key, sizeof(key));
@@ -985,6 +1014,21 @@ bool PSKDecryption::tryDecrypt(const uint8_t* encryptedData,
     return false;  // No PSK worked
 }
 ```
+
+**Default PSK Keys (14 total):**
+1. `AQ==` - Single byte key (0x01), expanded to 16 bytes
+2. `1PG7OiApB1nwvP+rz05pAQ==` - Official Meshtastic default (most common)
+3-5. Channel variants for different frequency bands
+6-10. Common custom keys for public channels
+11-14. Test/development keys (`AAAA...`, `1234...`, `test...`, `mesh...`)
+
+**Key count management:**
+- Defined in `Config::PSK::NUM_DEFAULT_KEYS` constant
+- Used in `PSKStats.hitCount` array sizing
+- Retrieved via `PSKDecryption::getDefaultPSKCount()`
+- Ensures compile-time consistency across codebase
+
+**Security note:** These are publicly documented keys for research. Production networks should use unique PSKs.
 
 ---
 

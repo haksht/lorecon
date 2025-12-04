@@ -132,6 +132,10 @@
                     <span class="tab-icon">📈</span>
                     <span class="tab-label">Stats</span>
                 </button>
+                <button class="tab-btn" data-tab="settings" role="tab" aria-selected="false" aria-controls="tab-settings">
+                    <span class="tab-icon">⚙️</span>
+                    <span class="tab-label">Settings</span>
+                </button>
             </div>
 
             <!-- Tab Content -->
@@ -301,6 +305,44 @@
                     </div>
                     <div class="results-content" id="stats-content">
                         <div id="war-room-container"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Settings Tab -->
+            <div class="tab-content" id="tab-settings" role="tabpanel" aria-labelledby="tab-settings">
+                <div class="tab-inner">
+                    <div class="results-header">
+                        <h2>System Configuration</h2>
+                        <p class="header-subtitle">View system limits and upload firmware updates</p>
+                    </div>
+                    <div class="results-content" id="settings-content">
+                        <div class="loading-container">
+                            <div class="loading-spinner"></div>
+                            <p>Loading configuration...</p>
+                        </div>
+                    </div>
+
+                    <!-- OTA Firmware Update Section -->
+                    <div class="info-section">
+                        <h3>🔧 Firmware Update (OTA)</h3>
+                        <div class="content-area">
+                            <p class="warning-text">⚠️ Warning: Device will reboot after successful upload. Ensure stable power supply.</p>
+                            <form id="ota-form">
+                                <div class="form-group">
+                                    <label for="firmware-file">Select Firmware File (.bin):</label>
+                                    <input type="file" id="firmware-file" accept=".bin" required>
+                                </div>
+                                <button type="submit" class="btn" id="ota-upload-btn">
+                                    <span class="btn-icon">📤</span>
+                                    <span>Upload Firmware</span>
+                                </button>
+                                <div id="ota-progress" class="progress-container" style="display: none;">
+                                    <div class="progress-bar" id="ota-progress-bar"></div>
+                                    <span class="progress-text" id="ota-progress-text">0%</span>
+                                </div>
+                            </form>
+                        </div>
                     </div>
                 </div>
             </div>

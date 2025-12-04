@@ -635,6 +635,99 @@ curl -X GET http://192.168.4.1/api/statistics
 
 ---
 
+### **GET /api/config/system**
+
+Get comprehensive system configuration, limits, and current usage statistics.
+
+**Request:**
+```http
+GET /api/config/system HTTP/1.1
+Host: 192.168.4.1
+```
+
+**Response:**
+```json
+{
+  "status": "success",
+  "scanning": {
+    "dwellTimeMs": 12000,
+    "numConfigs": 26,
+    "cycleTimeMinutes": 5
+  },
+  "processing": {
+    "queueSize": 100,
+    "maxPacketSize": 256,
+    "metricCacheMs": 100
+  },
+  "tracking": {
+    "maxDevices": 20,
+    "maxNodes": 30,
+    "maxGeoPoints": 50
+  },
+  "usage": {
+    "devices": 12,
+    "nodes": 15,
+    "replaySlots": 3,
+    "droppedPackets": 5,
+    "totalPackets": 1234
+  },
+  "replay": {
+    "maxSlots": 10
+  },
+  "psk": {
+    "numDefaultKeys": 14,
+    "keySize": 16
+  },
+  "ui": {
+    "menuTimeoutMs": 300000,
+    "buttonLongPressMs": 3000
+  },
+  "system": {
+    "watchdogTimeoutSec": 30,
+    "freeHeap": 4194304,
+    "minFreeHeap": 3145728,
+    "uptimeMs": 3600000
+  },
+  "hardware": {
+    "board": "HELTEC_V3",
+    "hasOLED": true,
+    "hasSD": false
+  },
+  "timestamp": 1699900800000
+}
+```
+
+**Response Fields:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `scanning.dwellTimeMs` | number | Milliseconds spent per frequency config |
+| `scanning.numConfigs` | number | Total frequency configurations available |
+| `scanning.cycleTimeMinutes` | number | Time for full scan cycle |
+| `processing.queueSize` | number | Max packet queue size |
+| `tracking.maxDevices` | number | Max targetable devices |
+| `tracking.maxNodes` | number | Max tracked unique nodes |
+| `usage.devices` | number | Current devices tracked |
+| `usage.nodes` | number | Current nodes tracked |
+| `usage.droppedPackets` | number | Packets dropped due to queue overflow |
+| `psk.numDefaultKeys` | number | Number of default Meshtastic keys |
+| `system.freeHeap` | number | Free heap memory in bytes |
+| `hardware.hasOLED` | boolean | OLED display present |
+| `hardware.hasSD` | boolean | SD card detected |
+
+**Use Cases:**
+- Debug queue overflow issues (check `usage.droppedPackets`)
+- Monitor memory usage (`system.freeHeap`, `system.minFreeHeap`)
+- Verify device/node limits not exceeded
+- Check hardware capabilities before feature use
+
+**cURL Example:**
+```bash
+curl -X GET http://192.168.4.1/api/config/system
+```
+
+---
+
 ### **GET /api/activity**
 
 Get RF activity analysis per frequency.
@@ -728,6 +821,112 @@ Host: 192.168.4.1
 **cURL Example:**
 ```bash
 curl -X POST http://192.168.4.1/api/scan/stop
+```
+
+---
+
+## 🔧 Firmware Management
+
+### **POST /api/firmware/upload**
+
+Upload and install new firmware over-the-air (OTA). Device will reboot automatically on success.
+
+**Request:**
+```http
+POST /api/firmware/upload HTTP/1.1
+Host: 192.168.4.1
+Content-Type: multipart/form-data; boundary=----WebKitFormBoundary
+
+------WebKitFormBoundary
+Content-Disposition: form-data; name="firmware"; filename="firmware.bin"
+Content-Type: application/octet-stream
+
+<binary data>
+------WebKitFormBoundary--
+```
+
+**Response (Success):**
+```json
+{
+  "status": "success",
+  "message": "Firmware uploaded successfully. Rebooting in 3 seconds...",
+  "timestamp": 1699900800000
+}
+```
+
+**Response (Failure):**
+```json
+{
+  "status": "error",
+  "message": "Firmware upload failed. Check serial output.",
+  "timestamp": 1699900800000
+}
+```
+
+**Important Notes:**
+- **File Type:** Only `.bin` files accepted
+- **Size Limit:** 2MB maximum (enforced client-side, check partition size)
+- **Safety:** Uses ESP32 dual-partition OTA with auto-rollback on boot failure
+- **Downtime:** Device will disconnect for ~10 seconds during reboot
+- **Power:** Ensure stable power supply during upload to prevent bricking
+
+**cURL Example:**
+```bash
+curl -X POST -F "firmware=@firmware.bin" http://192.168.4.1/api/firmware/upload
+```
+
+**JavaScript Example (with Progress):**
+```javascript
+const fileInput = document.getElementById('firmware-file');
+const file = fileInput.files[0];
+const formData = new FormData();
+formData.append('firmware', file);
+
+const xhr = new XMLHttpRequest();
+
+xhr.upload.addEventListener('progress', (e) => {
+  if (e.lengthComputable) {
+    const percent = Math.round((e.loaded / e.total) * 100);
+    console.log(`Upload progress: ${percent}%`);
+  }
+});
+
+xhr.addEventListener('load', () => {
+  if (xhr.status === 200) {
+    console.log('Firmware uploaded successfully');
+    // Wait 10 seconds for reboot, then reconnect
+    setTimeout(() => window.location.reload(), 10000);
+  }
+});
+
+xhr.open('POST', 'http://192.168.4.1/api/firmware/upload');
+xhr.send(formData);
+```
+
+**Python Example:**
+```python
+import requests
+
+with open('firmware.bin', 'rb') as f:
+    files = {'firmware': ('firmware.bin', f, 'application/octet-stream')}
+    response = requests.post('http://192.168.4.1/api/firmware/upload', files=files)
+    print(response.json())
+```
+
+**Web UI Access:**
+- Navigate to Settings tab in web interface
+- Select `.bin` file using file picker
+- Click "Upload Firmware" button
+- Monitor progress bar
+- Device will auto-reconnect after reboot
+
+**Build Firmware:**
+```powershell
+# Using PlatformIO to generate firmware.bin
+pio run
+
+# Firmware binary location:
+# .pio/build/heltec_wifi_lora_32_V3/firmware.bin
 ```
 
 ---

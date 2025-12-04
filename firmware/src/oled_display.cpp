@@ -272,7 +272,6 @@ void OLEDDisplay::showPacketReceived(float rssi, float snr, const char* protocol
     info.lastSNR = snr;
     strncpy(info.lastProtocol, protocol, sizeof(info.lastProtocol) - 1);
     info.lastNodeId = nodeId;
-    info.totalPackets++;
     resetAutoOffTimer();
 }
 
@@ -341,8 +340,8 @@ void OLEDDisplay::renderScanning() {
     snprintf(buffer, sizeof(buffer), "Freq: %s MHz", info.frequency);
     display.drawStr(0, 36, buffer);
     
-    // Spreading Factor and Packet count
-    snprintf(buffer, sizeof(buffer), "SF:%d Pkts:%u", info.sf, info.totalPackets);
+    // Spreading Factor and Packet count (use global count from reconState)
+    snprintf(buffer, sizeof(buffer), "SF:%d Pkts:%u", info.sf, reconState.scanState.totalPackets);
     display.drawStr(0, 48, buffer);
     
     // Button help at bottom
@@ -405,8 +404,8 @@ void OLEDDisplay::renderTargeting() {
     
     char buffer[32];
     
-    // Current stats
-    snprintf(buffer, sizeof(buffer), "Packets: %u", info.totalPackets);
+    // Current stats (use global count from reconState)
+    snprintf(buffer, sizeof(buffer), "Packets: %u", reconState.scanState.totalPackets);
     display.drawStr(0, 44, buffer);
     
     snprintf(buffer, sizeof(buffer), "RSSI: %.1f dBm", info.lastRSSI);

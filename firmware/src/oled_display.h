@@ -85,7 +85,6 @@ private:
         uint8_t rfActivityCount;
         uint8_t trackedNodeCount;
         uint8_t targetableDeviceCount;
-        uint32_t totalPackets;
         char targetInfo[32];
     } info;
     

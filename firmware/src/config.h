@@ -171,6 +171,8 @@ namespace Logging {
 // ============================================================================
 namespace PSK {
     // Number of default PSKs to test
+    // Includes: AQ==, 1PG7OiApB1nwvP+rz05pAQ==, and 12 other common keys
+    // See psk_decryption_simple.cpp for full list
     constexpr uint8_t NUM_DEFAULT_KEYS = 14;
     
     // AES key size (bytes)
@@ -196,5 +198,31 @@ namespace Radio {
 }
 
 } // namespace Config
+
+// ============================================================================
+// COMPILE-TIME SAFETY CHECKS
+// ============================================================================
+
+// Verify LoRa protocol limits
+static_assert(Config::PacketProcessing::MAX_PACKET_SIZE == 256,
+              "LoRa protocol maximum packet size is 256 bytes");
+
+// Verify index types can hold maximum values
+static_assert(Config::Tracking::MAX_DEVICES <= 255,
+              "Device indices use uint8_t, must fit in 0-255 range");
+static_assert(Config::Tracking::MAX_NODES <= 255,
+              "Node indices use uint8_t, must fit in 0-255 range");
+static_assert(Config::Scanning::NUM_CONFIGURATIONS <= 255,
+              "Config indices use uint8_t, must fit in 0-255 range");
+
+// Verify queue size is reasonable
+static_assert(Config::PacketProcessing::QUEUE_SIZE >= 50,
+              "Queue size should be at least 50 to handle burst traffic");
+static_assert(Config::PacketProcessing::QUEUE_SIZE <= 200,
+              "Queue size should not exceed 200 to prevent memory issues");
+
+// Verify PSK key count matches array sizes
+static_assert(Config::PSK::NUM_DEFAULT_KEYS > 0,
+              "Must have at least one default PSK key");
 
 #endif // CONFIG_H

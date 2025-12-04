@@ -148,6 +148,62 @@ meshtastic --set lora.region US
 - Battery charged?
 - Stuck in boot loop?
 - Error messages on screen?
+
+### Issue 4: Queue Overflow / Packet Drops
+**Symptom**: 
+- Serial shows: `[QUEUE] Full (100 packets) - dropping packet! Total drops: X`
+- Web UI toast: `⚠️ Queue overload: X packets dropped (Y%)`
+- Missing packets in capture log
+
+**When This Occurs:**
+- High-traffic environments (conferences, festivals with 50+ devices)
+- Burst transmissions (20+ packets arriving within 1 second)
+- Slow SD card writes blocking queue processing
+- ESP32 busy with web server requests during heavy traffic
+
+**Understanding the Numbers:**
+- Queue capacity: **100 packets**
+- Drop rate formula: `droppedPackets / (totalPackets + droppedPackets) * 100%`
+- Warning threshold: **5% drop rate**
+- Example: 1000 packets captured, 50 dropped = 4.8% drop rate (acceptable)
+- Example: 800 packets captured, 200 dropped = 20% drop rate (problematic)
+
+**Solutions:**
+
+1. **Reduce scan frequency diversity** (advanced users only):
+   - Edit `firmware/src/recon_state.cpp` scan configs
+   - Comment out less-used frequencies (e.g., Helium downlink channels)
+   - Reduces context switching, allows faster processing
+
+2. **Disable web UI during critical capture**:
+   - WebSocket broadcasts and HTTP requests consume CPU cycles
+   - Disconnect phone/browser during high-traffic periods
+   - Re-connect after to view captured data
+
+3. **Use faster SD card**:
+   - Class 10 or UHS-I cards write faster
+   - Reduces time spent in blocking `fwrite()` operations
+   - Sandisk Extreme recommended over generic cards
+
+4. **Target specific frequency** (temporary):
+   - Press `m` → `f` → select one frequency config
+   - Eliminates frequency hopping overhead
+   - Captures all traffic on that single frequency
+   - Resume recon mode afterward with `r`
+
+5. **Monitor drop rate**:
+   - Serial: Watch for `[QUEUE]` messages
+   - Web UI: Toast warnings appear automatically
+   - API: `GET /api/status` returns `droppedPackets` field
+
+**Why Not Backpressure?**
+Backpressure (pausing radio when queue fills) would eliminate drops but create coverage gaps. For reconnaissance, continuous monitoring is more valuable than perfect capture. Trade-off: lose some packets randomly vs miss entire transmission windows.
+
+**Acceptable Drop Rates:**
+- **<2%**: Excellent - occasional burst handling
+- **2-5%**: Good - sustained high traffic
+- **5-10%**: Acceptable - very busy environment  
+- **>10%**: Problematic - consider mitigation strategies above
 - Try power cycle
 
 **Solution**:

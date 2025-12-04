@@ -9,6 +9,7 @@
 #include "packet_logger.h"
 #include <LittleFS.h>
 #include <SD.h>
+#include <Update.h>
 
 // Global instance for static handlers
 WebServer* g_webServer = nullptr;
@@ -125,6 +126,7 @@ void WebServer::setupRoutes() {
     server->on("/api/statistics", HTTP_GET, handleGetStatistics);
     server->on("/api/activity", HTTP_GET, handleGetActivity);
     server->on("/api/config", HTTP_GET, handleGetConfig);
+    server->on("/api/config/system", HTTP_GET, handleGetSystemConfig);
     server->on("/api/recon/summary", HTTP_GET, handleGetReconSummary);
     server->on("/api/recon/device-types", HTTP_GET, handleGetDeviceTypeSummary);
     server->on("/api/recon/security", HTTP_GET, handleGetSecurityAssessment);
@@ -138,6 +140,72 @@ void WebServer::setupRoutes() {
     // Scan Control
     server->on("/api/scan/start", HTTP_POST, handleStartScan);
     server->on("/api/scan/stop", HTTP_POST, handleStopScan);
+    
+    // OTA Firmware Update
+    server->on("/api/firmware/upload", HTTP_POST,
+        [](AsyncWebServerRequest *request) {
+            // Response after upload completes
+            bool success = !Update.hasError();
+            String response = success ? 
+                "{\"status\":\"success\",\"message\":\"Firmware uploaded successfully. Rebooting in 3 seconds...\"}" :
+                "{\"status\":\"error\",\"message\":\"Firmware upload failed. Check serial output.\"}";
+            
+            AsyncWebServerResponse *resp = request->beginResponse(200, "application/json", response);
+            resp->addHeader("Connection", "close");
+            request->send(resp);
+            
+            if (success) {
+                LOG_INFO("OTA Update Success - Rebooting...");
+                delay(3000);
+                ESP.restart();
+            }
+        },
+        [](AsyncWebServerRequest *request, String filename, size_t index, uint8_t *data, size_t len, bool final) {
+            // Handle firmware upload chunks
+            if (index == 0) {
+                LOG_INFO("OTA Update Start: %s", filename.c_str());
+                
+                // Validate file extension
+                if (!filename.endsWith(".bin")) {
+                    LOG_ERROR("Invalid firmware file - must be .bin");
+                    return;
+                }
+                
+                // Begin OTA update
+                if (!Update.begin(UPDATE_SIZE_UNKNOWN)) {
+                    Update.printError(Serial);
+                    LOG_ERROR("OTA begin failed");
+                    return;
+                }
+                
+                LOG_INFO("OTA upload started, free space: %d bytes", UPDATE_SIZE_UNKNOWN);
+            }
+            
+            // Write firmware chunk
+            if (len) {
+                if (Update.write(data, len) != len) {
+                    Update.printError(Serial);
+                    LOG_ERROR("OTA write failed at %d bytes", index);
+                    return;
+                }
+                
+                // Log progress every 100KB
+                if (index % 102400 == 0) {
+                    LOG_INFO("OTA progress: %d bytes written", index + len);
+                }
+            }
+            
+            // Finalize upload
+            if (final) {
+                if (Update.end(true)) {
+                    LOG_INFO("OTA Update complete: %d bytes", index + len);
+                } else {
+                    Update.printError(Serial);
+                    LOG_ERROR("OTA end failed");
+                }
+            }
+        }
+    );
     
     // Health check
     server->on("/api/health", HTTP_GET, [](AsyncWebServerRequest* request) {
@@ -328,6 +396,11 @@ void WebServer::handleGetActivity(AsyncWebServerRequest* request) {
 
 void WebServer::handleGetConfig(AsyncWebServerRequest* request) {
     String json = APIController::getConfig();
+    request->send(200, "application/json", json);
+}
+
+void WebServer::handleGetSystemConfig(AsyncWebServerRequest* request) {
+    String json = APIController::getSystemConfig();
     request->send(200, "application/json", json);
 }
 

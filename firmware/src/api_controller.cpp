@@ -8,6 +8,7 @@
 #include "recon_service.h"
 #include "radio_controller.h"
 #include "lora_recon_tool.h"  // For g_reconTool global
+#include <SD.h>
 
 /**
  * Set reconnaissance tool reference
@@ -320,4 +321,81 @@ String APIController::setVerboseMode(bool enableVerbose) {
         return createErrorResponse(message);
     }
     return createSuccessResponse(message);
+}
+
+/**
+ * GET /api/config/system
+ * 
+ * Returns system configuration constants and runtime limits (read-only)
+ */
+String APIController::getSystemConfig() {
+    JsonDocument doc;
+    
+    // Scanning configuration
+    JsonObject scanning = doc["scanning"].to<JsonObject>();
+    scanning["dwellTimeMs"] = Config::Scanning::DWELL_TIME_MS;
+    scanning["numConfigs"] = Config::Scanning::NUM_CONFIGURATIONS;
+    scanning["cycleTimeMinutes"] = (Config::Scanning::NUM_CONFIGURATIONS * Config::Scanning::DWELL_TIME_MS) / 60000;
+    
+    // Packet processing
+    JsonObject processing = doc["processing"].to<JsonObject>();
+    processing["queueSize"] = Config::PacketProcessing::QUEUE_SIZE;
+    processing["maxPacketSize"] = Config::PacketProcessing::MAX_PACKET_SIZE;
+    processing["metricCacheMs"] = Config::PacketProcessing::METRIC_CACHE_MS;
+    
+    // Device tracking
+    JsonObject tracking = doc["tracking"].to<JsonObject>();
+    tracking["maxDevices"] = Config::Tracking::MAX_DEVICES;
+    tracking["maxNodes"] = Config::Tracking::MAX_NODES;
+    tracking["maxGeoPoints"] = Config::Tracking::MAX_GEO_POINTS;
+    tracking["deviceTimeoutMs"] = Config::Tracking::DEVICE_TIMEOUT_MS;
+    
+    // Current usage
+    JsonObject usage = doc["usage"].to<JsonObject>();
+    usage["devices"] = reconState.numTargetableDevices;
+    usage["nodes"] = reconState.nodeCount;
+    usage["replaySlots"] = reconState.numCapturedPackets;
+    usage["droppedPackets"] = reconState.scanState.droppedPackets;
+    usage["totalPackets"] = reconState.scanState.totalPackets;
+    
+    // Replay configuration
+    JsonObject replay = doc["replay"].to<JsonObject>();
+    replay["maxSlots"] = Config::Replay::MAX_SLOTS;
+    
+    // PSK configuration
+    JsonObject psk = doc["psk"].to<JsonObject>();
+    psk["numDefaultKeys"] = Config::PSK::NUM_DEFAULT_KEYS;
+    psk["keySize"] = Config::PSK::KEY_SIZE;
+    
+    // UI configuration
+    JsonObject ui = doc["ui"].to<JsonObject>();
+    ui["menuTimeoutMs"] = Config::UI::MENU_TIMEOUT_MS;
+    ui["buttonLongPressMs"] = Config::UI::BUTTON_LONG_PRESS_MS;
+    
+    // System configuration
+    JsonObject system = doc["system"].to<JsonObject>();
+    system["watchdogTimeoutSec"] = Config::System::WATCHDOG_TIMEOUT_SEC;
+    system["freeHeap"] = ESP.getFreeHeap();
+    system["minFreeHeap"] = ESP.getMinFreeHeap();
+    system["uptimeMs"] = millis();
+    
+    // Hardware capabilities
+    JsonObject hardware = doc["hardware"].to<JsonObject>();
+    hardware["board"] = "HELTEC_V3";
+    #ifdef HAS_OLED_DISPLAY
+    hardware["hasOLED"] = true;
+    #else
+    hardware["hasOLED"] = false;
+    #endif
+    #ifdef HAS_SD_CARD
+    hardware["hasSD"] = SD.cardSize() > 0;
+    #else
+    hardware["hasSD"] = false;
+    #endif
+    
+    doc["status"] = "success";
+    
+    String response;
+    serializeJson(doc, response);
+    return response;
 }
