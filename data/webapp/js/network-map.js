@@ -533,9 +533,12 @@ class NetworkMap {
     
     showNodeDetails(device) {
         if (!this.detailsPanel) {
-            console.error('Details panel element not found');
+            console.error('[NetworkMap] Details panel element not found - ID:', this.detailsPanelId || 'unknown');
+            console.error('[NetworkMap] Available elements:', document.querySelectorAll('[id*="network"]'));
             return;
         }
+        
+        console.log('[NetworkMap] Showing details for device:', device.nodeId || device.source);
         
         const rssi = device.rssi || device.avgRSSI || 0;
         const lastSeen = device.lastSeen ? new Date(device.lastSeen * 1000).toLocaleTimeString() : 'Unknown';
