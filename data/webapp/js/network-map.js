@@ -93,9 +93,23 @@ class NetworkMap {
     }
     
     setupEventListeners() {
+        console.log('[NetworkMap] Setting up event listeners on canvas:', this.canvas);
+        console.log('[NetworkMap] Canvas element:', this.canvas.tagName, this.canvas.id);
+        console.log('[NetworkMap] Canvas dimensions:', this.canvas.width, 'x', this.canvas.height);
+        console.log('[NetworkMap] Canvas style.pointerEvents:', window.getComputedStyle(this.canvas).pointerEvents);
+        console.log('[NetworkMap] Canvas style.cursor:', window.getComputedStyle(this.canvas).cursor);
+        
         // Mouse events for desktop
-        this.canvas.addEventListener('mousemove', (e) => this.handleMouseMove(e));
-        this.canvas.addEventListener('click', (e) => this.handleClick(e));
+        this.canvas.addEventListener('mousemove', (e) => {
+            console.log('[NetworkMap] mousemove event');
+            this.handleMouseMove(e);
+        });
+        
+        this.canvas.addEventListener('click', (e) => {
+            console.log('[NetworkMap] CLICK EVENT RECEIVED at', e.clientX, e.clientY);
+            this.handleClick(e);
+        }, { capture: true }); // Use capture phase
+        
         this.canvas.addEventListener('mouseleave', () => {
             this.hoveredNode = null;
             this.canvas.style.cursor = 'default';
@@ -107,6 +121,9 @@ class NetworkMap {
             // Clear hover state on touch end
             this.hoveredNode = null;
         }, { passive: true });
+        
+        // Test click
+        console.log('[NetworkMap] Event listeners installed. Click the canvas to test.');
     }
     
     handleTouch(e) {
@@ -135,12 +152,16 @@ class NetworkMap {
         
         // Check if mouse is over any node
         const node = this.findNodeAtPosition(x, y);
-        this.hoveredNode = node;
-        this.canvas.style.cursor = node ? 'pointer' : 'default';
         
-        // Trigger redraw to show hover state
-        if (node) {
-            requestAnimationFrame(() => this.draw());
+        if (node !== this.hoveredNode) {
+            this.hoveredNode = node;
+            this.canvas.style.cursor = node ? 'pointer' : 'default';
+            console.log('[NetworkMap] Hover state changed:', node ? `Device ${node.nodeId || node.source}` : 'none');
+            
+            // Trigger redraw to show hover state
+            if (node) {
+                requestAnimationFrame(() => this.draw());
+            }
         }
     }
     

@@ -882,6 +882,9 @@ body {
     display: block;
     flex-shrink: 0;
     touch-action: manipulation;
+    position: relative;
+    z-index: 1;
+    pointer-events: auto !important;
 }
 
 .network-info {
