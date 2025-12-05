@@ -32,6 +32,7 @@ class NetworkMap {
         this.centerX = 0;
         this.centerY = 0;
         this.nodeRadius = 20;
+        this.clickRadius = 30; // Larger hit area for easier clicking
         
         // Animation
         this.animationFrame = null;
@@ -136,6 +137,11 @@ class NetworkMap {
         const node = this.findNodeAtPosition(x, y);
         this.hoveredNode = node;
         this.canvas.style.cursor = node ? 'pointer' : 'default';
+        
+        // Trigger redraw to show hover state
+        if (node) {
+            requestAnimationFrame(() => this.draw());
+        }
     }
     
     handleClick(e) {
@@ -143,17 +149,26 @@ class NetworkMap {
         const x = e.clientX - rect.left;
         const y = e.clientY - rect.top;
         
+        console.log(`[NetworkMap] Click at canvas position (${x.toFixed(0)}, ${y.toFixed(0)})`);
+        
         const node = this.findNodeAtPosition(x, y);
         if (node) {
+            console.log('[NetworkMap] Device selected:', node.nodeId || node.source);
             this.selectedNode = node;
             this.showNodeDetails(node);
+            this.canvas.style.cursor = 'pointer';
         } else {
+            console.log('[NetworkMap] Clicked on empty area');
             this.selectedNode = null;
             this.hideNodeDetails();
+            this.canvas.style.cursor = 'default';
         }
     }
     
     findNodeAtPosition(x, y) {
+        // Use larger click radius for easier clicking
+        const clickRadius = this.clickRadius || this.nodeRadius * 1.5;
+        
         for (const device of this.devices) {
             if (!device.position) continue;
             
@@ -161,7 +176,8 @@ class NetworkMap {
             const dy = y - device.position.y;
             const distance = Math.sqrt(dx * dx + dy * dy);
             
-            if (distance <= this.nodeRadius) {
+            if (distance <= clickRadius) {
+                console.log(`[NetworkMap] Node clicked: ${device.nodeId || device.source}, distance=${distance.toFixed(1)}`);
                 return device;
             }
         }
