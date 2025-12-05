@@ -12,15 +12,34 @@
     <link rel="manifest" href="manifest.json">
     <style>
         /* Critical layout CSS to prevent overlap - loaded inline for immediate effect */
+        body { margin: 0; padding: 0; overflow: hidden; }
         .main-container {
             display: grid !important;
             grid-template-columns: 280px 1fr !important;
+            grid-template-rows: 1fr !important;
             height: calc(100vh - 65px) !important;
             overflow: hidden !important;
+            min-height: 0 !important;
+            position: relative !important;
+        }
+        .sidebar {
+            grid-column: 1 !important;
+            grid-row: 1 !important;
+            min-width: 280px !important;
+            max-width: 280px !important;
+        }
+        .results-panel {
+            grid-column: 2 !important;
+            grid-row: 1 !important;
+            min-width: 0 !important;
         }
         @media (max-width: 767px) {
             .main-container {
                 grid-template-columns: 1fr !important;
+                height: auto !important;
+            }
+            .sidebar, .results-panel {
+                grid-column: 1 !important;
             }
         }
     </style>
