@@ -152,8 +152,16 @@ class ReconApp {
             const data = await this.get('/api/status');
             if (data) this.handleStatusUpdate(data);
             this.setConnected(true);
+            this.consecutiveErrors = 0; // Reset error counter
         } catch (error) {
-            console.error('Status update failed:', error);
+            this.consecutiveErrors = (this.consecutiveErrors || 0) + 1;
+            // Only log first 3 errors to avoid spam
+            if (this.consecutiveErrors <= 3) {
+                console.error('Status update failed:', error);
+                if (this.consecutiveErrors === 3) {
+                    console.warn('[Status] Suppressing further connection errors...');
+                }
+            }
             this.setConnected(false);
         }
     }
