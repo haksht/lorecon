@@ -10,6 +10,20 @@
     <title>LoRa Recon</title>
     <link rel="stylesheet" href="css/style.css">
     <link rel="manifest" href="manifest.json">
+    <style>
+        /* Critical layout CSS to prevent overlap - loaded inline for immediate effect */
+        .main-container {
+            display: grid !important;
+            grid-template-columns: 280px 1fr !important;
+            height: calc(100vh - 65px) !important;
+            overflow: hidden !important;
+        }
+        @media (max-width: 767px) {
+            .main-container {
+                grid-template-columns: 1fr !important;
+            }
+        }
+    </style>
 </head>
 <body>
     <!-- Header -->

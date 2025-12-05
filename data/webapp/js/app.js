@@ -728,9 +728,20 @@ class ReconApp {
         this.el.settingsContent.innerHTML = '<div class="loading-container"><div class="loading-spinner"></div><p>Loading configuration...</p></div>';
         
         try {
-            const config = await this.get('/api/config/system');
-            if (!config) {
+            const response = await this.get('/api/config/system');
+            console.log('[Settings] API response:', response);
+            
+            if (!response) {
                 this.el.settingsContent.innerHTML = '<p class="placeholder">Configuration unavailable.</p>';
+                return;
+            }
+            
+            // Extract config from response (might be wrapped)
+            const config = response.scanning ? response : (response.data || response);
+            
+            if (!config.scanning) {
+                console.error('[Settings] Invalid config structure:', config);
+                this.el.settingsContent.innerHTML = '<div class="error-state"><p class="error">Invalid configuration structure</p><pre style="font-size: 0.75em; color: #999; margin-top: 0.5rem; overflow: auto;">' + JSON.stringify(response, null, 2) + '</pre></div>';
                 return;
             }
             
@@ -738,49 +749,63 @@ class ReconApp {
             
             // Scanning Configuration
             html += '<div class="info-section"><h3>🔍 Scanning Configuration</h3><div class="content-area">';
-            html += '<div class="status-row"><span>Dwell Time</span><span class="status-value">' + config.scanning.dwellTimeMs + ' ms</span></div>';
-            html += '<div class="status-row"><span>Num Configs</span><span class="status-value">' + config.scanning.numConfigs + '</span></div>';
-            html += '<div class="status-row"><span>Full Cycle Time</span><span class="status-value">' + config.scanning.cycleTimeMinutes + ' minutes</span></div>';
+            html += '<div class="status-row"><span>Dwell Time</span><span class="status-value">' + (config.scanning.dwellTimeMs || 'N/A') + ' ms</span></div>';
+            html += '<div class="status-row"><span>Num Configs</span><span class="status-value">' + (config.scanning.numConfigs || 'N/A') + '</span></div>';
+            html += '<div class="status-row"><span>Full Cycle Time</span><span class="status-value">' + (config.scanning.cycleTimeMinutes || 'N/A') + ' minutes</span></div>';
             html += '</div></div>';
             
             // Processing Configuration
-            html += '<div class="info-section"><h3>⚙️ Processing Configuration</h3><div class="content-area">';
-            html += '<div class="status-row"><span>Queue Size</span><span class="status-value">' + config.processing.queueSize + '</span></div>';
-            html += '<div class="status-row"><span>Max Packet Size</span><span class="status-value">' + config.processing.maxPacketSize + ' bytes</span></div>';
-            html += '<div class="status-row"><span>Metric Cache</span><span class="status-value">' + config.processing.metricCacheMs + ' ms</span></div>';
-            html += '</div></div>';
+            if (config.processing) {
+                html += '<div class="info-section"><h3>⚙️ Processing Configuration</h3><div class="content-area">';
+                html += '<div class="status-row"><span>Queue Size</span><span class="status-value">' + (config.processing.queueSize || 'N/A') + '</span></div>';
+                html += '<div class="status-row"><span>Max Packet Size</span><span class="status-value">' + (config.processing.maxPacketSize || 'N/A') + ' bytes</span></div>';
+                html += '<div class="status-row"><span>Metric Cache</span><span class="status-value">' + (config.processing.metricCacheMs || 'N/A') + ' ms</span></div>';
+                html += '</div></div>';
+            }
             
             // Tracking Limits
-            html += '<div class="info-section"><h3>📊 Tracking Limits & Usage</h3><div class="content-area">';
-            html += '<div class="status-row"><span>Max Devices</span><span class="status-value">' + config.tracking.maxDevices + ' (using ' + config.usage.devices + ')</span></div>';
-            html += '<div class="status-row"><span>Max Nodes</span><span class="status-value">' + config.tracking.maxNodes + ' (using ' + config.usage.nodes + ')</span></div>';
-            html += '<div class="status-row"><span>Max Geo Points</span><span class="status-value">' + config.tracking.maxGeoPoints + '</span></div>';
-            html += '<div class="status-row"><span>Replay Slots</span><span class="status-value">' + config.replay.maxSlots + ' (using ' + config.usage.replaySlots + ')</span></div>';
-            html += '</div></div>';
+            if (config.tracking && config.usage) {
+                html += '<div class="info-section"><h3>📊 Tracking Limits & Usage</h3><div class="content-area">';
+                html += '<div class="status-row"><span>Max Devices</span><span class="status-value">' + (config.tracking.maxDevices || 'N/A') + ' (using ' + (config.usage.devices || 0) + ')</span></div>';
+                html += '<div class="status-row"><span>Max Nodes</span><span class="status-value">' + (config.tracking.maxNodes || 'N/A') + ' (using ' + (config.usage.nodes || 0) + ')</span></div>';
+                html += '<div class="status-row"><span>Max Geo Points</span><span class="status-value">' + (config.tracking.maxGeoPoints || 'N/A') + '</span></div>';
+                if (config.replay) {
+                    html += '<div class="status-row"><span>Replay Slots</span><span class="status-value">' + (config.replay.maxSlots || 'N/A') + ' (using ' + (config.usage.replaySlots || 0) + ')</span></div>';
+                }
+                html += '</div></div>';
+            }
             
             // Queue Statistics
-            html += '<div class="info-section"><h3>📦 Queue Statistics</h3><div class="content-area">';
-            html += '<div class="status-row"><span>Total Packets</span><span class="status-value">' + config.usage.totalPackets + '</span></div>';
-            html += '<div class="status-row"><span>Dropped Packets</span><span class="status-value">' + config.usage.droppedPackets + '</span></div>';
-            const dropRate = config.usage.totalPackets > 0 ? ((config.usage.droppedPackets / (config.usage.totalPackets + config.usage.droppedPackets)) * 100).toFixed(2) : 0;
-            html += '<div class="status-row"><span>Drop Rate</span><span class="status-value">' + dropRate + '%</span></div>';
-            html += '</div></div>';
+            if (config.usage) {
+                html += '<div class="info-section"><h3>📦 Queue Statistics</h3><div class="content-area">';
+                html += '<div class="status-row"><span>Total Packets</span><span class="status-value">' + (config.usage.totalPackets || 0) + '</span></div>';
+                html += '<div class="status-row"><span>Dropped Packets</span><span class="status-value">' + (config.usage.droppedPackets || 0) + '</span></div>';
+                const totalPackets = config.usage.totalPackets || 0;
+                const droppedPackets = config.usage.droppedPackets || 0;
+                const dropRate = totalPackets > 0 ? ((droppedPackets / (totalPackets + droppedPackets)) * 100).toFixed(2) : 0;
+                html += '<div class="status-row"><span>Drop Rate</span><span class="status-value">' + dropRate + '%</span></div>';
+                html += '</div></div>';
+            }
             
             // PSK Configuration
-            html += '<div class="info-section"><h3>🔐 PSK Configuration</h3><div class="content-area">';
-            html += '<div class="status-row"><span>Default Keys</span><span class="status-value">' + config.psk.numDefaultKeys + '</span></div>';
-            html += '<div class="status-row"><span>Key Size</span><span class="status-value">' + config.psk.keySize + ' bytes</span></div>';
-            html += '</div></div>';
+            if (config.psk) {
+                html += '<div class="info-section"><h3>🔐 PSK Configuration</h3><div class="content-area">';
+                html += '<div class="status-row"><span>Default Keys</span><span class="status-value">' + (config.psk.numDefaultKeys || 'N/A') + '</span></div>';
+                html += '<div class="status-row"><span>Key Size</span><span class="status-value">' + (config.psk.keySize || 'N/A') + ' bytes</span></div>';
+                html += '</div></div>';
+            }
             
             // System Info
-            html += '<div class="info-section"><h3>💻 System Information</h3><div class="content-area">';
-            html += '<div class="status-row"><span>Board</span><span class="status-value">' + config.hardware.board + '</span></div>';
-            html += '<div class="status-row"><span>OLED Display</span><span class="status-value">' + (config.hardware.hasOLED ? '✅ Yes' : '❌ No') + '</span></div>';
-            html += '<div class="status-row"><span>SD Card</span><span class="status-value">' + (config.hardware.hasSD ? '✅ Yes' : '❌ No') + '</span></div>';
-            html += '<div class="status-row"><span>Free Heap</span><span class="status-value">' + this.formatBytes(config.system.freeHeap) + '</span></div>';
-            html += '<div class="status-row"><span>Min Free Heap</span><span class="status-value">' + this.formatBytes(config.system.minFreeHeap) + '</span></div>';
-            html += '<div class="status-row"><span>Uptime</span><span class="status-value">' + this.formatDuration(config.system.uptimeMs / 1000) + '</span></div>';
-            html += '</div></div>';
+            if (config.hardware && config.system) {
+                html += '<div class="info-section"><h3>💻 System Information</h3><div class="content-area">';
+                html += '<div class="status-row"><span>Board</span><span class="status-value">' + (config.hardware.board || 'Unknown') + '</span></div>';
+                html += '<div class="status-row"><span>OLED Display</span><span class="status-value">' + (config.hardware.hasOLED ? '✅ Yes' : '❌ No') + '</span></div>';
+                html += '<div class="status-row"><span>SD Card</span><span class="status-value">' + (config.hardware.hasSD ? '✅ Yes' : '❌ No') + '</span></div>';
+                html += '<div class="status-row"><span>Free Heap</span><span class="status-value">' + this.formatBytes(config.system.freeHeap || 0) + '</span></div>';
+                html += '<div class="status-row"><span>Min Free Heap</span><span class="status-value">' + this.formatBytes(config.system.minFreeHeap || 0) + '</span></div>';
+                html += '<div class="status-row"><span>Uptime</span><span class="status-value">' + this.formatDuration((config.system.uptimeMs || 0) / 1000) + '</span></div>';
+                html += '</div></div>';
+            }
             
             html += '</div>';
             this.el.settingsContent.innerHTML = html;
