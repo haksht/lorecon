@@ -190,18 +190,28 @@ class NetworkMap {
         // Use larger click radius for easier clicking
         const clickRadius = this.clickRadius || this.nodeRadius * 1.5;
         
+        console.log(`[NetworkMap] Checking ${this.devices.length} devices for click at (${x.toFixed(0)}, ${y.toFixed(0)})`);
+        console.log('[NetworkMap] Click radius:', clickRadius);
+        
         for (const device of this.devices) {
-            if (!device.position) continue;
+            if (!device.position) {
+                console.log('[NetworkMap] Device has no position:', device.nodeId || device.source);
+                continue;
+            }
             
             const dx = x - device.position.x;
             const dy = y - device.position.y;
             const distance = Math.sqrt(dx * dx + dy * dy);
             
+            console.log(`[NetworkMap] Device ${device.nodeId || device.source} at (${device.position.x.toFixed(0)}, ${device.position.y.toFixed(0)}), distance=${distance.toFixed(1)}`);
+            
             if (distance <= clickRadius) {
-                console.log(`[NetworkMap] Node clicked: ${device.nodeId || device.source}, distance=${distance.toFixed(1)}`);
+                console.log(`[NetworkMap] ✓ Node clicked: ${device.nodeId || device.source}, distance=${distance.toFixed(1)}`);
                 return device;
             }
         }
+        
+        console.log('[NetworkMap] No device found within click radius');
         return null;
     }
     

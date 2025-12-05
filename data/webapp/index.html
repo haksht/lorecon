@@ -42,11 +42,18 @@
         
         /* Desktop layout */
         @media (min-width: 768px) {
+            .main-container {
+                display: flex !important;
+                flex-direction: row !important;
+            }
+            
             .sidebar {
                 width: 280px !important;
                 height: 100% !important;
                 overflow-y: auto !important;
                 flex-shrink: 0 !important;
+                position: relative !important;
+                z-index: 2 !important;
             }
             
             .results-panel {
@@ -55,6 +62,8 @@
                 overflow: hidden !important;
                 display: flex !important;
                 flex-direction: column !important;
+                position: relative !important;
+                z-index: 1 !important;
             }
             
             .tabs {
