@@ -32,7 +32,7 @@ class NetworkMap {
         this.centerX = 0;
         this.centerY = 0;
         this.nodeRadius = 20;
-        this.clickRadius = 30; // Larger hit area for easier clicking
+        this.clickRadius = 100; // Very large to account for positioning issues
         
         // Animation
         this.animationFrame = null;
@@ -90,6 +90,9 @@ class NetworkMap {
         
         window.addEventListener('resize', resizeCanvas);
         resizeCanvas();
+        
+        console.log('[NetworkMap] Canvas setup complete:', this.canvas.width, 'x', this.canvas.height);
+        console.log('[NetworkMap] Center point:', this.centerX, ',', this.centerY);
     }
     
     setupEventListeners() {
@@ -101,7 +104,6 @@ class NetworkMap {
         
         // Mouse events for desktop
         this.canvas.addEventListener('mousemove', (e) => {
-            console.log('[NetworkMap] mousemove event');
             this.handleMouseMove(e);
         });
         
@@ -244,7 +246,8 @@ class NetworkMap {
             const x = this.centerX + Math.cos(angle) * distance;
             const y = this.centerY + Math.sin(angle) * distance;
             
-            console.log(`[NetworkMap] Device ${index}: nodeId=${device.nodeId}, rssi=${rssi}, pos=(${x.toFixed(0)},${y.toFixed(0)})`);
+            console.log(`[NetworkMap] Device ${index}: nodeId=${device.nodeId}, rssi=${rssi}, pos=(${x.toFixed(0)},${y.toFixed(0)}), distance=${distance.toFixed(0)}, center=(${this.centerX},${this.centerY})`);
+            console.log('[NetworkMap] Canvas dimensions at positioning:', this.canvas.width, 'x', this.canvas.height);
             
             return {
                 ...device,

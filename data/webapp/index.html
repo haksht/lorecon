@@ -49,21 +49,22 @@
             
             .sidebar {
                 width: 280px !important;
+                min-width: 280px !important;
+                max-width: 280px !important;
                 height: 100% !important;
                 overflow-y: auto !important;
                 flex-shrink: 0 !important;
-                position: relative !important;
-                z-index: 2 !important;
+                order: 1 !important;
             }
             
             .results-panel {
                 flex: 1 !important;
+                min-width: 0 !important;
                 height: 100% !important;
                 overflow: hidden !important;
                 display: flex !important;
                 flex-direction: column !important;
-                position: relative !important;
-                z-index: 1 !important;
+                order: 2 !important;
             }
             
             .tabs {
