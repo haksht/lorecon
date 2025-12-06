@@ -32,7 +32,7 @@ class NetworkMap {
         this.centerX = 0;
         this.centerY = 0;
         this.nodeRadius = 20;
-        this.clickRadius = 100; // Very large to account for positioning issues
+        this.clickRadius = 50; // Generous click area - 2.5x node radius
         
         // Animation
         this.animationFrame = null;
@@ -78,17 +78,24 @@ class NetworkMap {
             const oldWidth = this.canvas.width;
             const oldHeight = this.canvas.height;
             
-            this.canvas.width = container.clientWidth;
-            this.canvas.height = container.clientHeight;
+            // Get actual container dimensions
+            const rect = container.getBoundingClientRect();
+            this.canvas.width = rect.width;
+            this.canvas.height = this.canvas.offsetHeight || 600;
+            
             this.centerX = this.canvas.width / 2;
             this.centerY = this.canvas.height / 2;
             
             console.log(`[NetworkMap] Canvas resized from ${oldWidth}x${oldHeight} to ${this.canvas.width}x${this.canvas.height}`);
+            console.log(`[NetworkMap] Canvas offset dimensions: ${this.canvas.offsetWidth}x${this.canvas.offsetHeight}`);
+            console.log(`[NetworkMap] New center point: (${this.centerX}, ${this.centerY})`);
             
             this.redraw();
         };
         
         window.addEventListener('resize', resizeCanvas);
+        // Small delay to ensure canvas has rendered
+        setTimeout(resizeCanvas, 100);
         resizeCanvas();
         
         console.log('[NetworkMap] Canvas setup complete:', this.canvas.width, 'x', this.canvas.height);
@@ -105,12 +112,15 @@ class NetworkMap {
         // Mouse events for desktop
         this.canvas.addEventListener('mousemove', (e) => {
             this.handleMouseMove(e);
-        });
+        }, false);
         
         this.canvas.addEventListener('click', (e) => {
-            console.log('[NetworkMap] CLICK EVENT RECEIVED at', e.clientX, e.clientY);
+            e.preventDefault();
+            e.stopPropagation();
+            console.log('[NetworkMap] CLICK EVENT RECEIVED at client:', e.clientX, e.clientY);
+            console.log('[NetworkMap] Canvas bounding rect:', this.canvas.getBoundingClientRect());
             this.handleClick(e);
-        }, { capture: true }); // Use capture phase
+        }, false);
         
         this.canvas.addEventListener('mouseleave', () => {
             this.hoveredNode = null;
@@ -179,7 +189,13 @@ class NetworkMap {
         const x = e.clientX - rect.left;
         const y = e.clientY - rect.top;
         
-        console.log(`[NetworkMap] Click at canvas position (${x.toFixed(0)}, ${y.toFixed(0)})`);
+        console.log('[NetworkMap] ===== CLICK DEBUG =====');
+        console.log('[NetworkMap] Client click:', e.clientX, e.clientY);
+        console.log('[NetworkMap] Canvas rect:', rect);
+        console.log('[NetworkMap] Canvas position - left:', rect.left, 'top:', rect.top);
+        console.log('[NetworkMap] Canvas size:', this.canvas.width, 'x', this.canvas.height);
+        console.log('[NetworkMap] Calculated canvas coords:', x.toFixed(0), y.toFixed(0));
+        console.log('[NetworkMap] Canvas center:', this.centerX, this.centerY);
         
         const node = this.findNodeAtPosition(x, y);
         if (node) {
@@ -198,10 +214,17 @@ class NetworkMap {
     
     findNodeAtPosition(x, y) {
         // Use larger click radius for easier clicking
-        const clickRadius = this.clickRadius || this.nodeRadius * 1.5;
+        const clickRadius = this.clickRadius || 50;
         
-        console.log(`[NetworkMap] Checking ${this.devices.length} devices for click at (${x.toFixed(0)}, ${y.toFixed(0)})`);
-        console.log('[NetworkMap] Click radius:', clickRadius);
+        console.log(`[NetworkMap] Finding node at (${x.toFixed(0)}, ${y.toFixed(0)})`);
+        console.log(`[NetworkMap] Total devices in array: ${this.devices.length}`);
+        console.log(`[NetworkMap] Click radius: ${clickRadius}px, Node radius: ${this.nodeRadius}px`);
+        console.log(`[NetworkMap] Canvas center: (${this.centerX}, ${this.centerY})`);
+        
+        if (!this.devices || this.devices.length === 0) {
+            console.log('[NetworkMap] No devices to check');
+            return null;
+        }
         
         for (const device of this.devices) {
             if (!device.position) {
@@ -213,10 +236,10 @@ class NetworkMap {
             const dy = y - device.position.y;
             const distance = Math.sqrt(dx * dx + dy * dy);
             
-            console.log(`[NetworkMap] Device ${device.nodeId || device.source} at (${device.position.x.toFixed(0)}, ${device.position.y.toFixed(0)}), distance=${distance.toFixed(1)}`);
+            console.log(`[NetworkMap] Device ${device.nodeId || device.source} at (${device.position.x.toFixed(0)}, ${device.position.y.toFixed(0)}), distance=${distance.toFixed(1)}px`);
             
             if (distance <= clickRadius) {
-                console.log(`[NetworkMap] ✓ Node clicked: ${device.nodeId || device.source}, distance=${distance.toFixed(1)}`);
+                console.log(`[NetworkMap] ✓ DEVICE FOUND! ${device.nodeId || device.source}, distance=${distance.toFixed(1)}px (threshold: ${clickRadius}px)`);
                 return device;
             }
         }
@@ -580,7 +603,10 @@ class NetworkMap {
             return;
         }
         
-        console.log('[NetworkMap] Showing details for device:', device.nodeId || device.source);
+        console.log('[NetworkMap] ===== SHOWING DEVICE DETAILS =====');
+        console.log('[NetworkMap] Device:', device);
+        console.log('[NetworkMap] Panel element:', this.detailsPanel);
+        console.log('[NetworkMap] Panel display before:', this.detailsPanel.style.display);
         
         const rssi = device.rssi || device.avgRSSI || 0;
         const lastSeen = device.lastSeen ? new Date(device.lastSeen * 1000).toLocaleTimeString() : 'Unknown';
@@ -588,41 +614,41 @@ class NetworkMap {
         
         // Determine vulnerability level and color
         let vulnLevel = 'Low';
-        let vulnColor = 'var(--success)';
+        let vulnColor = '#50c878';
         if (vulnScore >= 7) {
             vulnLevel = 'High';
-            vulnColor = 'var(--danger)';
+            vulnColor = '#ff6b6b';
         } else if (vulnScore >= 4) {
             vulnLevel = 'Medium';
-            vulnColor = 'var(--warning)';
+            vulnColor = '#ffd93d';
         }
         
-        let html = '<div class="node-details-card" style="padding: 1rem; background: rgba(0,0,0,0.5); border-radius: 8px; border: 1px solid rgba(255,255,255,0.1);">';
-        html += `<h3 style="margin: 0 0 1rem 0; color: var(--primary); font-size: 1.1rem;">📡 Device 0x${device.nodeId || 'Unknown'}</h3>`;
+        let html = '<div class="node-details-card" style="padding: 1.5rem; background: rgba(26, 26, 46, 0.95); border-radius: 8px; border: 2px solid rgba(74, 144, 226, 0.5); margin: 0.5rem 0;">';
+        html += `<h3 style="margin: 0 0 1rem 0; color: #4a90e2; font-size: 1.2rem; font-weight: 600;">📡 Device 0x${device.nodeId || 'Unknown'}</h3>`;
         
-        html += '<div style="display: grid; gap: 0.5rem; font-size: 0.9rem;">';
-        html += `<div style="display: flex; justify-content: space-between;"><span style="color: var(--text-secondary);">Protocol:</span><strong>${device.protocol || 'Unknown'}</strong></div>`;
-        html += `<div style="display: flex; justify-content: space-between;"><span style="color: var(--text-secondary);">Device Type:</span><strong>${device.deviceType || 'Unknown'}</strong></div>`;
-        html += `<div style="display: flex; justify-content: space-between;"><span style="color: var(--text-secondary);">RSSI:</span><strong>${rssi.toFixed(1)} dBm</strong></div>`;
-        html += `<div style="display: flex; justify-content: space-between;"><span style="color: var(--text-secondary);">Packets:</span><strong>${device.packetCount || 0}</strong></div>`;
-        html += `<div style="display: flex; justify-content: space-between;"><span style="color: var(--text-secondary);">Last Seen:</span><strong>${lastSeen}</strong></div>`;
+        html += '<div style="display: grid; gap: 0.75rem; font-size: 1rem;">';
+        html += `<div style="display: flex; justify-content: space-between; padding: 0.5rem; background: rgba(255,255,255,0.05); border-radius: 4px;"><span style="color: #a0a0a0;">Protocol:</span><strong style="color: #e0e0e0;">${device.protocol || 'Unknown'}</strong></div>`;
+        html += `<div style="display: flex; justify-content: space-between; padding: 0.5rem; background: rgba(255,255,255,0.05); border-radius: 4px;"><span style="color: #a0a0a0;">Device Type:</span><strong style="color: #e0e0e0;">${device.deviceType || 'Unknown'}</strong></div>`;
+        html += `<div style="display: flex; justify-content: space-between; padding: 0.5rem; background: rgba(255,255,255,0.05); border-radius: 4px;"><span style="color: #a0a0a0;">RSSI:</span><strong style="color: #e0e0e0;">${rssi.toFixed(1)} dBm</strong></div>`;
+        html += `<div style="display: flex; justify-content: space-between; padding: 0.5rem; background: rgba(255,255,255,0.05); border-radius: 4px;"><span style="color: #a0a0a0;">Packets:</span><strong style="color: #e0e0e0;">${device.packetCount || 0}</strong></div>`;
+        html += `<div style="display: flex; justify-content: space-between; padding: 0.5rem; background: rgba(255,255,255,0.05); border-radius: 4px;"><span style="color: #a0a0a0;">Last Seen:</span><strong style="color: #e0e0e0;">${lastSeen}</strong></div>`;
         
         // Vulnerability indicator
-        html += `<div style="margin-top: 0.5rem; padding: 0.5rem; background: rgba(255,255,255,0.05); border-radius: 4px; border-left: 3px solid ${vulnColor};">`;
+        html += `<div style="margin-top: 0.5rem; padding: 1rem; background: rgba(255,255,255,0.08); border-radius: 6px; border-left: 4px solid ${vulnColor};">`;
         html += `<div style="display: flex; justify-content: space-between; align-items: center;">`;
-        html += `<span style="color: var(--text-secondary);">Vulnerability:</span>`;
-        html += `<strong style="color: ${vulnColor};">${vulnLevel} (${vulnScore}/10)</strong>`;
+        html += `<span style="color: #a0a0a0; font-weight: 600;">Vulnerability:</span>`;
+        html += `<strong style="color: ${vulnColor}; font-size: 1.1rem;">${vulnLevel} (${vulnScore}/10)</strong>`;
         html += '</div>';
         
         // Vulnerability details
         if (device.hasDefaultPSK) {
-            html += '<div style="margin-top: 0.25rem; font-size: 0.8rem; color: var(--danger);">⚠️ Default PSK detected</div>';
+            html += '<div style="margin-top: 0.5rem; font-size: 0.9rem; color: #ff6b6b; font-weight: 500;">⚠️ Default PSK detected</div>';
         }
         if (device.encrypted === false) {
-            html += '<div style="margin-top: 0.25rem; font-size: 0.8rem; color: var(--warning);">⚠️ Unencrypted</div>';
+            html += '<div style="margin-top: 0.5rem; font-size: 0.9rem; color: #ffd93d; font-weight: 500;">⚠️ Unencrypted</div>';
         }
         if (device.isRouter) {
-            html += '<div style="margin-top: 0.25rem; font-size: 0.8rem; color: var(--primary);">🔀 Router/Gateway</div>';
+            html += '<div style="margin-top: 0.5rem; font-size: 0.9rem; color: #4a90e2; font-weight: 500;">🔀 Router/Gateway</div>';
         }
         html += '</div>';
         
@@ -631,6 +657,18 @@ class NetworkMap {
         
         this.detailsPanel.innerHTML = html;
         this.detailsPanel.style.display = 'block';
+        this.detailsPanel.style.visibility = 'visible';
+        this.detailsPanel.style.opacity = '1';
+        
+        console.log('[NetworkMap] Panel innerHTML set, length:', html.length);
+        console.log('[NetworkMap] Panel display after:', this.detailsPanel.style.display);
+        console.log('[NetworkMap] Panel visibility:', this.detailsPanel.style.visibility);
+        
+        // Scroll the details panel into view
+        setTimeout(() => {
+            this.detailsPanel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            console.log('[NetworkMap] Scrolled panel into view');
+        }, 100);
     }
     
     hideNodeDetails() {

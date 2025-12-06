@@ -892,7 +892,11 @@ body {
     padding: 1rem;
     background: var(--bg-card);
     border-top: 2px solid var(--border);
-    min-height: 60px;
+    min-height: 80px;
+    max-height: 400px;
+    overflow-y: auto;
+    display: block;
+    visibility: visible;
 }
 
 /* ==================== War Room / Stats Dashboard ==================== */
