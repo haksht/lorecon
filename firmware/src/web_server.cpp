@@ -137,6 +137,9 @@ void WebServer::setupRoutes() {
     server->on("/api/diagnostics", HTTP_GET, handleGetDiagnostics);
     server->on("/api/diagnostics/verbose", HTTP_POST, handleSetVerboseMode);
     
+    // Command handling (reboot, etc.)
+    server->on("/api/command", HTTP_POST, handleCommand);
+    
     // Scan Control
     server->on("/api/scan/start", HTTP_POST, handleStartScan);
     server->on("/api/scan/stop", HTTP_POST, handleStopScan);
@@ -402,6 +405,38 @@ void WebServer::handleGetConfig(AsyncWebServerRequest* request) {
 void WebServer::handleGetSystemConfig(AsyncWebServerRequest* request) {
     String json = APIController::getSystemConfig();
     request->send(200, "application/json", json);
+}
+
+void WebServer::handleCommand(AsyncWebServerRequest* request) {
+    AsyncWebParameter* param = nullptr;
+    if (request->hasParam("command", true)) {
+        param = request->getParam("command", true);
+    } else if (request->hasParam("command")) {
+        param = request->getParam("command");
+    }
+
+    if (!param) {
+        request->send(400, "application/json", "{\"status\":\"error\",\"error\":\"Missing command\"}");
+        return;
+    }
+
+    String cmd = param->value();
+    
+    // Handle reboot command
+    if (cmd == "b") {
+        String response = "{\"status\":\"success\",\"message\":\"Rebooting device...\"}";
+        AsyncWebServerResponse *resp = request->beginResponse(200, "application/json", response);
+        resp->addHeader("Connection", "close");
+        request->send(resp);
+        
+        LOG_INFO("Reboot command received via web API");
+        delay(1000);
+        ESP.restart();
+        return;
+    }
+    
+    // Unknown command
+    request->send(400, "application/json", "{\"status\":\"error\",\"error\":\"Unknown command\"}");
 }
 
 void WebServer::handleStartScan(AsyncWebServerRequest* request) {

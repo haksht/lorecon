@@ -81,7 +81,19 @@
         /* Mobile layout */
         @media (max-width: 767px) {
             .sidebar {
-                display: none !important;
+                position: fixed !important;
+                top: 65px !important;
+                left: 0 !important;
+                bottom: 0 !important;
+                width: 280px !important;
+                transform: translateX(-100%) !important;
+                transition: transform 0.3s ease !important;
+                z-index: 999 !important;
+                box-shadow: 2px 0 10px rgba(0,0,0,0.5) !important;
+            }
+            
+            .sidebar.active {
+                transform: translateX(0) !important;
             }
             
             .results-panel {
@@ -107,6 +119,12 @@
             width: 100% !important;
             height: 400px !important;
             display: block !important;
+            cursor: default !important;
+            touch-action: manipulation !important;
+        }
+        
+        #network-canvas.pointer-cursor {
+            cursor: pointer !important;
         }
         
         @media (min-width: 768px) {
