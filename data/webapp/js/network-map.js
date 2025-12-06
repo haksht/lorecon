@@ -114,6 +114,7 @@ class NetworkMap {
         
         this.canvas.addEventListener('mouseleave', () => {
             this.hoveredNode = null;
+            this.canvas.classList.remove('pointer-cursor');
             this.canvas.style.cursor = 'default';
         });
         
@@ -155,15 +156,21 @@ class NetworkMap {
         // Check if mouse is over any node
         const node = this.findNodeAtPosition(x, y);
         
+        // Update cursor using both class and style for maximum compatibility
+        if (node) {
+            this.canvas.classList.add('pointer-cursor');
+            this.canvas.style.cursor = 'pointer';
+        } else {
+            this.canvas.classList.remove('pointer-cursor');
+            this.canvas.style.cursor = 'default';
+        }
+        
         if (node !== this.hoveredNode) {
             this.hoveredNode = node;
-            this.canvas.style.cursor = node ? 'pointer' : 'default';
             console.log('[NetworkMap] Hover state changed:', node ? `Device ${node.nodeId || node.source}` : 'none');
             
             // Trigger redraw to show hover state
-            if (node) {
-                requestAnimationFrame(() => this.draw());
-            }
+            requestAnimationFrame(() => this.redraw());
         }
     }
     
@@ -179,13 +186,14 @@ class NetworkMap {
             console.log('[NetworkMap] Device selected:', node.nodeId || node.source);
             this.selectedNode = node;
             this.showNodeDetails(node);
-            this.canvas.style.cursor = 'pointer';
         } else {
             console.log('[NetworkMap] Clicked on empty area');
             this.selectedNode = null;
             this.hideNodeDetails();
-            this.canvas.style.cursor = 'default';
         }
+        
+        // Trigger redraw
+        this.redraw();
     }
     
     findNodeAtPosition(x, y) {

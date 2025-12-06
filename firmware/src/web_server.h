@@ -112,6 +112,7 @@ private:
     static void handleGetDiagnostics(AsyncWebServerRequest* request);
     static void handleSetVerboseMode(AsyncWebServerRequest* request);
     static void handleExportPCAP(AsyncWebServerRequest* request);
+    static void handleCommand(AsyncWebServerRequest* request);
     
     // WebSocket handlers
     static void handleWebSocketEvent(AsyncWebSocket* server, AsyncWebSocketClient* client,

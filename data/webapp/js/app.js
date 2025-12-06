@@ -1137,9 +1137,9 @@ class ReconApp {
         if (this.el.mobileMenuToggle) {
             this.el.mobileMenuToggle.addEventListener('click', (e) => {
                 e.stopPropagation();
-                const actionsSection = document.querySelector('.actions-section');
-                if (actionsSection) {
-                    const isActive = actionsSection.classList.toggle('active');
+                const sidebar = document.querySelector('.sidebar');
+                if (sidebar) {
+                    const isActive = sidebar.classList.toggle('active');
                     this.el.mobileMenuOverlay.classList.toggle('active', isActive);
                     this.el.mobileMenuToggle.classList.toggle('active', isActive);
                     
@@ -1157,9 +1157,9 @@ class ReconApp {
         
         // Close mobile menu when clicking a button
         document.addEventListener('click', (e) => {
-            if (e.target.closest('.actions-section button[data-action]')) {
-                const actionsSection = document.querySelector('.actions-section');
-                if (actionsSection && actionsSection.classList.contains('active')) {
+            if (e.target.closest('.sidebar button[data-action]')) {
+                const sidebar = document.querySelector('.sidebar');
+                if (sidebar && sidebar.classList.contains('active')) {
                     this.closeMobileMenu();
                 }
             }
@@ -1167,9 +1167,9 @@ class ReconApp {
     }
     
     closeMobileMenu() {
-        const actionsSection = document.querySelector('.actions-section');
-        if (actionsSection) {
-            actionsSection.classList.remove('active');
+        const sidebar = document.querySelector('.sidebar');
+        if (sidebar) {
+            sidebar.classList.remove('active');
         }
         if (this.el.mobileMenuOverlay) {
             this.el.mobileMenuOverlay.classList.remove('active');

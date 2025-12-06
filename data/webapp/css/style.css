@@ -857,9 +857,10 @@ body {
     position: relative;
     display: flex;
     flex-direction: column;
-    flex: 1;
+    width: 100%;
+    height: 100%;
     overflow-y: auto;
-    min-height: 0;
+    overflow-x: hidden;
 }
 
 .network-controls {
@@ -1344,9 +1345,22 @@ body {
     }
     
     .sidebar {
-        border-right: none;
-        border-bottom: 2px solid var(--border);
+        position: fixed;
+        top: 65px;
+        left: 0;
+        bottom: 0;
+        width: 280px;
         height: auto;
+        border-right: 2px solid var(--border);
+        border-bottom: none;
+        z-index: var(--z-modal);
+        transform: translateX(-100%);
+        transition: transform var(--transition-normal);
+        box-shadow: var(--shadow-lg);
+    }
+    
+    .sidebar.active {
+        transform: translateX(0);
     }
     
     .status-section {
@@ -1368,21 +1382,7 @@ body {
     }
     
     .actions-section {
-        position: fixed;
-        top: 0;
-        left: 0;
-        bottom: 0;
-        width: 280px;
-        background: var(--bg-card);
-        z-index: var(--z-modal);
-        transform: translateX(-100%);
-        transition: transform var(--transition-normal);
-        border-right: 2px solid var(--border);
-        box-shadow: var(--shadow-lg);
-    }
-    
-    .actions-section.active {
-        transform: translateX(0);
+        padding: 1rem;
     }
     
     .tab-btn {
