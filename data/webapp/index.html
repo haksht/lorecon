@@ -48,6 +48,8 @@
             }
             
             .sidebar {
+                position: relative !important;
+                transform: none !important;
                 width: 280px !important;
                 min-width: 280px !important;
                 max-width: 280px !important;
@@ -121,6 +123,7 @@
             display: block !important;
             cursor: default !important;
             touch-action: manipulation !important;
+            pointer-events: auto !important;
         }
         
         #network-canvas.pointer-cursor {
