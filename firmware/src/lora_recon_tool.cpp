@@ -7,11 +7,16 @@
 #include "command_handler.h"
 #include "oled_display.h"
 #include "web_server.h"
+#include "device_archiver.h"
 #include "config.h"
 #include "psk_decryption_simple.h"
+#include "reboot_tracker.h"
 #include <LittleFS.h>
 #include <ArduinoJson.h>
 #include <esp_task_wdt.h>
+
+// External reboot tracker
+extern RebootTracker rebootTracker;
 
 // Global pointer for tool instance
 LoRaReconTool* g_reconTool = nullptr;
@@ -26,6 +31,8 @@ LoRaReconTool::LoRaReconTool()
     , buttonPressStart(0)
     , shutdownInitiated(false)
     , menuModeEnteredAt(0)
+    , webServerPtr(nullptr)
+    , deviceArchiver(nullptr)
 {
     g_reconTool = this;
 }
@@ -127,6 +134,14 @@ bool LoRaReconTool::initialize() {
     // Initialize PSK decryption system
     PSKDecryption::initialize();
     
+    // Initialize device archiver for memory management
+    deviceArchiver = new DeviceArchiver();
+    if (deviceArchiver) {
+        LOG_INFO("Device archiver initialized");
+    } else {
+        LOG_WARN("Device archiver initialization failed - continuing without SD offload");
+    }
+    
     // Initialize command handler
     commandHandler = new CommandHandler(this);
     LOG_INFO("Command handler initialized");
@@ -137,6 +152,36 @@ bool LoRaReconTool::initialize() {
 // Main update loop
 void LoRaReconTool::update() {
     uint32_t now = millis();
+    
+    // Periodic health check (every 5 minutes)
+    static uint32_t lastHealthCheck = 0;
+    if (now - lastHealthCheck >= 300000) {  // 5 minutes
+        size_t wsClients = 0;
+        if (webServerPtr) {
+            wsClients = webServerPtr->getClientCount();
+        }
+        rebootTracker.periodicHealthCheck(
+            reconState.numTargetableDevices,
+            reconState.getTotalNodeCount(),  // Hot + warm nodes
+            reconState.scanState.droppedPackets,
+            reconState.scanState.peakQueueSize,
+            wsClients
+        );
+        
+        // Check if device archival is needed (fragmentation management)
+        if (deviceArchiver) {
+            deviceArchiver->checkAndArchive(
+                reconState.targetableDevices,
+                reconState.numTargetableDevices,
+                reconState.hotNodes,
+                reconState.hotNodeCount,
+                reconState.warmNodes,
+                reconState.warmNodeCount
+            );
+        }
+        
+        lastHealthCheck = now;
+    }
     
     // Handle button press (must be first to catch shutdown)
     handleButtonPress(now);
@@ -748,6 +793,7 @@ void LoRaReconTool::handleButtonPress(uint32_t now) {
 
 // Set web server for live packet broadcasting
 void LoRaReconTool::setWebServer(WebServer* ws) {
+    webServerPtr = ws;  // Store for health checks
     if (packetProcessor && ws) {
         // Wire up callback from PacketProcessor to WebServer
         packetProcessor->setPacketCallback([ws](const PacketEvent& evt) {
