@@ -87,7 +87,7 @@ namespace Logging {
 }
 
 // ============================================================================
-// DEVICE TRACKING
+// DEVICE TRACKING - TIERED STORAGE
 // ============================================================================
 namespace Tracking {
     // Maximum targetable devices to track
@@ -96,8 +96,18 @@ namespace Tracking {
     // Maximum RF activity entries (non-device signals)
     constexpr uint8_t MAX_RF_ACTIVITIES = 16;
     
-    // Maximum tracked nodes for behavioral analysis
-    constexpr uint8_t MAX_NODES = 30;
+    // TIERED NODE TRACKING:
+    // HOT tier: Full telemetry (RSSI, packet count, protocol)
+    // WARM tier: Basic presence tracking (ID, first/last seen)
+    // Pure LRU: Hot tier fills naturally, oldest evicted to warm when capacity reached
+    
+    // Hot nodes - full tracking with all telemetry (150 * 40 bytes = 6KB)
+    constexpr uint8_t MAX_HOT_NODES = 150;
+    
+    // Warm nodes - historical presence only (200 * 16 bytes = 3.2KB)
+    constexpr uint8_t MAX_WARM_NODES = 200;
+    
+    // Total tracking capacity: 350 unique nodes in ~9.2KB RAM
     
     // Maximum GPS points to store
     constexpr uint8_t MAX_GEO_POINTS = 50;
@@ -197,6 +207,29 @@ namespace Radio {
     constexpr uint16_t PREAMBLE_LENGTH = 8;
 }
 
+// ============================================================================
+// DEVICE ARCHIVER - SD OFFLOAD CONFIGURATION
+// ============================================================================
+namespace Archiver {
+    // Fragmentation threshold to trigger archival (percentage)
+    constexpr float FRAGMENTATION_THRESHOLD = 35.0f;
+    
+    // Minimum devices to keep in RAM (never archive if below this)
+    constexpr uint8_t MIN_ACTIVE_DEVICES = 5;
+    
+    // Device inactivity threshold (milliseconds)
+    // Devices not seen in this time are candidates for archival
+    constexpr uint32_t DEVICE_INACTIVITY_MS = 300000;  // 5 minutes
+    
+    // No-SD rotation settings
+    // When SD card not available, drop oldest devices at this fragmentation level
+    constexpr float NO_SD_ROTATION_THRESHOLD = 30.0f;  // 30% (lower than SD threshold)
+    
+    // Archive file paths
+    constexpr const char* ARCHIVE_FILE = "/devices_archive.jsonl";
+    constexpr const char* STATS_FILE = "/archive_stats.jsonl";
+}
+
 } // namespace Config
 
 // ============================================================================
@@ -210,8 +243,10 @@ static_assert(Config::PacketProcessing::MAX_PACKET_SIZE == 256,
 // Verify index types can hold maximum values
 static_assert(Config::Tracking::MAX_DEVICES <= 255,
               "Device indices use uint8_t, must fit in 0-255 range");
-static_assert(Config::Tracking::MAX_NODES <= 255,
-              "Node indices use uint8_t, must fit in 0-255 range");
+static_assert(Config::Tracking::MAX_HOT_NODES <= 255,
+              "Hot node indices use uint8_t, must fit in 0-255 range");
+static_assert(Config::Tracking::MAX_WARM_NODES <= 255,
+              "Warm node indices use uint8_t, must fit in 0-255 range");
 static_assert(Config::Scanning::NUM_CONFIGURATIONS <= 255,
               "Config indices use uint8_t, must fit in 0-255 range");
 
