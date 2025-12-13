@@ -178,6 +178,13 @@ void ReconState::addTargetableDevice(uint32_t nodeId, uint8_t configIndex, float
         device->packetCount = 0;
         device->avgRSSI = rssi;
         device->bestRSSI = rssi;
+        device->rssiStdDev = 0.0f;  // Initialize variance tracking
+        device->rssiM2 = 0.0f;      // Initialize Welford's M2
+        device->avgPacketInterval = 0;
+        device->lastPacketInterval = 0;
+        device->periodicityScore = 0;
+        device->originatedPackets = 0;
+        device->relayedPackets = 0;
         device->firstSeen = millis();
         device->powerClass = estimatePowerClass(rssi);
         device->isRouter = false;
@@ -211,7 +218,22 @@ void ReconState::addTargetableDevice(uint32_t nodeId, uint8_t configIndex, float
     
     if (device) {
         device->packetCount++;
-        device->avgRSSI = (device->avgRSSI * (device->packetCount - 1) + rssi) / device->packetCount;
+        
+        // Update RSSI statistics with running variance calculation
+        float oldAvg = device->avgRSSI;
+        // Use incremental formula to avoid precision loss: newAvg = oldAvg + (x - oldAvg)/n
+        device->avgRSSI = oldAvg + (rssi - oldAvg) / device->packetCount;
+        
+        // Update RSSI standard deviation using Welford's online algorithm
+        if (device->packetCount > 1) {
+            float delta = rssi - oldAvg;
+            float delta2 = rssi - device->avgRSSI;
+            // Update M2 (sum of squared differences)
+            device->rssiM2 += delta * delta2;
+            // Calculate standard deviation from M2
+            device->rssiStdDev = sqrt(device->rssiM2 / (device->packetCount - 1));
+        }
+        
         if (rssi > device->bestRSSI) {
             device->bestRSSI = rssi;
             device->configIndex = configIndex;  // Update to best config
@@ -254,7 +276,7 @@ void ReconState::updateNode(uint32_t nodeId, const char* protocol, float rssi) {
     
     TrackedNode* node = findNode(nodeId);
     
-    if (!node && nodeCount < Config::Tracking::MAX_NODES) {
+    if (!node && nodeCount < Config::Tracking::MAX_HOT_NODES) {
         node = &trackedNodes[nodeCount++];
         node->nodeId = nodeId;
         node->protocol = protocol;
@@ -406,6 +428,18 @@ void ReconState::printStateSummary() const {
         }
     }
     
+    // Network intelligence summary
+    if (networkIntel.activeTransmitters > 0 || networkIntel.floodingEvents > 0) {
+        Serial.println("\n[NETWORK INTEL]");
+        Serial.printf("  Active transmitters: %d\n", networkIntel.activeTransmitters);
+        Serial.printf("  Relay-only nodes: %d\n", networkIntel.relayOnlyNodes);
+        Serial.printf("  Mixed nodes: %d\n", networkIntel.mixedNodes);
+        Serial.printf("  Flooding events: %d\n", networkIntel.floodingEvents);
+        if (networkIntel.encryptedNetworks > 0) {
+            Serial.printf("  Encrypted networks: ~%d\n", networkIntel.encryptedNetworks);
+        }
+    }
+    
     Serial.println("=====================================\n");
 }
 
@@ -464,4 +498,236 @@ void ReconState::clearReplaySlots() {
     numCapturedPackets = 0;
     memset(replaySlots, 0, sizeof(replaySlots));
     Serial.println("[REPLAY] All replay slots cleared");
+}
+
+// Calculate network intelligence statistics
+void ReconState::updateNetworkIntel() {
+    networkIntel.activeTransmitters = 0;
+    networkIntel.relayOnlyNodes = 0;
+    networkIntel.mixedNodes = 0;
+    networkIntel.floodingEvents = 0;
+    networkIntel.encryptedNetworks = 0;
+    networkIntel.beaconDevices = 0;
+    
+    // Analyze transmission patterns from targetable devices
+    for (uint8_t i = 0; i < numTargetableDevices; i++) {
+        const TargetableDevice& dev = targetableDevices[i];
+        
+        if (dev.originatedPackets > 0 && dev.relayedPackets > 0) {
+            networkIntel.mixedNodes++;
+        } else if (dev.originatedPackets > 0) {
+            networkIntel.activeTransmitters++;
+        } else if (dev.relayedPackets > 0) {
+            networkIntel.relayOnlyNodes++;
+        }
+        
+        // Count devices with high periodicity score as beacons
+        if (dev.periodicityScore >= Config::Anomaly::MIN_BEACON_CONFIDENCE) {
+            networkIntel.beaconDevices++;
+        }
+    }
+    
+    // Count flooding events from replay slots (same packet ID, different nodes)
+    uint32_t seenPacketIds[Config::Replay::MAX_SLOTS];
+    uint8_t packetIdCounts[Config::Replay::MAX_SLOTS] = {0};
+    uint8_t uniquePacketIds = 0;
+    
+    for (uint8_t i = 0; i < numCapturedPackets; i++) {
+        if (replaySlots[i].packetId == 0) continue;
+        
+        // Check if we've seen this packet ID
+        bool found = false;
+        for (uint8_t j = 0; j < uniquePacketIds; j++) {
+            if (seenPacketIds[j] == replaySlots[i].packetId) {
+                packetIdCounts[j]++;
+                found = true;
+                break;
+            }
+        }
+        
+        if (!found && uniquePacketIds < Config::Replay::MAX_SLOTS) {
+            seenPacketIds[uniquePacketIds] = replaySlots[i].packetId;
+            packetIdCounts[uniquePacketIds] = 1;
+            uniquePacketIds++;
+        }
+    }
+    
+    // Count flooding events (packet ID seen more than once)
+    for (uint8_t i = 0; i < uniquePacketIds; i++) {
+        if (packetIdCounts[i] > 1) {
+            networkIntel.floodingEvents++;
+        }
+    }
+    
+    // Estimate encrypted networks (groups of devices with failed decryption)
+    // This is a rough heuristic - devices with no decrypted text but valid packets
+    uint8_t encryptedDevices = 0;
+    for (uint8_t i = 0; i < numTargetableDevices; i++) {
+        // Check if device has packets but we have no successful decryptions
+        bool hasEncryptedOnly = true;
+        for (uint8_t j = 0; j < numCapturedPackets; j++) {
+            if (replaySlots[j].nodeId == targetableDevices[i].nodeId) {
+                if (replaySlots[j].decryptedText[0] != '\0') {
+                    hasEncryptedOnly = false;
+                    break;
+                }
+            }
+        }
+        if (hasEncryptedOnly && targetableDevices[i].packetCount > 0) {
+            encryptedDevices++;
+        }
+    }
+    
+    // Estimate number of encrypted networks (assume 2-4 devices per network)
+    if (encryptedDevices > 0) {
+        networkIntel.encryptedNetworks = (encryptedDevices + 2) / 3;  // Rough estimate
+    }
+    
+    networkIntel.lastUpdate = millis();
+}
+
+/**
+ * Record an anomaly detection event
+ */
+void ReconState::recordAnomaly(uint32_t nodeId, AnomalyType type, float severity, const char* description) {
+    // Use modulo for circular buffer (keeps growing counter)
+    uint8_t index = numAnomalies % Config::Anomaly::MAX_ANOMALIES;
+    
+    AnomalyRecord& anomaly = anomalies[index];
+    anomaly.nodeId = nodeId;
+    anomaly.type = type;
+    anomaly.timestamp = millis();
+    anomaly.severity = severity;
+    anomaly.acknowledged = false;
+    
+    // Safe string copy with guaranteed null termination
+    strncpy(anomaly.description, description, sizeof(anomaly.description) - 1);
+    anomaly.description[sizeof(anomaly.description) - 1] = '\0';
+    
+    numAnomalies++;
+    // Cap anomalyCount at buffer size (circular buffer overwrites old anomalies)
+    if (networkIntel.anomalyCount < Config::Anomaly::MAX_ANOMALIES) {
+        networkIntel.anomalyCount++;
+    }
+}
+
+/**
+ * Check for anomalies in received packet
+ */
+void ReconState::checkForAnomalies(const uint8_t* data, size_t length, uint32_t nodeId, float rssi) {
+    if (!data || length == 0 || nodeId == 0) return;
+    
+    // Find device
+    TargetableDevice* device = findTargetableDevice(nodeId);
+    if (!device) return;
+    
+    // Check 1: Packet size outlier
+    if (length > 255) {
+        char desc[64];
+        snprintf(desc, sizeof(desc), "Packet size %u exceeds typical LoRa MTU", length);
+        recordAnomaly(nodeId, AnomalyType::PACKET_SIZE_OUTLIER, 0.5f, desc);
+    }
+    
+    // Check 2: Rate violation (packets per minute)
+    // Only check if we have established average interval and sufficient packet count
+    // Require minimum 100ms interval to avoid false positives on legitimate burst traffic
+    if (device->avgPacketInterval > 100 && device->packetCount >= 5) {
+        float packetsPerMin = 60000.0f / device->avgPacketInterval;
+        if (packetsPerMin > Config::Anomaly::RATE_LIMIT_PACKETS_PER_MIN) {
+            char desc[64];
+            snprintf(desc, sizeof(desc), "Rate %.1f pkt/min exceeds limit", packetsPerMin);
+            recordAnomaly(nodeId, AnomalyType::RATE_VIOLATION, 0.8f, desc);
+        }
+    }
+    
+    // Check 3: RSSI inconsistency (possible spoofing)
+    if (device->rssiStdDev > Config::Anomaly::RSSI_STDDEV_THRESHOLD) {
+        char desc[64];
+        snprintf(desc, sizeof(desc), "RSSI variance %.1f dBm suggests location change", device->rssiStdDev);
+        recordAnomaly(nodeId, AnomalyType::RSSI_INCONSISTENCY, 0.7f, desc);
+    }
+    
+    // Check 4: Replay attack detection (packet ID seen before with old timestamp)
+    // This requires packet ID tracking - implementation deferred to packet processor
+}
+
+/**
+ * Get count of unacknowledged anomalies
+ */
+uint8_t ReconState::getUnacknowledgedAnomalies() const {
+    uint8_t count = 0;
+    uint8_t maxIndex = std::min((uint16_t)numAnomalies, (uint16_t)Config::Anomaly::MAX_ANOMALIES);
+    for (uint8_t i = 0; i < maxIndex; i++) {
+        if (!anomalies[i].acknowledged) {
+            count++;
+        }
+    }
+    return count;
+}
+
+/**
+ * Update traffic histogram (called once per packet)
+ */
+void ReconState::updateTrafficHistogram() {
+    unsigned long now = millis();
+    uint8_t currentHour = (now / 3600000) % 24;  // Hour of day (0-23)
+    
+    // Safety: should always be 0-23, but guarantee bounds
+    if (currentHour < 24) {
+        trafficHist.hourlyPackets[currentHour]++;
+    }
+    trafficHist.lastHourChange = now;
+}
+
+/**
+ * Update temporal metrics for a device (periodicity, beacon detection)
+ */
+void ReconState::updateDeviceTemporalMetrics(uint32_t nodeId) {
+    if (nodeId == 0) return;
+    
+    TargetableDevice* device = findTargetableDevice(nodeId);
+    if (!device) return;
+    
+    unsigned long now = millis();
+    
+    // Calculate packet interval
+    if (device->lastSeen > 0) {
+        unsigned long interval = now - device->lastSeen;
+        
+        // Update average interval using exponential moving average
+        if (device->avgPacketInterval == 0) {
+            device->avgPacketInterval = interval;
+        } else {
+            // EMA with alpha = 0.2 (weight new samples less to smooth out jitter)
+            // Use 64-bit intermediate to prevent overflow with large intervals (e.g., hourly beacons)
+            uint64_t numerator = (uint64_t)device->avgPacketInterval * 4 + interval;
+            device->avgPacketInterval = (uint32_t)(numerator / 5);
+        }
+        
+        device->lastPacketInterval = interval;
+        
+        // Calculate periodicity score (0-100)
+        // High score = consistent intervals (beacon-like)
+        if (device->packetCount >= Config::Anomaly::MIN_PACKETS_FOR_PERIODICITY && 
+            device->avgPacketInterval > 0) {
+            // Calculate absolute difference safely (avoid overflow from unsigned subtraction)
+            uint32_t jitter = (interval > device->avgPacketInterval) ? 
+                              (interval - device->avgPacketInterval) : 
+                              (device->avgPacketInterval - interval);
+            float jitterRatio = (float)jitter / device->avgPacketInterval;
+            
+            if (jitterRatio < Config::Anomaly::BEACON_JITTER_TOLERANCE) {
+                // Within jitter tolerance - likely a beacon
+                device->periodicityScore = 100 - (int)(jitterRatio * 100.0f);
+                device->periodicityScore = std::min((uint8_t)100, device->periodicityScore);
+            } else {
+                // Not periodic - decay score (prevent uint8_t underflow)
+                if (device->periodicityScore >= 10) {
+                    device->periodicityScore -= 10;
+                } else {
+                    device->periodicityScore = 0;
+                }
+            }
+        }
+    }
 }

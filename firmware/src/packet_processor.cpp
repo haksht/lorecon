@@ -106,11 +106,20 @@ void PacketProcessor::processSinglePacket(const QueuedPacket& qp, OLEDDisplay* d
         }
     }
     
+    // Update temporal metrics BEFORE updating device (needs old lastSeen for interval calc)
+    if (info.nodeId != 0) {
+        reconState.updateTrafficHistogram();
+        reconState.updateDeviceTemporalMetrics(info.nodeId);
+    }
+    
     // Track as targetable device in ALL modes if we have a real node ID
+    // This updates lastSeen timestamp, so must be AFTER temporal update
     if (info.nodeId != 0) {
         reconState.addTargetableDevice(info.nodeId, reconState.scanState.currentConfig, 
                                       qp.rssi, info.protocol, qp.data, qp.length);
         reconState.updateNode(info.nodeId, info.protocol, qp.rssi);
+        // Anomaly detection uses updated avgRSSI, so must be AFTER addTargetableDevice
+        reconState.checkForAnomalies(qp.data, qp.length, info.nodeId, qp.rssi);
     }
     
     // Mode-specific handling

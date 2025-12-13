@@ -29,7 +29,7 @@ public:
     ScanState scanState;
     
     // Node tracking
-    TrackedNode trackedNodes[Config::Tracking::MAX_NODES];
+    TrackedNode trackedNodes[Config::Tracking::MAX_HOT_NODES];
     uint8_t nodeCount;
     
     // Packet replay storage
@@ -38,6 +38,16 @@ public:
     
     // PSK decryption statistics
     PSKStats pskStats;
+    
+    // Network intelligence
+    NetworkIntel networkIntel;
+    
+    // Anomaly detection
+    AnomalyRecord anomalies[Config::Anomaly::MAX_ANOMALIES];
+    uint16_t numAnomalies;  // uint16_t to prevent overflow (circular buffer uses modulo)
+    
+    // Traffic histogram
+    TrafficHistogram trafficHist;
     
     // Constructor and initialization
     ReconState();
@@ -83,6 +93,19 @@ public:
     // Statistics and reporting
     void printStateSummary() const;
     void exportStateToJSON(String& output) const;
+    
+    // Network intelligence
+    void updateNetworkIntel();
+    const NetworkIntel& getNetworkIntel() const { return networkIntel; }
+    
+    // Anomaly detection
+    void recordAnomaly(uint32_t nodeId, AnomalyType type, float severity, const char* description);
+    void checkForAnomalies(const uint8_t* data, size_t length, uint32_t nodeId, float rssi);
+    uint8_t getUnacknowledgedAnomalies() const;
+    
+    // Temporal analysis
+    void updateTrafficHistogram();
+    void updateDeviceTemporalMetrics(uint32_t nodeId);
     
 private:
     // Helper methods

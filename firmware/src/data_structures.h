@@ -28,6 +28,7 @@ struct CapturedPacket {
   float originalRSSI;
   uint32_t captureTime;
   uint32_t nodeId;      // Node ID extracted from packet header (0 if unknown)
+  uint32_t packetId;    // Packet ID for deduplication (0 if unknown)
   char protocol[16];
   char decryptedText[256];  // Stores decrypted message text if available
   bool valid;
@@ -70,9 +71,16 @@ struct TargetableDevice {
   uint8_t configIndex;      // Which scan config works best for this device
   float bestRSSI;
   float avgRSSI;
+  float rssiStdDev;         // RSSI standard deviation (for spoofing detection)
+  float rssiM2;             // Welford's M2 for variance calculation (internal use)
   uint16_t packetCount;     // Number of successfully decoded packets
+  uint16_t originatedPackets; // Packets originated by this device (not relays)
+  uint16_t relayedPackets;    // Packets relayed by this device
   uint32_t lastSeen;
   uint32_t firstSeen;
+  uint32_t lastPacketInterval; // Time since previous packet (for periodicity detection)
+  uint32_t avgPacketInterval;  // Average interval between packets (0 = not periodic)
+  uint8_t periodicityScore;    // 0-100, confidence this is a beacon
   char protocol[16];
   char deviceType[24];      // Identified device type
   char firmwareVersion[32]; // Detected firmware version
@@ -133,6 +141,58 @@ struct GeoPoint {
   
   GeoPoint() : latitude(0), longitude(0), altitude(0), timestamp(0), 
                nodeId(0), precision(0), valid(false) {}
+};
+
+// Anomaly types
+enum class AnomalyType : uint8_t {
+    PACKET_SIZE_OUTLIER,      // Packet size >2σ from mean
+    EXCESSIVE_RELAY_HOPS,     // >5 relay hops detected
+    RATE_VIOLATION,           // >20 packets/min
+    RSSI_INCONSISTENCY,       // Same node, wildly different RSSI
+    REPLAY_ATTACK,            // Old packet ID reappearing
+    TIMING_ANOMALY            // Unexpected interval variation
+};
+
+// Anomaly detection record
+struct AnomalyRecord {
+    uint32_t nodeId;          // Device that triggered anomaly
+    AnomalyType type;
+    uint32_t timestamp;
+    float severity;           // 0.0-1.0
+    char description[64];     // Human-readable explanation
+    bool acknowledged;        // For UI dismissal
+    
+    AnomalyRecord() : nodeId(0), type(AnomalyType::PACKET_SIZE_OUTLIER), 
+                      timestamp(0), severity(0.0f), acknowledged(false) {
+        description[0] = '\0';
+    }
+};
+
+// Temporal traffic histogram (24 hours, 1-hour buckets)
+struct TrafficHistogram {
+    uint16_t hourlyPackets[24];  // Rolling 24-hour window
+    uint8_t currentHour;         // Current bucket index
+    uint32_t lastHourChange;     // Timestamp of last hour rollover
+    
+    TrafficHistogram() : currentHour(0), lastHourChange(0) {
+        memset(hourlyPackets, 0, sizeof(hourlyPackets));
+    }
+};
+
+// Network intelligence statistics
+struct NetworkIntel {
+    uint8_t activeTransmitters;   // Devices originating messages
+    uint8_t relayOnlyNodes;       // Devices only relaying
+    uint8_t mixedNodes;           // Both originate and relay
+    uint16_t floodingEvents;      // Detected relay chains
+    uint8_t encryptedNetworks;    // Distinct encrypted groups detected
+    uint8_t beaconDevices;        // Devices transmitting periodically
+    uint16_t anomalyCount;        // Active unacknowledged anomalies (uint16_t to prevent overflow)
+    uint32_t lastUpdate;          // Timestamp of last calculation
+    
+    NetworkIntel() : activeTransmitters(0), relayOnlyNodes(0), mixedNodes(0),
+                     floodingEvents(0), encryptedNetworks(0), beaconDevices(0),
+                     anomalyCount(0), lastUpdate(0) {}
 };
 
 #endif // DATA_STRUCTURES_H

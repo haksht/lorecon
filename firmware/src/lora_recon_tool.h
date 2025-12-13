@@ -12,6 +12,7 @@ class OLEDDisplay;
 class RadioController;
 class PacketProcessor;
 class WebServer;
+class DeviceArchiver;
 
 #include "recon_state.h"
 #include "radio_controller.h"
@@ -60,6 +61,8 @@ private:
     PacketProcessor* packetProcessor;
     CommandHandler* commandHandler;
     OLEDDisplay* oledDisplay;
+    WebServer* webServerPtr;
+    DeviceArchiver* deviceArchiver;
     
     // Button state tracking
     bool buttonPressed;

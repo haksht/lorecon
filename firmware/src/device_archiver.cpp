@@ -44,8 +44,7 @@ bool DeviceArchiver::shouldArchive() const {
 }
 
 bool DeviceArchiver::checkAndArchive(TargetableDevice* devices, uint8_t& deviceCount,
-                                     TrackedNode* hotNodes, uint8_t& hotNodeCount,
-                                     WarmNode* warmNodes, uint8_t& warmNodeCount) {
+                                     TrackedNode* hotNodes, uint8_t& hotNodeCount) {
     if (!isSDAvailable()) {
         // No SD card - use aggressive rotation instead
         return rotateDevicesNoSD(devices, deviceCount, Config::Tracking::MAX_DEVICES);
@@ -58,7 +57,7 @@ bool DeviceArchiver::checkAndArchive(TargetableDevice* devices, uint8_t& deviceC
     }
     
     LOG_INFO("[ARCHIVE] Fragmentation threshold exceeded, triggering archival...");
-    return archiveInactiveDevices(devices, deviceCount, hotNodes, hotNodeCount, warmNodes, warmNodeCount);
+    return archiveInactiveDevices(devices, deviceCount, hotNodes, hotNodeCount);
 }
 
 uint8_t DeviceArchiver::identifyColdDevices(const TargetableDevice* devices, uint8_t deviceCount,
@@ -244,32 +243,8 @@ bool DeviceArchiver::compactNodeArray(TrackedNode* nodes, uint8_t& nodeCount,
     return true;
 }
 
-bool DeviceArchiver::compactWarmNodeArray(WarmNode* nodes, uint8_t& nodeCount,
-                                         const uint8_t* removeIndices, uint8_t removeCount) {
-    if (removeCount == 0) return true;
-    
-    bool toRemove[Config::Tracking::MAX_WARM_NODES] = {false};
-    for (uint8_t i = 0; i < removeCount; i++) {
-        toRemove[removeIndices[i]] = true;
-    }
-    
-    uint8_t writePos = 0;
-    for (uint8_t readPos = 0; readPos < nodeCount; readPos++) {
-        if (!toRemove[readPos]) {
-            if (writePos != readPos) {
-                nodes[writePos] = nodes[readPos];
-            }
-            writePos++;
-        }
-    }
-    
-    nodeCount = writePos;
-    return true;
-}
-
 bool DeviceArchiver::archiveInactiveDevices(TargetableDevice* devices, uint8_t& deviceCount,
-                                            TrackedNode* hotNodes, uint8_t& hotNodeCount,
-                                            WarmNode* warmNodes, uint8_t& warmNodeCount) {
+                                            TrackedNode* hotNodes, uint8_t& hotNodeCount) {
     float fragBefore = getCurrentFragmentation();
     uint32_t heapBefore = ESP.getFreeHeap();
     

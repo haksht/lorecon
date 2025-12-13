@@ -340,6 +340,16 @@ class NetworkMap {
         return minRadius + (1 - normalized) * (maxRadius - minRadius);
     }
     
+    getNodeType(device) {
+        // Determine if node is transmitter, relay-only, or mixed
+        const originated = device.originatedPackets || 0;
+        const relayed = device.relayedPackets || 0;
+        
+        if (originated > 0 && relayed > 0) return 'mixed';
+        if (relayed > 0) return 'relay';
+        return 'transmitter';  // Default for devices with no relay info
+    }
+    
     startAnimation() {
         const animate = () => {
             this.pulsePhase += 0.05;
@@ -383,6 +393,9 @@ class NetworkMap {
         if (this.hoveredNode) {
             this.drawTooltip(this.hoveredNode);
         }
+        
+        // Draw legend
+        this.drawLegend();
     }
     
     drawGrid() {
@@ -510,16 +523,40 @@ class NetworkMap {
                 this.ctx.fill();
             }
             
-            // Draw main node circle
-            this.ctx.fillStyle = nodeColor;
-            this.ctx.beginPath();
-            this.ctx.arc(device.position.x, device.position.y, this.nodeRadius, 0, 2 * Math.PI);
-            this.ctx.fill();
+            // Determine node type (transmitter, relay, mixed)
+            const nodeType = this.getNodeType(device);
+            
+            // Draw main node circle (solid for transmitters, hollow for relay-only)
+            if (nodeType === 'relay') {
+                // Hollow circle for relay-only nodes
+                this.ctx.strokeStyle = nodeColor;
+                this.ctx.lineWidth = 3;
+                this.ctx.beginPath();
+                this.ctx.arc(device.position.x, device.position.y, this.nodeRadius, 0, 2 * Math.PI);
+                this.ctx.stroke();
+            } else {
+                // Solid circle for transmitters and mixed
+                this.ctx.fillStyle = nodeColor;
+                this.ctx.beginPath();
+                this.ctx.arc(device.position.x, device.position.y, this.nodeRadius, 0, 2 * Math.PI);
+                this.ctx.fill();
+                
+                // Add double circle for mixed nodes
+                if (nodeType === 'mixed') {
+                    this.ctx.strokeStyle = nodeColor;
+                    this.ctx.lineWidth = 2;
+                    this.ctx.beginPath();
+                    this.ctx.arc(device.position.x, device.position.y, this.nodeRadius - 5, 0, 2 * Math.PI);
+                    this.ctx.stroke();
+                }
+            }
             
             // Draw border if hovered
             if (isHovered || isSelected) {
                 this.ctx.strokeStyle = '#ffffff';
                 this.ctx.lineWidth = 3;
+                this.ctx.beginPath();
+                this.ctx.arc(device.position.x, device.position.y, this.nodeRadius + 3, 0, 2 * Math.PI);
                 this.ctx.stroke();
             }
             
@@ -647,6 +684,21 @@ class NetworkMap {
         if (device.encrypted === false) {
             html += '<div style="margin-top: 0.5rem; font-size: 0.9rem; color: #ffd93d; font-weight: 500;">⚠️ Unencrypted</div>';
         }
+        
+        // Node type indicator
+        const nodeType = this.getNodeType(device);
+        const nodeTypeLabel = nodeType === 'transmitter' ? '⚡ Active Transmitter' : 
+                             nodeType === 'relay' ? '↻ Relay Node' : '⚡↻ Mixed (TX+Relay)';
+        const nodeTypeColor = nodeType === 'transmitter' ? '#50c878' : 
+                             nodeType === 'relay' ? '#4a90e2' : '#9b59b6';
+        html += `<div style="margin-top: 0.5rem; font-size: 0.9rem; color: ${nodeTypeColor}; font-weight: 500;">${nodeTypeLabel}</div>`;
+        if (device.originatedPackets > 0) {
+            html += `<div style="margin-top: 0.25rem; font-size: 0.85rem; color: #a0a0a0;">Originated: ${device.originatedPackets} packets</div>`;
+        }
+        if (device.relayedPackets > 0) {
+            html += `<div style="margin-top: 0.25rem; font-size: 0.85rem; color: #a0a0a0;">Relayed: ${device.relayedPackets} packets</div>`;
+        }
+        
         if (device.isRouter) {
             html += '<div style="margin-top: 0.5rem; font-size: 0.9rem; color: #4a90e2; font-weight: 500;">🔀 Router/Gateway</div>';
         }
@@ -674,6 +726,60 @@ class NetworkMap {
     hideNodeDetails() {
         if (!this.detailsPanel) return;
         this.detailsPanel.style.display = 'none';
+    }
+    
+    drawLegend() {
+        const padding = 15;
+        const startX = this.canvas.width - 180;
+        const startY = 20;
+        const lineHeight = 30;
+        
+        // Background
+        this.ctx.fillStyle = 'rgba(26, 26, 46, 0.9)';
+        this.ctx.fillRect(startX - padding, startY - padding, 160, 130);
+        
+        // Border
+        this.ctx.strokeStyle = 'rgba(74, 144, 226, 0.5)';
+        this.ctx.lineWidth = 2;
+        this.ctx.strokeRect(startX - padding, startY - padding, 160, 130);
+        
+        // Title
+        this.ctx.fillStyle = '#ffffff';
+        this.ctx.font = 'bold 12px Arial';
+        this.ctx.fillText('Node Types', startX, startY);
+        
+        // Legend items
+        this.ctx.font = '11px Arial';
+        
+        // Active Transmitter (solid circle)
+        this.ctx.fillStyle = this.colors.meshtastic;
+        this.ctx.beginPath();
+        this.ctx.arc(startX, startY + lineHeight, 8, 0, 2 * Math.PI);
+        this.ctx.fill();
+        this.ctx.fillStyle = '#e0e0e0';
+        this.ctx.fillText('Active Transmitter', startX + 15, startY + lineHeight + 4);
+        
+        // Relay-Only (hollow circle)
+        this.ctx.strokeStyle = this.colors.lorawan;
+        this.ctx.lineWidth = 3;
+        this.ctx.beginPath();
+        this.ctx.arc(startX, startY + lineHeight * 2, 8, 0, 2 * Math.PI);
+        this.ctx.stroke();
+        this.ctx.fillStyle = '#e0e0e0';
+        this.ctx.fillText('Relay Only', startX + 15, startY + lineHeight * 2 + 4);
+        
+        // Mixed (double circle)
+        this.ctx.fillStyle = this.colors.helium;
+        this.ctx.beginPath();
+        this.ctx.arc(startX, startY + lineHeight * 3, 8, 0, 2 * Math.PI);
+        this.ctx.fill();
+        this.ctx.strokeStyle = this.colors.helium;
+        this.ctx.lineWidth = 2;
+        this.ctx.beginPath();
+        this.ctx.arc(startX, startY + lineHeight * 3, 5, 0, 2 * Math.PI);
+        this.ctx.stroke();
+        this.ctx.fillStyle = '#e0e0e0';
+        this.ctx.fillText('Mixed (TX+Relay)', startX + 15, startY + lineHeight * 3 + 4);
     }
     
     destroy() {

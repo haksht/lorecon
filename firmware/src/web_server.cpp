@@ -137,6 +137,11 @@ void WebServer::setupRoutes() {
     server->on("/api/diagnostics", HTTP_GET, handleGetDiagnostics);
     server->on("/api/diagnostics/verbose", HTTP_POST, handleSetVerboseMode);
     
+    // Temporal & Anomaly Analysis
+    server->on("/api/anomalies", HTTP_GET, handleGetAnomalies);
+    server->on("/api/anomaly/acknowledge", HTTP_POST, handleAcknowledgeAnomaly);  // Body: {index: 0}
+    server->on("/api/temporal", HTTP_GET, handleGetTemporalData);
+    
     // Command handling (reboot, etc.)
     server->on("/api/command", HTTP_POST, handleCommand);
     
@@ -461,6 +466,35 @@ void WebServer::handleGetDeviceTypeSummary(AsyncWebServerRequest* request) {
 
 void WebServer::handleGetSecurityAssessment(AsyncWebServerRequest* request) {
     String json = APIController::getSecurityAssessment();
+    request->send(200, "application/json", json);
+}
+
+void WebServer::handleGetAnomalies(AsyncWebServerRequest* request) {
+    bool unacknowledgedOnly = false;
+    if (request->hasParam("unacknowledged")) {
+        String val = request->getParam("unacknowledged")->value();
+        unacknowledgedOnly = (val == "true" || val == "1");
+    }
+    
+    String json = APIController::getAnomalies(unacknowledgedOnly);
+    request->send(200, "application/json", json);
+}
+
+void WebServer::handleAcknowledgeAnomaly(AsyncWebServerRequest* request) {
+    if (!request->hasParam("index", true)) {
+        request->send(400, "application/json", "{\"status\":\"error\",\"error\":\"Missing index in body\"}");
+        return;
+    }
+    
+    String indexStr = request->getParam("index", true)->value();
+    uint8_t index = atoi(indexStr.c_str());
+    
+    String json = APIController::acknowledgeAnomaly(index);
+    request->send(200, "application/json", json);
+}
+
+void WebServer::handleGetTemporalData(AsyncWebServerRequest* request) {
+    String json = APIController::getTemporalData();
     request->send(200, "application/json", json);
 }
 

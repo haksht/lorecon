@@ -48,6 +48,11 @@ public:
     
     // Configuration & Status
     static String getStatus();
+    
+    // Temporal & Anomaly Analysis
+    static String getAnomalies(bool unacknowledgedOnly = false);
+    static String acknowledgeAnomaly(uint8_t index);
+    static String getTemporalData();
     static String getDashboard();  // Combined endpoint for initial load
     static String getConfig();
     static String setConfig(const String& jsonConfig);

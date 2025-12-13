@@ -372,6 +372,15 @@ String ReconService::buildReconSummaryJson() {
     summary["nodesTracked"] = reconState.nodeCount;
     summary["capturedPackets"] = reconState.getNumCapturedPackets();
     summary["verboseDiagnostics"] = TextPacketDiagnostic::isVerbose();
+    
+    // Network intelligence summary
+    JsonObject intel = summary["networkIntel"].to<JsonObject>();
+    intel["beaconDevices"] = reconState.networkIntel.beaconDevices;
+    intel["activeTransmitters"] = reconState.networkIntel.activeTransmitters;
+    intel["relayNodes"] = reconState.networkIntel.relayOnlyNodes;
+    intel["mixedNodes"] = reconState.networkIntel.mixedNodes;
+    intel["encryptedNetworks"] = reconState.networkIntel.encryptedNetworks;
+    intel["anomalyCount"] = reconState.networkIntel.anomalyCount;
 
     if (reconState.scanState.mode == MODE_TARGETED_CAPTURE ||
         reconState.scanState.mode == MODE_PACKET_REPLAY) {
@@ -635,6 +644,13 @@ String ReconService::buildReplaySlotsJson() {
             char nodeIdHex[9];
             snprintf(nodeIdHex, sizeof(nodeIdHex), "%08X", packet.nodeId);
             slot["nodeId"] = nodeIdHex;
+        }
+        
+        // Include packet ID if available
+        if (packet.packetId != 0) {
+            char packetIdHex[9];
+            snprintf(packetIdHex, sizeof(packetIdHex), "%08X", packet.packetId);
+            slot["packetId"] = packetIdHex;
         }
         
         // Include decrypted text if available
