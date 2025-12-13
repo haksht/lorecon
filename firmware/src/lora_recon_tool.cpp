@@ -10,13 +10,9 @@
 #include "device_archiver.h"
 #include "config.h"
 #include "psk_decryption_simple.h"
-#include "reboot_tracker.h"
 #include <LittleFS.h>
 #include <ArduinoJson.h>
 #include <esp_task_wdt.h>
-
-// External reboot tracker
-extern RebootTracker rebootTracker;
 
 // Global pointer for tool instance
 LoRaReconTool* g_reconTool = nullptr;
@@ -153,32 +149,20 @@ bool LoRaReconTool::initialize() {
 void LoRaReconTool::update() {
     uint32_t now = millis();
     
-    // Periodic health check (every 5 minutes)
+    // Periodic health check and device archival (every 5 minutes)
     static uint32_t lastHealthCheck = 0;
     if (now - lastHealthCheck >= 300000) {  // 5 minutes
-        size_t wsClients = 0;
-        if (webServerPtr) {
-            wsClients = webServerPtr->getClientCount();
-        }
-        rebootTracker.periodicHealthCheck(
-            reconState.numTargetableDevices,
-            reconState.getTotalNodeCount(),  // Hot + warm nodes
-            reconState.scanState.droppedPackets,
-            reconState.scanState.peakQueueSize,
-            wsClients
-        );
+        // Update network intelligence statistics
+        reconState.updateNetworkIntel();
         
         // Check if device archival is needed (fragmentation management)
-        if (deviceArchiver) {
-            deviceArchiver->checkAndArchive(
-                reconState.targetableDevices,
-                reconState.numTargetableDevices,
-                reconState.hotNodes,
-                reconState.hotNodeCount,
-                reconState.warmNodes,
-                reconState.warmNodeCount
-            );
-        }
+        DeviceArchiver archiver;
+        archiver.checkAndArchive(
+            reconState.targetableDevices,
+            reconState.numTargetableDevices,
+            reconState.trackedNodes,
+            reconState.nodeCount
+        );
         
         lastHealthCheck = now;
     }

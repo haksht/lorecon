@@ -11,6 +11,9 @@ PacketInfo ProtocolAnalyzer::analyze(const uint8_t* data, size_t length, float r
     // Step 2: Extract node ID (protocol-specific)
     info.nodeId = extractNodeId(data, length, info.protocol);
     
+    // Step 2b: Extract packet ID (protocol-specific)
+    info.packetId = extractPacketId(data, length, info.protocol);
+    
     // Step 3: Classify device type
     info.deviceType = identifyDeviceType(data, length, info.protocol, rssi);
     
@@ -62,6 +65,22 @@ uint32_t ProtocolAnalyzer::extractNodeId(const uint8_t* data, size_t length, con
         // LoRaWAN DevAddr at offset 1-4 (little endian)
         return uint32_t(data[1]) | (uint32_t(data[2]) << 8) | 
                (uint32_t(data[3]) << 16) | (uint32_t(data[4]) << 24);
+    }
+    
+    return 0;
+}
+
+// Extract packet ID from packet (protocol-dependent field locations)
+uint32_t ProtocolAnalyzer::extractPacketId(const uint8_t* data, size_t length, const char* protocol) {
+    if (strcmp(protocol, "Meshtastic") == 0 && length >= 12) {
+        // Meshtastic packet ID at offset 8-11 (little-endian)
+        return ((uint32_t)data[8]) | ((uint32_t)data[9] << 8) | 
+               ((uint32_t)data[10] << 16) | ((uint32_t)data[11] << 24);
+    }
+    
+    if (strcmp(protocol, "LoRaWAN") == 0 && length >= 8) {
+        // LoRaWAN frame counter at offset 6-7 (little endian, 16-bit)
+        return ((uint32_t)data[6]) | ((uint32_t)data[7] << 8);
     }
     
     return 0;

@@ -330,23 +330,41 @@ class ReconApp {
                 return;
             }
             
+            // Group packets by packet ID to detect flooding
+            const grouped = this.groupPacketsByPacketId(data.slots);
+            
             let html = '<div class="table-wrapper">';
             html += '<table class="table"><thead><tr>';
-            html += '<th>Protocol</th><th>Node ID</th><th>Size</th><th>RSSI</th><th>Frequency</th><th>Captured</th><th>Message</th><th>Actions</th>';
+            html += '<th>Protocol</th><th>Node ID</th><th>Packet ID</th><th>Size</th><th>RSSI</th><th>Frequency</th><th>Captured</th><th>Message</th><th>Actions</th>';
             html += '</tr></thead><tbody>';
             
-            data.slots.forEach((pkt, idx) => {
-                const rssiClass = (pkt.rssi || -100) > -70 ? 'rssi-strong' : (pkt.rssi || -100) > -90 ? 'rssi-medium' : 'rssi-weak';
-                html += '<tr>';
-                html += `<td><code>${pkt.protocol || 'Unknown'}</code></td>`;
-                html += `<td>${pkt.nodeId ? '<code>0x' + pkt.nodeId + '</code>' : '—'}</td>`;
-                html += `<td>${pkt.length || 0} B</td>`;
-                html += `<td><span class="${rssiClass}">${pkt.rssi || '—'} dBm</span></td>`;
-                html += `<td>${(pkt.frequencyMHz || 0).toFixed(3)} MHz</td>`;
-                html += `<td>${this.formatDuration(pkt.capturedSecondsAgo || 0)} ago</td>`;
-                html += `<td>${pkt.decryptedText || '—'}</td>`;
-                html += `<td><button data-action="replay-packet" data-value="${idx}" class="btn btn-primary btn-small">🔁 Replay</button></td>`;
-                html += '</tr>';
+            grouped.forEach(group => {
+                group.packets.forEach((pkt, idx) => {
+                    const rssiClass = (pkt.rssi || -100) > -70 ? 'rssi-strong' : (pkt.rssi || -100) > -90 ? 'rssi-medium' : 'rssi-weak';
+                    const isRelay = group.packets.length > 1 && idx > 0;
+                    const rowClass = isRelay ? 'relay-row' : '';
+                    
+                    html += `<tr class="${rowClass}">`;
+                    html += `<td><code>${pkt.protocol || 'Unknown'}</code></td>`;
+                    html += `<td>${pkt.nodeId ? '<code>0x' + pkt.nodeId + '</code>' : '—'}</td>`;
+                    
+                    // Show packet ID with relay indicator
+                    if (isRelay) {
+                        html += `<td><code>0x${pkt.packetId || '—'}</code> <span class="relay-badge">↻ Relay</span></td>`;
+                    } else if (group.packets.length > 1) {
+                        html += `<td><code>0x${pkt.packetId || '—'}</code> <span class="origin-badge">⚡ +${group.packets.length - 1} relays</span></td>`;
+                    } else {
+                        html += `<td>${pkt.packetId ? '<code>0x' + pkt.packetId + '</code>' : '—'}</td>`;
+                    }
+                    
+                    html += `<td>${pkt.length || 0} B</td>`;
+                    html += `<td><span class="${rssiClass}">${pkt.rssi || '—'} dBm</span></td>`;
+                    html += `<td>${(pkt.frequencyMHz || 0).toFixed(3)} MHz</td>`;
+                    html += `<td>${this.formatDuration(pkt.capturedSecondsAgo || 0)} ago</td>`;
+                    html += `<td>${pkt.decryptedText || '—'}</td>`;
+                    html += `<td><button data-action="replay-packet" data-value="${pkt.originalIndex}" class="btn btn-primary btn-small">🔁 Replay</button></td>`;
+                    html += '</tr>';
+                });
             });
             
             html += '</tbody></table></div>';
@@ -355,6 +373,43 @@ class ReconApp {
             console.error('Failed to load packets:', error);
             this.el.packetsContent.innerHTML = '<div class="error-state"><p class="error">Failed to load packets</p><button data-action="retry-packets" class="btn btn-primary">Retry</button></div>';
         }
+    }
+    
+    groupPacketsByPacketId(slots) {
+        // Group packets by packetId to identify flooding/relay chains
+        const groups = new Map();
+        
+        slots.forEach((pkt, idx) => {
+            pkt.originalIndex = idx; // Preserve original index for replay
+            const key = pkt.packetId || `unique_${idx}`; // Fallback for packets without ID
+            
+            if (!groups.has(key)) {
+                groups.set(key, { packets: [], isFlooding: false });
+            }
+            groups.get(key).packets.push(pkt);
+        });
+        
+        // Mark flooding events (same packet ID, different node IDs, within 30s)
+        groups.forEach((group, key) => {
+            if (group.packets.length > 1 && key.startsWith('0x')) {
+                // Check if captured within 30 seconds and have different node IDs
+                const times = group.packets.map(p => p.capturedSecondsAgo);
+                const nodeIds = new Set(group.packets.map(p => p.nodeId).filter(id => id));
+                const timeSpread = Math.max(...times) - Math.min(...times);
+                
+                if (timeSpread <= 30 && nodeIds.size > 1) {
+                    group.isFlooding = true;
+                    // Sort by capture time (most recent first)
+                    group.packets.sort((a, b) => a.capturedSecondsAgo - b.capturedSecondsAgo);
+                }
+            }
+        });
+        
+        // Convert to array and sort by most recent capture time
+        return Array.from(groups.values()).sort((a, b) => {
+            return Math.min(...a.packets.map(p => p.capturedSecondsAgo)) - 
+                   Math.min(...b.packets.map(p => p.capturedSecondsAgo));
+        });
     }
 
     async showFrequency() {
@@ -515,6 +570,25 @@ class ReconApp {
                 this.warRoom.update(data);
                 console.log('[Stats] War room updated');
             }
+            
+            // Load anomalies and temporal data
+            try {
+                const anomalies = await this.get('/api/anomalies');
+                if (anomalies && anomalies.anomalies && anomalies.anomalies.length > 0) {
+                    this.showAnomalies(anomalies);
+                }
+            } catch (err) {
+                console.warn('[Stats] Failed to load anomalies:', err);
+            }
+            
+            try {
+                const temporal = await this.get('/api/temporal');
+                if (temporal && temporal.beacons && temporal.beacons.length > 0) {
+                    this.showBeacons(temporal);
+                }
+            } catch (err) {
+                console.warn('[Stats] Failed to load temporal data:', err);
+            }
         } catch (error) {
             console.error('[Stats] Failed to update:', error);
             const container = document.getElementById('war-room-container');
@@ -522,6 +596,43 @@ class ReconApp {
                 container.innerHTML = '<div class="error-state"><p class="error">Failed to load statistics: ' + error.message + '</p></div>';
             }
         }
+    }
+    
+    showAnomalies(data) {
+        let html = '<div style="background: rgba(255, 99, 71, 0.1); padding: 1rem; border-radius: 8px; border-left: 3px solid var(--danger); margin-bottom: 1rem;">';
+        html += '<h4 style="color: var(--danger); margin: 0 0 1rem 0;">🚨 Network Anomalies (' + data.unacknowledged + ' new)</h4>';
+        
+        data.anomalies.slice(0, 5).forEach(anom => {
+            const typeEmoji = {'packet_size': '📦', 'relay_hops': '↻', 'rate_limit': '⚡', 'rssi_variance': '📡', 'replay': '🔁', 'timing': '⏱️'}[anom.type] || '⚠️';
+            html += '<div style="background: rgba(255,255,255,0.03); padding: 0.75rem; border-radius: 4px; margin-bottom: 0.5rem; font-size: 0.9rem;">';
+            html += `<div style="display: flex; justify-content: space-between;"><span>${typeEmoji} <strong>0x${anom.nodeId.toString(16)}</strong></span>`;
+            html += `<span style="color: var(--text-secondary); font-size: 0.85rem;">${new Date(anom.timestamp).toLocaleTimeString()}</span></div>`;
+            html += `<div style="color: var(--text-secondary); margin-top: 0.25rem;">${anom.description}</div></div>`;
+        });
+        
+        html += '</div>';
+        const warRoom = document.getElementById('war-room-container');
+        if (warRoom) warRoom.insertAdjacentHTML('afterbegin', html);
+    }
+    
+    showBeacons(data) {
+        if (!data.beacons || data.beacons.length === 0) return;
+        
+        let html = '<div style="background: rgba(74, 144, 226, 0.1); padding: 1rem; border-radius: 8px; border-left: 3px solid var(--primary); margin-bottom: 1rem;">';
+        html += '<h4 style="color: var(--primary); margin: 0 0 1rem 0;">📡 Detected Beacons (' + data.beacons.length + ')</h4>';
+        html += '<p style="font-size: 0.85rem; color: var(--text-secondary); margin: 0 0 1rem 0;">Devices with \u226570% periodicity confidence</p>';
+        
+        data.beacons.slice(0, 5).forEach(beacon => {
+            const intervalSec = (beacon.avgInterval / 1000).toFixed(1);
+            html += '<div style="background: rgba(255,255,255,0.03); padding: 0.75rem; border-radius: 4px; margin-bottom: 0.5rem; font-size: 0.9rem;">';
+            html += `<div style="display: flex; justify-content: space-between;"><span><strong>0x${beacon.nodeId.toString(16)}</strong></span>`;
+            html += `<span style="color: var(--success); font-weight: 600;">${beacon.periodicityScore}% confidence</span></div>`;
+            html += `<div style="color: var(--text-secondary); margin-top: 0.25rem;">Interval: ${intervalSec}s • Packets: ${beacon.packetCount}</div></div>`;
+        });
+        
+        html += '</div>';
+        const warRoom = document.getElementById('war-room-container');
+        if (warRoom) warRoom.insertAdjacentHTML('afterbegin', html);
     }
 
     async showInfo() {

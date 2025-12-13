@@ -8,6 +8,7 @@ struct PacketInfo {
     const char* protocol;       // "Meshtastic", "LoRaWAN", "Beacon", "Unknown"
     const char* deviceType;     // Detailed device classification
     uint32_t nodeId;            // Extracted node/device ID (0 if not applicable)
+    uint32_t packetId;          // Packet ID for deduplication (0 if not applicable)
     uint8_t powerClass;         // 0=Low, 1=Medium, 2=High power
     bool isRouter;              // true if device appears to be routing traffic
     const char* firmwareVersion; // Estimated firmware version
@@ -18,6 +19,7 @@ struct PacketInfo {
         : protocol("Unknown")
         , deviceType("Unknown Device")
         , nodeId(0)
+        , packetId(0)
         , powerClass(0)
         , isRouter(false)
         , firmwareVersion("Unknown")
@@ -36,6 +38,7 @@ public:
     // Individual analysis functions (public for flexibility)
     const char* identifyProtocol(const uint8_t* data, size_t length);
     uint32_t extractNodeId(const uint8_t* data, size_t length, const char* protocol);
+    uint32_t extractPacketId(const uint8_t* data, size_t length, const char* protocol);
     const char* identifyDeviceType(const uint8_t* data, size_t length, const char* protocol, float rssi);
     uint8_t estimatePowerClass(float rssi);
     bool isRoutingDevice(const uint8_t* data, size_t length, const char* protocol);

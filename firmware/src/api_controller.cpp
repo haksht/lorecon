@@ -346,7 +346,7 @@ String APIController::getSystemConfig() {
     // Device tracking
     JsonObject tracking = doc["tracking"].to<JsonObject>();
     tracking["maxDevices"] = Config::Tracking::MAX_DEVICES;
-    tracking["maxNodes"] = Config::Tracking::MAX_NODES;
+    tracking["maxNodes"] = Config::Tracking::MAX_HOT_NODES;
     tracking["maxGeoPoints"] = Config::Tracking::MAX_GEO_POINTS;
     tracking["deviceTimeoutMs"] = Config::Tracking::DEVICE_TIMEOUT_MS;
     
@@ -393,6 +393,123 @@ String APIController::getSystemConfig() {
     hardware["hasSD"] = false;
     #endif
     
+    doc["status"] = "success";
+    
+    String response;
+    serializeJson(doc, response);
+    return response;
+}
+
+/**
+ * GET /api/anomalies
+ * 
+ * Returns detected anomalies with filtering options
+ */
+String APIController::getAnomalies(bool unacknowledgedOnly) {
+    JsonDocument doc;
+    JsonArray anomaliesArray = doc["anomalies"].to<JsonArray>();
+    
+    extern ReconState reconState;
+    ReconState& state = reconState;
+    
+    // Handle circular buffer correctly
+    uint8_t maxIndex = std::min((uint16_t)state.numAnomalies, (uint16_t)Config::Anomaly::MAX_ANOMALIES);
+    for (uint8_t i = 0; i < maxIndex; i++) {
+        const AnomalyRecord& anomaly = state.anomalies[i];
+        
+        // Filter acknowledged if requested
+        if (unacknowledgedOnly && anomaly.acknowledged) {
+            continue;
+        }
+        
+        JsonObject obj = anomaliesArray.add<JsonObject>();
+        obj["index"] = i;
+        obj["nodeId"] = anomaly.nodeId;
+        
+        // Convert anomaly type enum to string
+        const char* typeStr = "unknown";
+        switch (anomaly.type) {
+            case AnomalyType::PACKET_SIZE_OUTLIER: typeStr = "packet_size"; break;
+            case AnomalyType::EXCESSIVE_RELAY_HOPS: typeStr = "relay_hops"; break;
+            case AnomalyType::RATE_VIOLATION: typeStr = "rate_limit"; break;
+            case AnomalyType::RSSI_INCONSISTENCY: typeStr = "rssi_variance"; break;
+            case AnomalyType::REPLAY_ATTACK: typeStr = "replay"; break;
+            case AnomalyType::TIMING_ANOMALY: typeStr = "timing"; break;
+        }
+        obj["type"] = typeStr;
+        
+        obj["timestamp"] = anomaly.timestamp;
+        obj["severity"] = anomaly.severity;
+        obj["description"] = anomaly.description;
+        obj["acknowledged"] = anomaly.acknowledged;
+    }
+    
+    doc["total"] = maxIndex;  // Actual records in response (capped at MAX_ANOMALIES)
+    doc["totalDetected"] = state.numAnomalies;  // Total anomalies detected (may exceed buffer)
+    doc["unacknowledged"] = state.getUnacknowledgedAnomalies();
+    doc["status"] = "success";
+    
+    String response;
+    serializeJson(doc, response);
+    return response;
+}
+
+/**
+ * POST /api/anomaly/:index/acknowledge
+ * 
+ * Mark anomaly as acknowledged
+ */
+String APIController::acknowledgeAnomaly(uint8_t index) {
+    extern ReconState reconState;
+    ReconState& state = reconState;
+    
+    // Bounds check for circular buffer
+    uint8_t maxIndex = std::min((uint16_t)state.numAnomalies, (uint16_t)Config::Anomaly::MAX_ANOMALIES);
+    if (index >= maxIndex) {
+        return createErrorResponse("Invalid anomaly index");
+    }
+    
+    state.anomalies[index].acknowledged = true;
+    return createSuccessResponse("Anomaly acknowledged");
+}
+
+/**
+ * GET /api/temporal
+ * 
+ * Returns temporal analysis data: traffic histogram and beacon devices
+ */
+String APIController::getTemporalData() {
+    JsonDocument doc;
+    extern ReconState reconState;
+    ReconState& state = reconState;
+    
+    // Traffic histogram (24-hour buckets)
+    JsonArray histogram = doc["histogram"].to<JsonArray>();
+    for (uint8_t i = 0; i < 24; i++) {
+        JsonObject hour = histogram.add<JsonObject>();
+        hour["hour"] = i;
+        hour["packets"] = state.trafficHist.hourlyPackets[i];
+    }
+    
+    // Beacon devices (periodic transmitters)
+    JsonArray beacons = doc["beacons"].to<JsonArray>();
+    uint8_t beaconCount = 0;
+    for (uint8_t i = 0; i < state.numTargetableDevices; i++) {
+        const TargetableDevice& device = state.targetableDevices[i];
+        
+        // Only include devices with high periodicity score
+        if (device.periodicityScore >= Config::Anomaly::MIN_BEACON_CONFIDENCE) {
+            JsonObject beacon = beacons.add<JsonObject>();
+            beacon["nodeId"] = device.nodeId;
+            beacon["avgInterval"] = device.avgPacketInterval;
+            beacon["lastInterval"] = device.lastPacketInterval;
+            beacon["periodicityScore"] = device.periodicityScore;
+            beacon["packetCount"] = device.packetCount;
+            beaconCount++;
+        }
+    }
+    
+    doc["beaconCount"] = beaconCount;
     doc["status"] = "success";
     
     String response;

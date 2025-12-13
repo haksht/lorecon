@@ -105,6 +105,9 @@ private:
     static void handleGetReconSummary(AsyncWebServerRequest* request);
     static void handleGetDeviceTypeSummary(AsyncWebServerRequest* request);
     static void handleGetSecurityAssessment(AsyncWebServerRequest* request);
+    static void handleGetAnomalies(AsyncWebServerRequest* request);
+    static void handleAcknowledgeAnomaly(AsyncWebServerRequest* request);
+    static void handleGetTemporalData(AsyncWebServerRequest* request);
     static void handleGetReplaySlots(AsyncWebServerRequest* request);
     static void handleClearReplaySlots(AsyncWebServerRequest* request);
     static void handleReplayPacket(AsyncWebServerRequest* request);

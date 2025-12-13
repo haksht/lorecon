@@ -230,6 +230,26 @@ namespace Archiver {
     constexpr const char* STATS_FILE = "/archive_stats.jsonl";
 }
 
+// ANOMALY DETECTION
+// ============================================================================
+namespace Anomaly {
+    // Maximum anomaly records to store
+    constexpr uint8_t MAX_ANOMALIES = 50;
+    
+    // Detection thresholds
+    constexpr uint8_t RATE_LIMIT_PACKETS_PER_MIN = 20;  // Max packets per minute per device
+    constexpr uint8_t EXCESSIVE_RELAY_HOPS = 5;         // Max relay chain length
+    constexpr float RSSI_STDDEV_THRESHOLD = 15.0f;      // RSSI variation indicating spoof
+    constexpr uint32_t REPLAY_TIME_WINDOW_MS = 300000;  // 5 minutes
+    
+    // Temporal analysis
+    constexpr uint32_t BEACON_INTERVAL_MIN_MS = 30000;    // 30 seconds
+    constexpr uint32_t BEACON_INTERVAL_MAX_MS = 3600000;  // 1 hour (requires uint32_t)
+    constexpr float BEACON_JITTER_TOLERANCE = 0.10f;      // ±10% interval variation
+    constexpr uint8_t MIN_PACKETS_FOR_PERIODICITY = 3;    // Min packets to detect beacon
+    constexpr uint8_t MIN_BEACON_CONFIDENCE = 70;         // Min score to classify as beacon
+}
+
 } // namespace Config
 
 // ============================================================================

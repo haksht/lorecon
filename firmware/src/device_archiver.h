@@ -44,13 +44,11 @@ public:
     
     // Check if archival is needed and perform if necessary
     bool checkAndArchive(TargetableDevice* devices, uint8_t& deviceCount,
-                         TrackedNode* hotNodes, uint8_t& hotNodeCount,
-                         WarmNode* warmNodes, uint8_t& warmNodeCount);
+                         TrackedNode* hotNodes, uint8_t& hotNodeCount);
     
     // Manual archival trigger
     bool archiveInactiveDevices(TargetableDevice* devices, uint8_t& deviceCount,
-                                TrackedNode* hotNodes, uint8_t& hotNodeCount,
-                                WarmNode* warmNodes, uint8_t& warmNodeCount);
+                                TrackedNode* hotNodes, uint8_t& hotNodeCount);
     
     // Attempt to restore device from archive if it reappears
     bool restoreDevice(uint32_t nodeId, TargetableDevice& device);
@@ -82,8 +80,6 @@ private:
                            const uint8_t* removeIndices, uint8_t removeCount);
     bool compactNodeArray(TrackedNode* nodes, uint8_t& nodeCount,
                          const uint8_t* removeIndices, uint8_t removeCount);
-    bool compactWarmNodeArray(WarmNode* nodes, uint8_t& nodeCount,
-                             const uint8_t* removeIndices, uint8_t removeCount);
     void logArchiveOperation(uint8_t archivedCount, float fragBefore, float fragAfter);
 };
 

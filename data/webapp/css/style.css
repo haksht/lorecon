@@ -744,6 +744,34 @@ body {
     font-weight: 600;
 }
 
+/* Packet relay indicators */
+.relay-row {
+    background: rgba(74, 144, 226, 0.05);
+    border-left: 3px solid var(--info);
+}
+
+.relay-badge {
+    display: inline-block;
+    padding: 0.2rem 0.5rem;
+    background: rgba(74, 144, 226, 0.2);
+    color: var(--info);
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    margin-left: 0.5rem;
+}
+
+.origin-badge {
+    display: inline-block;
+    padding: 0.2rem 0.5rem;
+    background: rgba(80, 200, 120, 0.2);
+    color: var(--success);
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    margin-left: 0.5rem;
+}
+
 /* Risk level badges */
 .risk-high {
     color: var(--danger);
