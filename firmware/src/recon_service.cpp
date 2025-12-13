@@ -87,9 +87,11 @@ void ReconService::fillDevice(JsonObject& deviceObj, const TargetableDevice& dev
     deviceObj["rssi"] = device.bestRSSI;
     deviceObj["avgRSSI"] = device.avgRSSI;
     deviceObj["packetCount"] = device.packetCount;
-    // Calculate seconds since last seen for frontend display
-    deviceObj["lastSeen"] = device.lastSeen > 0 ? (millis() - device.lastSeen) : 0;
-    deviceObj["lastSeenSecondsAgo"] = device.lastSeen > 0 ? (millis() - device.lastSeen) / 1000 : 0;
+    // Calculate seconds since last seen for frontend display (handle millis rollover)
+    uint32_t now = millis();
+    uint32_t ageMs = (device.lastSeen > 0 && device.lastSeen <= now) ? (now - device.lastSeen) : 0;
+    deviceObj["lastSeen"] = ageMs;
+    deviceObj["lastSeenSecondsAgo"] = ageMs / 1000;
     deviceObj["powerClass"] = device.powerClass;
     deviceObj["isRouter"] = device.isRouter;
 }
@@ -410,17 +412,21 @@ String ReconService::buildReconSummaryJson() {
         obj["avgRSSI"] = rf.avgRSSI;
         obj["peakRSSI"] = rf.peakRSSI;
         obj["activityLevel"] = rf.activityLevel ? rf.activityLevel : "UNKNOWN";
-        obj["lastActivitySecondsAgo"] = rf.lastActivity > 0 ? (millis() - rf.lastActivity) / 1000 : 0;
+        uint32_t now = millis();
+        obj["lastActivitySecondsAgo"] = (rf.lastActivity > 0 && rf.lastActivity <= now) ? (now - rf.lastActivity) / 1000 : 0;
     }
 
     JsonArray devices = doc["devices"].to<JsonArray>();
+    uint32_t now = millis();
     for (uint8_t i = 0; i < reconState.numTargetableDevices; i++) {
         JsonObject deviceObj = devices.add<JsonObject>();
         fillDevice(deviceObj, reconState.targetableDevices[i], i);
-        deviceObj["lastSeenSecondsAgo"] = reconState.targetableDevices[i].lastSeen > 0 ?
-            (millis() - reconState.targetableDevices[i].lastSeen) / 1000 : 0;
-        deviceObj["firstSeenSecondsAgo"] = reconState.targetableDevices[i].firstSeen > 0 ?
-            (millis() - reconState.targetableDevices[i].firstSeen) / 1000 : 0;
+        uint32_t lastSeenAge = (reconState.targetableDevices[i].lastSeen > 0 && reconState.targetableDevices[i].lastSeen <= now) ?
+            (now - reconState.targetableDevices[i].lastSeen) : 0;
+        uint32_t firstSeenAge = (reconState.targetableDevices[i].firstSeen > 0 && reconState.targetableDevices[i].firstSeen <= now) ?
+            (now - reconState.targetableDevices[i].firstSeen) : 0;
+        deviceObj["lastSeenSecondsAgo"] = lastSeenAge / 1000;
+        deviceObj["firstSeenSecondsAgo"] = firstSeenAge / 1000;
     }
 
     doc["rfActivityCount"] = activity.size();
@@ -530,7 +536,8 @@ String ReconService::buildSecurityAssessmentJson() {
         deviceObj["avgRSSI"] = dev.avgRSSI;
         deviceObj["packetCount"] = dev.packetCount;
         deviceObj["isRouter"] = dev.isRouter;
-        deviceObj["lastSeenSecondsAgo"] = dev.lastSeen > 0 ? (millis() - dev.lastSeen) / 1000 : 0;
+        uint32_t now = millis();
+        deviceObj["lastSeenSecondsAgo"] = (dev.lastSeen > 0 && dev.lastSeen <= now) ? (now - dev.lastSeen) / 1000 : 0;
 
         JsonArray findings = deviceObj["findings"].to<JsonArray>();
 
@@ -637,7 +644,8 @@ String ReconService::buildReplaySlotsJson() {
         slot["configIndex"] = packet.configIndex;
         slot["frequencyMHz"] = reconState.getScanConfig(packet.configIndex).frequency;
         slot["rssi"] = packet.originalRSSI;
-        slot["capturedSecondsAgo"] = packet.captureTime > 0 ? (millis() - packet.captureTime) / 1000 : 0;
+        uint32_t now = millis();
+        slot["capturedSecondsAgo"] = (packet.captureTime > 0 && packet.captureTime <= now) ? (now - packet.captureTime) / 1000 : 0;
         
         // Include node ID if available
         if (packet.nodeId != 0) {

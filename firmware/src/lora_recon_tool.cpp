@@ -672,8 +672,10 @@ void LoRaReconTool::replayPacket(uint8_t slotIndex) {
     Serial.println("\n📊 REPLAY SUMMARY");
     Serial.println("=================");
     Serial.printf("Total attempts: %d\n", repeatCount);
-    Serial.printf("Successful: %d (%.1f%%)\n", successCount, (float)successCount / repeatCount * 100.0);
-    Serial.printf("Failed: %d (%.1f%%)\n", failCount, (float)failCount / repeatCount * 100.0);
+    float successPct = repeatCount > 0 ? (float)successCount / repeatCount * 100.0f : 0.0f;
+    float failPct = repeatCount > 0 ? (float)failCount / repeatCount * 100.0f : 0.0f;
+    Serial.printf("Successful: %d (%.1f%%)\n", successCount, successPct);
+    Serial.printf("Failed: %d (%.1f%%)\n", failCount, failPct);
     
     if (successCount == repeatCount) {
         Serial.println("✅ All packets transmitted successfully!");

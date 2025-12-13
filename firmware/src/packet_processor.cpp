@@ -192,7 +192,8 @@ void PacketProcessor::handleReconPacket(const PacketInfo& info, const uint8_t* d
         
         // Look for Meshtastic header if not at start
         if (data[0] != 0xFF && length >= 16) {
-            for (size_t i = 0; i < min(length - 4, size_t(20)); i++) {
+            size_t searchLimit = (length >= 4) ? min(length - 4, size_t(20)) : 0;
+            for (size_t i = 0; i < searchLimit; i++) {
                 if (data[i] == 0xFF && data[i+1] == 0xFF && data[i+2] == 0xFF && data[i+3] == 0xFF) {
                     payload = data + i;
                     payloadLen = length - i;

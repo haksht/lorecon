@@ -58,7 +58,8 @@ void showDeviceTypeSummary() {
     
     if (!stat && numTypes < 20) {
       stat = &typeStats[numTypes++];
-      strcpy(stat->type, dev.deviceType);
+      strncpy(stat->type, dev.deviceType, sizeof(stat->type) - 1);
+      stat->type[sizeof(stat->type) - 1] = '\0';
       stat->count = 0;
       stat->totalRSSI = 0;
       stat->routers = 0;
@@ -81,8 +82,8 @@ void showDeviceTypeSummary() {
   // Display type statistics
   for (uint8_t i = 0; i < numTypes; i++) {
     DeviceTypeStat& stat = typeStats[i];
-    float avgRSSI = stat.totalRSSI / stat.count;
-    float avgPowerClass = (float)stat.powerClassSum / stat.count;
+    float avgRSSI = stat.count > 0 ? stat.totalRSSI / stat.count : 0.0f;
+    float avgPowerClass = stat.count > 0 ? (float)stat.powerClassSum / stat.count : 0.0f;
     const char* powerDesc = avgPowerClass > 1.5 ? "High" : (avgPowerClass > 0.5 ? "Medium" : "Low");
     
     Serial.printf("%-23s | %5d | %8.1f | %7d | %s\n",
@@ -294,7 +295,9 @@ void showActivityDetails() {
                   Config::Replay::MAX_SLOTS - reconState.numCapturedPackets, Config::Replay::MAX_SLOTS);
     
     if (activity.activityCount > 0) {
-      uint32_t ageSeconds = (millis() - activity.lastActivity) / 1000;
+      uint32_t now = millis();
+      uint32_t ageMs = (activity.lastActivity <= now) ? (now - activity.lastActivity) : 0;
+      uint32_t ageSeconds = ageMs / 1000;
       Serial.printf("Signal Activity: %s\n", activity.activityLevel);
       Serial.printf("Packets Detected: %d\n", activity.activityCount);
       Serial.printf("Peak RSSI: %.1f dBm\n", activity.peakRSSI);
@@ -339,7 +342,9 @@ void showActivityDetails() {
     const RFActivity& activity = reconState.getRFActivity(i);
     if (activity.activityCount > 0) {
       anyActivity = true;
-      uint32_t ageSeconds = (millis() - activity.lastActivity) / 1000;
+      uint32_t now = millis();
+      uint32_t ageMs = (activity.lastActivity <= now) ? (now - activity.lastActivity) : 0;
+      uint32_t ageSeconds = ageMs / 1000;
       
       Serial.printf("%-24s | %7.3f   | %2d | %3.0f | %-8s | %7d | %4us\n",
                     reconState.getScanConfig(i).protocol,
@@ -468,7 +473,8 @@ void printStats() {
     Serial.println("\n--- Targetable Devices ---");
     for (uint8_t i = 0; i < reconState.numTargetableDevices; i++) {
       const TargetableDevice& dev = reconState.getTargetableDevice(i);
-      uint32_t ageMs = millis() - dev.lastSeen;
+      uint32_t now = millis();
+      uint32_t ageMs = (dev.lastSeen <= now) ? (now - dev.lastSeen) : 0;
       Serial.printf("0x%08X (%s): %d pkts, %.1f dBm avg, %ds ago\n",
                     dev.nodeId, dev.protocol, dev.packetCount,
                     dev.avgRSSI, ageMs / 1000);
