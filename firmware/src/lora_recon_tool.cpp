@@ -23,12 +23,13 @@ LoRaReconTool::LoRaReconTool()
     , packetProcessor(nullptr)
     , commandHandler(nullptr)
     , oledDisplay(nullptr)
+    , webServerPtr(nullptr)
+    , deviceArchiver(nullptr)
     , buttonPressed(false)
     , buttonPressStart(0)
     , shutdownInitiated(false)
     , menuModeEnteredAt(0)
-    , webServerPtr(nullptr)
-    , deviceArchiver(nullptr)
+
 {
     g_reconTool = this;
 }
@@ -313,9 +314,9 @@ void LoRaReconTool::startTargetedCapture(uint8_t deviceIndex) {
     reconState.scanState.targetedByDevice = true;  // Device targeting
     reconState.scanState.currentConfig = target.configIndex;
     
-    Serial.println("\n" + String('=').substring(0,60));
-    Serial.println("          TARGETED CAPTURE MODE ACTIVE");
-    Serial.println(String('=').substring(0,60));
+    Serial.println(F("\n============================================================"));
+    Serial.println(F("          TARGETED CAPTURE MODE ACTIVE"));
+    Serial.println(F("============================================================"));
     Serial.printf("Target: Device #%d\n", deviceIndex + 1);
     Serial.printf("Node ID: 0x%08X\n", target.nodeId);
     Serial.printf("Type: %s\n", target.deviceType);
@@ -348,9 +349,9 @@ void LoRaReconTool::startFrequencyTargeting(uint8_t configIndex) {
     
     const ScanConfig& cfg = reconState.getScanConfig(configIndex);
     
-    Serial.println("\n" + String('=').substring(0,50));
-    Serial.println("      FREQUENCY TARGETING ACTIVE");
-    Serial.println(String('=').substring(0,50));
+    Serial.println(F("\n=================================================="));
+    Serial.println(F("      FREQUENCY TARGETING ACTIVE"));
+    Serial.println(F("=================================================="));
     Serial.printf("Target: %s\n", cfg.protocol);
     Serial.printf("Frequency: %.3f MHz\n", cfg.frequency);
     Serial.printf("SF: %d, BW: %.0f kHz, SW: 0x%02X\n", 
