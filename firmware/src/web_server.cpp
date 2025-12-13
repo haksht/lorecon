@@ -675,8 +675,8 @@ void WebServer::handleWebSocketMessage(AsyncWebSocketClient* client, uint8_t* da
         return;
     }
     
-    // Ignore invalid or garbage messages
-    if (len == 0 || len > 1024) {
+    // Ignore invalid or garbage messages  
+    if (len == 0 || len > 1024) {  // WebSocket message size limit
         return;  // Silently ignore
     }
 
