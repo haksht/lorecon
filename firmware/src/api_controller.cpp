@@ -154,14 +154,14 @@ String APIController::getDashboard() {
     // Status data
     JsonDocument statusDoc;
     deserializeJson(statusDoc, ReconService::buildStatusJson());
-    if (statusDoc.containsKey("status") && statusDoc["status"] == "success") {
+    if (statusDoc["status"].is<const char*>() && statusDoc["status"] == "success") {
         doc["systemStatus"] = statusDoc;
     }
     
     // Devices list
     JsonDocument devicesDoc;
     deserializeJson(devicesDoc, ReconService::buildDevicesJson());
-    if (devicesDoc.containsKey("devices")) {
+    if (devicesDoc["devices"].is<JsonArray>()) {
         doc["devices"] = devicesDoc["devices"];
         doc["deviceCount"] = devicesDoc["devices"].size();
     } else {
@@ -172,7 +172,7 @@ String APIController::getDashboard() {
     // RF Activity
     JsonDocument activityDoc;
     deserializeJson(activityDoc, ReconService::buildActivityJson());
-    if (activityDoc.containsKey("activities")) {
+    if (activityDoc["activities"].is<JsonArray>()) {
         doc["activities"] = activityDoc["activities"];
     }
     
