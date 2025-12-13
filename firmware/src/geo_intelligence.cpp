@@ -33,8 +33,8 @@ bool GeoIntelligence::extractPosition(const uint8_t* data, size_t length, uint32
         // Check if we already have this exact position (deduplicate)
         for (uint8_t i = 0; i < numPoints; i++) {
             if (points[i].nodeId == nodeId &&
-                abs(points[i].latitude - point.latitude) < 0.000001f &&
-                abs(points[i].longitude - point.longitude) < 0.000001f) {
+                fabsf(points[i].latitude - point.latitude) < 0.000001f &&
+                fabsf(points[i].longitude - point.longitude) < 0.000001f) {
                 // Update timestamp of existing position
                 points[i].timestamp = millis();
                 return true;  // Already have this position
@@ -65,8 +65,8 @@ bool GeoIntelligence::extractPosition(const uint8_t* data, size_t length, uint32
         
         Serial.println("\n📍 GPS POSITION EXTRACTED!");
         Serial.printf("   Node: 0x%08X\n", nodeId);
-        Serial.printf("   Lat:  %f° %s\n", abs(point.latitude), point.latitude >= 0 ? "N" : "S");
-        Serial.printf("   Lon:  %f° %s\n", abs(point.longitude), point.longitude >= 0 ? "E" : "W");
+        Serial.printf("   Lat:  %f° %s\n", fabsf(point.latitude), point.latitude >= 0 ? "N" : "S");
+        Serial.printf("   Lon:  %f° %s\n", fabsf(point.longitude), point.longitude >= 0 ? "E" : "W");
         Serial.printf("   Alt:  %.1f m\n", point.altitude);
         Serial.printf("   Precision: %d\n\n", point.precision);
         
@@ -112,8 +112,8 @@ bool GeoIntelligence::extractPositionFromDecrypted(const uint8_t* decrypted, siz
         // Check if we already have this exact position (deduplicate)
         for (uint8_t i = 0; i < numPoints; i++) {
             if (points[i].nodeId == nodeId &&
-                abs(points[i].latitude - point.latitude) < 0.000001f &&
-                abs(points[i].longitude - point.longitude) < 0.000001f) {
+                fabsf(points[i].latitude - point.latitude) < 0.000001f &&
+                fabsf(points[i].longitude - point.longitude) < 0.000001f) {
                 // Update timestamp of existing position
                 points[i].timestamp = millis();
                 return true;  // Already have this position
@@ -144,8 +144,8 @@ bool GeoIntelligence::extractPositionFromDecrypted(const uint8_t* decrypted, siz
         
         Serial.println("\n📍 GPS POSITION EXTRACTED!");
         Serial.printf("   Node: 0x%08X\n", nodeId);
-        Serial.printf("   Lat:  %f° %s\n", abs(point.latitude), point.latitude >= 0 ? "N" : "S");
-        Serial.printf("   Lon:  %f° %s\n", abs(point.longitude), point.longitude >= 0 ? "E" : "W");
+        Serial.printf("   Lat:  %f° %s\n", fabsf(point.latitude), point.latitude >= 0 ? "N" : "S");
+        Serial.printf("   Lon:  %f° %s\n", fabsf(point.longitude), point.longitude >= 0 ? "E" : "W");
         Serial.printf("   Alt:  %.1f m\n", point.altitude);
         Serial.printf("   Precision: %d\n\n", point.precision);
         

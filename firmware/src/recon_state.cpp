@@ -217,7 +217,10 @@ void ReconState::addTargetableDevice(uint32_t nodeId, uint8_t configIndex, float
     }
     
     if (device) {
-        device->packetCount++;
+        // Cap packetCount at UINT16_MAX to prevent overflow (65,536 packets is ~18 hrs at 1 pkt/sec)
+        if (device->packetCount < UINT16_MAX) {
+            device->packetCount++;
+        }
         
         // Update RSSI statistics with running variance calculation
         float oldAvg = device->avgRSSI;
@@ -230,8 +233,8 @@ void ReconState::addTargetableDevice(uint32_t nodeId, uint8_t configIndex, float
             float delta2 = rssi - device->avgRSSI;
             // Update M2 (sum of squared differences)
             device->rssiM2 += delta * delta2;
-            // Calculate standard deviation from M2
-            device->rssiStdDev = sqrt(device->rssiM2 / (device->packetCount - 1));
+            // Calculate standard deviation from M2 (use fabs to handle floating point precision errors)
+            device->rssiStdDev = sqrt(fabs(device->rssiM2) / (device->packetCount - 1));
         }
         
         if (rssi > device->bestRSSI) {
@@ -288,7 +291,10 @@ void ReconState::updateNode(uint32_t nodeId, const char* protocol, float rssi) {
     }
     
     if (node) {
-        node->packetCount++;
+        // Cap packetCount at UINT16_MAX to prevent overflow and division by zero
+        if (node->packetCount < UINT16_MAX) {
+            node->packetCount++;
+        }
         node->avgRSSI = (node->avgRSSI * (node->packetCount - 1) + rssi) / node->packetCount;
         if (rssi > node->bestRSSI) node->bestRSSI = rssi;
         node->lastSeen = millis();
@@ -690,8 +696,8 @@ void ReconState::updateDeviceTemporalMetrics(uint32_t nodeId) {
     
     unsigned long now = millis();
     
-    // Calculate packet interval
-    if (device->lastSeen > 0) {
+    // Calculate packet interval (protect against millis() rollover)
+    if (device->lastSeen > 0 && device->lastSeen <= now) {
         unsigned long interval = now - device->lastSeen;
         
         // Update average interval using exponential moving average

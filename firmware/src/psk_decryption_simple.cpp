@@ -129,7 +129,7 @@ static bool extractMessage(const uint8_t* data, size_t len, String& text) {
     }
     
     // Pattern 2: Standard nested format (0x08 <portnum> 0x12 <len> 0x0A <textlen> <text>)
-    if (data[0] == 0x08 && data[2] == 0x12) {
+    if (len >= 3 && data[0] == 0x08 && data[2] == 0x12) {
         uint32_t payloadLen = 0;
         size_t varintBytes = 0;
         if (decodeVarint(data, len, 3, payloadLen, varintBytes)) {
@@ -198,7 +198,7 @@ bool PSKDecryption::testDefaultPSKs(const uint8_t* data, size_t length) {
     
     if (!hasHeader) {
         // Try to find header in packet (for routed packets)
-        for (size_t i = 0; i < length - 4; i++) {
+        for (size_t i = 0; i + 4 <= length; i++) {
             if (data[i] == 0xFF && data[i+1] == 0xFF && 
                 data[i+2] == 0xFF && data[i+3] == 0xFF) {
                 data += i;

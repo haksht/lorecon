@@ -94,7 +94,7 @@ void analyzePacket(const uint8_t* data, size_t length, float rssi, float snr) {
     }
     
     // Check if Meshtastic
-    if (!(data[0] == 0xFF && data[1] == 0xFF && data[2] == 0xFF && data[3] == 0xFF)) {
+    if (length < 4 || !(data[0] == 0xFF && data[1] == 0xFF && data[2] == 0xFF && data[3] == 0xFF)) {
         Serial.println("[DIAG] ⚠️ Not a Meshtastic packet (header mismatch)");
         unknownPacketCount++;
         return;
@@ -121,7 +121,7 @@ void analyzePacket(const uint8_t* data, size_t length, float rssi, float snr) {
             if (data[i] > 0x80) highByteCount++;
         }
         
-        float density = (float)nonZeroCount / (length - 12);
+        float density = (length > 12) ? (float)nonZeroCount / (length - 12) : 0.0f;
         bool likelyEncrypted = (density > 0.7 && highByteCount > 5);
         
         Serial.printf("[DIAG] Entropy analysis: %.1f%% non-zero, %d high bytes\n", 
@@ -136,7 +136,7 @@ void analyzePacket(const uint8_t* data, size_t length, float rssi, float snr) {
             
             // Check for protobuf field markers in plaintext
             Serial.println("[DIAG] Checking for protobuf field markers in plaintext:");
-            for (size_t i = 12; i < length - 1; i++) {
+            for (size_t i = 12; i + 1 < length; i++) {
                 if (data[i] == 0x08) {
                     uint8_t portnum = data[i+1];
                     Serial.printf("[DIAG]   Found field 1 (portnum) at offset %d: 0x%02X", i, portnum);
@@ -187,7 +187,7 @@ void analyzeDecryptedPacket(const uint8_t* decrypted, size_t length, size_t orig
             stats = &textStats;
             
             // Search for actual text content
-            for (size_t i = 0; i < length - 4; i++) {
+            for (size_t i = 0; i + 1 < length; i++) {
                 if (decrypted[i] == 0x0A && decrypted[i+1] > 0 && decrypted[i+1] < 200) {
                     uint8_t textLen = decrypted[i+1];
                     Serial.printf("[DIAG]   Found text field at offset %d, length %d: \"", i, textLen);
