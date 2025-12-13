@@ -37,12 +37,9 @@ public:
     
     // Packet Data
     static String getPackets(int limit = 100, int offset = 0);
-    static String getPacketsByDevice(uint32_t nodeId, int limit = 50);
-    static String getRecentActivity(int seconds = 60);
     
     // Geographic Data
     static String getPositions();
-    static String getPositionsByDevice(uint32_t nodeId);
     static String exportGeoJSON();
     static String exportKML();
     
@@ -73,7 +70,6 @@ public:
     
     // Statistics
     static String getStatistics();
-    static String getActivityAnalysis();
     static String getRFActivity();
     
 private:
