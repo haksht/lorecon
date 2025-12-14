@@ -440,8 +440,54 @@
                 <div class="tab-inner">
                     <div class="results-header">
                         <h2>System Configuration</h2>
-                        <p class="header-subtitle">View system limits and upload firmware updates</p>
+                        <p class="header-subtitle">WiFi setup, system limits, and firmware updates</p>
                     </div>
+                    
+                    <!-- WiFi Configuration Section -->
+                    <div class="info-section">
+                        <h3>📶 WiFi Configuration</h3>
+                        <div class="content-area" id="wifi-config-content">
+                            <div class="status-row">
+                                <span>Device ID</span>
+                                <span class="status-value device-id" id="wifi-device-id">—</span>
+                            </div>
+                            <div class="status-row">
+                                <span>Mode</span>
+                                <span class="status-value" id="wifi-mode">—</span>
+                            </div>
+                            <div class="status-row">
+                                <span>Connected SSID</span>
+                                <span class="status-value" id="wifi-ssid">—</span>
+                            </div>
+                            <div class="status-row">
+                                <span>IP Address</span>
+                                <span class="status-value" id="wifi-ip">—</span>
+                            </div>
+                            <div class="status-row">
+                                <span>Signal Strength</span>
+                                <span class="status-value" id="wifi-rssi">—</span>
+                            </div>
+                            <div class="status-row">
+                                <span>Stored Hotspot</span>
+                                <span class="status-value" id="wifi-stored">—</span>
+                            </div>
+                            <div class="status-row">
+                                <span>Setup Network</span>
+                                <span class="status-value" id="wifi-ap-ssid">—</span>
+                            </div>
+                            <div class="button-row" style="margin-top: 15px; display: flex; gap: 10px;">
+                                <button data-action="wifi-setup" class="btn btn-primary">
+                                    <span class="btn-icon">📱</span>
+                                    <span>Configure Hotspot</span>
+                                </button>
+                                <button data-action="wifi-clear" class="btn btn-secondary">
+                                    <span class="btn-icon">🗑️</span>
+                                    <span>Clear Credentials</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    
                     <div class="results-content" id="settings-content">
                         <div class="loading-container">
                             <div class="loading-spinner"></div>
@@ -472,6 +518,54 @@
                     </div>
                 </div>
             </div>
+        </div>
+    </div>
+
+    <!-- WiFi Setup Modal -->
+    <div id="wifi-modal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>📱 Configure Phone Hotspot</h2>
+                <button class="modal-close" data-action="close-modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p class="modal-description">
+                    Enter your phone's hotspot credentials. After saving, the device will restart 
+                    and connect to your hotspot automatically. You'll keep your phone's internet 
+                    and SMS while using the sniffer.
+                </p>
+                <form id="wifi-form">
+                    <div class="form-group">
+                        <label for="hotspot-ssid">Hotspot Name (SSID)</label>
+                        <input type="text" id="hotspot-ssid" placeholder="e.g., iPhone, Pixel_1234" 
+                               maxlength="32" required autocomplete="off">
+                    </div>
+                    <div class="form-group">
+                        <label for="hotspot-password">Password</label>
+                        <input type="password" id="hotspot-password" placeholder="Hotspot password"
+                               autocomplete="off">
+                        <small class="form-hint">Leave empty for open networks</small>
+                    </div>
+                    <div class="form-actions">
+                        <button type="button" class="btn btn-secondary" data-action="close-modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary">
+                            <span class="btn-icon">💾</span>
+                            Save & Restart
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Setup Mode Banner (shown when in first-run mode) -->
+    <div id="setup-banner" class="setup-banner" style="display: none;">
+        <div class="setup-banner-content">
+            <span class="setup-icon">📱</span>
+            <span class="setup-text">
+                <strong>Setup Mode:</strong> You're connected to <span id="banner-ssid">LoRa-XXXXXX</span>. Configure your hotspot to keep phone features.
+            </span>
+            <button class="btn btn-primary btn-small" data-action="wifi-setup">Configure Now</button>
         </div>
     </div>
 

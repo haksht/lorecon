@@ -4,13 +4,216 @@
 
 #include "wifi_manager.h"
 #include "logger.h"
+#include "config.h"
+#include <LittleFS.h>
+#include <ArduinoJson.h>
 
 WiFiManager::WiFiManager() 
     : currentMode(WiFiMode::OFF)
     , autoReconnect(true)
-    , connectionTimeout(10000)
+    , setupMode(false)
+    , connectionTimeout(Config::WiFi::STA_CONNECT_TIMEOUT_MS)
     , lastConnectionAttempt(0)
 {
+    // Generate unique device ID from MAC address
+    generateDeviceId();
+}
+
+/**
+ * Generate unique device ID from ESP32's MAC address
+ * 
+ * Uses last 3 bytes of MAC for a short but unique identifier.
+ * Example: MAC 24:6F:28:A1:B2:C3 → deviceId "A1B2C3"
+ */
+void WiFiManager::generateDeviceId() {
+    uint8_t mac[6];
+    WiFi.macAddress(mac);
+    
+    char id[7];
+    snprintf(id, sizeof(id), "%02X%02X%02X", mac[3], mac[4], mac[5]);
+    deviceId = String(id);
+    
+    LOG_INFO("Device ID: %s (from MAC)", deviceId.c_str());
+}
+
+/**
+ * Get unique AP SSID for this device
+ * 
+ * @return SSID like "LoRa-A1B2C3"
+ */
+String WiFiManager::getUniqueAPSSID() const {
+    return String(Config::WiFi::AP_SSID_PREFIX) + deviceId;
+}
+
+/**
+ * Get unique mDNS hostname for this device
+ * 
+ * @return Hostname like "lora-a1b2c3" (lowercase for DNS compatibility)
+ */
+String WiFiManager::getUniqueMDNSHostname() const {
+    String hostname = String(Config::WiFi::MDNS_PREFIX) + deviceId;
+    hostname.toLowerCase();
+    return hostname;
+}
+
+/**
+ * Check if credentials are stored in LittleFS
+ */
+bool WiFiManager::hasStoredCredentials() const {
+    return LittleFS.exists(Config::WiFi::CREDENTIALS_FILE);
+}
+
+/**
+ * Load stored WiFi credentials from LittleFS
+ * 
+ * @return true if credentials loaded successfully
+ */
+bool WiFiManager::loadCredentials() {
+    if (!hasStoredCredentials()) {
+        LOG_INFO("No stored WiFi credentials found");
+        return false;
+    }
+    
+    File file = LittleFS.open(Config::WiFi::CREDENTIALS_FILE, "r");
+    if (!file) {
+        LOG_ERROR("Failed to open WiFi credentials file");
+        return false;
+    }
+    
+    JsonDocument doc;
+    DeserializationError error = deserializeJson(doc, file);
+    file.close();
+    
+    if (error) {
+        LOG_ERROR("Failed to parse WiFi credentials: %s", error.c_str());
+        return false;
+    }
+    
+    staSsid = doc["ssid"].as<String>();
+    staPassword = doc["password"].as<String>();
+    
+    if (staSsid.isEmpty()) {
+        LOG_ERROR("Stored SSID is empty");
+        return false;
+    }
+    
+    LOG_INFO("Loaded WiFi credentials for: %s", staSsid.c_str());
+    return true;
+}
+
+/**
+ * Save WiFi credentials to LittleFS
+ * 
+ * @param ssid Network SSID
+ * @param password Network password
+ * @return true if saved successfully
+ */
+bool WiFiManager::saveCredentials(const char* ssid, const char* password) {
+    if (!ssid || strlen(ssid) == 0) {
+        LOG_ERROR("Cannot save empty SSID");
+        return false;
+    }
+    
+    JsonDocument doc;
+    doc["ssid"] = ssid;
+    doc["password"] = password ? password : "";
+    
+    File file = LittleFS.open(Config::WiFi::CREDENTIALS_FILE, "w");
+    if (!file) {
+        LOG_ERROR("Failed to create WiFi credentials file");
+        return false;
+    }
+    
+    if (serializeJson(doc, file) == 0) {
+        LOG_ERROR("Failed to write WiFi credentials");
+        file.close();
+        return false;
+    }
+    
+    file.close();
+    LOG_INFO("✓ WiFi credentials saved for: %s", ssid);
+    
+    // Update internal state
+    staSsid = ssid;
+    staPassword = password ? password : "";
+    
+    return true;
+}
+
+/**
+ * Clear stored WiFi credentials
+ * 
+ * @return true if cleared successfully
+ */
+bool WiFiManager::clearCredentials() {
+    if (LittleFS.exists(Config::WiFi::CREDENTIALS_FILE)) {
+        if (!LittleFS.remove(Config::WiFi::CREDENTIALS_FILE)) {
+            LOG_ERROR("Failed to remove WiFi credentials file");
+            return false;
+        }
+    }
+    
+    staSsid = "";
+    staPassword = "";
+    LOG_INFO("✓ WiFi credentials cleared");
+    return true;
+}
+
+/**
+ * Auto-connect: Smart WiFi initialization
+ * 
+ * Behavior:
+ * 1. Check for stored credentials
+ * 2. If found: Try Station mode (connect to user's hotspot)
+ * 3. If no creds or connection fails: Start AP mode (setup page)
+ * 
+ * @return true if connected (either mode)
+ */
+bool WiFiManager::autoConnect() {
+    LOG_INFO("=== WiFi Auto-Connect ===");
+    
+    // Try to load stored credentials
+    if (loadCredentials()) {
+        LOG_INFO("Attempting to connect to: %s", staSsid.c_str());
+        
+        // Try connecting with retries
+        for (uint8_t attempt = 1; attempt <= Config::WiFi::STA_MAX_RETRIES; attempt++) {
+            LOG_INFO("Connection attempt %d/%d...", attempt, Config::WiFi::STA_MAX_RETRIES);
+            
+            if (startStation(staSsid.c_str(), staPassword.c_str())) {
+                setupMode = false;
+                LOG_INFO("✓ Connected to hotspot: %s", staSsid.c_str());
+                return true;
+            }
+            
+            if (attempt < Config::WiFi::STA_MAX_RETRIES) {
+                delay(1000);  // Brief delay between retries
+            }
+        }
+        
+        LOG_WARN("Failed to connect after %d attempts", Config::WiFi::STA_MAX_RETRIES);
+        LOG_INFO("Falling back to AP mode for reconfiguration...");
+    } else {
+        LOG_INFO("No credentials stored - starting setup mode");
+    }
+    
+    // Start AP mode for setup with unique SSID
+    setupMode = true;
+    String uniqueSSID = getUniqueAPSSID();
+    if (startAP(uniqueSSID.c_str(), Config::WiFi::DEFAULT_AP_PASSWORD)) {
+        LOG_INFO("");
+        LOG_INFO("╔═══════════════════════════════════════════════╗");
+        LOG_INFO("║          WIFI SETUP MODE                      ║");
+        LOG_INFO("╠═══════════════════════════════════════════════╣");
+        LOG_INFO("║  1. Connect phone to: %s", uniqueSSID.c_str());
+        LOG_INFO("║  2. Open browser: http://%s", getIPAddress().toString().c_str());
+        LOG_INFO("║  3. Enter your hotspot credentials            ║");
+        LOG_INFO("╚═══════════════════════════════════════════════╝");
+        LOG_INFO("");
+        return true;
+    }
+    
+    return false;
 }
 
 /**

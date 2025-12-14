@@ -5,6 +5,7 @@
  * - REST API endpoints for device control and data access
  * - WebSocket for real-time packet streaming
  * - Static file serving for Progressive Web App
+ * - Captive portal for automatic setup page on first connect
  * - CORS support for development
  * 
  * Design: Asynchronous, non-blocking server for reliable operation
@@ -16,6 +17,7 @@
 #include <Arduino.h>
 #include <ESPAsyncWebServer.h>
 #include <AsyncTCP.h>
+#include <DNSServer.h>
 #include <atomic>
 #include <vector>
 #include "freertos/FreeRTOS.h"
@@ -63,7 +65,7 @@ public:
     void broadcastDeviceUpdate(uint32_t nodeId);
     void broadcastStatusUpdate();
     void periodicUpdate();
-    void service();
+    void service();  // Call in loop() - handles DNS for captive portal
     
     // Client management
     size_t getClientCount() const;
@@ -71,6 +73,7 @@ public:
 private:
     AsyncWebServer* server;
     AsyncWebSocket* ws;
+    DNSServer* dnsServer;  // For captive portal - redirects all DNS to our IP
     IReconTool* reconTool;
     std::atomic<size_t> activeClients;
     
@@ -116,6 +119,11 @@ private:
     static void handleSetVerboseMode(AsyncWebServerRequest* request);
     static void handleExportPCAP(AsyncWebServerRequest* request);
     static void handleCommand(AsyncWebServerRequest* request);
+    
+    // WiFi Setup handlers
+    static void handleGetWiFiStatus(AsyncWebServerRequest* request);
+    static void handleSetWiFiCredentials(AsyncWebServerRequest* request);
+    static void handleClearWiFiCredentials(AsyncWebServerRequest* request);
     
     // WebSocket handlers
     static void handleWebSocketEvent(AsyncWebSocket* server, AsyncWebSocketClient* client,

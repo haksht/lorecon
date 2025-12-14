@@ -65,10 +65,26 @@ class ReconApp {
             await this.updateStatus();
             this.statusTimer = setInterval(() => this.updateStatus(), 10000);
             
+            // Check WiFi setup mode and show banner if needed
+            await this.checkSetupMode();
+            
             // Load first tab (Info)
             this.loadTabContent('info');
         } catch (error) {
             console.error('Init error:', error);
+        }
+    }
+    
+    async checkSetupMode() {
+        try {
+            const wifi = await this.get('/api/wifi/status');
+            if (wifi && wifi.mode === 'setup') {
+                this.updateSetupBanner(true);
+                // Auto-show settings tab to configure WiFi
+                showToast('First run! Configure your phone hotspot to get started.', 'info');
+            }
+        } catch (error) {
+            console.log('WiFi status check failed (may be normal on first load)');
         }
     }
 
@@ -846,6 +862,9 @@ class ReconApp {
         // Show loading state
         this.el.settingsContent.innerHTML = '<div class="loading-container"><div class="loading-spinner"></div><p>Loading configuration...</p></div>';
         
+        // Load WiFi status
+        await this.loadWiFiStatus();
+        
         try {
             const response = await this.get('/api/config');
             console.log('[Settings] API response:', response);
@@ -877,6 +896,139 @@ class ReconApp {
         
         // Setup OTA form handler
         this.setupOTAUpload();
+    }
+    
+    async loadWiFiStatus() {
+        try {
+            const wifi = await this.get('/api/wifi/status');
+            console.log('[WiFi] Status:', wifi);
+            
+            // Update WiFi status elements
+            const deviceIdEl = document.getElementById('wifi-device-id');
+            const modeEl = document.getElementById('wifi-mode');
+            const ssidEl = document.getElementById('wifi-ssid');
+            const ipEl = document.getElementById('wifi-ip');
+            const rssiEl = document.getElementById('wifi-rssi');
+            const storedEl = document.getElementById('wifi-stored');
+            const apSsidEl = document.getElementById('wifi-ap-ssid');
+            
+            if (deviceIdEl) {
+                deviceIdEl.innerHTML = '<code style="background: var(--bg-secondary); padding: 2px 6px; border-radius: 4px;">' + 
+                    (wifi.deviceId || '—') + '</code>';
+            }
+            if (modeEl) {
+                if (wifi.mode === 'setup') {
+                    modeEl.innerHTML = '<span style="color: var(--warning);">📱 Setup Mode (AP)</span>';
+                } else if (wifi.wifiMode === 'STA') {
+                    modeEl.innerHTML = '<span style="color: var(--success);">✓ Connected to Hotspot</span>';
+                } else {
+                    modeEl.textContent = wifi.wifiMode || 'AP';
+                }
+            }
+            if (ssidEl) ssidEl.textContent = wifi.ssid || '—';
+            if (ipEl) ipEl.textContent = wifi.ip || '—';
+            if (rssiEl) {
+                if (wifi.wifiMode === 'STA' && wifi.rssi) {
+                    const rssiVal = wifi.rssi;
+                    const rssiClass = rssiVal > -60 ? 'var(--success)' : rssiVal > -75 ? 'var(--warning)' : 'var(--danger)';
+                    rssiEl.innerHTML = '<span style="color: ' + rssiClass + ';">' + rssiVal + ' dBm</span>';
+                } else {
+                    rssiEl.textContent = 'N/A';
+                }
+            }
+            if (storedEl) {
+                storedEl.textContent = wifi.hasStoredCredentials ? wifi.storedSSID : 'None';
+            }
+            if (apSsidEl) {
+                apSsidEl.innerHTML = '<code style="background: var(--bg-secondary); padding: 2px 6px; border-radius: 4px;">' + 
+                    (wifi.apSSID || 'LoRa-XXXXXX') + '</code>';
+            }
+            
+            // Show setup banner if in setup mode
+            this.updateSetupBanner(wifi.mode === 'setup', wifi.apSSID);
+            
+        } catch (error) {
+            console.error('Failed to load WiFi status:', error);
+        }
+    }
+    
+    updateSetupBanner(isSetupMode, apSSID) {
+        const banner = document.getElementById('setup-banner');
+        const bannerSsid = document.getElementById('banner-ssid');
+        if (banner) {
+            banner.style.display = isSetupMode ? 'block' : 'none';
+            if (bannerSsid && apSSID) {
+                bannerSsid.textContent = apSSID;
+            }
+            if (isSetupMode) {
+                document.body.classList.add('setup-mode');
+            } else {
+                document.body.classList.remove('setup-mode');
+            }
+        }
+    }
+    
+    showWiFiSetupModal() {
+        const modal = document.getElementById('wifi-modal');
+        if (modal) {
+            modal.style.display = 'flex';
+            
+            // Focus on SSID input
+            setTimeout(() => {
+                const ssidInput = document.getElementById('hotspot-ssid');
+                if (ssidInput) ssidInput.focus();
+            }, 100);
+            
+            // Setup form submission
+            const form = document.getElementById('wifi-form');
+            if (form && !form.hasAttribute('data-initialized')) {
+                form.setAttribute('data-initialized', 'true');
+                form.addEventListener('submit', async (e) => {
+                    e.preventDefault();
+                    await this.submitWiFiCredentials();
+                });
+            }
+        }
+    }
+    
+    closeModal() {
+        const modal = document.getElementById('wifi-modal');
+        if (modal) {
+            modal.style.display = 'none';
+        }
+    }
+    
+    async submitWiFiCredentials() {
+        const ssidInput = document.getElementById('hotspot-ssid');
+        const passwordInput = document.getElementById('hotspot-password');
+        
+        const ssid = ssidInput ? ssidInput.value.trim() : '';
+        const password = passwordInput ? passwordInput.value : '';
+        
+        if (!ssid) {
+            showToast('Please enter your hotspot name', 'warning');
+            return;
+        }
+        
+        try {
+            showToast('Saving credentials...', 'info');
+            
+            const response = await this.post('/api/wifi/configure', {
+                ssid: ssid,
+                password: password
+            });
+            
+            showToast('Credentials saved! Device restarting...', 'success');
+            this.closeModal();
+            
+            // Show reconnection message
+            setTimeout(() => {
+                showToast('Connect to your hotspot WiFi, then refresh this page', 'info');
+            }, 2000);
+            
+        } catch (error) {
+            showToast('Failed to save credentials: ' + error.message, 'error');
+        }
     }
 
     setupOTAUpload() {
@@ -1223,6 +1375,22 @@ class ReconApp {
                 case 'retry-security':
                 case 'retry-freq-analysis':
                     await this.showInfo();
+                    break;
+                case 'wifi-setup':
+                    this.showWiFiSetupModal();
+                    break;
+                case 'wifi-clear':
+                    if (confirm('Clear stored hotspot credentials? The device will restart in setup mode.')) {
+                        try {
+                            await this.post('/api/wifi/clear', {});
+                            showToast('Credentials cleared. Device restarting...', 'success');
+                        } catch (error) {
+                            showToast('Failed to clear credentials: ' + error.message, 'error');
+                        }
+                    }
+                    break;
+                case 'close-modal':
+                    this.closeModal();
                     break;
             }
         } catch (error) {

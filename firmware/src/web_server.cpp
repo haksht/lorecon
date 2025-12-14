@@ -7,9 +7,15 @@
 #include "logger.h"
 #include "recon_state.h"
 #include "packet_logger.h"
+#include "wifi_manager.h"
+#include "config.h"
 #include <LittleFS.h>
 #include <SD.h>
 #include <Update.h>
+#include <ArduinoJson.h>
+
+// External WiFi manager (from main.cpp)
+extern WiFiManager wifiManager;
 
 // Global instance for static handlers
 WebServer* g_webServer = nullptr;
@@ -17,6 +23,7 @@ WebServer* g_webServer = nullptr;
 WebServer::WebServer() 
     : server(nullptr)
     , ws(nullptr)
+    , dnsServer(nullptr)
     , reconTool(nullptr)
     , activeClients(0)
     , lastBroadcast(0)
@@ -70,6 +77,15 @@ bool WebServer::begin(IReconTool* tool, uint16_t port) {
     DefaultHeaders::Instance().addHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
     DefaultHeaders::Instance().addHeader("Access-Control-Allow-Headers", "Content-Type");
     
+    // Start DNS server for captive portal (only in AP mode)
+    // This redirects ALL DNS queries to our IP, so any website visit opens our page
+    if (wifiManager.isSetupMode()) {
+        dnsServer = new DNSServer();
+        dnsServer->setErrorReplyCode(DNSReplyCode::NoError);
+        dnsServer->start(53, "*", WiFi.softAPIP());
+        LOG_INFO("✓ Captive portal DNS started (all domains → %s)", WiFi.softAPIP().toString().c_str());
+    }
+    
     // Start server
     server->begin();
     
@@ -85,6 +101,12 @@ bool WebServer::begin(IReconTool* tool, uint16_t port) {
  * Stop web server
  */
 void WebServer::stop() {
+    if (dnsServer) {
+        dnsServer->stop();
+        delete dnsServer;
+        dnsServer = nullptr;
+    }
+    
     if (server) {
         LOG_INFO("Stopping web server...");
         server->end();
@@ -148,6 +170,11 @@ void WebServer::setupRoutes() {
     // Scan Control
     server->on("/api/scan/start", HTTP_POST, handleStartScan);
     server->on("/api/scan/stop", HTTP_POST, handleStopScan);
+    
+    // WiFi Setup (for first-run configuration)
+    server->on("/api/wifi/status", HTTP_GET, handleGetWiFiStatus);
+    server->on("/api/wifi/configure", HTTP_POST, handleSetWiFiCredentials);
+    server->on("/api/wifi/clear", HTTP_POST, handleClearWiFiCredentials);
     
     // OTA Firmware Update
     server->on("/api/firmware/upload", HTTP_POST,
@@ -250,21 +277,69 @@ void WebServer::serveStaticFiles() {
         request->send(200, "text/html", html);
     });
     
+    // =========================================================================
+    // CAPTIVE PORTAL SUPPORT
+    // =========================================================================
+    // When phones/laptops connect to the AP, they check for internet by hitting
+    // specific URLs. We intercept these and redirect to our setup page.
+    // This gives users the "hotel WiFi" experience - config page auto-opens!
+    
+    // Android captive portal detection
+    server->on("/generate_204", HTTP_GET, [](AsyncWebServerRequest* request) {
+        request->redirect("/");
+    });
+    server->on("/gen_204", HTTP_GET, [](AsyncWebServerRequest* request) {
+        request->redirect("/");
+    });
+    
+    // iOS/macOS captive portal detection
+    server->on("/hotspot-detect.html", HTTP_GET, [](AsyncWebServerRequest* request) {
+        request->redirect("/");
+    });
+    server->on("/library/test/success.html", HTTP_GET, [](AsyncWebServerRequest* request) {
+        request->redirect("/");
+    });
+    
+    // Windows captive portal detection
+    server->on("/ncsi.txt", HTTP_GET, [](AsyncWebServerRequest* request) {
+        request->redirect("/");
+    });
+    server->on("/connecttest.txt", HTTP_GET, [](AsyncWebServerRequest* request) {
+        request->redirect("/");
+    });
+    
+    // Firefox captive portal detection
+    server->on("/success.txt", HTTP_GET, [](AsyncWebServerRequest* request) {
+        request->redirect("/");
+    });
+    
+    // Generic fallback for other captive portal checks
+    server->on("/fwlink", HTTP_GET, [](AsyncWebServerRequest* request) {
+        request->redirect("/");
+    });
+    
     // Root serves index.html
     server->serveStatic("/", LittleFS, "/webapp/").setDefaultFile("index.html");
     
-    // Fallback - serve index.html for SPA routing
+    // Fallback - serve index.html for SPA routing (also helps with captive portal)
     server->onNotFound([](AsyncWebServerRequest* request) {
         // Check if it's an API request
         if (request->url().startsWith("/api/")) {
             request->send(404, "application/json", "{\"status\":\"error\",\"error\":\"Endpoint not found\"}");
         } else {
+            // For captive portal: redirect common detection paths
+            String host = request->host();
+            // If request is to a non-local hostname, it's likely a captive portal check
+            if (!host.startsWith("192.168.") && !host.endsWith(".local") && host != "localhost") {
+                request->redirect("http://192.168.4.1/");
+                return;
+            }
             // Serve index.html for PWA routing
             request->send(LittleFS, "/webapp/index.html", "text/html");
         }
     });
     
-    LOG_INFO("✓ Static file serving configured");
+    LOG_INFO("✓ Static file serving configured (with captive portal)");
 }
 
 // =============================================================================
@@ -767,6 +842,11 @@ void WebServer::periodicUpdate() {
 }
 
 void WebServer::service() {
+    // Process DNS requests for captive portal
+    if (dnsServer) {
+        dnsServer->processNextRequest();
+    }
+    
     // Throttled broadcast to prevent watchdog timeout
     uint32_t now = millis();
     if (now - lastBroadcast >= BROADCAST_INTERVAL_MS) {
@@ -830,4 +910,122 @@ bool WebServer::cleanupWebSocketClients() {
 
     ws->cleanupClients();
     return true;
+}
+
+// =============================================================================
+// WIFI SETUP HANDLERS
+// =============================================================================
+
+/**
+ * GET /api/wifi/status - Get current WiFi status and mode
+ */
+void WebServer::handleGetWiFiStatus(AsyncWebServerRequest* request) {
+    JsonDocument doc;
+    
+    doc["mode"] = wifiManager.isSetupMode() ? "setup" : "normal";
+    doc["connected"] = wifiManager.isConnected();
+    doc["ip"] = wifiManager.getIPAddress().toString();
+    doc["ssid"] = wifiManager.getSSID();
+    doc["rssi"] = wifiManager.getRSSI();
+    doc["hasStoredCredentials"] = wifiManager.hasStoredCredentials();
+    doc["storedSSID"] = wifiManager.getStoredSSID();
+    
+    // Unique device identifiers (for conference scenarios)
+    doc["deviceId"] = wifiManager.getDeviceId();
+    doc["apSSID"] = wifiManager.getUniqueAPSSID();
+    doc["mdnsHostname"] = wifiManager.getUniqueMDNSHostname();
+    
+    // WiFi mode as string
+    switch (wifiManager.getMode()) {
+        case WiFiMode::AP: doc["wifiMode"] = "AP"; break;
+        case WiFiMode::STA: doc["wifiMode"] = "STA"; break;
+        case WiFiMode::AP_STA: doc["wifiMode"] = "AP_STA"; break;
+        default: doc["wifiMode"] = "OFF"; break;
+    }
+    
+    String json;
+    serializeJson(doc, json);
+    request->send(200, "application/json", json);
+}
+
+/**
+ * POST /api/wifi/configure - Save WiFi credentials and restart
+ * 
+ * Body: { "ssid": "MyHotspot", "password": "secret123" }
+ */
+void WebServer::handleSetWiFiCredentials(AsyncWebServerRequest* request) {
+    if (!request->hasParam("ssid", true)) {
+        request->send(400, "application/json", 
+            "{\"status\":\"error\",\"message\":\"Missing 'ssid' parameter\"}");
+        return;
+    }
+    
+    String ssid = request->getParam("ssid", true)->value();
+    String password = "";
+    
+    if (request->hasParam("password", true)) {
+        password = request->getParam("password", true)->value();
+    }
+    
+    // Validate SSID
+    if (ssid.isEmpty() || ssid.length() > 32) {
+        request->send(400, "application/json", 
+            "{\"status\":\"error\",\"message\":\"Invalid SSID (1-32 characters)\"}");
+        return;
+    }
+    
+    // Save credentials
+    if (!wifiManager.saveCredentials(ssid.c_str(), password.c_str())) {
+        request->send(500, "application/json", 
+            "{\"status\":\"error\",\"message\":\"Failed to save credentials\"}");
+        return;
+    }
+    
+    LOG_INFO("WiFi credentials saved for: %s", ssid.c_str());
+    LOG_INFO("Device will restart in 3 seconds to connect...");
+    
+    // Send success response
+    JsonDocument doc;
+    doc["status"] = "success";
+    doc["message"] = "Credentials saved. Device restarting to connect to your hotspot...";
+    doc["ssid"] = ssid;
+    
+    String json;
+    serializeJson(doc, json);
+    
+    AsyncWebServerResponse *response = request->beginResponse(200, "application/json", json);
+    response->addHeader("Connection", "close");
+    request->send(response);
+    
+    // Schedule restart to apply new credentials
+    delay(2000);
+    ESP.restart();
+}
+
+/**
+ * POST /api/wifi/clear - Clear stored credentials (return to setup mode)
+ */
+void WebServer::handleClearWiFiCredentials(AsyncWebServerRequest* request) {
+    if (!wifiManager.clearCredentials()) {
+        request->send(500, "application/json", 
+            "{\"status\":\"error\",\"message\":\"Failed to clear credentials\"}");
+        return;
+    }
+    
+    LOG_INFO("WiFi credentials cleared - returning to setup mode");
+    
+    JsonDocument doc;
+    doc["status"] = "success";
+    doc["message"] = "Credentials cleared. Device restarting in setup mode...";
+    
+    String json;
+    serializeJson(doc, json);
+    
+    AsyncWebServerResponse *response = request->beginResponse(200, "application/json", json);
+    response->addHeader("Connection", "close");
+    request->send(response);
+    
+    // Restart to enter setup mode
+    delay(2000);
+    ESP.restart();
 }

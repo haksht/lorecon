@@ -27,6 +27,8 @@
 #include "recon_service.h"
 #include "psk_tests.h"
 #include <LittleFS.h>
+#include "soc/rtc_cntl_reg.h"
+#include "soc/soc.h"
 
 // Global instances
 LoRaReconTool reconTool;
@@ -34,12 +36,11 @@ SerialLogger serialLogger(LogLevel::INFO);
 WiFiManager wifiManager;
 WebServer webServer;
 
-// WiFi Configuration - Change these for your deployment
-const char* WIFI_AP_SSID = "ESP32-LoRa-Sniffer";
-const char* WIFI_AP_PASSWORD = "recon123";  // Change this!
-const char* MDNS_HOSTNAME = "esp32-lora";
-
 void setup() {
+    // Disable brownout detector to prevent reboot during USB disconnect
+    // The Heltec V3 battery circuit causes a brief voltage dip when switching power sources
+    WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0);
+    
     // Initialize logger first
     Logger::setInstance(&serialLogger);
     
@@ -62,21 +63,25 @@ void setup() {
     PSKTests::runAll();
     delay(2000);  // Give time to read results
 
-    // Initialize WiFi Access Point
+    // Initialize WiFi (auto-detects first-run vs returning user)
     LOG_INFO("\n=== Starting WiFi & Web Server ===");
-    if (wifiManager.startAP(WIFI_AP_SSID, WIFI_AP_PASSWORD)) {
-        // Start mDNS for easy access
-        wifiManager.startMDNS(MDNS_HOSTNAME);
+    if (wifiManager.autoConnect()) {
+        // Start mDNS for easy access (unique per device)
+        String mdnsHost = wifiManager.getUniqueMDNSHostname();
+        wifiManager.startMDNS(mdnsHost.c_str());
         
         // Initialize web server
         if (webServer.begin(&reconTool)) {
             // Connect web server to packet processor for live updates
             reconTool.setWebServer(&webServer);
             
-            LOG_INFO("✓ Phone app ready!");
-            LOG_INFO("  1. Connect phone to WiFi: %s", WIFI_AP_SSID);
-            LOG_INFO("  2. Open browser: http://%s", wifiManager.getIPAddress().toString().c_str());
-            LOG_INFO("  3. Or use: http://%s.local", MDNS_HOSTNAME);
+            LOG_INFO("✓ Web interface ready!");
+            LOG_INFO("  Open browser: http://%s", wifiManager.getIPAddress().toString().c_str());
+            LOG_INFO("  Or use: http://%s.local", mdnsHost.c_str());
+            
+            if (wifiManager.isSetupMode()) {
+                LOG_INFO("  📱 Configure your hotspot in the web UI");
+            }
         } else {
             LOG_ERROR("Failed to start web server");
         }
