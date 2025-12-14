@@ -2,19 +2,20 @@
 
 ## Tool Matrix
 
-| Feature | demo.py | enhanced_live_visualizer.py | live_visualizer.py | session_analyzer.py |
-|---------|---------|----------------------------|-------------------|---------------------|
-| **Purpose** | Launch script | Real-time 5-panel | Real-time 4-panel | Offline CSV analysis |
-| **Panels** | N/A (launcher) | 5 (RSSI, devices, protocols, packets, GPS) | 4 (RSSI, devices, packets, summary) | 4 (timeline, devices, frequency, GPS) |
-| **GPS Mapping** | - | ✅ Live | ❌ | ✅ Scatter plot |
-| **Audio Feedback** | ✅ Launches with | ✅ Geiger counter | ❌ | ❌ |
-| **Protocol Colors** | - | ✅ Web UI matching | ⚠️ Generic | ⚠️ Generic |
-| **Auto-Screenshot** | ✅ Via enhanced | ✅ Milestones | ❌ | Manual save |
-| **Auto-Detect Port** | ✅ | ❌ | ❌ | N/A (file input) |
-| **Web UI Launch** | ✅ Optional | ❌ | ❌ | ❌ |
-| **Timed Demo Mode** | ✅ --duration | ❌ | ❌ | N/A |
-| **Data Source** | Serial | Serial | Serial | CSV file |
-| **Best For** | Conference setup | Live demo (full) | Live demo (simple) | Post-capture analysis |
+| Feature | demo.py | enhanced_live_visualizer.py | session_analyzer.py | api_client.py | ws_monitor.py | pcap_analyzer.py |
+|---------|---------|----------------------------|-------------------|---------------|---------------|------------------|
+| **Purpose** | Launch script | Real-time 5-panel | Offline CSV analysis | REST API CLI | WebSocket monitor | PCAP analysis |
+| **GUI** | N/A (launcher) | matplotlib | matplotlib | Terminal | Terminal | Terminal |
+| **GPS Mapping** | - | ✅ Live | ✅ Scatter plot | - | - | - |
+| **Audio Feedback** | ✅ Launches with | ✅ Geiger counter | ❌ | ❌ | ❌ | ❌ |
+| **Protocol Colors** | - | ✅ Web UI matching | ⚠️ Generic | - | ✅ ANSI colors | - |
+| **Auto-Screenshot** | ✅ Via enhanced | ✅ Milestones | Manual save | - | - | - |
+| **Auto-Detect Port** | ✅ | ❌ | N/A | N/A | N/A | N/A |
+| **Web UI Launch** | ✅ Optional | ❌ | ❌ | ❌ | ❌ | ❌ |
+| **Timed Demo Mode** | ✅ --duration | ❌ | N/A | N/A | N/A | N/A |
+| **Data Source** | Serial | Serial | CSV file | REST API | WebSocket | PCAP file |
+| **Requires ESP32** | ✅ | ✅ | ❌ | ✅ (WiFi) | ✅ (WiFi) | ❌ |
+| **Best For** | Conference setup | Live demo (full) | Post-capture analysis | Scripting/automation | SSH monitoring | Wireshark-style |
 
 ## Recommendation by Use Case
 
@@ -37,11 +38,29 @@
 - Screenshots document findings
 - JSON mode for machine parsing
 
-### 📊 **Quick Field Check**
-**Use:** `live_visualizer.py COM3`
+### 💻 **SSH/Headless Monitoring**
+**Use:** `ws_monitor.py --filter meshtastic`
 
 **Why:**
-- Lightweight (fewer dependencies)
+- No GUI dependencies
+- Works over SSH
+- Color-coded terminal output
+- JSON output for piping
+
+### 🤖 **Scripting & Automation**
+**Use:** `api_client.py`
+
+**Why:**
+- Full REST API access from CLI
+- Download PCAP/GeoJSON/KML
+- Control capture remotely
+- Easy to script with bash/Python
+
+### 📊 **Quick Field Check**
+**Use:** `ws_monitor.py` or `api_client.py status`
+
+**Why:**
+- Lightweight (no matplotlib)
 - Fast startup
 - Good enough for "is it working?" checks
 
@@ -55,15 +74,18 @@
 - GPS scatter plot
 - Reproducible for reports
 
+### 📦 **PCAP Deep Dive**
+**Use:** `pcap_analyzer.py capture.pcap`
+
+**Why:**
+- Native PCAP parsing
+- Extracts LoRa metadata (RSSI, SNR, freq)
+- Export to CSV for other tools
+- Open in Wireshark
+
 ## Dependency Comparison
 
-### Minimal (live_visualizer.py)
-```
-pyserial
-matplotlib
-```
-
-### Full Featured (enhanced_live_visualizer.py)
+### Real-Time Visualization (enhanced_live_visualizer.py)
 ```
 pyserial
 matplotlib
@@ -75,6 +97,17 @@ numpy        # Optional for audio
 ```
 pandas
 matplotlib
+```
+
+### CLI Tools (api_client.py, ws_monitor.py)
+```
+requests
+websocket-client
+```
+
+### PCAP Analysis (pcap_analyzer.py)
+```
+# No external dependencies - uses native struct/dpkt parsing
 ```
 
 ### All-in-One Install
@@ -138,13 +171,13 @@ python session_analyzer.py captures/field_20250124.csv
 
 **Simple Start:**
 ```bash
-# First, show simple version
-python live_visualizer.py COM3
+# First, show terminal-based monitor
+python ws_monitor.py --filter meshtastic
 ```
 
 **Then Upgrade:**
 ```bash
-# Show full-featured version
+# Show full-featured visualizer
 python enhanced_live_visualizer.py COM3 --audio
 ```
 
@@ -212,10 +245,10 @@ sudo usermod -a -G dialout $USER
 ## Performance Tuning
 
 ### For Low-End Laptops
-- Use `live_visualizer.py` (simpler, faster)
-- Disable audio (`--audio` off)
+- Use `ws_monitor.py` (terminal-only, no GUI)
+- Disable audio (`--audio` off) in visualizer
 - Disable recording (`--record` off)
-- Increase `UPDATE_INTERVAL` in code (200ms → 500ms)
+- Use `api_client.py status` for quick checks
 
 ### For High-Traffic Scenarios
 - Enable `--json` mode for faster parsing
