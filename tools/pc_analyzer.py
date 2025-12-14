@@ -9,9 +9,13 @@ Analyzes captured packet logs from SD card for:
 - Timeline visualization
 - Geographic mapping (if GPS data available)
 
+Supports both CSV and JSONL log formats.
+
 Usage:
     python pc_analyzer.py logs/recon_123456.csv
+    python pc_analyzer.py logs/packets.jsonl
     python pc_analyzer.py logs/  # Analyze all logs in directory
+    python pc_analyzer.py logs/capture.csv --json results.json
 """
 
 import csv
@@ -23,8 +27,8 @@ from collections import defaultdict
 import statistics
 
 class PacketAnalyzer:
-    def __init__(self, csv_file):
-        self.csv_file = Path(csv_file)
+    def __init__(self, log_file):
+        self.log_file = Path(log_file)
         self.packets = []
         self.devices = defaultdict(lambda: {
             'packets': [],
@@ -33,43 +37,124 @@ class PacketAnalyzer:
             'first_seen': None,
             'last_seen': None
         })
-        
+        self.format = self._detect_format()
+    
+    def _detect_format(self):
+        """Detect log file format (CSV or JSONL)"""
+        suffix = self.log_file.suffix.lower()
+        if suffix == '.jsonl' or suffix == '.ndjson':
+            return 'jsonl'
+        elif suffix == '.json':
+            # Check if it's actually JSONL (one JSON per line)
+            with open(self.log_file, 'r') as f:
+                first_line = f.readline().strip()
+                second_line = f.readline().strip()
+                if first_line.startswith('{') and second_line.startswith('{'):
+                    return 'jsonl'
+            return 'json'
+        else:
+            return 'csv'
+    
     def load_data(self):
-        """Load packets from CSV file"""
-        print(f"Loading {self.csv_file}...")
+        """Load packets from log file (auto-detects format)"""
+        print(f"Loading {self.log_file} (format: {self.format})...")
         
-        with open(self.csv_file, 'r') as f:
-            reader = csv.DictReader(f)
-            for row in reader:
-                # Convert timestamp to seconds
-                timestamp = int(row['timestamp']) / 1000
-                node_id = row['nodeId']
-                protocol = row['protocol']
-                rssi = float(row['rssi'])
-                
-                packet = {
-                    'timestamp': timestamp,
-                    'node_id': node_id,
-                    'protocol': protocol,
-                    'rssi': rssi,
-                    'snr': float(row['snr']),
-                    'length': int(row['length']),
-                    'data': row['hex_data']
-                }
-                
-                self.packets.append(packet)
-                
-                # Track per-device statistics
-                device = self.devices[node_id]
-                device['packets'].append(packet)
-                device['rssi_values'].append(rssi)
-                device['protocols'].add(protocol)
-                
-                if device['first_seen'] is None:
-                    device['first_seen'] = timestamp
-                device['last_seen'] = timestamp
+        if self.format == 'csv':
+            self._load_csv()
+        elif self.format == 'jsonl':
+            self._load_jsonl()
+        elif self.format == 'json':
+            self._load_json()
+        else:
+            raise ValueError(f"Unknown format: {self.format}")
         
         print(f"Loaded {len(self.packets)} packets from {len(self.devices)} devices")
+    
+    def _load_csv(self):
+        """Load packets from CSV file"""
+        with open(self.log_file, 'r') as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                # Handle various CSV column name formats
+                timestamp = int(row.get('timestamp', row.get('timestamp_ms', 0))) / 1000
+                node_id = row.get('nodeId', row.get('node_id', row.get('node_id_hex', 'Unknown')))
+                protocol = row.get('protocol', 'Unknown')
+                rssi = float(row.get('rssi', row.get('rssi_dbm', 0)))
+                snr = float(row.get('snr', row.get('snr_db', 0)))
+                length = int(row.get('length', row.get('length_bytes', 0)))
+                data = row.get('hex_data', row.get('data', ''))
+                
+                self._add_packet(timestamp, node_id, protocol, rssi, snr, length, data)
+    
+    def _load_jsonl(self):
+        """Load packets from JSONL file (one JSON object per line)"""
+        with open(self.log_file, 'r') as f:
+            for line_num, line in enumerate(f, 1):
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    row = json.loads(line)
+                    timestamp = row.get('timestamp', row.get('timestamp_ms', 0))
+                    if timestamp > 1e12:  # Milliseconds
+                        timestamp = timestamp / 1000
+                    
+                    node_id = row.get('nodeId', row.get('node_id', 'Unknown'))
+                    protocol = row.get('protocol', 'Unknown')
+                    rssi = float(row.get('rssi', 0))
+                    snr = float(row.get('snr', 0))
+                    length = int(row.get('length', 0))
+                    data = row.get('data', row.get('hex_data', ''))
+                    
+                    self._add_packet(timestamp, node_id, protocol, rssi, snr, length, data)
+                except json.JSONDecodeError as e:
+                    print(f"Warning: Skipping invalid JSON at line {line_num}: {e}")
+    
+    def _load_json(self):
+        """Load packets from JSON array file"""
+        with open(self.log_file, 'r') as f:
+            data = json.load(f)
+        
+        # Handle both array format and {packets: [...]} format
+        packets = data if isinstance(data, list) else data.get('packets', [])
+        
+        for row in packets:
+            timestamp = row.get('timestamp', row.get('timestamp_ms', 0))
+            if timestamp > 1e12:
+                timestamp = timestamp / 1000
+            
+            node_id = row.get('nodeId', row.get('node_id', 'Unknown'))
+            protocol = row.get('protocol', 'Unknown')
+            rssi = float(row.get('rssi', 0))
+            snr = float(row.get('snr', 0))
+            length = int(row.get('length', 0))
+            data = row.get('data', row.get('hex_data', ''))
+            
+            self._add_packet(timestamp, node_id, protocol, rssi, snr, length, data)
+    
+    def _add_packet(self, timestamp, node_id, protocol, rssi, snr, length, data):
+        """Add a packet to the analyzer"""
+        packet = {
+            'timestamp': timestamp,
+            'node_id': node_id,
+            'protocol': protocol,
+            'rssi': rssi,
+            'snr': snr,
+            'length': length,
+            'data': data
+        }
+        
+        self.packets.append(packet)
+        
+        # Track per-device statistics
+        device = self.devices[node_id]
+        device['packets'].append(packet)
+        device['rssi_values'].append(rssi)
+        device['protocols'].add(protocol)
+        
+        if device['first_seen'] is None:
+            device['first_seen'] = timestamp
+        device['last_seen'] = timestamp
         
     def analyze_devices(self):
         """Analyze device characteristics"""
@@ -153,7 +238,7 @@ class PacketAnalyzer:
             'summary': {
                 'total_packets': len(self.packets),
                 'total_devices': len(self.devices),
-                'capture_file': str(self.csv_file)
+                'capture_file': str(self.log_file)
             },
             'devices': []
         }
@@ -184,9 +269,17 @@ class PacketAnalyzer:
 
 def main():
     parser = argparse.ArgumentParser(
-        description='Analyze ESP32 LoRa Sniffer packet captures'
+        description='Analyze ESP32 LoRa Sniffer packet captures (CSV or JSONL)',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  %(prog)s capture.csv                  Analyze CSV file
+  %(prog)s packets.jsonl                Analyze JSONL file  
+  %(prog)s logs/                        Analyze all logs in directory
+  %(prog)s capture.csv --json out.json  Export analysis as JSON
+"""
     )
-    parser.add_argument('input', help='CSV file or directory to analyze')
+    parser.add_argument('input', help='CSV/JSONL file or directory to analyze')
     parser.add_argument('--json', help='Export results as JSON')
     parser.add_argument('--summary', action='store_true', 
                        help='Show summary only')
@@ -197,23 +290,27 @@ def main():
     
     # Handle directory input
     if input_path.is_dir():
-        csv_files = list(input_path.glob('*.csv'))
-        if not csv_files:
-            print(f"No CSV files found in {input_path}")
+        # Find all supported log files
+        log_files = (list(input_path.glob('*.csv')) + 
+                     list(input_path.glob('*.jsonl')) +
+                     list(input_path.glob('*.ndjson')))
+        
+        if not log_files:
+            print(f"No CSV or JSONL files found in {input_path}")
             return
         
-        print(f"Found {len(csv_files)} capture files:")
-        for i, f in enumerate(csv_files, 1):
+        print(f"Found {len(log_files)} capture files:")
+        for i, f in enumerate(log_files, 1):
             print(f"  {i}. {f.name}")
         
         # For now, analyze first file (TODO: merge multiple files)
-        csv_file = csv_files[0]
-        print(f"\nAnalyzing: {csv_file.name}\n")
+        log_file = log_files[0]
+        print(f"\nAnalyzing: {log_file.name}\n")
     else:
-        csv_file = input_path
+        log_file = input_path
     
     # Run analysis
-    analyzer = PacketAnalyzer(csv_file)
+    analyzer = PacketAnalyzer(log_file)
     analyzer.load_data()
     analyzer.generate_report()
     

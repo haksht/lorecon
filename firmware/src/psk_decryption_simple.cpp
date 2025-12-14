@@ -129,7 +129,7 @@ static bool extractMessage(const uint8_t* data, size_t len, String& text) {
     }
     
     // Pattern 2: Standard nested format (0x08 <portnum> 0x12 <len> 0x0A <textlen> <text>)
-    if (len >= 3 && data[0] == 0x08 && data[2] == 0x12) {
+    if (data[0] == 0x08 && data[2] == 0x12) {
         uint32_t payloadLen = 0;
         size_t varintBytes = 0;
         if (decodeVarint(data, len, 3, payloadLen, varintBytes)) {

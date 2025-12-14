@@ -94,7 +94,7 @@ void analyzePacket(const uint8_t* data, size_t length, float rssi, float snr) {
     }
     
     // Check if Meshtastic
-    if (length < 4 || !(data[0] == 0xFF && data[1] == 0xFF && data[2] == 0xFF && data[3] == 0xFF)) {
+    if (!(data[0] == 0xFF && data[1] == 0xFF && data[2] == 0xFF && data[3] == 0xFF)) {
         Serial.println("[DIAG] ⚠️ Not a Meshtastic packet (header mismatch)");
         unknownPacketCount++;
         return;

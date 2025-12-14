@@ -111,140 +111,153 @@ pip install pyserial matplotlib folium sounddevice numpy
 
 ---
 
-## Live Visualizer (Classic)
+## REST API Client ⭐ NEW
 
-Original real-time visualization tool for LoRa reconnaissance data from the ESP32 sniffer.
+Command-line client for interacting with ESP32's REST API - no browser needed.
 
 ### Features
 
-- **Real-time RSSI graphing** - Track signal strength of all discovered devices over time
-- **Device statistics** - Live display of packet counts, device types, and last-seen timestamps
-- **Packet histogram** - Visual comparison of packet capture rates across devices
-- **Summary dashboard** - Overall reconnaissance statistics and top device information
-
-### Installation
-
-```bash
-# Install Python dependencies
-pip install -r requirements.txt
-
-# Or install individually
-pip install pyserial matplotlib
-```
+- Full access to all 30+ API endpoints
+- Status monitoring, device listing, capture control
+- PCAP/GeoJSON/KML export downloads
+- Replay slot management
+- Send serial-style commands remotely
 
 ### Usage
 
-#### Windows
 ```bash
-# Auto-detect serial port
-python live_visualizer.py
+# Check system status
+python api_client.py status
 
-# Specify COM port
-python live_visualizer.py COM3
+# List discovered devices
+python api_client.py devices
+
+# Start targeting a device
+python api_client.py capture 0x401ACD4E
+
+# Download PCAP file
+python api_client.py download-pcap -o capture.pcap
+
+# Send command (r = resume recon)
+python api_client.py command r
+
+# Use custom host
+python api_client.py --host 192.168.4.1 status
 ```
 
-#### Linux/Mac
+### Requirements
+
 ```bash
-# Specify serial port
-python live_visualizer.py /dev/ttyUSB0
+pip install requests
 ```
-
-### Workflow
-
-1. **Flash and connect ESP32**
-   ```bash
-   pio run --target upload
-   ```
-
-2. **Start live visualizer** (in separate terminal)
-   ```bash
-   python tools/live_visualizer.py COM3
-   ```
-
-3. **ESP32 begins reconnaissance automatically**
-   - Visualizer parses serial output
-   - Graphs update in real-time
-   - All 4 panels refresh every 200ms
-
-### Display Panels
-
-```
-┌─────────────────────────────────┬─────────────────────────────────┐
-│ 📡 Signal Strength Over Time   │ 🎯 Discovered Devices           │
-│                                 │                                 │
-│ Line graph of RSSI vs time     │ List with node IDs, types,      │
-│ One line per device             │ RSSI bars, packet counts        │
-│                                 │                                 │
-├─────────────────────────────────┼─────────────────────────────────┤
-│ 📊 Packet Capture Statistics   │ 📈 Reconnaissance Summary       │
-│                                 │                                 │
-│ Bar chart of packets per device │ Runtime, total packets,         │
-│ Color-coded by device           │ packet rate, top device info    │
-│                                 │                                 │
-└─────────────────────────────────┴─────────────────────────────────┘
-```
-
-### Conference Demo Usage
-
-Perfect for projecting visualizations during live security talks:
-
-1. Connect ESP32 to laptop
-2. Run visualizer on laptop
-3. Project laptop screen
-4. Perform live reconnaissance
-5. Audience sees real-time device discovery
-
-### Troubleshooting
-
-**No serial port found:**
-```bash
-python live_visualizer.py
-# Lists available ports, choose one manually
-```
-
-**Permission denied (Linux):**
-```bash
-sudo usermod -a -G dialout $USER
-# Log out and back in
-```
-
-**Matplotlib not displaying:**
-```bash
-# Install backend
-pip install PyQt5
-```
-
-### Advanced Configuration
-
-Edit `live_visualizer.py` to customize:
-
-```python
-SERIAL_BAUDRATE = 115200      # Match ESP32 baud rate
-UPDATE_INTERVAL = 200         # ms between graph updates
-MAX_HISTORY_POINTS = 200      # Data points to keep in memory
-WINDOW_SIZE = (14, 8)         # Figure size in inches
-```
-
-### Data Format
-
-Visualizer parses these serial output patterns:
-
-```
-[PACKET] Meshtastic, 14 bytes, -45.0 dBm, 8.2 dB SNR
-[RECON] Packet #42: Meshtastic, 0x401ACD4E, -68.5 dBm
-[NODE] New: 0x401ACD4E (Meshtastic)
-```
-
-### Export Data
-
-Currently displays only. Future enhancements:
-- CSV export button
-- Screenshot capture
-- Session recording/playback
 
 ---
 
-**Perfect companion tool for ESP32 LoRa security research and conference demonstrations.**
+## WebSocket Monitor ⭐ NEW
+
+Headless terminal-based monitor for real-time packet events. Perfect for SSH sessions.
+
+### Features
+
+- No GUI dependencies (matplotlib not required)
+- Color-coded protocol output
+- RSSI signal strength visualization
+- Protocol filtering
+- JSON output for piping to other tools
+
+### Usage
+
+```bash
+# Basic monitoring
+python ws_monitor.py
+
+# Filter by protocol
+python ws_monitor.py --filter meshtastic
+
+# JSON output (for piping)
+python ws_monitor.py --json | jq '.nodeId'
+
+# Quiet mode (packets only, no status)
+python ws_monitor.py --quiet
+
+# No colors (for logging)
+python ws_monitor.py --no-color > packets.log
+```
+
+### Requirements
+
+```bash
+pip install websocket-client
+```
+
+---
+
+## PCAP Analyzer ⭐ NEW
+
+Analyze PCAP files exported from ESP32 LoRa Sniffer.
+
+### Features
+
+- Parse custom LoRa pseudo-header (RSSI, SNR, frequency)
+- Protocol identification (Meshtastic, LoRaWAN, Helium)
+- Device statistics and signal quality analysis
+- Export to CSV/JSON
+- Open directly in Wireshark
+
+### Usage
+
+```bash
+# Basic analysis
+python pcap_analyzer.py capture.pcap
+
+# Export to CSV
+python pcap_analyzer.py capture.pcap -o packets.csv
+
+# JSON output
+python pcap_analyzer.py capture.pcap --json
+
+# Open in Wireshark
+python pcap_analyzer.py capture.pcap --wireshark
+
+# Show raw hex dumps
+python pcap_analyzer.py capture.pcap --raw
+```
+
+### Requirements
+
+Native PCAP parsing (no dependencies). Optional `scapy` for advanced analysis.
+
+---
+
+## PC Analyzer (Offline Log Analysis)
+
+Analyze captured packet logs from SD card (supports CSV and JSONL formats).
+
+### Features
+
+- Device mapping and tracking
+- Signal strength analysis
+- Protocol distribution
+- Timeline visualization
+- Supports both CSV and JSONL log formats
+
+### Usage
+
+```bash
+# Analyze CSV file
+python pc_analyzer.py logs/capture.csv
+
+# Analyze JSONL file
+python pc_analyzer.py logs/packets.jsonl
+
+# Analyze directory (finds all logs)
+python pc_analyzer.py logs/
+
+# Export as JSON
+python pc_analyzer.py capture.csv --json results.json
+```
+
+---
 
 ## Session Analyzer (SD Log Dashboard)
 
@@ -294,3 +307,4 @@ Perfect for:
 5. Open the generated HTML map in browser or embed in presentation.
 
 > Tip: pair the analyzer with live captures for a two-part conference demo—live RF when available, SD replay when the spectrum is quiet.
+
