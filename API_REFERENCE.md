@@ -17,10 +17,11 @@
 6. [Geographic Data](#geographic-data)
 7. [Status & Statistics](#status--statistics)
 8. [Scan Control](#scan-control)
-9. [WebSocket API](#websocket-api)
-10. [Error Codes](#error-codes)
-11. [Rate Limiting](#rate-limiting)
-12. [Examples](#examples)
+9. [WiFi Configuration](#wifi-configuration)
+10. [WebSocket API](#websocket-api)
+11. [Error Codes](#error-codes)
+12. [Rate Limiting](#rate-limiting)
+13. [Examples](#examples)
 
 ---
 
@@ -817,6 +818,135 @@ Host: 192.168.4.1
   "timestamp": 1699900800000
 }
 ```
+
+---
+
+## 📶 WiFi Configuration
+
+The device supports two WiFi modes:
+- **AP Mode (Setup):** Device creates its own WiFi network for initial setup
+- **Station Mode:** Device connects to your phone's hotspot, preserving phone features
+
+### **GET /api/wifi/status**
+
+Get current WiFi status and mode.
+
+**Request:**
+```http
+GET /api/wifi/status HTTP/1.1
+Host: 192.168.4.1
+```
+
+**Response (Setup Mode):**
+```json
+{
+  "mode": "setup",
+  "connected": true,
+  "ip": "192.168.4.1",
+  "ssid": "LoRa-A1B2C3",
+  "rssi": 0,
+  "wifiMode": "AP",
+  "hasStoredCredentials": false,
+  "storedSSID": "",
+  "deviceId": "A1B2C3",
+  "apSSID": "LoRa-A1B2C3",
+  "mdnsHostname": "lora-a1b2c3"
+}
+```
+
+**Response (Station Mode):**
+```json
+{
+  "mode": "normal",
+  "connected": true,
+  "ip": "172.20.10.5",
+  "ssid": "iPhone",
+  "rssi": -54,
+  "wifiMode": "STA",
+  "hasStoredCredentials": true,
+  "storedSSID": "iPhone",
+  "deviceId": "A1B2C3",
+  "apSSID": "LoRa-A1B2C3",
+  "mdnsHostname": "lora-a1b2c3"
+}
+```
+
+**Field Descriptions:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `mode` | string | `"setup"` (first-run AP mode) or `"normal"` (configured) |
+| `connected` | boolean | WiFi connection status |
+| `ip` | string | Current IP address |
+| `ssid` | string | Current network SSID |
+| `rssi` | number | Signal strength in dBm (0 in AP mode) |
+| `wifiMode` | string | `"AP"`, `"STA"`, or `"AP_STA"` |
+| `hasStoredCredentials` | boolean | Whether hotspot creds are saved |
+| `storedSSID` | string | Saved hotspot SSID (empty if none) |
+| `deviceId` | string | Unique device ID from MAC (e.g., `"A1B2C3"`) |
+| `apSSID` | string | This device's AP network name |
+| `mdnsHostname` | string | This device's mDNS hostname |
+
+---
+
+### **POST /api/wifi/configure**
+
+Save WiFi hotspot credentials. Device will restart and connect to the specified network.
+
+**Request:**
+```http
+POST /api/wifi/configure HTTP/1.1
+Host: 192.168.4.1
+Content-Type: application/x-www-form-urlencoded
+
+ssid=MyPhoneHotspot&password=secret123
+```
+
+**Response:**
+```json
+{
+  "status": "success",
+  "message": "Credentials saved. Device restarting to connect to your hotspot...",
+  "ssid": "MyPhoneHotspot"
+}
+```
+
+**Behavior:**
+1. Credentials are saved to LittleFS
+2. Device restarts after 2 seconds
+3. On restart, device attempts to connect to the hotspot
+4. If connection fails after 3 attempts, falls back to AP mode
+
+**cURL Example:**
+```bash
+curl -X POST http://192.168.4.1/api/wifi/configure \
+  -d "ssid=MyPhoneHotspot&password=secret123"
+```
+
+---
+
+### **POST /api/wifi/clear**
+
+Clear stored credentials and return to setup mode.
+
+**Request:**
+```http
+POST /api/wifi/clear HTTP/1.1
+Host: 192.168.4.1
+```
+
+**Response:**
+```json
+{
+  "status": "success",
+  "message": "Credentials cleared. Device restarting in setup mode..."
+}
+```
+
+**Behavior:**
+1. Stored credentials are deleted from LittleFS
+2. Device restarts after 2 seconds
+3. On restart, device enters AP mode (setup mode)
 
 **cURL Example:**
 ```bash

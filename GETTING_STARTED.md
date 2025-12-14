@@ -2,7 +2,7 @@
 
 **Version:** 2.0 Production Ready  
 **Status:** ✅ Ready to Use  
-**Last Updated:** November 24, 2025
+**Last Updated:** December 14, 2025
 
 ---
 
@@ -31,13 +31,80 @@ pio run --target uploadfs
 pio device monitor
 ```
 
-### 2. First Run
+### 2. First Run - WiFi Setup
 
-The tool will:
-1. Initialize radio and display
-2. Start scanning 26 LoRa configurations
-3. Auto-discover nearby devices
-4. Display packet info on OLED and serial
+On first boot, your device creates a **unique WiFi network**:
+
+```
+╔═══════════════════════════════════════════════╗
+║          WIFI SETUP MODE                      ║
+╠═══════════════════════════════════════════════╣
+║  1. Connect phone to: LoRa-A1B2C3             ║
+║  2. Config page opens automatically!          ║
+║  3. Enter your hotspot credentials            ║
+╚═══════════════════════════════════════════════╝
+```
+
+**Important:** Each device has a unique network name based on its MAC address (e.g., `LoRa-A1B2C3`). This prevents conflicts when multiple devices are used at conferences!
+
+**What happens when you connect:**
+1. Your phone connects to the device's WiFi (e.g., `LoRa-A1B2C3`)
+2. A **captive portal** automatically opens the setup page (like hotel WiFi!)
+3. Enter your phone's hotspot name and password
+4. Device restarts and connects to YOUR hotspot
+5. Now you keep SMS, calls, and internet while using the sniffer!
+
+---
+
+## 📱 WiFi Configuration Options
+
+### Option A: Phone Hotspot Mode (Recommended)
+
+**Best for:** Field work, conferences, mobile use
+
+Your phone acts as the WiFi hotspot. The ESP32 connects to your phone.
+
+**Benefits:**
+- ✅ Keep receiving SMS, calls, notifications
+- ✅ Phone keeps internet access
+- ✅ No laptop needed
+- ✅ Works anywhere with your phone
+
+**Setup:**
+1. Power on ESP32 (shows unique SSID like `LoRa-A1B2C3`)
+2. Connect phone to `LoRa-XXXXXX` WiFi (password: `recon123`)
+3. Setup page opens automatically (captive portal)
+4. Enter your phone's hotspot name/password
+5. Device restarts → connects to your hotspot
+6. Access web UI at the IP shown on serial/OLED
+
+### Option B: Access Point Mode (Default Fallback)
+
+**Best for:** Quick testing, demos, when hotspot unavailable
+
+The ESP32 creates its own WiFi network.
+
+**Limitations:**
+- ❌ Phone disconnects from cellular
+- ❌ No SMS/calls while connected
+- ❌ No internet access
+
+**Usage:**
+1. Connect to `LoRa-XXXXXX` WiFi
+2. Open `http://192.168.4.1`
+3. Use the web interface directly
+
+### Switching Modes
+
+**To reconfigure WiFi (return to setup mode):**
+1. Go to **Settings** tab in web UI
+2. Click **Clear Credentials**
+3. Device restarts in AP mode for reconfiguration
+
+**Or via serial command:**
+```
+Press 'w' for WiFi menu (if implemented)
+```
 
 ---
 
@@ -77,47 +144,26 @@ The device runs standalone with built-in display:
 
 ### Option 3: Web Interface (Phone/Browser)
 
-#### Step 1: Connect to WiFi
+#### After Initial Setup
 
-1. Power on ESP32
-2. Connect to WiFi network:
-   - **SSID:** `ESP32-LoRa-Sniffer`
-   - **Password:** `recon123`
+Once configured for your hotspot:
 
-#### Step 2: Open Web Interface
+1. Enable phone hotspot
+2. Power on ESP32 (auto-connects)
+3. Check serial output or OLED for IP address
+4. Open browser to that IP (or `http://lora-xxxxxx.local`)
 
-**Method 1:** Direct IP
-```
-http://192.168.4.1
-```
-
-**Method 2:** mDNS (easier)
-```
-http://esp32-lora.local
-```
-
-**Method 3:** Install as PWA
-- Open browser to above URL
-- Tap **Share** → **Add to Home Screen**
-- Launch like a native app
-
-#### Step 3: Use the Dashboard
+#### Web Interface Features
 
 **8 Interactive Tabs:**
 
-1. **Status** - System overview, uptime, quick actions
-2. **Live Stream** - Real-time packet feed with audio feedback
-3. **Stats** - Protocol pie/bar charts
-4. **Network** - Interactive topology map
-5. **Devices** - Discovered devices with targeting
-6. **Packets** - Replay menu with transmission controls
-7. **Frequency** - 26 scan configuration targeting
-8. **GPS** - Geographic positions with export
-
-**Audio Feedback:**
-- Different tones for each protocol (Meshtastic/LoRaWAN/Helium)
-- "Geiger counter" effect for packet activity
-- Toggle on/off in Live Stream tab
+1. **Info** - System overview, GPS data, security assessment
+2. **Devices** - Discovered devices sorted by vulnerability
+3. **Packets** - Packet history with replay controls
+4. **Frequency** - 26 scan configurations
+5. **Network** - Interactive topology map
+6. **Stats** - Protocol charts (War Room)
+7. **Settings** - WiFi config, system settings, OTA updates
 
 **Best for:** Field deployment, mobile monitoring, demonstrations
 
@@ -196,18 +242,30 @@ See `docs/technical/ENCRYPTION.md` for complete details.
 
 ### WiFi Settings
 
-Default configuration in `firmware/src/main.cpp`:
+WiFi credentials are stored automatically in device flash memory. No code changes needed!
 
+**First-time setup:**
+1. Device creates unique AP: `LoRa-XXXXXX` (based on MAC address)
+2. Connect and enter your hotspot credentials via web UI
+3. Credentials saved permanently until cleared
+
+**Configuration files:**
+- Credentials stored in: `/wifi_config.json` (LittleFS)
+- Default AP password: `recon123`
+- Unique device ID derived from: Last 3 bytes of MAC address
+
+**To change stored credentials:**
+- Web UI: Settings → Clear Credentials → Reconfigure
+- Serial: Clear LittleFS and re-upload
+
+**Build-time defaults** in `firmware/src/config.h`:
 ```cpp
-const char* WIFI_AP_SSID = "ESP32-LoRa-Sniffer";  // Change this
-const char* WIFI_AP_PASSWORD = "recon123";         // Change this!
-const char* MDNS_HOSTNAME = "esp32-lora";
+namespace Config::WiFi {
+    constexpr const char* AP_SSID_PREFIX = "LoRa-";      // + MAC suffix
+    constexpr const char* DEFAULT_AP_PASSWORD = "recon123";
+    constexpr const char* MDNS_PREFIX = "lora-";         // + MAC suffix
+}
 ```
-
-**Security Recommendations:**
-- ✅ Change default password
-- ✅ Use unique SSID per device
-- ✅ Disable WiFi when not needed
 
 ### Build Flags
 
@@ -334,6 +392,53 @@ ws.onmessage = (event) => {
 4. Check serial monitor for initialization messages
 
 **See `docs/user-guides/TROUBLESHOOTING.md` for more solutions**
+
+---
+
+## 🏢 Conference & Multi-Device Deployment
+
+When deploying multiple devices at conferences, workshops, or training:
+
+### Unique Device Identification
+
+Each device automatically generates unique identifiers from its MAC address:
+
+| Component | Example | Purpose |
+|-----------|---------|---------|
+| **Device ID** | `A1B2C3` | Short identifier shown in UI |
+| **WiFi SSID** | `LoRa-A1B2C3` | Unique network name |
+| **mDNS** | `lora-a1b2c3.local` | DNS hostname |
+
+**No configuration needed!** Each device is unique out of the box.
+
+### For Workshop Organizers
+
+**Pre-event preparation:**
+1. Flash all devices with same firmware
+2. Power on each device once to verify unique SSID
+3. Optionally label devices with their ID (shown in serial output)
+
+**Participant instructions:**
+1. "Look for WiFi networks starting with `LoRa-`"
+2. "Connect to the one matching your device label"
+3. "The setup page opens automatically"
+4. "Enter YOUR phone's hotspot credentials"
+
+### Finding Your Device
+
+If you have multiple `LoRa-XXXXXX` networks visible:
+
+1. **Check the device label** (if organizer labeled them)
+2. **Check serial output**: Shows `Device ID: A1B2C3` on boot
+3. **Check OLED**: Device ID can be shown in status display
+4. **Try connecting**: Wrong device? Disconnect and try another
+
+### Best Practices for Events
+
+- ✅ **Label devices** with their ID before distributing
+- ✅ **Test each device** boots to unique SSID
+- ✅ **Prepare handout** with quick setup instructions
+- ✅ **Have USB cables** for serial debugging if needed
 
 ---
 

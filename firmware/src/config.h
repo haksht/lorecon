@@ -208,6 +208,29 @@ namespace Radio {
 }
 
 // ============================================================================
+// WIFI CONFIGURATION
+// ============================================================================
+namespace WiFi {
+    // File to store WiFi credentials in LittleFS
+    constexpr const char* CREDENTIALS_FILE = "/wifi_config.json";
+    
+    // Default AP mode settings (used when no credentials stored)
+    // SSID will be "LoRa-XXYYZZ" where XXYYZZ is last 3 bytes of MAC address
+    // This ensures unique SSIDs at conferences with many devices
+    constexpr const char* AP_SSID_PREFIX = "LoRa-";
+    constexpr const char* DEFAULT_AP_PASSWORD = "recon123";
+    
+    // mDNS hostname will be "lora-xxyyzz.local" (unique per device)
+    constexpr const char* MDNS_PREFIX = "lora-";
+    
+    // Station mode connection timeout (milliseconds)
+    constexpr uint32_t STA_CONNECT_TIMEOUT_MS = 15000;
+    
+    // Number of retries before falling back to AP mode
+    constexpr uint8_t STA_MAX_RETRIES = 3;
+}
+
+// ============================================================================
 // DEVICE ARCHIVER - SD OFFLOAD CONFIGURATION
 // ============================================================================
 namespace Archiver {

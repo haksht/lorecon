@@ -31,6 +31,11 @@ enum class WiFiMode {
  * 
  * Provides simple interface for WiFi setup and monitoring.
  * Designed for minimal memory footprint and reliable operation.
+ * 
+ * First-run behavior:
+ * - No stored credentials → AP mode with setup page
+ * - Has credentials → Station mode (connect to user's hotspot)
+ * - Station fails → Fall back to AP mode
  */
 class WiFiManager {
 public:
@@ -41,8 +46,24 @@ public:
     bool startStation(const char* ssid, const char* password);
     void stop();
     
+    // Smart initialization (handles first-run setup)
+    bool autoConnect();  // Checks for stored creds, connects or starts AP
+    
+    // Credential storage (LittleFS)
+    bool hasStoredCredentials() const;
+    bool loadCredentials();
+    bool saveCredentials(const char* ssid, const char* password);
+    bool clearCredentials();
+    String getStoredSSID() const { return staSsid; }
+    
+    // Unique device identifiers (based on MAC address)
+    String getUniqueAPSSID() const;      // e.g., "LoRa-A1B2C3"
+    String getUniqueMDNSHostname() const; // e.g., "lora-a1b2c3"
+    String getDeviceId() const { return deviceId; }  // e.g., "A1B2C3"
+    
     // Status
     bool isConnected() const;
+    bool isSetupMode() const { return setupMode; }
     WiFiMode getMode() const { return currentMode; }
     IPAddress getIPAddress() const;
     String getSSID() const;
@@ -61,13 +82,16 @@ public:
 private:
     WiFiMode currentMode;
     bool autoReconnect;
+    bool setupMode;  // True when in first-run AP setup mode
     uint32_t connectionTimeout;
     uint32_t lastConnectionAttempt;
     String staSsid;
     String staPassword;
+    String deviceId;  // Last 3 bytes of MAC as hex (e.g., "A1B2C3")
     
     // Internal helpers
     void handleDisconnect();
+    void generateDeviceId();  // Called once to set deviceId from MAC
 };
 
 #endif // WIFI_MANAGER_H
