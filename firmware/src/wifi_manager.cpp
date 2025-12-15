@@ -7,6 +7,7 @@
 #include "config.h"
 #include <LittleFS.h>
 #include <ArduinoJson.h>
+#include <esp_mac.h>
 
 WiFiManager::WiFiManager() 
     : currentMode(WiFiMode::OFF)
@@ -15,8 +16,8 @@ WiFiManager::WiFiManager()
     , connectionTimeout(Config::WiFi::STA_CONNECT_TIMEOUT_MS)
     , lastConnectionAttempt(0)
 {
-    // Generate unique device ID from MAC address
-    generateDeviceId();
+    // Device ID will be generated on first use (after WiFi is initialized)
+    // Don't call generateDeviceId() here - WiFi hardware not ready yet
 }
 
 /**
@@ -24,10 +25,18 @@ WiFiManager::WiFiManager()
  * 
  * Uses last 3 bytes of MAC for a short but unique identifier.
  * Example: MAC 24:6F:28:A1:B2:C3 → deviceId "A1B2C3"
+ * 
+ * Safe to call multiple times - only generates once.
  */
 void WiFiManager::generateDeviceId() {
+    // Only generate once
+    if (deviceId.length() > 0) {
+        return;
+    }
+    
     uint8_t mac[6];
-    WiFi.macAddress(mac);
+    // Use ESP-IDF function that works without WiFi being fully initialized
+    esp_efuse_mac_get_default(mac);
     
     char id[7];
     snprintf(id, sizeof(id), "%02X%02X%02X", mac[3], mac[4], mac[5]);
@@ -42,6 +51,8 @@ void WiFiManager::generateDeviceId() {
  * @return SSID like "LoRa-A1B2C3"
  */
 String WiFiManager::getUniqueAPSSID() const {
+    // Ensure device ID is generated (safe to call multiple times)
+    const_cast<WiFiManager*>(this)->generateDeviceId();
     return String(Config::WiFi::AP_SSID_PREFIX) + deviceId;
 }
 
@@ -51,9 +62,21 @@ String WiFiManager::getUniqueAPSSID() const {
  * @return Hostname like "lora-a1b2c3" (lowercase for DNS compatibility)
  */
 String WiFiManager::getUniqueMDNSHostname() const {
+    // Ensure device ID is generated (safe to call multiple times)
+    const_cast<WiFiManager*>(this)->generateDeviceId();
     String hostname = String(Config::WiFi::MDNS_PREFIX) + deviceId;
     hostname.toLowerCase();
     return hostname;
+}
+
+/**
+ * Get unique device ID
+ * 
+ * @return Device ID like "A1B2C3"
+ */
+String WiFiManager::getDeviceId() {
+    generateDeviceId();  // Ensure it's generated
+    return deviceId;
 }
 
 /**

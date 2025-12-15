@@ -59,7 +59,7 @@ public:
     // Unique device identifiers (based on MAC address)
     String getUniqueAPSSID() const;      // e.g., "LoRa-A1B2C3"
     String getUniqueMDNSHostname() const; // e.g., "lora-a1b2c3"
-    String getDeviceId() const { return deviceId; }  // e.g., "A1B2C3"
+    String getDeviceId();  // e.g., "A1B2C3" - generates on first call
     
     // Status
     bool isConnected() const;
