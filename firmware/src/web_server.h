@@ -113,6 +113,7 @@ private:
     static void handleGetTemporalData(AsyncWebServerRequest* request);
     static void handleGetReplaySlots(AsyncWebServerRequest* request);
     static void handleClearReplaySlots(AsyncWebServerRequest* request);
+    static void handleClearDevices(AsyncWebServerRequest* request);
     static void handleReplayPacket(AsyncWebServerRequest* request);
     static void handleStartFrequencyTargeting(AsyncWebServerRequest* request);
     static void handleGetDiagnostics(AsyncWebServerRequest* request);

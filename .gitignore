@@ -8,6 +8,7 @@
 # VS Code
 .vscode/
 *.code-workspace
+wifi_creds.json
 
 # ESP32 / Arduino
 *.bin

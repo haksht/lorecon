@@ -154,6 +154,7 @@ void WebServer::setupRoutes() {
     server->on("/api/recon/security", HTTP_GET, handleGetSecurityAssessment);
     server->on("/api/replay/slots", HTTP_GET, handleGetReplaySlots);
     server->on("/api/replay/clear", HTTP_POST, handleClearReplaySlots);
+    server->on("/api/devices/clear", HTTP_POST, handleClearDevices);
     server->on("/api/replay/transmit", HTTP_POST, handleReplayPacket);
     server->on("/api/frequency/target", HTTP_POST, handleStartFrequencyTargeting);
     server->on("/api/diagnostics", HTTP_GET, handleGetDiagnostics);
@@ -323,8 +324,17 @@ void WebServer::serveStaticFiles() {
     
     // Fallback - serve index.html for SPA routing (also helps with captive portal)
     server->onNotFound([](AsyncWebServerRequest* request) {
+        // Silently ignore common browser icon requests to reduce log noise
+        String url = request->url();
+        if (url.indexOf("apple-touch-icon") >= 0 || 
+            url.indexOf("favicon") >= 0 ||
+            url.endsWith(".ico")) {
+            request->send(204);  // No Content - silently handle
+            return;
+        }
+        
         // Check if it's an API request
-        if (request->url().startsWith("/api/")) {
+        if (url.startsWith("/api/")) {
             request->send(404, "application/json", "{\"status\":\"error\",\"error\":\"Endpoint not found\"}");
         } else {
             // For captive portal: redirect common detection paths
@@ -580,6 +590,11 @@ void WebServer::handleGetReplaySlots(AsyncWebServerRequest* request) {
 
 void WebServer::handleClearReplaySlots(AsyncWebServerRequest* request) {
     String json = APIController::clearReplaySlots();
+    request->send(200, "application/json", json);
+}
+
+void WebServer::handleClearDevices(AsyncWebServerRequest* request) {
+    String json = APIController::clearDevices();
     request->send(200, "application/json", json);
 }
 

@@ -85,6 +85,8 @@ void CommandHandler::showCommands() {
     Serial.println("\n🔧 OPERATIONS:");
     Serial.println("  c   : Capture packet for replay");
     Serial.println("  p   : Packet replay menu");
+    Serial.println("  l   : Clear all captured packets");
+    Serial.println("  n   : Clear all discovered devices");
     Serial.println("  r   : Resume reconnaissance (keep devices)");
     Serial.println("  b   : Reboot device (clears all data)");
     
@@ -209,19 +211,25 @@ void CommandHandler::cmdCapturePacket(IReconTool* tool) {
         ProtocolAnalyzer analyzer;
         PacketInfo info = analyzer.analyze(data, length, rssi);
         
-        // Extract node ID from packet header if it's a Meshtastic packet
+        // Extract node ID and packet ID from packet header if it's a Meshtastic packet
         uint32_t nodeId = 0;
+        uint32_t packetId = 0;
         if (length >= 16 && data[0] == 0xFF && data[1] == 0xFF && 
             data[2] == 0xFF && data[3] == 0xFF) {
             nodeId = ((uint32_t)data[4]) | ((uint32_t)data[5] << 8) |
                      ((uint32_t)data[6] << 16) | ((uint32_t)data[7] << 24);
+            // Packet ID at offset 8-11 (little-endian)
+            if (length >= 12) {
+                packetId = ((uint32_t)data[8]) | ((uint32_t)data[9] << 8) |
+                           ((uint32_t)data[10] << 16) | ((uint32_t)data[11] << 24);
+            }
         }
         
         // Get decrypted text if available
         const char* decryptedText = PSKDecryption::getLastMessage();
         
         if (reconState.capturePacketForReplay(data, length, reconState.scanState.currentConfig, 
-                                               rssi, info.protocol, decryptedText, nodeId)) {
+                                               rssi, info.protocol, decryptedText, nodeId, packetId)) {
             Serial.println("✅ Packet saved to replay slot!");
             if (decryptedText && decryptedText[0] != '\0') {
                 Serial.printf("   📧 Decrypted text: \"%s\"\n", decryptedText);
@@ -286,5 +294,19 @@ void CommandHandler::cmdToggleQuietMode(IReconTool* tool) {
         Serial.println("   Press 'x' to see statistics, 'q' to toggle back to verbose");
     }
     Serial.println();
+}
+
+void CommandHandler::cmdClearPackets(IReconTool* tool) {
+    uint8_t count = reconState.numCapturedPackets;
+    reconState.clearReplaySlots();
+    Serial.printf("\n✅ Cleared %d captured packet(s) from replay slots.\n\n", count);
+}
+
+void CommandHandler::cmdClearDevices(IReconTool* tool) {
+    uint8_t deviceCount = reconState.numTargetableDevices;
+    uint8_t nodeCount = reconState.nodeCount;
+    reconState.clearTargetableDevices();
+    reconState.clearNodes();
+    Serial.printf("\n✅ Cleared %d device(s) and %d node(s).\n\n", deviceCount, nodeCount);
 }
 

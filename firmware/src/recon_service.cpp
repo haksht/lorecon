@@ -683,6 +683,19 @@ bool ReconService::clearReplaySlots(String& outMessage) {
     return true;
 }
 
+bool ReconService::clearDevices(String& outMessage) {
+    uint8_t deviceCount = reconState.numTargetableDevices;
+    uint8_t nodeCount = reconState.nodeCount;
+    
+    reconState.clearTargetableDevices();
+    reconState.clearNodes();
+    
+    char msg[64];
+    snprintf(msg, sizeof(msg), "Cleared %d devices and %d nodes", deviceCount, nodeCount);
+    outMessage = msg;
+    return true;
+}
+
 bool ReconService::replayPacket(uint8_t slotIndex, uint8_t repeatCount, uint16_t delayMs, String& outMessage) {
     if (!isInitialized()) {
         outMessage = "Recon tool not initialized";

@@ -237,6 +237,186 @@ curl -X GET "http://192.168.4.1/api/device?nodeId=0x9EA3D744"
 
 ---
 
+### **POST /api/devices/clear**
+
+Clear all discovered devices and nodes from tracking.
+
+**Request:**
+```http
+POST /api/devices/clear HTTP/1.1
+Host: 192.168.4.1
+```
+
+**Response:**
+```json
+{
+  "status": "success",
+  "message": "Cleared 5 devices and 8 nodes"
+}
+```
+
+**Behavior:**
+1. Clears all targetable devices from the device list
+2. Clears all tracked node entries
+3. Counters reset; device discovery starts fresh
+4. Does NOT clear replay slots or packet statistics
+
+**cURL Example:**
+```bash
+curl -X POST http://192.168.4.1/api/devices/clear
+```
+
+---
+
+## 🔄 Packet Replay
+
+### **GET /api/replay/slots**
+
+List all captured packets available for replay.
+
+**Request:**
+```http
+GET /api/replay/slots HTTP/1.1
+Host: 192.168.4.1
+```
+
+**Response:**
+```json
+{
+  "status": "success",
+  "capacity": 10,
+  "count": 3,
+  "available": 7,
+  "slots": [
+    {
+      "index": 1,
+      "length": 64,
+      "protocol": "Meshtastic",
+      "configIndex": 5,
+      "frequencyMHz": 906.875,
+      "rssi": -68.5,
+      "capturedSecondsAgo": 120,
+      "nodeId": "9EA3D744",
+      "packetId": "0012AB34",
+      "decryptedText": "Hello world"
+    },
+    {
+      "index": 2,
+      "length": 48,
+      "protocol": "Meshtastic",
+      "configIndex": 5,
+      "frequencyMHz": 906.875,
+      "rssi": -72.0,
+      "capturedSecondsAgo": 85,
+      "nodeId": "A1B2C3D4"
+    }
+  ]
+}
+```
+
+**Fields:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `capacity` | number | Maximum replay slots (10) |
+| `count` | number | Currently occupied slots |
+| `available` | number | Free slots remaining |
+| `slots[].index` | number | Slot index (1-based) |
+| `slots[].length` | number | Packet length in bytes |
+| `slots[].protocol` | string | Detected protocol |
+| `slots[].configIndex` | number | Frequency config index |
+| `slots[].frequencyMHz` | number | Capture frequency |
+| `slots[].rssi` | number | Signal strength at capture (dBm) |
+| `slots[].capturedSecondsAgo` | number | Time since capture |
+| `slots[].nodeId` | string | **Optional** - Source node ID (hex) |
+| `slots[].packetId` | string | **Optional** - Meshtastic packet ID (hex) |
+| `slots[].decryptedText` | string | **Optional** - Decrypted message content |
+
+**cURL Example:**
+```bash
+curl -X GET http://192.168.4.1/api/replay/slots
+```
+
+---
+
+### **POST /api/replay/clear**
+
+Clear all captured replay slots.
+
+**Request:**
+```http
+POST /api/replay/clear HTTP/1.1
+Host: 192.168.4.1
+```
+
+**Response (Success):**
+```json
+{
+  "status": "success",
+  "message": "Replay slots cleared"
+}
+```
+
+**Response (No Slots):**
+```json
+{
+  "status": "error",
+  "message": "No replay slots to clear"
+}
+```
+
+**cURL Example:**
+```bash
+curl -X POST http://192.168.4.1/api/replay/clear
+```
+
+---
+
+### **POST /api/replay/transmit**
+
+Transmit a captured packet from a replay slot.
+
+**Request:**
+```http
+POST /api/replay/transmit HTTP/1.1
+Host: 192.168.4.1
+Content-Type: application/x-www-form-urlencoded
+
+slotIndex=1&repeatCount=3&delayMs=500
+```
+
+**Request Parameters:**
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `slotIndex` | number | Yes | - | Replay slot index (1-based) |
+| `repeatCount` | number | No | 1 | Number of times to transmit |
+| `delayMs` | number | No | 1000 | Delay between repeats (ms) |
+
+**Response (Success):**
+```json
+{
+  "status": "success",
+  "message": "Replayed slot 1 (3 times)"
+}
+```
+
+**Response (Invalid Slot):**
+```json
+{
+  "status": "error",
+  "message": "Invalid slot index"
+}
+```
+
+**cURL Example:**
+```bash
+curl -X POST http://192.168.4.1/api/replay/transmit \
+  -d "slotIndex=1&repeatCount=3&delayMs=500"
+```
+
+---
+
 ## 🎯 Capture Control
 
 ### **POST /api/capture/start**
@@ -826,6 +1006,30 @@ Host: 192.168.4.1
 The device supports two WiFi modes:
 - **AP Mode (Setup):** Device creates its own WiFi network for initial setup
 - **Station Mode:** Device connects to your phone's hotspot, preserving phone features
+
+### Pre-Provisioned Credentials (Optional)
+
+For headless deployments or to skip the web-based setup, you can pre-provision WiFi credentials by creating a `wifi_creds.json` file in the `data/` folder before uploading the filesystem:
+
+**File: `data/wifi_creds.json`**
+```json
+{
+  "ssid": "YourHotspotSSID",
+  "password": "YourPassword"
+}
+```
+
+**Behavior:**
+1. If `wifi_creds.json` exists in LittleFS and no credentials are stored, the device will load these credentials on boot
+2. Device attempts to connect to the specified hotspot automatically
+3. Once connected, credentials are saved to `wifi_config.json` (the runtime credential store)
+4. The original `wifi_creds.json` is NOT deleted; it acts as a fallback
+5. This file is uploaded via `pio run --target uploadfs`
+
+**Use Cases:**
+- Pre-configure devices before field deployment
+- Quickly restore connectivity after filesystem format
+- Share device images with pre-configured WiFi
 
 ### **GET /api/wifi/status**
 

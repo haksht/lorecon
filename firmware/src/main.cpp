@@ -26,6 +26,7 @@
 #include "web_server.h"
 #include "recon_service.h"
 #include "psk_tests.h"
+#include "oled_display.h"
 #include <LittleFS.h>
 #include "soc/rtc_cntl_reg.h"
 #include "soc/soc.h"
@@ -78,6 +79,15 @@ void setup() {
             LOG_INFO("✓ Web interface ready!");
             LOG_INFO("  Open browser: http://%s", wifiManager.getIPAddress().toString().c_str());
             LOG_INFO("  Or use: http://%s.local", mdnsHost.c_str());
+            
+            // Update OLED with network info
+            OLEDDisplay* display = reconTool.getDisplay();
+            if (display) {
+                display->setNetworkInfo(
+                    wifiManager.getIPAddress().toString().c_str(),
+                    mdnsHost.c_str()
+                );
+            }
             
             if (wifiManager.isSetupMode()) {
                 LOG_INFO("  📱 Configure your hotspot in the web UI");

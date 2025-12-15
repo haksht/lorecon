@@ -1166,9 +1166,15 @@ class ReconApp {
                         showToast('GPS export failed: ' + error.message, 'error');
                     }
                     break;
-                case 'clear-targets':
-                    await this.post('/api/capture/stop', {});
-                    showToast('Targets cleared', 'success');
+                case 'clear-packets':
+                    await this.post('/api/replay/clear', {});
+                    showToast('Packets cleared', 'success');
+                    await this.showPackets();
+                    break;
+                case 'clear-devices':
+                    await this.post('/api/devices/clear', {});
+                    showToast('Devices cleared', 'success');
+                    await this.showDevices();
                     await this.updateStatus();
                     break;
                 case 'show-activity':
@@ -1378,6 +1384,15 @@ class ReconApp {
                     break;
                 case 'wifi-setup':
                     this.showWiFiSetupModal();
+                    break;
+                case 'dismiss-setup':
+                    // User chose to keep using device AP
+                    const banner = document.getElementById('setup-banner');
+                    if (banner) {
+                        banner.style.display = 'none';
+                        document.body.classList.remove('setup-mode');
+                    }
+                    showToast('Continuing with device AP. Go to Settings to configure hotspot later.', 'info');
                     break;
                 case 'wifi-clear':
                     if (confirm('Clear stored hotspot credentials? The device will restart in setup mode.')) {
@@ -1624,3 +1639,5 @@ document.addEventListener('DOMContentLoaded', () => {
     app = new ReconApp();
     window.app = app;
 });
+
+

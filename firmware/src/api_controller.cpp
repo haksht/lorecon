@@ -295,6 +295,14 @@ String APIController::clearReplaySlots() {
     return createSuccessResponse(message);
 }
 
+String APIController::clearDevices() {
+    String message;
+    if (!ReconService::clearDevices(message)) {
+        return createErrorResponse(message);
+    }
+    return createSuccessResponse(message);
+}
+
 String APIController::replayPacket(uint8_t slotIndex, uint8_t repeatCount, uint16_t delayMs) {
     String message;
     if (!ReconService::replayPacket(slotIndex, repeatCount, delayMs, message)) {
