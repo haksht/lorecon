@@ -211,8 +211,13 @@ namespace Radio {
 // WIFI CONFIGURATION
 // ============================================================================
 namespace WiFi {
-    // File to store WiFi credentials in LittleFS
+    // File to store WiFi credentials in LittleFS (written by web UI)
     constexpr const char* CREDENTIALS_FILE = "/wifi_config.json";
+    
+    // Pre-provisioned credentials file (optional, uploaded via uploadfs)
+    // Allows developers to include creds in data/ folder for testing
+    // If present and no saved creds exist, these will be used automatically
+    constexpr const char* PREPROVISIONED_CREDS_FILE = "/wifi_creds.json";
     
     // Default AP mode settings (used when no credentials stored)
     // SSID will be "LoRa-XXYYZZ" where XXYYZZ is last 3 bytes of MAC address

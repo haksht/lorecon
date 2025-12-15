@@ -50,6 +50,9 @@ public:
     void showTargetingMode(const char* targetInfo);
     void showShutdown();
     
+    // Network info display
+    void setNetworkInfo(const char* ipAddr, const char* mdnsName);
+    
     // Auto-off timer (turns off display after inactivity)
     void resetAutoOffTimer();
     void setAutoOffTimeout(uint32_t timeoutMs);
@@ -86,6 +89,8 @@ private:
         uint8_t trackedNodeCount;
         uint8_t targetableDeviceCount;
         char targetInfo[32];
+        char ipAddress[20];     // IP address (e.g., "192.168.1.100")
+        char mdnsName[24];      // mDNS hostname (e.g., "lora-a1b2c3")
     } info;
     
     // Display rendering helpers

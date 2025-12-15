@@ -8,6 +8,7 @@
 #include <LittleFS.h>
 #include <ArduinoJson.h>
 #include <esp_mac.h>
+#include <esp_task_wdt.h>
 
 WiFiManager::WiFiManager() 
     : currentMode(WiFiMode::OFF)
@@ -83,21 +84,34 @@ String WiFiManager::getDeviceId() {
  * Check if credentials are stored in LittleFS
  */
 bool WiFiManager::hasStoredCredentials() const {
-    return LittleFS.exists(Config::WiFi::CREDENTIALS_FILE);
+    return LittleFS.exists(Config::WiFi::CREDENTIALS_FILE) || 
+           LittleFS.exists(Config::WiFi::PREPROVISIONED_CREDS_FILE);
 }
 
 /**
  * Load stored WiFi credentials from LittleFS
  * 
+ * Checks two locations:
+ * 1. /wifi_config.json - User-configured via web UI (takes priority)
+ * 2. /wifi_creds.json - Pre-provisioned by developer (fallback)
+ * 
  * @return true if credentials loaded successfully
  */
 bool WiFiManager::loadCredentials() {
-    if (!hasStoredCredentials()) {
+    // Check for user-configured credentials first
+    const char* credFile = nullptr;
+    if (LittleFS.exists(Config::WiFi::CREDENTIALS_FILE)) {
+        credFile = Config::WiFi::CREDENTIALS_FILE;
+        LOG_INFO("Found user-configured WiFi credentials");
+    } else if (LittleFS.exists(Config::WiFi::PREPROVISIONED_CREDS_FILE)) {
+        credFile = Config::WiFi::PREPROVISIONED_CREDS_FILE;
+        LOG_INFO("Found pre-provisioned WiFi credentials (from uploadfs)");
+    } else {
         LOG_INFO("No stored WiFi credentials found");
         return false;
     }
     
-    File file = LittleFS.open(Config::WiFi::CREDENTIALS_FILE, "r");
+    File file = LittleFS.open(credFile, "r");
     if (!file) {
         LOG_ERROR("Failed to open WiFi credentials file");
         return false;
@@ -293,21 +307,49 @@ bool WiFiManager::startAP(const char* ssid, const char* password) {
 bool WiFiManager::startStation(const char* ssid, const char* password) {
     LOG_INFO("Connecting to WiFi network...");
     LOG_INFO("  SSID: %s", ssid);
+    LOG_INFO("  Password length: %d", password ? strlen(password) : 0);
+    
+    // Scan for available networks first (debug)
+    LOG_INFO("Scanning for available networks...");
+    WiFi.mode(WIFI_STA);
+    WiFi.disconnect();
+    delay(100);
+    
+    int numNetworks = WiFi.scanNetworks();
+    LOG_INFO("Found %d networks:", numNetworks);
+    bool targetFound = false;
+    for (int i = 0; i < numNetworks && i < 10; i++) {
+        String foundSSID = WiFi.SSID(i);
+        LOG_INFO("  [%d] %s (RSSI: %d dBm, Ch: %d)", 
+                 i, foundSSID.c_str(), WiFi.RSSI(i), WiFi.channel(i));
+        if (foundSSID == ssid) {
+            targetFound = true;
+            LOG_INFO("       ^^^ TARGET NETWORK FOUND ^^^");
+        }
+    }
+    WiFi.scanDelete();
+    
+    if (!targetFound) {
+        LOG_ERROR("Target network '%s' not found in scan!", ssid);
+        return false;
+    }
     
     // Store credentials for auto-reconnect
     staSsid = ssid;
     staPassword = password;
     
-    WiFi.mode(WIFI_STA);
+    LOG_INFO("Attempting connection to %s...", ssid);
     WiFi.begin(ssid, password);
     
     // Wait for connection with timeout
+    // Feed watchdog during wait to prevent system reset
     uint32_t startTime = millis();
     while (WiFi.status() != WL_CONNECTED) {
         if (millis() - startTime > connectionTimeout) {
             LOG_ERROR("✗ Connection timeout after %d ms", connectionTimeout);
             return false;
         }
+        esp_task_wdt_reset();  // Feed watchdog during long wait
         delay(100);
         Serial.print(".");
     }

@@ -206,10 +206,6 @@
                         <span class="btn-icon">💾</span>
                         <span>Export PCAP</span>
                     </button>
-                    <button data-action="clear-targets" class="btn" aria-label="Clear targets">
-                        <span class="btn-icon">🗑️</span>
-                        <span>Clear Targets</span>
-                    </button>
                 </div>
 
                 <h2>Analysis</h2>
@@ -350,6 +346,10 @@
                     <div class="results-header">
                         <h2>Discovered Devices</h2>
                         <p class="header-subtitle">Devices appear as they are discovered during reconnaissance</p>
+                        <button data-action="clear-devices" class="btn btn-secondary" aria-label="Clear devices">
+                            <span class="btn-icon">🗑️</span>
+                            <span>Clear Devices</span>
+                        </button>
                     </div>
                     <div class="results-content" id="devices-content">
                         <div class="loading-container">
@@ -366,6 +366,10 @@
                     <div class="results-header">
                         <h2>Captured Packets</h2>
                         <p class="header-subtitle">Replay slots available for packet transmission</p>
+                        <button data-action="clear-packets" class="btn btn-secondary" aria-label="Clear packets">
+                            <span class="btn-icon">🗑️</span>
+                            <span>Clear Packets</span>
+                        </button>
                     </div>
                     <div class="results-content" id="packets-content">
                         <div class="loading-container">
@@ -529,10 +533,17 @@
                 <button class="modal-close" data-action="close-modal">&times;</button>
             </div>
             <div class="modal-body">
-                <p class="modal-description">
-                    Enter your phone's hotspot credentials. After saving, the device will restart 
-                    and connect to your hotspot automatically. You'll keep your phone's internet 
-                    and SMS while using the sniffer.
+                <div class="modal-info" style="background: rgba(74, 144, 226, 0.1); padding: 12px; border-radius: 8px; margin-bottom: 16px; border-left: 3px solid var(--primary);">
+                    <strong>Why use a hotspot?</strong>
+                    <ul style="margin: 8px 0 0 16px; font-size: 0.9rem; color: var(--text-secondary);">
+                        <li>Keep internet access on your phone/laptop</li>
+                        <li>Access the sniffer UI from any device on your hotspot</li>
+                        <li>Credentials are saved for automatic reconnection</li>
+                    </ul>
+                </div>
+                <p class="modal-description" style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 16px;">
+                    After saving, the device will restart and connect to your hotspot. 
+                    You'll need to reconnect to your hotspot's network to access this UI.
                 </p>
                 <form id="wifi-form">
                     <div class="form-group">
@@ -562,10 +573,14 @@
     <div id="setup-banner" class="setup-banner" style="display: none;">
         <div class="setup-banner-content">
             <span class="setup-icon">📱</span>
-            <span class="setup-text">
-                <strong>Setup Mode:</strong> You're connected to <span id="banner-ssid">LoRa-XXXXXX</span>. Configure your hotspot to keep phone features.
-            </span>
-            <button class="btn btn-primary btn-small" data-action="wifi-setup">Configure Now</button>
+            <div class="setup-text">
+                <strong>Setup Mode:</strong> You're connected to <span id="banner-ssid">LoRa-XXXXXX</span>.
+                <br><small style="opacity: 0.9;">Want internet access while using the sniffer? Configure your phone's hotspot below. Otherwise, you can continue using the device AP.</small>
+            </div>
+            <div class="setup-buttons">
+                <button class="btn btn-primary btn-small" data-action="wifi-setup">Configure Hotspot</button>
+                <button class="btn btn-secondary btn-small" data-action="dismiss-setup" style="background: rgba(255,255,255,0.2);">Use Device AP</button>
+            </div>
         </div>
     </div>
 
@@ -579,3 +594,4 @@
     <script src="js/app.js"></script>
 </body>
 </html>
+

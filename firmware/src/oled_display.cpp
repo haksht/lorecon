@@ -258,7 +258,8 @@ void OLEDDisplay::showScanningStatus(const char* frequency, uint8_t sf, uint8_t 
         strncpy(info.frequency, frequency, sizeof(info.frequency) - 1);
         info.frequency[sizeof(info.frequency) - 1] = '\0';
     } else {
-        strcpy(info.frequency, "ERR");
+        strncpy(info.frequency, "ERR", sizeof(info.frequency) - 1);
+        info.frequency[sizeof(info.frequency) - 1] = '\0';
     }
     info.sf = sf;
     info.configIndex = configIndex;
@@ -296,8 +297,23 @@ void OLEDDisplay::showShutdown() {
 
 void OLEDDisplay::clearInfo() {
     memset(&info, 0, sizeof(info));
-    strcpy(info.lastProtocol, "None");
-    strcpy(info.frequency, "---");
+    strncpy(info.lastProtocol, "None", sizeof(info.lastProtocol) - 1);
+    info.lastProtocol[sizeof(info.lastProtocol) - 1] = '\0';
+    strncpy(info.frequency, "---", sizeof(info.frequency) - 1);
+    info.frequency[sizeof(info.frequency) - 1] = '\0';
+    info.ipAddress[0] = '\0';
+    info.mdnsName[0] = '\0';
+}
+
+void OLEDDisplay::setNetworkInfo(const char* ipAddr, const char* mdnsName) {
+    if (ipAddr != nullptr) {
+        strncpy(info.ipAddress, ipAddr, sizeof(info.ipAddress) - 1);
+        info.ipAddress[sizeof(info.ipAddress) - 1] = '\0';
+    }
+    if (mdnsName != nullptr) {
+        strncpy(info.mdnsName, mdnsName, sizeof(info.mdnsName) - 1);
+        info.mdnsName[sizeof(info.mdnsName) - 1] = '\0';
+    }
 }
 
 // Display rendering helpers
@@ -344,9 +360,23 @@ void OLEDDisplay::renderScanning() {
     snprintf(buffer, sizeof(buffer), "SF:%d Pkts:%u", info.sf, reconState.scanState.totalPackets);
     display.drawStr(0, 48, buffer);
     
-    // Button help at bottom
+    // Show IP/mDNS at bottom if connected, else button help
     display.setFont(u8g2_font_5x7_tf);
-    display.drawStr(0, 62, "BTN:Off Long:Shutdown");
+    if (strlen(info.ipAddress) > 0) {
+        // Show IP (fits on one line: "172.20.10.3")
+        display.drawStr(0, 62, info.ipAddress);
+        // Show mDNS hostname on second half if room (font is 5px wide)
+        if (strlen(info.mdnsName) > 0) {
+            // Format: "IP | hostname.local"
+            int ipWidth = strlen(info.ipAddress) * 5 + 4;  // IP width + gap
+            if (ipWidth < 80) {  // Leave room for mdns
+                snprintf(buffer, sizeof(buffer), "%s.local", info.mdnsName);
+                display.drawStr(ipWidth, 62, buffer);
+            }
+        }
+    } else {
+        display.drawStr(0, 62, "BTN:Off Long:Shutdown");
+    }
 }
 
 void OLEDDisplay::renderPacketInfo() {

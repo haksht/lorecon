@@ -587,6 +587,10 @@ body {
     margin: 0;
 }
 
+.results-header .btn {
+    margin-top: 1rem;
+}
+
 .results-content {
     padding: 1.5rem;
 }

@@ -50,6 +50,8 @@ private:
     static void cmdExportGeoJSON(IReconTool* tool);
     static void cmdDiagnosticReport(IReconTool* tool);
     static void cmdToggleQuietMode(IReconTool* tool);
+    static void cmdClearPackets(IReconTool* tool);
+    static void cmdClearDevices(IReconTool* tool);
     
     // Command table entry
     struct CommandEntry {
@@ -90,6 +92,10 @@ private:
         {'Q', cmdToggleQuietMode,     "Toggle quiet/verbose mode",     false},
         {'x', cmdDiagnosticReport,    "Text packet diagnostic report", false},
         {'X', cmdDiagnosticReport,    "Text packet diagnostic report", false},
+        {'l', cmdClearPackets,        "Clear captured packets",        false},
+        {'L', cmdClearPackets,        "Clear captured packets",        false},
+        {'n', cmdClearDevices,        "Clear discovered devices",      false},
+        {'N', cmdClearDevices,        "Clear discovered devices",      false},
     };
     
     static constexpr uint8_t numCommands = sizeof(commands) / sizeof(CommandEntry);

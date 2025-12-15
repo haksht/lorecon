@@ -452,7 +452,7 @@ void ReconState::printStateSummary() const {
 // Packet replay management
 bool ReconState::capturePacketForReplay(const uint8_t* data, size_t length, uint8_t configIndex,
                                         float rssi, const char* protocol, const char* decryptedText,
-                                        uint32_t nodeId) {
+                                        uint32_t nodeId, uint32_t packetId) {
     if (numCapturedPackets >= Config::Replay::MAX_SLOTS) {
         return false;  // Slots full
     }
@@ -468,6 +468,7 @@ bool ReconState::capturePacketForReplay(const uint8_t* data, size_t length, uint
     slot.originalRSSI = rssi;
     slot.captureTime = millis();
     slot.nodeId = nodeId;
+    slot.packetId = packetId;
     strncpy(slot.protocol, protocol, sizeof(slot.protocol) - 1);
     slot.protocol[sizeof(slot.protocol) - 1] = '\0';
     
