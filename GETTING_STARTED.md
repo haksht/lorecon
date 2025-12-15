@@ -94,6 +94,23 @@ The ESP32 creates its own WiFi network.
 2. Open `http://192.168.4.1`
 3. Use the web interface directly
 
+### Option C: Pre-Provisioned Credentials (Developer)
+
+**Best for:** Headless deployment, testing, skip setup wizard
+
+Create `data/wifi_creds.json` before uploading filesystem:
+
+```json
+{
+  "ssid": "YourHotspotSSID",
+  "password": "YourPassword"
+}
+```
+
+Then upload: `pio run --target uploadfs`
+
+Device will auto-connect on boot. See [API_REFERENCE.md](API_REFERENCE.md#pre-provisioned-credentials-optional) for details.
+
 ### Switching Modes
 
 **To reconfigure WiFi (return to setup mode):**
