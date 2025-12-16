@@ -524,3 +524,44 @@ String APIController::getTemporalData() {
     serializeJson(doc, response);
     return response;
 }
+/**
+ * GET /api/psk/stats
+ * 
+ * Returns PSK decryption statistics for attack dashboard
+ */
+String APIController::getPSKStats() {
+    JsonDocument doc;
+    extern ReconState reconState;
+    ReconState& state = reconState;
+    
+    // Overall stats
+    doc["attempts"] = state.pskStats.attempts;
+    doc["successes"] = state.pskStats.successes;
+    doc["successRate"] = state.pskStats.attempts > 0 
+        ? (float)state.pskStats.successes / state.pskStats.attempts * 100.0f 
+        : 0.0f;
+    doc["totalKeys"] = Config::PSK::NUM_DEFAULT_KEYS;
+    
+    // Per-key hit counts
+    JsonArray keys = doc["keys"].to<JsonArray>();
+    for (uint8_t i = 0; i < Config::PSK::NUM_DEFAULT_KEYS; i++) {
+        JsonObject key = keys.add<JsonObject>();
+        key["index"] = i;
+        key["hits"] = state.pskStats.hitCount[i];
+    }
+    
+    // Count keys with at least one hit (networks cracked)
+    uint8_t networksCracked = 0;
+    for (uint8_t i = 0; i < Config::PSK::NUM_DEFAULT_KEYS; i++) {
+        if (state.pskStats.hitCount[i] > 0) {
+            networksCracked++;
+        }
+    }
+    doc["networksCracked"] = networksCracked;
+    
+    doc["status"] = "success";
+    
+    String response;
+    serializeJson(doc, response);
+    return response;
+}

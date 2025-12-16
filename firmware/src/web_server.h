@@ -113,6 +113,7 @@ private:
     static void handleGetAnomalies(AsyncWebServerRequest* request);
     static void handleAcknowledgeAnomaly(AsyncWebServerRequest* request);
     static void handleGetTemporalData(AsyncWebServerRequest* request);
+    static void handleGetPSKStats(AsyncWebServerRequest* request);
     static void handleGetReplaySlots(AsyncWebServerRequest* request);
     static void handleClearReplaySlots(AsyncWebServerRequest* request);
     static void handleClearDevices(AsyncWebServerRequest* request);
