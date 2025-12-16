@@ -166,6 +166,9 @@ void WebServer::setupRoutes() {
     server->on("/api/anomaly/acknowledge", HTTP_POST, handleAcknowledgeAnomaly);  // Body: {index: 0}
     server->on("/api/temporal", HTTP_GET, handleGetTemporalData);
     
+    // PSK/Decryption Stats (for attack dashboard)
+    server->on("/api/psk/stats", HTTP_GET, handleGetPSKStats);
+    
     // Command handling (reboot, etc.)
     server->on("/api/command", HTTP_POST, handleCommand);
     
@@ -581,6 +584,11 @@ void WebServer::handleAcknowledgeAnomaly(AsyncWebServerRequest* request) {
 
 void WebServer::handleGetTemporalData(AsyncWebServerRequest* request) {
     String json = APIController::getTemporalData();
+    request->send(200, "application/json", json);
+}
+
+void WebServer::handleGetPSKStats(AsyncWebServerRequest* request) {
+    String json = APIController::getPSKStats();
     request->send(200, "application/json", json);
 }
 

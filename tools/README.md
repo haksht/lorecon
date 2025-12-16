@@ -4,7 +4,27 @@ Professional-grade visualization and analysis tools for ESP32 LoRa reconnaissanc
 
 ## 🎯 Quick Start for Conference Demos
 
-**Best demo setup (5-panel dashboard with audio):**
+### Attack Dashboard (NEW!) 🔥
+
+**Standalone HTML dashboard for live presentations:**
+```bash
+# Just open in your browser - no Python needed!
+start attack_dashboard.html   # Windows
+open attack_dashboard.html    # macOS
+```
+
+Features:
+- ⚔️ **Attack Surface Stats** - Devices found, networks cracked, replay slots ready
+- 🔓 **PSK Decryption Panel** - Live success rate, per-key hit counts
+- 📡 **Replay Attack Slots** - One-click packet replay with decrypted text
+- 📍 **Live GPS Map** - Real Leaflet/OpenStreetMap with movement trails
+- ⚠️ **Anomaly Feed** - Real-time security alerts overlay
+
+Enter your ESP32's IP (e.g., `172.20.10.3`) and click Connect.
+
+---
+
+**Serial-based 5-panel dashboard with audio:**
 ```bash
 # Install dependencies
 pip install -r requirements.txt

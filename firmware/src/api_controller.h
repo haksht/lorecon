@@ -50,6 +50,9 @@ public:
     static String getAnomalies(bool unacknowledgedOnly = false);
     static String acknowledgeAnomaly(uint8_t index);
     static String getTemporalData();
+    
+    // PSK/Decryption Stats
+    static String getPSKStats();
     static String getDashboard();  // Combined endpoint for initial load
     static String getConfig();
     static String setConfig(const String& jsonConfig);
