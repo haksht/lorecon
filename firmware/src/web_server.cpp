@@ -27,6 +27,7 @@ WebServer::WebServer()
     , reconTool(nullptr)
     , activeClients(0)
     , lastBroadcast(0)
+    , lastDisconnectTime(0)
     , pendingPacketBroadcast(false)
     , pendingClientCleanup(false)
     , disconnectInProgress(false)
@@ -718,8 +719,12 @@ void WebServer::handleWebSocketEvent(AsyncWebSocket* server, AsyncWebSocketClien
                 g_webServer->disconnectInProgress.store(false, std::memory_order_release);  // Clear flag
                 g_webServer->activeClients.fetch_add(1, std::memory_order_relaxed);
                 g_webServer->lastBroadcast = millis();
-                // Send a simple ACK to keep client heartbeat alive
-                if (g_webServer->ws) {
+                // Delay ACK to let any pending TCP operations settle
+                // This helps prevent race with previous client's disconnect
+                vTaskDelay(pdMS_TO_TICKS(50));
+                // Send a simple ACK - but only if socket is stable
+                if (g_webServer->ws && g_webServer->ws->count() > 0 &&
+                    !g_webServer->disconnectInProgress.load(std::memory_order_acquire)) {
                     g_webServer->ws->textAll("{\"type\":\"connected\"}");
                 }
             }
@@ -731,6 +736,8 @@ void WebServer::handleWebSocketEvent(AsyncWebSocket* server, AsyncWebSocketClien
             if (g_webServer) {
                 // Set flag FIRST to block any pending data events
                 g_webServer->disconnectInProgress.store(true, std::memory_order_release);
+                // Record disconnect time for cooldown period
+                g_webServer->lastDisconnectTime = millis();
                 
                 size_t previous = g_webServer->activeClients.load(std::memory_order_relaxed);
                 while (previous != 0 && !g_webServer->activeClients.compare_exchange_weak(
@@ -809,8 +816,29 @@ void WebServer::handlePacketEvent(const PacketEvent& evt) {
  */
 void WebServer::broadcastAggregatedUpdate() {
     // Safety checks: no broadcast if no websocket, no stats, or no clients
-    if (!ws || !server || aggStats.packetCount == 0 || activeClients.load(std::memory_order_relaxed) == 0) {
+    if (!ws || !server || aggStats.packetCount == 0) {
         pendingPacketBroadcast.store(false, std::memory_order_relaxed);
+        return;
+    }
+    
+    // CRITICAL: Check disconnect flag BEFORE any socket operation
+    if (disconnectInProgress.load(std::memory_order_acquire)) {
+        pendingPacketBroadcast.store(false, std::memory_order_relaxed);
+        return;
+    }
+    
+    // CRITICAL: Enforce cooldown after disconnect to let TCP stack settle
+    uint32_t timeSinceDisconnect = millis() - lastDisconnectTime;
+    if (timeSinceDisconnect < DISCONNECT_COOLDOWN_MS) {
+        // TCP stack may still be processing - skip this broadcast
+        return;
+    }
+    
+    // Double-check client count right before sending
+    size_t clientCount = ws->count();
+    if (clientCount == 0) {
+        pendingPacketBroadcast.store(false, std::memory_order_relaxed);
+        activeClients.store(0, std::memory_order_relaxed);
         return;
     }
 
@@ -824,8 +852,11 @@ void WebServer::broadcastAggregatedUpdate() {
     String json;
     serializeJson(doc, json);
 
-    // Non-blocking send
-    if (json.length() < 256) {  // Safety limit
+    // Non-blocking send with length check
+    // Re-check disconnect flag right before send (race condition mitigation)
+    if (json.length() > 0 && json.length() < 256 && 
+        !disconnectInProgress.load(std::memory_order_acquire) &&
+        ws->count() > 0) {
         ws->textAll(json);
     }
     
@@ -879,7 +910,13 @@ void WebServer::service() {
  * Broadcast device update to all connected WebSocket clients
  */
 void WebServer::broadcastDeviceUpdate(uint32_t nodeId) {
-    if (!ws || !server || activeClients.load(std::memory_order_relaxed) == 0) return;
+    // CRITICAL: Check disconnect flag BEFORE any socket operation
+    if (!ws || !server || ws->count() == 0 || 
+        disconnectInProgress.load(std::memory_order_acquire)) return;
+    
+    // CRITICAL: Enforce cooldown after disconnect to let TCP stack settle
+    uint32_t timeSinceDisconnect = millis() - lastDisconnectTime;
+    if (timeSinceDisconnect < DISCONNECT_COOLDOWN_MS) return;
     
     JsonDocument doc;
     doc["type"] = "deviceUpdate";
@@ -889,14 +926,23 @@ void WebServer::broadcastDeviceUpdate(uint32_t nodeId) {
     String json;
     serializeJson(doc, json);
     
-    ws->textAll(json);
+    // Re-check state before sending
+    if (!disconnectInProgress.load(std::memory_order_acquire) && ws->count() > 0) {
+        ws->textAll(json);
+    }
 }
 
 /**
  * Broadcast status update to all connected WebSocket clients
  */
 void WebServer::broadcastStatusUpdate() {
-    if (!ws || !server || activeClients.load(std::memory_order_relaxed) == 0) return;
+    // CRITICAL: Check disconnect flag BEFORE any socket operation
+    if (!ws || !server || ws->count() == 0 ||
+        disconnectInProgress.load(std::memory_order_acquire)) return;
+    
+    // CRITICAL: Enforce cooldown after disconnect to let TCP stack settle
+    uint32_t timeSinceDisconnect = millis() - lastDisconnectTime;
+    if (timeSinceDisconnect < DISCONNECT_COOLDOWN_MS) return;
 
     String statusJson = APIController::getStatus();
     
@@ -908,7 +954,10 @@ void WebServer::broadcastStatusUpdate() {
     String json;
     serializeJson(doc, json);
 
-    ws->textAll(json);
+    // Re-check state before sending
+    if (!disconnectInProgress.load(std::memory_order_acquire) && ws->count() > 0) {
+        ws->textAll(json);
+    }
 }
 
 /**

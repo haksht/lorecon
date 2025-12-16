@@ -208,6 +208,7 @@ bool WiFiManager::clearCredentials() {
  */
 bool WiFiManager::autoConnect() {
     LOG_INFO("=== WiFi Auto-Connect ===");
+    esp_task_wdt_reset();  // Feed watchdog at start of WiFi operations
     
     // Try to load stored credentials
     if (loadCredentials()) {
@@ -224,6 +225,7 @@ bool WiFiManager::autoConnect() {
             }
             
             if (attempt < Config::WiFi::STA_MAX_RETRIES) {
+                esp_task_wdt_reset();  // Feed watchdog between retries
                 delay(1000);  // Brief delay between retries
             }
         }
@@ -236,6 +238,7 @@ bool WiFiManager::autoConnect() {
     
     // Start AP mode for setup with unique SSID
     setupMode = true;
+    esp_task_wdt_reset();  // Feed watchdog before AP setup
     String uniqueSSID = getUniqueAPSSID();
     if (startAP(uniqueSSID.c_str(), Config::WiFi::DEFAULT_AP_PASSWORD)) {
         LOG_INFO("");
@@ -311,11 +314,13 @@ bool WiFiManager::startStation(const char* ssid, const char* password) {
     
     // Scan for available networks first (debug)
     LOG_INFO("Scanning for available networks...");
+    esp_task_wdt_reset();  // Feed watchdog before potentially long scan
     WiFi.mode(WIFI_STA);
     WiFi.disconnect();
     delay(100);
     
     int numNetworks = WiFi.scanNetworks();
+    esp_task_wdt_reset();  // Feed watchdog after scan completes
     LOG_INFO("Found %d networks:", numNetworks);
     bool targetFound = false;
     for (int i = 0; i < numNetworks && i < 10; i++) {
@@ -330,8 +335,7 @@ bool WiFiManager::startStation(const char* ssid, const char* password) {
     WiFi.scanDelete();
     
     if (!targetFound) {
-        LOG_ERROR("Target network '%s' not found in scan!", ssid);
-        return false;
+        LOG_WARN("Target network '%s' not found in scan - attempting connection anyway", ssid);
     }
     
     // Store credentials for auto-reconnect

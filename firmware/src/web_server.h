@@ -80,10 +80,12 @@ private:
     // Aggregation for efficient WebSocket updates
     AggregatedStats aggStats;
     uint32_t lastBroadcast;
+    uint32_t lastDisconnectTime;  // Track when disconnect occurred for cooldown
     std::atomic<bool> pendingPacketBroadcast;
     std::atomic<bool> pendingClientCleanup;
     std::atomic<bool> disconnectInProgress;  // Block data processing during disconnect
     static constexpr uint32_t BROADCAST_INTERVAL_MS = 500;  // 2 Hz max
+    static constexpr uint32_t DISCONNECT_COOLDOWN_MS = 100;  // Wait after disconnect
     
     // Request handlers
     void setupRoutes();
