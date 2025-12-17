@@ -233,9 +233,17 @@ String APIController::getConfig() {
 /**
  * POST /api/scan/start
  * 
- * Start or resume reconnaissance scan
+ * Start or resume reconnaissance scan.
+ * NOTE: If in targeted capture mode, this will NOT override it - 
+ *       user must explicitly stop capture first.
  */
 String APIController::startScan() {
+    // Check if we're in targeted capture mode - don't auto-override
+    if (reconState.scanState.mode == MODE_TARGETED_CAPTURE) {
+        LOG_WARN("API: startScan called while in targeted capture mode - ignoring");
+        return createErrorResponse("Cannot start scan while in targeted capture mode. Stop capture first.");
+    }
+    
     // Resume reconnaissance WITHOUT clearing discovered devices/data
     LOG_INFO("API: Resuming reconnaissance scan");
     
@@ -245,6 +253,11 @@ String APIController::startScan() {
     reconState.scanState.lastScanSwitch = millis();
     reconState.scanState.packetPending = false;
     reconState.scanState.waitingForUserInput = false;
+    
+    // Clear any menu timeout
+    if (g_reconTool) {
+        g_reconTool->clearMenuTimeout();
+    }
     
     // Apply first config and start receiving via ReconService
     IReconTool* tool = ReconService::getReconTool();
@@ -261,9 +274,16 @@ String APIController::startScan() {
 /**
  * POST /api/scan/stop
  * 
- * Stop current scan
+ * Stop current scan (only if in reconnaissance mode)
+ * Does NOT affect targeted capture mode.
  */
 String APIController::stopScan() {
+    // If in targeted capture mode, don't interfere
+    if (reconState.scanState.mode == MODE_TARGETED_CAPTURE) {
+        LOG_WARN("API: stopScan called while in targeted capture mode - ignoring");
+        return createSuccessResponse("Targeted capture remains active. Use stop-capture to exit.");
+    }
+    
     reconState.scanState.mode = MODE_INTERACTIVE_MENU;
     if (g_reconTool) {
         g_reconTool->setMenuModeEntered();

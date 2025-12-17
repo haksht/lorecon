@@ -314,6 +314,9 @@ void LoRaReconTool::startTargetedCapture(uint8_t deviceIndex) {
     reconState.scanState.targetedByDevice = true;  // Device targeting
     reconState.scanState.currentConfig = target.configIndex;
     
+    // Clear any lingering menu timeout - we're now in targeting mode
+    clearMenuTimeout();
+    
     Serial.println(F("\n============================================================"));
     Serial.println(F("          TARGETED CAPTURE MODE ACTIVE"));
     Serial.println(F("============================================================"));

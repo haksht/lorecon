@@ -419,6 +419,18 @@ body {
     transform: none !important;
 }
 
+.btn-disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    background: var(--surface) !important;
+    border-color: var(--border) !important;
+    color: var(--text-secondary) !important;
+}
+
+.btn-disabled:hover {
+    transform: none !important;
+}
+
 .btn-icon {
     font-size: 1.1rem;
     flex-shrink: 0;

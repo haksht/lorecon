@@ -151,8 +151,32 @@ class ReconApp {
             if (this.el.infoHeap) this.el.infoHeap.textContent = this.formatBytes(data.freeHeap || 0);
         }
         
+        // Update Resume Scan button based on mode
+        this.updateScanButton(data.mode);
+        
         // Update target banner
         this.updateTargetBanner(data);
+    }
+    
+    updateScanButton(mode) {
+        const scanBtn = document.querySelector('[data-action="toggle-scan"]');
+        if (!scanBtn) return;
+        
+        const modeStr = (mode || '').toLowerCase();
+        const isTargeted = modeStr.includes('target');
+        
+        // Update button appearance based on mode
+        if (isTargeted) {
+            scanBtn.classList.add('btn-disabled');
+            scanBtn.title = 'Stop targeted capture first';
+            const textEl = scanBtn.querySelector('span:last-child');
+            if (textEl) textEl.textContent = 'Targeting Active';
+        } else {
+            scanBtn.classList.remove('btn-disabled');
+            scanBtn.title = '';
+            const textEl = scanBtn.querySelector('span:last-child');
+            if (textEl) textEl.textContent = 'Resume Scan';
+        }
     }
 
     updateTargetBanner(data) {
@@ -1189,13 +1213,19 @@ class ReconApp {
             switch(action) {
                 case 'toggle-scan':
                 case 'resume-recon':
-                    await this.post('/api/scan/start', {});
-                    showToast('Reconnaissance resumed', 'success');
+                    const result = await this.post('/api/scan/start', {});
+                    // Check if it was an error (targeted mode active)
+                    if (result && result.status === 'error') {
+                        showToast(result.message || 'Cannot resume - targeted capture active', 'warning');
+                    } else {
+                        showToast('Reconnaissance resumed', 'success');
+                    }
                     await this.updateStatus();
                     break;
                 case 'stop-capture':
                     await this.post('/api/capture/stop', {});
                     showToast('Capture stopped', 'success');
+                    await this.updateStatus();
                     break;
                 case 'export-kml':
                     try {
