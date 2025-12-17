@@ -7,8 +7,12 @@
 #include "config.h"
 #include <LittleFS.h>
 #include <ArduinoJson.h>
+#include <Preferences.h>
 #include <esp_mac.h>
 #include <esp_task_wdt.h>
+
+// Preferences instance for secure credential storage
+static Preferences wifiPrefs;
 
 WiFiManager::WiFiManager() 
     : currentMode(WiFiMode::OFF)
@@ -81,39 +85,27 @@ String WiFiManager::getDeviceId() {
 }
 
 /**
- * Check if credentials are stored in LittleFS
- */
-bool WiFiManager::hasStoredCredentials() const {
-    return LittleFS.exists(Config::WiFi::CREDENTIALS_FILE) || 
-           LittleFS.exists(Config::WiFi::PREPROVISIONED_CREDS_FILE);
-}
-
-/**
- * Load stored WiFi credentials from LittleFS
+ * Migrate legacy JSON credentials to Preferences (one-time operation)
  * 
- * Checks two locations:
- * 1. /wifi_config.json - User-configured via web UI (takes priority)
- * 2. /wifi_creds.json - Pre-provisioned by developer (fallback)
- * 
- * @return true if credentials loaded successfully
+ * Checks for old JSON files and migrates them to NVS, then deletes the files.
+ * This provides backward compatibility for existing installations.
  */
-bool WiFiManager::loadCredentials() {
-    // Check for user-configured credentials first
+static bool migrateLegacyCredentials(String& outSsid, String& outPassword) {
     const char* credFile = nullptr;
-    if (LittleFS.exists(Config::WiFi::CREDENTIALS_FILE)) {
-        credFile = Config::WiFi::CREDENTIALS_FILE;
-        LOG_INFO("Found user-configured WiFi credentials");
-    } else if (LittleFS.exists(Config::WiFi::PREPROVISIONED_CREDS_FILE)) {
-        credFile = Config::WiFi::PREPROVISIONED_CREDS_FILE;
-        LOG_INFO("Found pre-provisioned WiFi credentials (from uploadfs)");
+    
+    // Check for legacy JSON files
+    if (LittleFS.exists(Config::WiFi::LEGACY_CREDENTIALS_FILE)) {
+        credFile = Config::WiFi::LEGACY_CREDENTIALS_FILE;
+        LOG_INFO("Found legacy user credentials - migrating to secure storage");
+    } else if (LittleFS.exists(Config::WiFi::LEGACY_PREPROVISIONED_FILE)) {
+        credFile = Config::WiFi::LEGACY_PREPROVISIONED_FILE;
+        LOG_INFO("Found legacy pre-provisioned credentials - migrating to secure storage");
     } else {
-        LOG_INFO("No stored WiFi credentials found");
-        return false;
+        return false;  // No legacy files
     }
     
     File file = LittleFS.open(credFile, "r");
     if (!file) {
-        LOG_ERROR("Failed to open WiFi credentials file");
         return false;
     }
     
@@ -121,25 +113,85 @@ bool WiFiManager::loadCredentials() {
     DeserializationError error = deserializeJson(doc, file);
     file.close();
     
-    if (error) {
-        LOG_ERROR("Failed to parse WiFi credentials: %s", error.c_str());
+    if (error || !doc["ssid"].is<const char*>()) {
         return false;
     }
     
-    staSsid = doc["ssid"].as<String>();
-    staPassword = doc["password"].as<String>();
+    outSsid = doc["ssid"].as<String>();
+    outPassword = doc["password"].as<String>();
     
-    if (staSsid.isEmpty()) {
-        LOG_ERROR("Stored SSID is empty");
-        return false;
+    // Delete legacy files after successful read
+    if (LittleFS.exists(Config::WiFi::LEGACY_CREDENTIALS_FILE)) {
+        LittleFS.remove(Config::WiFi::LEGACY_CREDENTIALS_FILE);
+        LOG_INFO("Removed legacy credentials file");
+    }
+    if (LittleFS.exists(Config::WiFi::LEGACY_PREPROVISIONED_FILE)) {
+        LittleFS.remove(Config::WiFi::LEGACY_PREPROVISIONED_FILE);
+        LOG_INFO("Removed legacy pre-provisioned file");
     }
     
-    LOG_INFO("Loaded WiFi credentials for: %s", staSsid.c_str());
-    return true;
+    return !outSsid.isEmpty();
 }
 
 /**
- * Save WiFi credentials to LittleFS
+ * Check if credentials are stored in NVS (Preferences)
+ */
+bool WiFiManager::hasStoredCredentials() const {
+    wifiPrefs.begin(Config::WiFi::NVS_NAMESPACE, true);  // Read-only
+    bool hasSSID = wifiPrefs.isKey(Config::WiFi::NVS_KEY_SSID);
+    wifiPrefs.end();
+    
+    // Also check for legacy JSON files (backward compatibility)
+    if (!hasSSID) {
+        return LittleFS.exists(Config::WiFi::LEGACY_CREDENTIALS_FILE) || 
+               LittleFS.exists(Config::WiFi::LEGACY_PREPROVISIONED_FILE);
+    }
+    return hasSSID;
+}
+
+/**
+ * Load stored WiFi credentials from NVS (Preferences)
+ * 
+ * Uses ESP32's Non-Volatile Storage for secure credential storage.
+ * Falls back to migrating legacy JSON files if present.
+ * 
+ * @return true if credentials loaded successfully
+ */
+bool WiFiManager::loadCredentials() {
+    // First, try to load from NVS
+    wifiPrefs.begin(Config::WiFi::NVS_NAMESPACE, true);  // Read-only
+    
+    if (wifiPrefs.isKey(Config::WiFi::NVS_KEY_SSID)) {
+        staSsid = wifiPrefs.getString(Config::WiFi::NVS_KEY_SSID, "");
+        staPassword = wifiPrefs.getString(Config::WiFi::NVS_KEY_PASSWORD, "");
+        wifiPrefs.end();
+        
+        if (!staSsid.isEmpty()) {
+            LOG_INFO("Loaded WiFi credentials from secure storage: %s", staSsid.c_str());
+            return true;
+        }
+    }
+    wifiPrefs.end();
+    
+    // Try migrating legacy JSON credentials
+    String legacySsid, legacyPassword;
+    if (migrateLegacyCredentials(legacySsid, legacyPassword)) {
+        // Save migrated credentials to NVS
+        if (saveCredentials(legacySsid.c_str(), legacyPassword.c_str())) {
+            LOG_INFO("Successfully migrated credentials to secure storage");
+            return true;
+        }
+    }
+    
+    LOG_INFO("No stored WiFi credentials found");
+    return false;
+}
+
+/**
+ * Save WiFi credentials to NVS (Preferences)
+ * 
+ * Credentials are stored in ESP32's Non-Volatile Storage,
+ * which is not directly readable like JSON files.
  * 
  * @param ssid Network SSID
  * @param password Network password
@@ -151,24 +203,20 @@ bool WiFiManager::saveCredentials(const char* ssid, const char* password) {
         return false;
     }
     
-    JsonDocument doc;
-    doc["ssid"] = ssid;
-    doc["password"] = password ? password : "";
+    wifiPrefs.begin(Config::WiFi::NVS_NAMESPACE, false);  // Read-write
     
-    File file = LittleFS.open(Config::WiFi::CREDENTIALS_FILE, "w");
-    if (!file) {
-        LOG_ERROR("Failed to create WiFi credentials file");
+    bool success = true;
+    success &= wifiPrefs.putString(Config::WiFi::NVS_KEY_SSID, ssid) > 0;
+    success &= wifiPrefs.putString(Config::WiFi::NVS_KEY_PASSWORD, password ? password : "") >= 0;
+    
+    wifiPrefs.end();
+    
+    if (!success) {
+        LOG_ERROR("Failed to save WiFi credentials to secure storage");
         return false;
     }
     
-    if (serializeJson(doc, file) == 0) {
-        LOG_ERROR("Failed to write WiFi credentials");
-        file.close();
-        return false;
-    }
-    
-    file.close();
-    LOG_INFO("✓ WiFi credentials saved for: %s", ssid);
+    LOG_INFO("WiFi credentials saved to secure storage: %s", ssid);
     
     // Update internal state
     staSsid = ssid;
@@ -178,21 +226,26 @@ bool WiFiManager::saveCredentials(const char* ssid, const char* password) {
 }
 
 /**
- * Clear stored WiFi credentials
+ * Clear stored WiFi credentials from NVS
  * 
  * @return true if cleared successfully
  */
 bool WiFiManager::clearCredentials() {
-    if (LittleFS.exists(Config::WiFi::CREDENTIALS_FILE)) {
-        if (!LittleFS.remove(Config::WiFi::CREDENTIALS_FILE)) {
-            LOG_ERROR("Failed to remove WiFi credentials file");
-            return false;
-        }
+    wifiPrefs.begin(Config::WiFi::NVS_NAMESPACE, false);  // Read-write
+    wifiPrefs.clear();  // Remove all keys in this namespace
+    wifiPrefs.end();
+    
+    // Also clean up any legacy JSON files
+    if (LittleFS.exists(Config::WiFi::LEGACY_CREDENTIALS_FILE)) {
+        LittleFS.remove(Config::WiFi::LEGACY_CREDENTIALS_FILE);
+    }
+    if (LittleFS.exists(Config::WiFi::LEGACY_PREPROVISIONED_FILE)) {
+        LittleFS.remove(Config::WiFi::LEGACY_PREPROVISIONED_FILE);
     }
     
     staSsid = "";
     staPassword = "";
-    LOG_INFO("✓ WiFi credentials cleared");
+    LOG_INFO("WiFi credentials cleared from secure storage");
     return true;
 }
 
@@ -236,18 +289,20 @@ bool WiFiManager::autoConnect() {
         LOG_INFO("No credentials stored - starting setup mode");
     }
     
-    // Start AP mode for setup with unique SSID
+    // Start AP mode for setup with unique SSID and device-specific password
     setupMode = true;
     esp_task_wdt_reset();  // Feed watchdog before AP setup
     String uniqueSSID = getUniqueAPSSID();
-    if (startAP(uniqueSSID.c_str(), Config::WiFi::DEFAULT_AP_PASSWORD)) {
+    String uniquePassword = String(Config::WiFi::DEFAULT_AP_PASSWORD_PREFIX) + getDeviceId();
+    if (startAP(uniqueSSID.c_str(), uniquePassword.c_str())) {
         LOG_INFO("");
         LOG_INFO("╔═══════════════════════════════════════════════╗");
         LOG_INFO("║          WIFI SETUP MODE                      ║");
         LOG_INFO("╠═══════════════════════════════════════════════╣");
         LOG_INFO("║  1. Connect phone to: %s", uniqueSSID.c_str());
-        LOG_INFO("║  2. Open browser: http://%s", getIPAddress().toString().c_str());
-        LOG_INFO("║  3. Enter your hotspot credentials            ║");
+        LOG_INFO("║  2. Password: %s", uniquePassword.c_str());
+        LOG_INFO("║  3. Open browser: http://%s", getIPAddress().toString().c_str());
+        LOG_INFO("║  4. Enter your hotspot credentials            ║");
         LOG_INFO("╚═══════════════════════════════════════════════╝");
         LOG_INFO("");
         return true;

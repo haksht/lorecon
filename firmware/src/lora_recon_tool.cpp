@@ -381,6 +381,9 @@ void LoRaReconTool::startFrequencyTargeting(uint8_t configIndex) {
     reconState.scanState.targetedByDevice = false;  // Frequency targeting
     reconState.scanState.currentConfig = configIndex;
     
+    // Clear any lingering menu timeout
+    clearMenuTimeout();
+    
     // Update display to show targeting mode
     if (oledDisplay && oledDisplay->isOn()) {
         static char targetInfo[32];

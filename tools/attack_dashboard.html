@@ -627,7 +627,7 @@
         }
         
         function updateReplaySlots(data) {
-            const slots = data.packets || [];
+            const slots = data.slots || [];
             const container = document.getElementById('replaySlots');
             
             document.getElementById('replayReady').textContent = slots.length;
@@ -645,14 +645,14 @@
             container.innerHTML = slots.map((slot, i) => `
                 <div class="replay-slot">
                     <div class="slot-header">
-                        <span class="node-id">0x${slot.nodeId?.toString(16).toUpperCase().padStart(8, '0') || '????????'}</span>
+                        <span class="node-id">0x${slot.nodeId || '????????'}</span>
                         <span class="protocol">${slot.protocol || 'Unknown'}</span>
                     </div>
                     <div style="font-size: 0.75rem; color: #666;">
-                        ${slot.length || 0} bytes • ${slot.rssi?.toFixed(1) || '?'} dBm
+                        ${slot.length || 0} bytes • ${slot.rssi || '?'} dBm
                     </div>
                     ${slot.decryptedText ? `<div class="message">"${escapeHtml(slot.decryptedText)}"</div>` : ''}
-                    <button class="replay-btn" onclick="replayPacket(${i + 1})">
+                    <button class="replay-btn" onclick="replayPacket(${slot.index})">
                         ⚡ Transmit
                     </button>
                 </div>
@@ -668,10 +668,15 @@
             let bounds = [];
             
             positions_data.forEach(pos => {
-                if (!pos.latitude || !pos.longitude) return;
+                // API returns lat/lon, not latitude/longitude
+                const latitude = pos.lat || pos.latitude;
+                const longitude = pos.lon || pos.longitude;
+                const altitude = pos.alt || pos.altitude;
                 
-                const nodeId = pos.nodeId?.toString(16).toUpperCase().padStart(8, '0') || 'unknown';
-                const latlng = [pos.latitude, pos.longitude];
+                if (!latitude || !longitude) return;
+                
+                const nodeId = pos.nodeId || 'unknown';
+                const latlng = [latitude, longitude];
                 bounds.push(latlng);
                 
                 // Track position history for trails
@@ -693,9 +698,9 @@
                     
                     marker.bindPopup(`
                         <b>Node: 0x${nodeId}</b><br>
-                        Lat: ${pos.latitude.toFixed(6)}<br>
-                        Lon: ${pos.longitude.toFixed(6)}<br>
-                        Alt: ${pos.altitude?.toFixed(1) || '?'}m
+                        Lat: ${latitude.toFixed(6)}<br>
+                        Lon: ${longitude.toFixed(6)}<br>
+                        Alt: ${altitude?.toFixed(1) || '?'}m
                     `);
                     
                     markers[nodeId] = marker;

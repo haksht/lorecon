@@ -4,6 +4,7 @@
 
 #include "web_server.h"
 #include "api_controller.h"
+#include "api_security.h"
 #include "logger.h"
 #include "recon_state.h"
 #include "packet_logger.h"
@@ -73,10 +74,13 @@ bool WebServer::begin(IReconTool* tool, uint16_t port) {
     // Serve static files for PWA
     serveStaticFiles();
     
-    // Enable CORS for development
+    // Enable CORS for development (restrict to same origin in production)
     DefaultHeaders::Instance().addHeader("Access-Control-Allow-Origin", "*");
     DefaultHeaders::Instance().addHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
-    DefaultHeaders::Instance().addHeader("Access-Control-Allow-Headers", "Content-Type");
+    DefaultHeaders::Instance().addHeader("Access-Control-Allow-Headers", "Content-Type, " + String(Config::Security::AUTH_HEADER));
+    
+    // Initialize API security
+    APISecurity::begin();
     
     // Start DNS server for captive portal (only in AP mode)
     // This redirects ALL DNS queries to our IP, so any website visit opens our page
@@ -181,9 +185,15 @@ void WebServer::setupRoutes() {
     server->on("/api/wifi/configure", HTTP_POST, handleSetWiFiCredentials);
     server->on("/api/wifi/clear", HTTP_POST, handleClearWiFiCredentials);
     
-    // OTA Firmware Update
+    // OTA Firmware Update (PROTECTED - requires authentication)
     server->on("/api/firmware/upload", HTTP_POST,
         [](AsyncWebServerRequest *request) {
+            // Check authentication for OTA - critical security endpoint
+            if (!APISecurity::isAuthenticated(request)) {
+                APISecurity::sendUnauthorized(request);
+                return;
+            }
+            
             // Response after upload completes
             bool success = !Update.hasError();
             String response = success ? 
@@ -201,6 +211,12 @@ void WebServer::setupRoutes() {
             }
         },
         [](AsyncWebServerRequest *request, String filename, size_t index, uint8_t *data, size_t len, bool final) {
+            // Check authentication on first chunk
+            if (index == 0 && !APISecurity::isAuthenticated(request)) {
+                LOG_ERROR("OTA upload rejected - unauthorized");
+                return;
+            }
+            
             // Handle firmware upload chunks
             if (index == 0) {
                 LOG_INFO("OTA Update Start: %s", filename.c_str());
@@ -250,6 +266,27 @@ void WebServer::setupRoutes() {
     // Health check
     server->on("/api/health", HTTP_GET, [](AsyncWebServerRequest* request) {
         request->send(200, "application/json", "{\"status\":\"ok\",\"service\":\"ESP32 LoRa Sniffer\"}");
+    });
+    
+    // Get API token (for authenticated access from web UI)
+    // Returns token info - the actual token is shown in serial output at boot
+    server->on("/api/auth/info", HTTP_GET, [](AsyncWebServerRequest* request) {
+        JsonDocument doc;
+        doc["authEnabled"] = Config::Security::AUTH_ENABLED;
+        doc["authHeader"] = Config::Security::AUTH_HEADER;
+        doc["tokenHint"] = "Check serial output at boot for API token";
+        doc["protectedEndpoints"] = JsonArray();
+        doc["protectedEndpoints"].add("/api/devices/clear");
+        doc["protectedEndpoints"].add("/api/replay/transmit");
+        doc["protectedEndpoints"].add("/api/replay/clear");
+        doc["protectedEndpoints"].add("/api/wifi/configure");
+        doc["protectedEndpoints"].add("/api/wifi/clear");
+        doc["protectedEndpoints"].add("/api/command");
+        doc["protectedEndpoints"].add("/api/firmware/upload");
+        
+        String json;
+        serializeJson(doc, json);
+        request->send(200, "application/json", json);
     });
     
     LOG_INFO("✓ REST API routes configured");
@@ -502,6 +539,12 @@ void WebServer::handleGetSystemConfig(AsyncWebServerRequest* request) {
 }
 
 void WebServer::handleCommand(AsyncWebServerRequest* request) {
+    // Authentication required - command can reboot device
+    if (!APISecurity::isAuthenticated(request)) {
+        APISecurity::sendUnauthorized(request);
+        return;
+    }
+    
     AsyncWebParameter* param = nullptr;
     if (request->hasParam("command", true)) {
         param = request->getParam("command", true);
@@ -576,7 +619,18 @@ void WebServer::handleAcknowledgeAnomaly(AsyncWebServerRequest* request) {
     }
     
     String indexStr = request->getParam("index", true)->value();
-    uint8_t index = atoi(indexStr.c_str());
+    
+    // Safe parsing with bounds checking to prevent integer overflow
+    char* endPtr = nullptr;
+    unsigned long indexVal = strtoul(indexStr.c_str(), &endPtr, 10);
+    
+    // Validate: must be a valid number and within uint8_t range
+    if (endPtr == indexStr.c_str() || *endPtr != '\0' || indexVal > 255) {
+        request->send(400, "application/json", "{\"status\":\"error\",\"error\":\"Invalid index (0-255)\"}");
+        return;
+    }
+    
+    uint8_t index = static_cast<uint8_t>(indexVal);
     
     String json = APIController::acknowledgeAnomaly(index);
     request->send(200, "application/json", json);
@@ -598,16 +652,34 @@ void WebServer::handleGetReplaySlots(AsyncWebServerRequest* request) {
 }
 
 void WebServer::handleClearReplaySlots(AsyncWebServerRequest* request) {
+    // Protected endpoint - requires authentication
+    if (!APISecurity::isAuthenticated(request)) {
+        APISecurity::sendUnauthorized(request);
+        return;
+    }
+    
     String json = APIController::clearReplaySlots();
     request->send(200, "application/json", json);
 }
 
 void WebServer::handleClearDevices(AsyncWebServerRequest* request) {
+    // Protected endpoint - requires authentication
+    if (!APISecurity::isAuthenticated(request)) {
+        APISecurity::sendUnauthorized(request);
+        return;
+    }
+    
     String json = APIController::clearDevices();
     request->send(200, "application/json", json);
 }
 
 void WebServer::handleReplayPacket(AsyncWebServerRequest* request) {
+    // Protected endpoint - requires authentication (transmits RF)
+    if (!APISecurity::isAuthenticated(request)) {
+        APISecurity::sendUnauthorized(request);
+        return;
+    }
+    
     // Get parameters from POST body
     AsyncWebParameter* slotParam = nullptr;
     AsyncWebParameter* repeatParam = nullptr;
@@ -636,11 +708,16 @@ void WebServer::handleReplayPacket(AsyncWebServerRequest* request) {
         return;
     }
 
-    uint8_t slotIndex = strtoul(slotParam->value().c_str(), nullptr, 0);
-    uint8_t repeatCount = repeatParam ? strtoul(repeatParam->value().c_str(), nullptr, 0) : 1;
-    uint16_t delayMs = delayParam ? strtoul(delayParam->value().c_str(), nullptr, 0) : 1000;
+    uint8_t rawSlotIndex = strtoul(slotParam->value().c_str(), nullptr, 0);
+    uint8_t rawRepeatCount = repeatParam ? strtoul(repeatParam->value().c_str(), nullptr, 0) : 1;
+    uint16_t rawDelayMs = delayParam ? strtoul(delayParam->value().c_str(), nullptr, 0) : 1000;
+    
+    // Apply security bounds to prevent abuse
+    uint8_t repeatCount;
+    uint16_t delayMs;
+    APISecurity::boundReplayParams(rawRepeatCount, rawDelayMs, repeatCount, delayMs);
 
-    String json = APIController::replayPacket(slotIndex, repeatCount, delayMs);
+    String json = APIController::replayPacket(rawSlotIndex, repeatCount, delayMs);
     request->send(200, "application/json", json);
 }
 
@@ -1024,8 +1101,15 @@ void WebServer::handleGetWiFiStatus(AsyncWebServerRequest* request) {
  * POST /api/wifi/configure - Save WiFi credentials and restart
  * 
  * Body: { "ssid": "MyHotspot", "password": "secret123" }
+ * Requires: X-API-Token header
  */
 void WebServer::handleSetWiFiCredentials(AsyncWebServerRequest* request) {
+    // Authentication required - credentials are sensitive
+    if (!APISecurity::isAuthenticated(request)) {
+        APISecurity::sendUnauthorized(request);
+        return;
+    }
+    
     if (!request->hasParam("ssid", true)) {
         request->send(400, "application/json", 
             "{\"status\":\"error\",\"message\":\"Missing 'ssid' parameter\"}");
@@ -1076,8 +1160,15 @@ void WebServer::handleSetWiFiCredentials(AsyncWebServerRequest* request) {
 
 /**
  * POST /api/wifi/clear - Clear stored credentials (return to setup mode)
+ * Requires: X-API-Token header
  */
 void WebServer::handleClearWiFiCredentials(AsyncWebServerRequest* request) {
+    // Authentication required - clears credentials and reboots
+    if (!APISecurity::isAuthenticated(request)) {
+        APISecurity::sendUnauthorized(request);
+        return;
+    }
+    
     if (!wifiManager.clearCredentials()) {
         request->send(500, "application/json", 
             "{\"status\":\"error\",\"message\":\"Failed to clear credentials\"}");

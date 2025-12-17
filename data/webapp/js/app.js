@@ -1,5 +1,15 @@
 /* ESP32 LoRa Recon - Simplified Client */
 
+// ===== Security Utilities =====
+// HTML escape function to prevent XSS attacks
+function escapeHtml(text) {
+    if (text === null || text === undefined) return '';
+    const str = String(text);
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+}
+
 // Dependency checks - ensure scripts loaded in correct order
 if (typeof showToast === 'undefined') {
     console.error('FATAL: toast.js must be loaded before app.js');
@@ -314,16 +324,21 @@ class ReconApp {
                     riskClass = 'risk-unknown';
                 }
                 
+                // Escape all user-derived data for XSS prevention
+                const safeNodeId = escapeHtml(device.nodeId);
+                const safeDeviceType = escapeHtml(device.deviceType || 'Unknown');
+                const safeProtocol = escapeHtml(device.protocol || '—');
+                
                 html += '<tr>';
-                html += `<td><code>0x${device.nodeId}</code></td>`;
+                html += `<td><code>0x${safeNodeId}</code></td>`;
                 html += `<td><span class="${riskClass}">${riskBadge}</span></td>`;
-                html += `<td>${device.deviceType || 'Unknown'}</td>`;
-                html += `<td><code>${device.protocol || '—'}</code></td>`;
+                html += `<td>${safeDeviceType}</td>`;
+                html += `<td><code>${safeProtocol}</code></td>`;
                 html += `<td>${device.packetCount || 0}</td>`;
                 html += `<td><span class="${rssiClass}">${device.rssi || '—'} dBm</span></td>`;
                 html += `<td>${(device.frequency || 0).toFixed(3)} MHz</td>`;
                 html += `<td>${this.formatLastSeen(device.lastSeenSecondsAgo)}</td>`;
-                html += `<td><button data-action="target-device" data-value="${device.nodeId}" class="btn btn-primary btn-small">🎯 Target</button></td>`;
+                html += `<td><button data-action="target-device" data-value="${safeNodeId}" class="btn btn-primary btn-small">🎯 Target</button></td>`;
                 html += '</tr>';
             });
             
@@ -342,7 +357,7 @@ class ReconApp {
         try {
             const data = await this.get('/api/replay/slots');
             if (!data || !data.slots || data.slots.length === 0) {
-                this.el.packetsContent.innerHTML = '<p class="placeholder">No packets captured yet. Packets will appear here when targeting a device.</p>';
+                this.el.packetsContent.innerHTML = '<p class="placeholder">No packets captured for replay yet. Target a device or frequency first, then packets will be stored here for replay.</p>';
                 return;
             }
             
@@ -526,9 +541,38 @@ class ReconApp {
             console.log('[Network] Devices data:', data);
             
             if (data && data.devices) {
+                // Fetch security data to enrich devices with vulnerability info
+                let securityData = null;
+                try {
+                    securityData = await this.get('/api/recon/security');
+                } catch (err) {
+                    console.warn('[Network] Security data not available for network map');
+                }
+                
+                // Create score map from security data
+                const scoreMap = new Map();
+                if (securityData && securityData.devices) {
+                    securityData.devices.forEach(secDev => {
+                        scoreMap.set(secDev.nodeIdDecimal, {
+                            score: secDev.score,
+                            riskLevel: secDev.riskLevel
+                        });
+                    });
+                }
+                
+                // Enrich devices with security scores for network map coloring
+                const enrichedDevices = data.devices.map(device => {
+                    const secInfo = scoreMap.get(device.nodeIdDecimal) || { score: 100, riskLevel: 'unknown' };
+                    return {
+                        ...device,
+                        securityScore: secInfo.score,
+                        riskLevel: secInfo.riskLevel
+                    };
+                });
+                
                 if (this.networkMap) {
-                    this.networkMap.updateDevices(data.devices);
-                    console.log('[Network] Updated map with', data.devices.length, 'devices');
+                    this.networkMap.updateDevices(enrichedDevices);
+                    console.log('[Network] Updated map with', enrichedDevices.length, 'enriched devices');
                 } else {
                     console.warn('[Network] NetworkMap not initialized, cannot update');
                 }

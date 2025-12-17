@@ -1447,6 +1447,74 @@ esp_task_wdt_reset();  // Call in main loop
 
 ---
 
+## **21. API Security (v2.2.0)**
+
+### **Authentication Model**
+
+The web API uses token-based authentication for sensitive endpoints:
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                   API REQUEST FLOW                       │
+├─────────────────────────────────────────────────────────┤
+│                                                          │
+│  Client Request                                          │
+│       │                                                  │
+│       ↓                                                  │
+│  ┌─────────────────┐                                     │
+│  │ Is endpoint     │──No──→ Process request              │
+│  │ protected?      │                                     │
+│  └────────┬────────┘                                     │
+│           │ Yes                                          │
+│           ↓                                              │
+│  ┌─────────────────┐                                     │
+│  │ Has X-API-Token │──No──→ 401 Unauthorized             │
+│  │ header?         │                                     │
+│  └────────┬────────┘                                     │
+│           │ Yes                                          │
+│           ↓                                              │
+│  ┌─────────────────┐                                     │
+│  │ Token matches   │──No──→ 401 Unauthorized             │
+│  │ (constant-time) │                                     │
+│  └────────┬────────┘                                     │
+│           │ Yes                                          │
+│           ↓                                              │
+│     Process request                                      │
+│                                                          │
+└─────────────────────────────────────────────────────────┘
+```
+
+### **Key Components**
+
+- **`APISecurity` class** (`api_security.h/cpp`): Token generation, validation, bounds checking
+- **`Config::Security` namespace**: AUTH_ENABLED, MAX_REPLAY_COUNT, MAX_REPLAY_DELAY_MS
+- **NVS storage**: Token persists across reboots in "api_auth" namespace
+
+### **Security Features**
+
+| Feature | Implementation |
+|---------|----------------|
+| Token generation | 32-char hex via `esp_random()` |
+| Token storage | ESP32 NVS (encrypted flash region) |
+| Comparison | Constant-time to prevent timing attacks |
+| Input validation | Bounds checking on replay params |
+| XSS prevention | `escapeHtml()` in web UI |
+| WiFi credentials | NVS storage, not plaintext files |
+| AP password | Device-unique (`recon-XXYYZZ`) |
+
+### **Protected Endpoints**
+
+Endpoints that modify state or transmit RF require authentication:
+- `/api/devices/clear` - Clears device database
+- `/api/replay/transmit` - RF transmission
+- `/api/replay/clear` - Clears replay slots
+- `/api/wifi/configure` - Sets WiFi credentials
+- `/api/wifi/clear` - Clears credentials, reboots
+- `/api/command` - System commands
+- `/api/firmware/upload` - OTA updates
+
+---
+
 ## **Conclusion**
 
 The v2.0 architecture represents a significant improvement in:
@@ -1455,12 +1523,13 @@ The v2.0 architecture represents a significant improvement in:
 - **Maintainability**: Changes localized to components
 - **Reliability**: Proper thread safety and error handling
 - **Extensibility**: Easy to add features
+- **Security**: Token-based API auth, input validation, NVS credential storage
 
 **Keep exploring, keep questioning, and keep building!** 🚀
 
 ---
 
-**Document Version:** 2.0  
-**Last Updated:** November 2025  
+**Document Version:** 2.2  
+**Last Updated:** December 2025  
 **Audience:** Developers learning the v2.0 codebase  
 **Prerequisite:** Basic C++ knowledge, Arduino familiarity

@@ -174,8 +174,8 @@ void PacketProcessor::processSinglePacket(const QueuedPacket& qp, OLEDDisplay* d
 // Handle packet in reconnaissance mode
 void PacketProcessor::handleReconPacket(const PacketInfo& info, const uint8_t* data, size_t length, 
                                         float rssi, float snr, OLEDDisplay* display) {
-    Serial.printf("[RECON] Packet #%d: %s, %d bytes, %.1f dBm, %.1f dB SNR\n",
-                  reconState.scanState.totalPackets, info.protocol, length, rssi, snr);
+    Serial.printf("[RECON] Packet #%d: %s, 0x%08X, %d bytes, %.1f dBm, %.1f dB SNR\n",
+                  reconState.scanState.totalPackets, info.protocol, info.nodeId, length, rssi, snr);
     
     // Update display with packet info
     if (display && display->isOn()) {
