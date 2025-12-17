@@ -416,6 +416,51 @@ or
 
 ---
 
+## 🔐 **API Authentication Issues**
+
+### Problem: "401 Unauthorized" Response
+
+**Symptoms:**
+- API returns `{"status":"error","message":"Authentication required"}`
+- Can view devices but can't clear them or use replay
+
+**Solution:**
+1. Check serial output at boot for the API token:
+   ```
+   🔐 API Security Enabled
+     Token: a1b2c3d4e5f6789012345678abcdef01
+     Header: X-API-Token
+   ```
+2. Add the token to your requests:
+   ```bash
+   curl -X POST http://192.168.4.1/api/devices/clear \
+        -H "X-API-Token: YOUR_TOKEN_HERE"
+   ```
+
+### Problem: Lost API Token
+
+**Solution:** Reboot the device and check serial output. The token persists across reboots but is displayed at each startup.
+
+### Problem: Can't Connect to WiFi AP
+
+**Symptoms:**
+- Password `recon123` doesn't work
+
+**Solution (v2.2.0+):** Each device now has a unique password based on its MAC address:
+- SSID: `LoRa-XXYYZZ`
+- Password: `recon-XXYYZZ` (same suffix as SSID)
+- Check serial output at boot for exact credentials
+
+### Protected vs Public Endpoints
+
+| Endpoint Type | Auth Required | Example |
+|--------------|---------------|----------|
+| Read-only | No | `/api/devices`, `/api/status` |
+| Destructive | Yes | `/api/devices/clear`, `/api/replay/transmit` |
+| Configuration | Yes | `/api/wifi/configure`, `/api/firmware/upload` |
+
+---
+
 ## 🎯 **Quick Win Test**
 
 **Do this right now:**

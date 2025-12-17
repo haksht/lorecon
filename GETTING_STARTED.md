@@ -1,8 +1,8 @@
 # Getting Started with ESP32 LoRa Sniffer
 
-**Version:** 2.0 Production Ready  
+**Version:** 2.2 Security Hardening  
 **Status:** ✅ Ready to Use  
-**Last Updated:** December 14, 2025
+**Last Updated:** December 17, 2025
 
 ---
 
@@ -72,11 +72,13 @@ Your phone acts as the WiFi hotspot. The ESP32 connects to your phone.
 
 **Setup:**
 1. Power on ESP32 (shows unique SSID like `LoRa-A1B2C3`)
-2. Connect phone to `LoRa-XXXXXX` WiFi (password: `recon123`)
+2. Connect phone to `LoRa-XXXXXX` WiFi (password: `recon-XXXXXX` matching your device ID)
 3. Setup page opens automatically (captive portal)
 4. Enter your phone's hotspot name/password
 5. Device restarts → connects to your hotspot
 6. Access web UI at the IP shown on serial/OLED
+
+**Note:** Each device has a unique password derived from its MAC address (e.g., `recon-A1B2C3`). Check serial output at boot for the exact password.
 
 ### Option B: Access Point Mode (Default Fallback)
 

@@ -13,7 +13,7 @@ Passive LoRa reconnaissance firmware for ESP32-S3 + SX1262 hardware. The ESP32 h
 ## Current Status
 
 - **Branch:** `main`
-- **Version:** 2.1.0 (PCAP Export + Enhanced Visualization)
+- **Version:** 2.2.0 (Security Hardening + API Authentication)
 - **Hardware:** **Heltec WiFi LoRa 32 V3** (ESP32-S3 + SX1262 + OLED). Optional SD card.
   - ✅ **Fully Supported:** Heltec WiFi LoRa 32 V3 (tested, production-ready)
   - ⚠️ **Not Supported:** T-Deck variants (hardware incompatibilities - see `docs/hardware/TDECK_PLUS_INVESTIGATION.md` for details)
@@ -30,6 +30,7 @@ Passive LoRa reconnaissance firmware for ESP32-S3 + SX1262 hardware. The ESP32 h
 | Recon State | `ReconState` tracks RF activity, targetable nodes, replay slots, quiet mode, and device intelligence with multi-factor security scoring. |
 | UI Surfaces | 1) Serial menu (command handler with dispatch table). 2) OLED quick-look cards. 3) **WiFi Web UI** with threat-colored network map, signal heatmaps, vulnerability assessment, and live packet visualization. |
 | Storage / Export | Optional SD logging (`packet_logger` with CSV + PCAP), KML/GeoJSON exports, Wireshark-compatible PCAP with LoRa metadata, security assessment reports, JSON APIs for scripting. |
+| Security | Token-based API authentication for sensitive endpoints, device-unique AP passwords, NVS credential storage, XSS prevention, input validation with bounds checking. |
 
 ## Build & Flash
 

@@ -88,6 +88,9 @@ No exceptions (embedded C++). Return `bool` for success/failure. Use `LOG_ERROR(
 8. **PSK Key Count**: Always use `Config::PSK::NUM_DEFAULT_KEYS` constant (14) or `PSKDecryption::getDefaultPSKCount()` function. Never hardcode key counts.
 9. **Queue Overflow**: 100-packet queue can overflow in high-traffic (50+ devices). Drops are tracked and displayed. Trade-off: continuous coverage vs perfect capture. See TROUBLESHOOTING.md for mitigation strategies.
 10. **strcpy Safety**: Use `strncpy` with explicit null termination for buffer safety, even when copying string literals.
+11. **API Security (v2.2.0+)**: Protected endpoints require `X-API-Token` header. Use `APISecurity::isAuthenticated(request)` guard on destructive endpoints. Token displayed at boot in serial output.
+12. **WiFi Credentials**: Stored in NVS (`Preferences` API), not JSON files. Use `WiFiManager` methods, never direct file access.
+13. **Device-Unique AP Password**: Format is `recon-XXYYZZ` where XXYYZZ matches the SSID suffix. Use `Config::WiFi::DEFAULT_AP_PASSWORD_PREFIX`.
 
 ## Testing Approach
 

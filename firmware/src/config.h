@@ -211,19 +211,24 @@ namespace Radio {
 // WIFI CONFIGURATION
 // ============================================================================
 namespace WiFi {
-    // File to store WiFi credentials in LittleFS (written by web UI)
-    constexpr const char* CREDENTIALS_FILE = "/wifi_config.json";
+    // NVS (Non-Volatile Storage) settings for secure credential storage
+    // Credentials are stored in ESP32's NVS partition, not as plaintext files
+    constexpr const char* NVS_NAMESPACE = "wifi_creds";
+    constexpr const char* NVS_KEY_SSID = "ssid";
+    constexpr const char* NVS_KEY_PASSWORD = "pass";
     
-    // Pre-provisioned credentials file (optional, uploaded via uploadfs)
-    // Allows developers to include creds in data/ folder for testing
-    // If present and no saved creds exist, these will be used automatically
-    constexpr const char* PREPROVISIONED_CREDS_FILE = "/wifi_creds.json";
+    // Legacy JSON file paths (for backward compatibility migration)
+    // These files will be automatically migrated to NVS and deleted
+    constexpr const char* LEGACY_CREDENTIALS_FILE = "/wifi_config.json";
+    constexpr const char* LEGACY_PREPROVISIONED_FILE = "/wifi_creds.json";
     
     // Default AP mode settings (used when no credentials stored)
     // SSID will be "LoRa-XXYYZZ" where XXYYZZ is last 3 bytes of MAC address
     // This ensures unique SSIDs at conferences with many devices
     constexpr const char* AP_SSID_PREFIX = "LoRa-";
-    constexpr const char* DEFAULT_AP_PASSWORD = "recon123";
+    // Default AP password includes device ID suffix for uniqueness
+    // Actual password will be "recon-XXYYZZ" where XXYYZZ is last 3 bytes of MAC
+    constexpr const char* DEFAULT_AP_PASSWORD_PREFIX = "recon-";
     
     // mDNS hostname will be "lora-xxyyzz.local" (unique per device)
     constexpr const char* MDNS_PREFIX = "lora-";
@@ -233,6 +238,34 @@ namespace WiFi {
     
     // Number of retries before falling back to AP mode
     constexpr uint8_t STA_MAX_RETRIES = 3;
+}
+
+// ============================================================================
+// API SECURITY CONFIGURATION
+// ============================================================================
+namespace Security {
+    // Enable/disable API authentication (set false for open demo mode)
+    constexpr bool AUTH_ENABLED = true;
+    
+    // NVS storage for API token
+    constexpr const char* NVS_NAMESPACE = "api_auth";
+    constexpr const char* NVS_KEY_TOKEN = "token";
+    
+    // Token length (hex characters)
+    constexpr uint8_t TOKEN_LENGTH = 32;
+    
+    // Protected endpoints requiring authentication
+    // Read-only endpoints (devices, status, etc.) are public
+    // Write/dangerous endpoints require token
+    
+    // HTTP header name for token authentication
+    constexpr const char* AUTH_HEADER = "X-API-Token";
+    
+    // Maximum replay count per request (prevents RF flooding)
+    constexpr uint8_t MAX_REPLAY_COUNT = 10;
+    
+    // Maximum replay delay (prevents long blocking)
+    constexpr uint16_t MAX_REPLAY_DELAY_MS = 5000;
 }
 
 // ============================================================================

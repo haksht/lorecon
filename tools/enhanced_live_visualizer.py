@@ -18,10 +18,16 @@ Requirements:
     pip install pyserial matplotlib folium sounddevice numpy
 """
 
+import warnings
+# Suppress matplotlib font/glyph warnings
+warnings.filterwarnings('ignore', message='.*Glyph.*missing from.*font.*')
+warnings.filterwarnings('ignore', category=UserWarning, module='matplotlib')
+
 import serial
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
 from matplotlib.patches import Circle
+from matplotlib.ticker import MaxNLocator
 from collections import deque, defaultdict
 import re
 import sys
@@ -133,7 +139,7 @@ class EnhancedLoRaVisualizer:
         self.ax_packets = self.fig.add_subplot(gs[1, 0])   # Bottom-left: Packet histogram
         self.ax_map = self.fig.add_subplot(gs[1, 1:])      # Bottom-middle+right: GPS map
         
-        self.fig.suptitle('🎯 ESP32 LoRa Sniffer - Conference Demo Mode', 
+        self.fig.suptitle('ESP32 LoRa Sniffer - Conference Demo Mode', 
                          fontsize=16, fontweight='bold')
         
         # Connect to serial port
@@ -143,8 +149,15 @@ class EnhancedLoRaVisualizer:
         """Connect to ESP32 via serial port"""
         try:
             print(f"[*] Connecting to {self.port} at {SERIAL_BAUDRATE} baud...")
-            self.ser = serial.Serial(self.port, SERIAL_BAUDRATE, timeout=1)
-            time.sleep(2)
+            # Use explicit port configuration to prevent DTR reset
+            self.ser = serial.Serial()
+            self.ser.port = self.port
+            self.ser.baudrate = SERIAL_BAUDRATE
+            self.ser.timeout = 1
+            self.ser.dtr = False  # Prevent ESP32 reset on connect
+            self.ser.rts = False
+            self.ser.open()
+            time.sleep(0.5)  # Brief settle time (no reboot wait needed)
             print(f"[✓] Connected successfully!")
             
             if self.json_mode:
@@ -165,38 +178,124 @@ class EnhancedLoRaVisualizer:
                 return json.loads(line)
             
             # Fall back to regex parsing
-            # Pattern: [RECON] Packet #42: Meshtastic, 0x401ACD4E, -68.5 dBm, 8.2 dB SNR
+            # Pattern with node ID: [RECON] Packet #42: Meshtastic, 0x401ACD4E, 123 bytes, -68.5 dBm, 8.2 dB SNR
             match = re.search(
-                r'\[(PACKET|RECON|CAPTURE)\].*?(?:0x([0-9A-Fa-f]{8}))?.*?(-?\d+\.\d+)\s*dBm',
+                r'\[(RECON|CAPTURE)\]\s*Packet\s*#(\d+):\s*(\w+),\s*0x([0-9A-Fa-f]+),\s*(\d+)\s*bytes,\s*(-?\d+\.?\d*)\s*dBm,\s*(-?\d+\.?\d*)\s*dB',
                 line
             )
             
             if match:
-                node_id = match.group(2)
-                rssi = float(match.group(3))
-                
-                # Extract protocol
-                protocol = 'Unknown'
-                for p in PROTOCOL_COLORS.keys():
-                    if p in line:
-                        protocol = p
-                        break
+                packet_num = int(match.group(2))
+                protocol = match.group(3)
+                node_id = match.group(4).upper()
+                length = int(match.group(5))
+                rssi = float(match.group(6))
+                snr = float(match.group(7))
                 
                 return {
                     'type': 'packet',
-                    'node_id': node_id.upper() if node_id else None,
+                    'node_id': node_id,
                     'rssi': rssi,
+                    'snr': snr,
                     'protocol': protocol,
+                    'length': length,
                     'timestamp': time.time()
                 }
             
-            # GPS extraction: [GEO] 📍 Position: 35.730228° N, 78.879128° W
-            gps_match = re.search(r'\[GEO\].*?(-?\d+\.\d+)°.*?(-?\d+\.\d+)°', line)
-            if gps_match:
+            # Format without node ID: [CAPTURE] Packet #1: Meshtastic, 56 bytes, -64.0 dBm, 5.8 dB SNR
+            # Store packet info, wait for PSK line with NodeID
+            match_capture = re.search(
+                r'\[(RECON|CAPTURE)\]\s*Packet\s*#(\d+):\s*(\w+),\s*(\d+)\s*bytes,\s*(-?\d+\.?\d*)\s*dBm,\s*(-?\d+\.?\d*)\s*dB',
+                line
+            )
+            if match_capture:
+                # Store pending packet info for next PSK line to complete
+                self._pending_packet = {
+                    'packet_num': int(match_capture.group(2)),
+                    'protocol': match_capture.group(3),
+                    'length': int(match_capture.group(4)),
+                    'rssi': float(match_capture.group(5)),
+                    'snr': float(match_capture.group(6)),
+                }
+                return None  # Wait for PSK line with NodeID
+            
+            # PSK line with NodeID: [PSK] Testing packet: NodeID=0x598B29CE, PacketID=0xE9A17147, Flags=0x82, Chan=8
+            psk_match = re.search(r'\[PSK\].*NodeID=0x([0-9A-Fa-f]+)', line)
+            if psk_match and hasattr(self, '_pending_packet') and self._pending_packet:
+                node_id = psk_match.group(1).upper()
+                pending = self._pending_packet
+                self._pending_packet = None  # Clear pending
+                
+                return {
+                    'type': 'packet',
+                    'node_id': node_id,
+                    'rssi': pending['rssi'],
+                    'snr': pending['snr'],
+                    'protocol': pending['protocol'],
+                    'length': pending['length'],
+                    'timestamp': time.time()
+                }
+            
+            # GPS extraction - multi-line format from firmware:
+            # 📍 GPS POSITION EXTRACTED!
+            #    Node: 0x401ACD4E
+            #    Lat:  35.730228° N
+            #    Lon:  78.879128° W
+            
+            # Detect GPS block start
+            if 'GPS POSITION EXTRACTED' in line:
+                self._pending_gps = {'node_id': None, 'lat': None, 'lon': None}
+                return None
+            
+            # Parse GPS node ID line
+            if hasattr(self, '_pending_gps') and self._pending_gps is not None:
+                node_match = re.search(r'Node:\s*0x([0-9A-Fa-f]+)', line)
+                if node_match:
+                    self._pending_gps['node_id'] = node_match.group(1).upper()
+                    return None
+                
+                # Parse latitude line: "   Lat:  35.730228° N"
+                lat_match = re.search(r'Lat:\s*(-?\d+\.?\d*)[°\s]*([NS])?', line)
+                if lat_match:
+                    lat = float(lat_match.group(1))
+                    if lat_match.group(2) == 'S':
+                        lat = -lat
+                    self._pending_gps['lat'] = lat
+                    return None
+                
+                # Parse longitude line: "   Lon:  78.879128° W"
+                lon_match = re.search(r'Lon:\s*(-?\d+\.?\d*)[°\s]*([EW])?', line)
+                if lon_match:
+                    lon = float(lon_match.group(1))
+                    if lon_match.group(2) == 'W':
+                        lon = -lon
+                    self._pending_gps['lon'] = lon
+                    
+                    # Complete GPS event
+                    if self._pending_gps['lat'] is not None:
+                        result = {
+                            'type': 'gps',
+                            'node_id': self._pending_gps.get('node_id'),
+                            'lat': self._pending_gps['lat'],
+                            'lon': self._pending_gps['lon'],
+                            'timestamp': time.time()
+                        }
+                        self._pending_gps = None
+                        return result
+                    return None
+            
+            # Single-line GPS format fallback: GPS: 35.730228, -78.879128
+            gps_match = re.search(r'(?:lat[=:]\s*)?(-?\d+\.\d+)[°,\s]+(?:lon[=:]\s*)?(-?\d+\.\d+)', line, re.IGNORECASE)
+            if gps_match and ('GEO' in line or 'GPS' in line or 'Position' in line):
+                lat = float(gps_match.group(1))
+                lon = float(gps_match.group(2))
+                # Handle "W" meaning negative longitude
+                if 'W' in line and lon > 0:
+                    lon = -lon
                 return {
                     'type': 'gps',
-                    'lat': float(gps_match.group(1)),
-                    'lon': float(gps_match.group(2)),
+                    'lat': lat,
+                    'lon': lon,
                     'timestamp': time.time()
                 }
                 
@@ -232,9 +331,15 @@ class EnhancedLoRaVisualizer:
             self.audio.play_click(protocol)
             
         elif event['type'] == 'gps':
-            # Associate GPS with most recent device
-            # (In production, JSON would include node_id with GPS)
-            if self.devices:
+            # Associate GPS with specific node if node_id provided
+            node_id = event.get('node_id')
+            if node_id and node_id in self.devices:
+                device = self.devices[node_id]
+                device['lat'] = event['lat']
+                device['lon'] = event['lon']
+                device['positions'].append((event['lat'], event['lon'], time.time()))
+            elif self.devices:
+                # Fallback: associate with most recent device
                 last_device = list(self.devices.values())[-1]
                 last_device['lat'] = event['lat']
                 last_device['lon'] = event['lon']
@@ -271,8 +376,14 @@ class EnhancedLoRaVisualizer:
         
         self.ax_rssi.set_xlabel('Time (seconds)', fontsize=9)
         self.ax_rssi.set_ylabel('RSSI (dBm)', fontsize=9)
-        self.ax_rssi.set_title('📡 Signal Strength', fontweight='bold', fontsize=10)
+        self.ax_rssi.set_title('Signal Strength', fontweight='bold', fontsize=10)
         self.ax_rssi.grid(True, alpha=0.3)
+        # Auto-scale Y axis with some padding, typical LoRa range is -140 to -40 dBm
+        all_rssi = [r for d in self.devices.values() for r in d['rssi']]
+        if all_rssi:
+            min_rssi = min(all_rssi) - 5
+            max_rssi = max(all_rssi) + 5
+            self.ax_rssi.set_ylim(min_rssi, max_rssi)
         self.ax_rssi.axhline(y=-80, color='yellow', linestyle='--', linewidth=1, alpha=0.5)
         self.ax_rssi.axhline(y=-60, color='green', linestyle='--', linewidth=1, alpha=0.5)
         if 0 < len(self.devices) <= 4:
@@ -280,7 +391,7 @@ class EnhancedLoRaVisualizer:
         
         # Panel 2: Device list
         self.ax_devices.axis('off')
-        stats_text = "🎯 DEVICES\n" + "="*25 + "\n\n"
+        stats_text = "DEVICES\n" + "="*20 + "\n\n"
         
         if len(self.devices) == 0:
             stats_text += "Scanning...\n"
@@ -291,11 +402,13 @@ class EnhancedLoRaVisualizer:
                 reverse=True
             )
             
-            for i, (node_id, data) in enumerate(sorted_devices[:6], 1):
+            # Limit to top 5 to fit in panel
+            for i, (node_id, data) in enumerate(sorted_devices[:5], 1):
                 last_rssi = data['rssi'][-1] if data['rssi'] else 0
-                quality = "█" * max(1, int((last_rssi + 100) / 10))
+                bars = int(max(1, (last_rssi + 120) / 10))
+                quality = "|" * min(bars, 8)
                 
-                stats_text += f"{i}. 0x{node_id[:8]}\n"
+                stats_text += f"{i}. {node_id}\n"
                 stats_text += f"   {data['device_type']}\n"
                 stats_text += f"   {quality} {last_rssi:.0f}dBm\n"
                 stats_text += f"   {data['packet_count']} pkts\n\n"
@@ -314,11 +427,11 @@ class EnhancedLoRaVisualizer:
             
             self.ax_protocols.pie(counts, labels=protocols, colors=colors,
                                 autopct='%1.0f%%', startangle=90)
-            self.ax_protocols.set_title('📊 Protocols', fontweight='bold', fontsize=10)
+            self.ax_protocols.set_title('Protocols', fontweight='bold', fontsize=10)
         else:
             self.ax_protocols.text(0.5, 0.5, 'Waiting...', ha='center', va='center',
                                  transform=self.ax_protocols.transAxes)
-            self.ax_protocols.set_title('📊 Protocols', fontweight='bold', fontsize=10)
+            self.ax_protocols.set_title('Protocols', fontweight='bold', fontsize=10)
         
         # Panel 4: Packet histogram
         if len(self.devices) > 0:
@@ -327,14 +440,24 @@ class EnhancedLoRaVisualizer:
             colors_list = [PROTOCOL_COLORS.get(data['device_type'], '#95a5a6') 
                           for data in self.devices.values()]
             
+            # Limit to top 8 devices by packet count
+            sorted_indices = sorted(range(len(packet_counts)), key=lambda i: packet_counts[i], reverse=True)[:8]
+            node_ids = [node_ids[i] for i in sorted_indices]
+            packet_counts = [packet_counts[i] for i in sorted_indices]
+            colors_list = [colors_list[i] for i in sorted_indices]
+            
             bars = self.ax_packets.bar(range(len(node_ids)), packet_counts, 
                                       color=colors_list, alpha=0.8)
             self.ax_packets.set_xlabel('Device', fontsize=9)
             self.ax_packets.set_ylabel('Packets', fontsize=9)
-            self.ax_packets.set_title('📦 Captures', fontweight='bold', fontsize=10)
+            self.ax_packets.set_title('Packet Captures', fontweight='bold', fontsize=10)
             self.ax_packets.set_xticks(range(len(node_ids)))
             self.ax_packets.set_xticklabels(node_ids, rotation=45, ha='right', fontsize=7)
             self.ax_packets.grid(True, alpha=0.3, axis='y')
+            # Auto-scale Y with some headroom, force integer ticks
+            if max(packet_counts) > 0:
+                self.ax_packets.set_ylim(0, max(packet_counts) * 1.2)
+            self.ax_packets.yaxis.set_major_locator(MaxNLocator(integer=True))
         
         # Panel 5: GPS Map
         has_gps = any(d['lat'] is not None for d in self.devices.values())
@@ -357,19 +480,19 @@ class EnhancedLoRaVisualizer:
             
             self.ax_map.set_xlabel('Longitude', fontsize=9)
             self.ax_map.set_ylabel('Latitude', fontsize=9)
-            self.ax_map.set_title('🗺️ Geographic Intelligence', fontweight='bold', fontsize=10)
+            self.ax_map.set_title('GPS Positions', fontweight='bold', fontsize=10)
             self.ax_map.grid(True, alpha=0.3)
         else:
             self.ax_map.text(0.5, 0.5, 'No GPS data captured yet', 
                            ha='center', va='center', fontsize=12,
                            transform=self.ax_map.transAxes)
-            self.ax_map.set_title('🗺️ Geographic Intelligence', fontweight='bold', fontsize=10)
+            self.ax_map.set_title('GPS Positions', fontweight='bold', fontsize=10)
         
         # Update main title with stats
         elapsed = time.time() - self.start_time
         rate = len(self.packet_times) / 10.0 if len(self.packet_times) > 0 else 0.0
         status = f"LIVE | {len(self.devices)} devices | {self.total_packets} pkts | {rate:.1f} pkt/s | {elapsed:.0f}s"
-        self.fig.suptitle(f'🎯 ESP32 LoRa Sniffer - {status}',
+        self.fig.suptitle(f'ESP32 LoRa Sniffer - {status}',
                          fontsize=14, fontweight='bold')
         
         # Auto-screenshot on milestones

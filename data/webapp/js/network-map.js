@@ -315,7 +315,13 @@ class NetworkMap {
     
     getNodeColor(device) {
         if (this.showThreatColors) {
-            // Use threat level colors based on vulnerability score
+            // Use riskLevel from security API if available (from enriched data)
+            if (device.riskLevel) {
+                if (device.riskLevel === 'vulnerable') return this.colors.threatHigh;
+                if (device.riskLevel === 'moderate') return this.colors.threatMedium;
+                if (device.riskLevel === 'secure') return this.colors.threatLow;
+            }
+            // Fallback to calculated score
             const score = device.vulnerabilityScore || this.calculateVulnerabilityScore(device);
             if (score >= 7) return this.colors.threatHigh;      // 7-10: High threat
             if (score >= 4) return this.colors.threatMedium;    // 4-6: Medium threat
@@ -649,13 +655,13 @@ class NetworkMap {
         const lastSeen = device.lastSeen ? new Date(device.lastSeen * 1000).toLocaleTimeString() : 'Unknown';
         const vulnScore = device.vulnerabilityScore || this.calculateVulnerabilityScore(device);
         
-        // Determine vulnerability level and color
+        // Determine vulnerability level and color - use riskLevel from security API if available
         let vulnLevel = 'Low';
         let vulnColor = '#50c878';
-        if (vulnScore >= 7) {
+        if (device.riskLevel === 'vulnerable' || vulnScore >= 7) {
             vulnLevel = 'High';
             vulnColor = '#ff6b6b';
-        } else if (vulnScore >= 4) {
+        } else if (device.riskLevel === 'moderate' || vulnScore >= 4) {
             vulnLevel = 'Medium';
             vulnColor = '#ffd93d';
         }

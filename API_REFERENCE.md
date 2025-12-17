@@ -1,9 +1,10 @@
 # 🔌 ESP32 LoRa Sniffer - REST API Reference
 
-**Version:** 1.0.0  
+**Version:** 2.2.0  
 **Base URL:** `http://192.168.4.1` or `http://esp32-lora.local`  
 **Protocol:** HTTP/1.1  
 **Format:** JSON  
+**Authentication:** Token-based for protected endpoints (see [Authentication](#-authentication))  
 
 ---
 
@@ -52,19 +53,88 @@ curl http://192.168.4.1/api/status
 
 ## 🔐 Authentication
 
-### **Current Implementation**
+### **Token-Based Authentication**
 
-**None** - No authentication required (suitable for isolated WiFi network)
+**Version 2.2.0+** implements token-based API authentication for sensitive endpoints.
 
-### **Future Enhancement**
+### **How It Works**
 
-HTTP Basic Authentication planned:
+1. A unique 32-character hex token is generated at first boot
+2. Token is stored persistently in ESP32 NVS (survives reboots)
+3. Token is displayed in serial output at startup
+4. Protected endpoints require the `X-API-Token` header
 
-```bash
-curl -u username:password http://192.168.4.1/api/devices
+### **Getting Your Token**
+
+The API token is displayed at boot in serial output:
+
+```
+🔐 API Security Enabled
+  Token: a1b2c3d4e5f6789012345678abcdef01
+  Header: X-API-Token
+  Protected endpoints require this token
 ```
 
-**Recommendation:** Use strong WiFi password as primary security layer for now.
+### **Using the Token**
+
+```bash
+# Protected endpoint (requires auth)
+curl -X POST http://192.168.4.1/api/devices/clear \
+     -H "X-API-Token: a1b2c3d4e5f6789012345678abcdef01"
+
+# Public endpoint (no auth needed)
+curl http://192.168.4.1/api/devices
+```
+
+### **Protected Endpoints**
+
+| Endpoint | Method | Reason |
+|----------|--------|--------|
+| `/api/devices/clear` | POST | Clears device database |
+| `/api/replay/transmit` | POST | RF transmission |
+| `/api/replay/clear` | POST | Clears replay slots |
+| `/api/wifi/configure` | POST | Sets WiFi credentials |
+| `/api/wifi/clear` | POST | Clears credentials, reboots |
+| `/api/command` | POST | System commands (reboot) |
+| `/api/firmware/upload` | POST | OTA firmware updates |
+
+### **Auth Info Endpoint**
+
+```http
+GET /api/auth/info
+```
+
+Returns authentication configuration (does not expose the token):
+
+```json
+{
+  "authEnabled": true,
+  "authHeader": "X-API-Token",
+  "tokenHint": "Check serial output at boot for API token",
+  "protectedEndpoints": [
+    "/api/devices/clear",
+    "/api/replay/transmit",
+    ...
+  ]
+}
+```
+
+### **Error Response (401 Unauthorized)**
+
+```json
+{
+  "status": "error",
+  "message": "Authentication required",
+  "hint": "Include X-API-Token header. Check serial output for token."
+}
+```
+
+### **Security Notes**
+
+- Token uses cryptographically secure random generation (`esp_random()`)
+- Constant-time comparison prevents timing attacks
+- Read-only endpoints remain public for convenience
+- WiFi AP password is now device-unique (`recon-XXYYZZ` format)
 
 ---
 

@@ -27,6 +27,7 @@
 #include "recon_service.h"
 #include "psk_tests.h"
 #include "oled_display.h"
+#include "api_security.h"
 #include <LittleFS.h>
 #include "soc/rtc_cntl_reg.h"
 #include "soc/soc.h"
@@ -79,6 +80,14 @@ void setup() {
             LOG_INFO("✓ Web interface ready!");
             LOG_INFO("  Open browser: http://%s", wifiManager.getIPAddress().toString().c_str());
             LOG_INFO("  Or use: http://%s.local", mdnsHost.c_str());
+            
+            // Display API token for authenticated access
+            if (Config::Security::AUTH_ENABLED) {
+                LOG_INFO("\n🔐 API Security Enabled");
+                LOG_INFO("  Token: %s", APISecurity::getToken());
+                LOG_INFO("  Header: %s", Config::Security::AUTH_HEADER);
+                LOG_INFO("  Protected endpoints require this token");
+            }
             
             // Update OLED with network info
             OLEDDisplay* display = reconTool.getDisplay();
