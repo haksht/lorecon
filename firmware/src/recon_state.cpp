@@ -275,44 +275,20 @@ void ReconState::clearTargetableDevices() {
     memset(targetableDevices, 0, sizeof(targetableDevices));
 }
 
+// Node tracking - delegates to NodeTracker
 void ReconState::updateNode(uint32_t nodeId, const char* protocol, float rssi) {
-    if (nodeId == 0) return;
-    
-    TrackedNode* node = findNode(nodeId);
-    
-    if (!node && nodeCount < Config::Tracking::MAX_HOT_NODES) {
-        node = &trackedNodes[nodeCount++];
-        node->nodeId = nodeId;
-        node->protocol = protocol;
-        node->packetCount = 0;
-        node->avgRSSI = rssi;
-        node->bestRSSI = rssi;
-        node->firstSeen = millis();
-        Serial.printf("[NODE] New: 0x%08X (%s)\n", nodeId, protocol);
-    }
-    
-    if (node) {
-        // Cap packetCount at UINT16_MAX to prevent overflow and division by zero
-        if (node->packetCount < UINT16_MAX) {
-            node->packetCount++;
-        }
-        node->avgRSSI = (node->avgRSSI * (node->packetCount - 1) + rssi) / node->packetCount;
-        if (rssi > node->bestRSSI) node->bestRSSI = rssi;
-        node->lastSeen = millis();
-        node->active = true;
-    }
+    nodeTracker_.updateNode(nodeId, protocol, rssi);
+    // Keep legacy fields in sync for backward compatibility
+    nodeCount = nodeTracker_.count();
 }
 
 TrackedNode* ReconState::findNode(uint32_t nodeId) {
-    for (uint8_t i = 0; i < nodeCount; i++) {
-        if (trackedNodes[i].nodeId == nodeId) {
-            return &trackedNodes[i];
-        }
-    }
-    return nullptr;
+    return nodeTracker_.findNode(nodeId);
 }
 
 void ReconState::clearNodes() {
+    nodeTracker_.clear();
+    // Keep legacy fields in sync
     nodeCount = 0;
     memset(trackedNodes, 0, sizeof(trackedNodes));
 }
