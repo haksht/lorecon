@@ -5,15 +5,17 @@
 #include "logger.h"
 #include <stdarg.h>
 
-// Global instance
+// Global instance and null-safe fallback
 Logger* Logger::instance = nullptr;
+static NullLogger nullLogger;  // Static null logger for pre-init safety
 
 void Logger::setInstance(Logger* logger) {
     instance = logger;
 }
 
 Logger* Logger::getInstance() {
-    return instance;
+    // Return null logger if instance not yet set (static init safety)
+    return instance ? instance : &nullLogger;
 }
 
 // SerialLogger implementation
