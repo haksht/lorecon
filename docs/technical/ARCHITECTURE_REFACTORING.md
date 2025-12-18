@@ -1,44 +1,28 @@
-# Architecture Refactoring Plan
+# Architecture Refactoring - Completed December 18, 2025
 
-This document describes the ongoing refactoring from a god-object pattern (`ReconState`) to a Repository + Query pattern (CQRS-like).
+This document describes the refactoring from a god-object pattern (`ReconState`) to a Repository pattern.
 
-## Current State (v2.2.0)
+## Problem Statement
 
-### Problems Identified
+`ReconState` was a 757-line god object managing too many concerns. We implemented a Repository pattern to isolate storage/retrieval logic into focused, testable classes.
 
-1. **ReconState is a 757-line god object** managing:
-   - Device tracking (`targetableDevices[]`, `numTargetableDevices`)
-   - Node tracking (`trackedNodes[]`, `nodeCount`)
-   - Packet capture (`replaySlots[]`, `numCapturedPackets`)
-   - RF activity stats (`rfActivity[]`)
-   - Anomaly detection (`anomalies[]`)
-   - Network intelligence (`networkIntel`)
-   - PSK statistics (`pskStats`)
-   - Traffic histograms (`trafficHist`)
+## What Was Completed
 
-2. **Layering confusion** between `APIController` and `ReconService`:
-   - Both handle similar concerns (JSON building, command dispatch)
-   - `ReconService` has 13 `build*Json()` methods and 9 command methods
-   - `APIController` is mostly pass-through to `ReconService`
-
-3. **Scattered state access** throughout codebase via `extern ReconState reconState`
-
-## Phase 1: Repository Layer ✅ COMPLETED
+### Phase 1: Repository Layer ✅
 
 Created isolated repository classes in `firmware/src/repositories/`:
 
-### DeviceRepository (`device_repository.h/cpp`)
+#### DeviceRepository (`device_repository.h/cpp`)
 - Manages `TargetableDevice` storage
 - Uses Welford's algorithm for running RSSI statistics
 - Supports custom device identification callbacks
-- Thread-safe considerations documented (caller responsibility)
 
-### PacketStore (`packet_store.h/cpp`)
+#### PacketStore (`packet_store.h/cpp`)
 - Manages captured packets for replay
 - Fixed-size circular buffer (10 slots)
 - Clean capture/retrieve/clear interface
 
-### NodeTracker (`node_tracker.h/cpp`)
+#### NodeTracker (`node_tracker.h/cpp`)
 - Tracks "hot" nodes for behavioral analysis
 - Running average RSSI with overflow protection
 - Iteration support for range-based for loops
@@ -48,18 +32,16 @@ All repositories share common patterns:
 - Iterator support (`begin()`/`end()`)
 - Logging via `LOG_INFO`/`LOG_WARN` macros
 
-## Phase 2: Integration ✅ COMPLETED
+### Phase 2: Integration ✅
 
-`ReconState` now delegates to repositories internally while maintaining the existing public API:
+`ReconState` now delegates to repositories internally:
 
 ```cpp
-// ReconState.h
 class ReconState {
 private:
     PacketStore packetStore_;
     NodeTracker nodeTracker_;
     DeviceRepository deviceRepo_;
-    // ...
 public:
     // Public API unchanged - delegates to repositories
     void addTargetableDevice(...) { deviceRepo_.addOrUpdate(...); }
@@ -68,53 +50,49 @@ public:
 };
 ```
 
-Legacy public arrays (`replaySlots`, `trackedNodes`, `targetableDevices`) are kept in sync for backward compatibility with existing consumers. Future work can migrate consumers to use repositories directly.
+Legacy public arrays kept in sync for backward compatibility.
 
-## Phase 3: Service Layer (FUTURE)
+### Quick Wins ✅
 
-Split `ReconService` into:
+- Removed duplicate `findTargetableDevice()` from ReconService
+- Removed inline `extern` declarations from APIController
+- Standardized JSON error responses using `JsonUtils`
 
-### QueryService
-- All `build*Json()` methods
-- Read-only access to repositories
-- No side effects
+## What Was NOT Done (Intentionally)
 
-### CaptureService  
-- `startTargetedCapture()`, `stopCapture()`
-- Replay management
-- Mode transitions
+### Phase 3 & 4: Service Layer Split - CANCELLED
 
-### APIController
-- HTTP request handling only
-- Delegates to query/command services
-- Authentication checks
+Originally planned to split `ReconService` into QueryService + CaptureService. After review, this was deemed unnecessary:
 
-## Phase 4: Thin ReconState (FUTURE)
+- `ReconService` as a static class is efficient (no instance overhead)
+- The 13 `build*Json()` methods + 9 command methods coexist fine at ~880 lines
+- `APIController` being a thin wrapper is actually good separation (HTTP vs business logic)
+- Splitting would add complexity without meaningful architectural benefit
 
-Once repositories handle storage:
-- `ReconState` becomes pure data holder
-- Remove business logic from state class
-- Consider renaming to `ReconContext` or `ScanSession`
+## Results
 
-## File Size Targets
+| Metric | Before | After |
+|--------|--------|-------|
+| `recon_state.cpp` | 757 lines | ~660 lines |
+| Storage logic | Mixed in ReconState | Isolated in repositories |
+| Testability | Hard to unit test | Repositories testable in isolation |
 
-Current state (pre-refactor):
-- `recon_state.cpp`: 757 lines ❌ Too large
-- `recon_service.cpp`: 880 lines ❌ Too large
+## File Structure
 
-Target:
-- Each file < 300 lines
-- Single responsibility per module
+```
+firmware/src/
+├── repositories/
+│   ├── device_repository.h/cpp    (167 + 211 lines)
+│   ├── packet_store.h/cpp         (72 + 87 lines)
+│   └── node_tracker.h/cpp         (78 + 88 lines)
+├── recon_state.h/cpp              (Delegates to repositories)
+├── recon_service.h/cpp            (Unchanged - static service)
+└── api_controller.h/cpp           (HTTP layer, uses ReconService)
+```
 
-## Migration Strategy
+## Future Considerations
 
-1. **Non-breaking**: Keep public APIs stable
-2. **Incremental**: One repository at a time
-3. **Tested**: Build after each change
-4. **Documented**: Update this file with progress
-
-## Quick Wins Completed
-
-- ✅ Removed duplicate `findTargetableDevice()` from ReconService
-- ✅ Removed inline `extern` declarations from APIController
-- ✅ Standardized JSON error responses using `JsonUtils`
+If further refactoring is needed:
+1. Consumers could use repositories directly instead of through ReconState
+2. Legacy public arrays in ReconState could be removed once consumers migrate
+3. Device identification helpers could be extracted from ReconState if reused elsewhere
