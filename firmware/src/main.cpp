@@ -111,7 +111,7 @@ void setup() {
             // Display API token for authenticated access
             if (Config::Security::AUTH_ENABLED) {
                 LOG_INFO("\n🔐 API Security Enabled");
-                LOG_INFO("  Token: %s", APISecurity::getToken());
+                LOG_INFO("  Token: %s", APISecurity::getToken().c_str());
                 LOG_INFO("  Header: %s", Config::Security::AUTH_HEADER);
                 LOG_INFO("  Protected endpoints require this token");
             }
