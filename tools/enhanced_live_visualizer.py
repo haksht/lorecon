@@ -622,38 +622,168 @@ class EnhancedLoRaVisualizer:
             if self.ser:
                 self.ser.close()
 
+def list_serial_ports():
+    """List available serial ports"""
+    try:
+        import serial.tools.list_ports
+        ports = list(serial.tools.list_ports.comports())
+        
+        if not ports:
+            print("[!] No serial ports found")
+            return []
+        
+        print("\n📡 Available Serial Ports:\n")
+        for i, port in enumerate(ports, 1):
+            print(f"  {i}. {port.device}")
+            print(f"     Description: {port.description}")
+            print(f"     Manufacturer: {port.manufacturer or 'Unknown'}")
+            print()
+        
+        return ports
+    except ImportError:
+        print("[!] pyserial not installed")
+        return []
+
+
+def detect_esp32():
+    """Try to auto-detect ESP32 port"""
+    try:
+        import serial.tools.list_ports
+        ports = list(serial.tools.list_ports.comports())
+        
+        # Look for common ESP32 identifiers
+        for port in ports:
+            desc_lower = (port.description or '').lower()
+            mfr_lower = (port.manufacturer or '').lower()
+            
+            if any(kw in desc_lower for kw in ['cp210', 'ch340', 'esp32', 'uart', 'silicon']):
+                return port.device
+            if any(kw in mfr_lower for kw in ['silicon labs', 'wch', 'espressif']):
+                return port.device
+        
+        return None
+    except ImportError:
+        return None
+
+
+def open_web_ui(esp32_ip='192.168.4.1'):
+    """Open web UI in default browser"""
+    try:
+        import webbrowser
+        url = f"http://{esp32_ip}"
+        webbrowser.open(url)
+        print(f"[✓] Web UI opened: {url}")
+        return True
+    except Exception as e:
+        print(f"[!] Could not open browser: {e}")
+        return False
+
+
 def main():
     parser = argparse.ArgumentParser(
-        description='Enhanced Live Visualization for Conference Demos'
+        description='ESP32 LoRa Sniffer - Conference Demo Visualizer',
+        epilog='Example: python enhanced_live_visualizer.py COM3 --audio --record --web'
     )
-    parser.add_argument('port', help='Serial port (e.g., COM3 or /dev/ttyUSB0)')
+    parser.add_argument('port', nargs='?', help='Serial port (e.g., COM3 or /dev/ttyUSB0)')
+    parser.add_argument('--list-ports', action='store_true',
+                       help='List available serial ports and exit')
+    parser.add_argument('--auto-detect', action='store_true',
+                       help='Auto-detect ESP32 port')
     parser.add_argument('--json', action='store_true', 
                        help='Enable JSON output mode on ESP32')
     parser.add_argument('--audio', action='store_true',
                        help='Enable audio feedback (Geiger counter effect)')
     parser.add_argument('--record', action='store_true',
                        help='Auto-save screenshots at milestones')
+    parser.add_argument('--web', action='store_true',
+                       help='Open web UI in browser')
+    parser.add_argument('--web-ip', default='192.168.4.1',
+                       help='ESP32 web UI IP address (default: 192.168.4.1)')
+    parser.add_argument('--duration', type=int, metavar='SECONDS',
+                       help='Auto-exit after duration (for scripted demos)')
     
     args = parser.parse_args()
     
     print("="*70)
-    print("  ESP32 LoRa Sniffer - Enhanced Live Visualization")
-    print("  Conference Demo Edition")
+    print("  ESP32 LoRa Sniffer - Conference Demo Visualizer")
     print("="*70)
     print()
+    
+    # Handle --list-ports
+    if args.list_ports:
+        list_serial_ports()
+        return 0
+    
+    # Determine port
+    port = args.port
+    
+    if args.auto_detect:
+        print("[*] Auto-detecting ESP32...")
+        detected = detect_esp32()
+        if detected:
+            print(f"[✓] Found ESP32 on: {detected}")
+            port = detected
+        else:
+            print("[!] Auto-detection failed")
+            if not port:
+                list_serial_ports()
+                return 1
+    
+    if not port:
+        print("[!] No port specified. Use --list-ports to see available ports.")
+        print()
+        print("Usage examples:")
+        print("  python enhanced_live_visualizer.py COM3")
+        print("  python enhanced_live_visualizer.py /dev/ttyUSB0 --audio --record")
+        print("  python enhanced_live_visualizer.py --auto-detect --web")
+        return 1
+    
+    # Open web UI if requested
+    if args.web:
+        open_web_ui(args.web_ip)
+    
+    # Open web UI if requested
+    if args.web:
+        open_web_ui(args.web_ip)
     
     if args.audio and not AUDIO_AVAILABLE:
         print("[!] Audio requested but dependencies missing")
         print("[!] Install: pip install sounddevice numpy")
         print()
     
+    print(f"[*] Features enabled:")
+    if args.audio and AUDIO_AVAILABLE:
+        print("    🔊 Audio feedback")
+    if args.record:
+        print("    📸 Screenshot recording")
+    if args.web:
+        print(f"    🌐 Web UI at http://{args.web_ip}")
+    if args.duration:
+        print(f"    ⏱️  Auto-exit after {args.duration}s")
+    print()
+    
     visualizer = EnhancedLoRaVisualizer(
-        args.port, 
+        port, 
         json_mode=args.json,
         audio=args.audio,
         record=args.record
     )
+    
+    if args.duration:
+        # Run with timeout
+        import threading
+        def timeout_handler():
+            import time
+            time.sleep(args.duration)
+            print(f"\n[*] Duration ({args.duration}s) complete, exiting...")
+            plt.close('all')
+        
+        timer = threading.Thread(target=timeout_handler, daemon=True)
+        timer.start()
+    
     visualizer.run()
+    return 0
 
 if __name__ == '__main__':
-    main()
+    import sys
+    sys.exit(main() or 0)
