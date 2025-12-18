@@ -652,7 +652,7 @@ class NetworkMap {
         console.log('[NetworkMap] Panel display before:', this.detailsPanel.style.display);
         
         const rssi = device.rssi || device.avgRSSI || 0;
-        const lastSeen = device.lastSeen ? new Date(device.lastSeen * 1000).toLocaleTimeString() : 'Unknown';
+        const lastSeen = this.formatLastSeen(device.lastSeenSecondsAgo);
         const vulnScore = device.vulnerabilityScore || this.calculateVulnerabilityScore(device);
         
         // Determine vulnerability level and color - use riskLevel from security API if available
@@ -786,6 +786,15 @@ class NetworkMap {
         this.ctx.stroke();
         this.ctx.fillStyle = '#e0e0e0';
         this.ctx.fillText('Mixed (TX+Relay)', startX + 15, startY + lineHeight * 3 + 4);
+    }
+    
+    formatLastSeen(secondsAgo) {
+        if (secondsAgo === undefined || secondsAgo === null) return 'Unknown';
+        if (secondsAgo === 0) return 'Just now';
+        if (secondsAgo < 60) return `${Math.floor(secondsAgo)}s ago`;
+        if (secondsAgo < 3600) return `${Math.floor(secondsAgo / 60)}m ago`;
+        if (secondsAgo < 86400) return `${Math.floor(secondsAgo / 3600)}h ago`;
+        return `${Math.floor(secondsAgo / 86400)}d ago`;
     }
     
     destroy() {

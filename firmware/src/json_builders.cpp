@@ -30,7 +30,7 @@ const char* modeToString(uint8_t mode) {
     }
 }
 
-void fillDevice(ArduinoJson::JsonObject& obj, const TargetableDevice& dev, uint8_t index) {
+void fillDevice(ArduinoJson::JsonObject& obj, const TargetableDevice& dev, uint8_t index, ReconState& reconState) {
     obj["index"] = index;
     obj["nodeId"] = FormatUtils::formatNodeIdJson(dev.nodeId);
     obj["nodeIdDecimal"] = dev.nodeId;
@@ -40,11 +40,20 @@ void fillDevice(ArduinoJson::JsonObject& obj, const TargetableDevice& dev, uint8
     obj["packetCount"] = dev.packetCount;
     obj["avgRSSI"] = dev.avgRSSI;
     obj["bestRSSI"] = dev.bestRSSI;
+    obj["rssi"] = dev.avgRSSI;  // UI compatibility alias
     obj["firstSeen"] = dev.firstSeen;
     obj["lastSeen"] = dev.lastSeen;
     obj["isRouter"] = dev.isRouter;
     obj["configIndex"] = dev.configIndex;
     obj["powerClass"] = dev.powerClass;
+    
+    // Add frequency from config lookup (UI expects this field)
+    const ScanConfig& cfg = reconState.getScanConfig(dev.configIndex);
+    obj["frequency"] = cfg.frequency;
+    
+    // Add lastSeenSecondsAgo for UI (avoids client-side timestamp math issues)
+    uint32_t now = millis();
+    obj["lastSeenSecondsAgo"] = (dev.lastSeen > 0 && dev.lastSeen <= now) ? (now - dev.lastSeen) / 1000 : 0;
     
     // Derive power descriptor from powerClass
     const char* descriptor = "Low";
@@ -67,7 +76,7 @@ String buildDevicesJson(ReconState& reconState) {
     for (uint8_t i = 0; i < reconState.getNumTargetableDevices(); i++) {
         JsonObject deviceObj = devices.add<JsonObject>();
         const TargetableDevice& dev = reconState.getTargetableDevice(i);
-        Internal::fillDevice(deviceObj, dev, i);
+        Internal::fillDevice(deviceObj, dev, i, reconState);
     }
 
     String response;
@@ -85,7 +94,7 @@ String buildDeviceJson(ReconState& reconState, uint8_t deviceIndex) {
     
     JsonObject deviceObj = doc["device"].to<JsonObject>();
     const TargetableDevice& dev = reconState.getTargetableDevice(deviceIndex);
-    Internal::fillDevice(deviceObj, dev, deviceIndex);
+    Internal::fillDevice(deviceObj, dev, deviceIndex, reconState);
 
     String response;
     serializeJson(doc, response);
@@ -387,12 +396,10 @@ String buildReconSummaryJson(ReconState& reconState, GeoIntelligence& geoIntel) 
     for (uint8_t i = 0; i < reconState.getNumTargetableDevices(); i++) {
         JsonObject deviceObj = devices.add<JsonObject>();
         const TargetableDevice& dev = reconState.getTargetableDevice(i);
-        Internal::fillDevice(deviceObj, dev, i);
-        uint32_t lastSeenAge = (dev.lastSeen > 0 && dev.lastSeen <= now) ?
-            (now - dev.lastSeen) : 0;
+        Internal::fillDevice(deviceObj, dev, i, reconState);
+        // fillDevice now includes lastSeenSecondsAgo, add firstSeenSecondsAgo here
         uint32_t firstSeenAge = (dev.firstSeen > 0 && dev.firstSeen <= now) ?
             (now - dev.firstSeen) : 0;
-        deviceObj["lastSeenSecondsAgo"] = lastSeenAge / 1000;
         deviceObj["firstSeenSecondsAgo"] = firstSeenAge / 1000;
     }
 
