@@ -79,6 +79,11 @@ No exceptions (embedded C++). Return `bool` for success/failure. Use `LOG_ERROR(
   - `protobuf_utils.h`: Varint decoding utilities
   - `security_scorer.h`: Unified security assessment scoring
   - `json_utils.h`: Standardized JSON response helpers (`JsonUtils::success()`, `JsonUtils::error()`, `JsonUtils::successWithData()`)
+- **`firmware/src/repositories/`**: Storage layer (delegates from ReconState):
+  - `device_repository.h/cpp`: Targetable device storage with Welford's RSSI stats
+  - `packet_store.h/cpp`: Replay slot management for captured packets
+  - `node_tracker.h/cpp`: Hot node tracking for behavioral analysis
+  - `json_utils.h`: Standardized JSON response helpers (`JsonUtils::success()`, `JsonUtils::error()`, `JsonUtils::successWithData()`)
 - **`platformio.ini`**: Build flags include `-DBOARD_HELTEC_V3`, `-DHAS_OLED_DISPLAY`. Filters exclude test files with `build_src_filter`.
 
 ## Common Gotchas
