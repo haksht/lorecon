@@ -7,7 +7,7 @@ ESP32-S3 passive LoRa reconnaissance firmware for security research. **Hardware-
 
 ### Component Boundaries
 - **`RadioController`**: SX1262 hardware abstraction. Atomic ISR flags (`std::atomic<bool> packetAvailable`), cached RSSI/SNR to avoid SPI spam. Global instance (`g_radioController`) required for ISR access.
-- **`PacketProcessor`**: Queue-based analysis. Processes interrupt-captured packets, runs protocol analysis, PSK decryption (14 keys), GPS extraction. Optional callback for WebSocket streaming.
+- **`PacketProcessor`**: Queue-based analysis. Processes interrupt-captured packets, runs protocol analysis, PSK decryption (23 keys incl. leaked 2023 admin keys), GPS extraction. Optional callback for WebSocket streaming.
 - **`LoRaReconTool`**: Application orchestrator implementing `IReconTool` interface. Coordinates components, manages modes (recon/targeted), handles 5min scan cycle through 26 LoRa configs.
 - **`IReconTool`**: Interface pattern breaks circular dependency with `CommandHandler`. Use this, not concrete class, for dependencies.
 - **`CommandHandler`**: Dispatch table (not if/else chains). Static command functions take `IReconTool*`.
@@ -63,7 +63,7 @@ All magic numbers in `Config::` namespaces: `Config::Hardware::LORA_NSS`, `Confi
 `WebServer` uses `PacketProcessor::setPacketCallback()` for real-time updates. Aggregates stats every 100ms to avoid WebSocket spam. Uses `IReconTool*` interface, not concrete class.
 
 ### 4. PSK Testing
-14 default Meshtastic keys tested on encrypted packets. `PSKDecryption::testDefaultPSKs()` called from `PacketProcessor`, not UI layer. `PSKTests::runAll()` runs at boot for validation.
+23 Meshtastic keys tested on encrypted packets (includes leaked 2023 admin/debug keys). `PSKDecryption::testDefaultPSKs()` called from `PacketProcessor`, not UI layer. `PSKTests::runAll()` runs at boot for validation.
 
 ### 5. Error Handling
 No exceptions (embedded C++). Return `bool` for success/failure. Use `LOG_ERROR()`, `LOG_WARN()`, `LOG_INFO()` macros from `logger.h`. Never `printf()` directly.
@@ -74,6 +74,7 @@ No exceptions (embedded C++). Return `bool` for success/failure. Use `LOG_ERROR(
 - **`firmware/src/main.cpp`**: 108-line entry point showing WiFi/LittleFS/PSK test initialization sequence
 - **`firmware/src/irecon_tool.h`**: Interface contract that breaks circular dependencies
 - **`firmware/src/data_structures.h`**: All shared structs (17 definitions): `CapturedPacket`, `QueuedPacket`, `ScanConfig`, etc.
+- **`firmware/src/utils/`**: Shared utilities (`format_utils.h`, `protobuf_utils.h`, `security_scorer.h`)
 - **`platformio.ini`**: Build flags include `-DBOARD_HELTEC_V3`, `-DHAS_OLED_DISPLAY`. Filters exclude test files with `build_src_filter`.
 
 ## Common Gotchas
@@ -85,12 +86,13 @@ No exceptions (embedded C++). Return `bool` for success/failure. Use `LOG_ERROR(
 5. **Frequency Configs**: 26 configs define Meshtastic, LoRaWAN, Helium presets. Cycle time = 26 × 12s = 5min. Don't suggest random frequency additions.
 6. **No Arduino String**: Use `std::string` or C-strings. Arduino `String` class avoided for memory fragmentation reasons.
 7. **Web UI Script Loading**: Scripts load in order: `toast.js`, `war-room.js`, `network-map.js`, `app.js`. If "NetworkMap class not found" error occurs, re-run `uploadfs` to ensure all files uploaded correctly to LittleFS.
-8. **PSK Key Count**: Always use `Config::PSK::NUM_DEFAULT_KEYS` constant (14) or `PSKDecryption::getDefaultPSKCount()` function. Never hardcode key counts.
+8. **PSK Key Count**: Always use `Config::PSK::NUM_DEFAULT_KEYS` constant (23) or `PSKDecryption::getDefaultPSKCount()` function. Never hardcode key counts.
 9. **Queue Overflow**: 100-packet queue can overflow in high-traffic (50+ devices). Drops are tracked and displayed. Trade-off: continuous coverage vs perfect capture. See TROUBLESHOOTING.md for mitigation strategies.
 10. **strcpy Safety**: Use `strncpy` with explicit null termination for buffer safety, even when copying string literals.
 11. **API Security (v2.2.0+)**: Protected endpoints require `X-API-Token` header. Use `APISecurity::isAuthenticated(request)` guard on destructive endpoints. Token displayed at boot in serial output.
 12. **WiFi Credentials**: Stored in NVS (`Preferences` API), not JSON files. Use `WiFiManager` methods, never direct file access.
 13. **Device-Unique AP Password**: Format is `recon-XXYYZZ` where XXYYZZ matches the SSID suffix. Use `Config::WiFi::DEFAULT_AP_PASSWORD_PREFIX`.
+14. **Shared Utilities**: Use `utils/format_utils.h` for node ID formatting, `utils/security_scorer.h` for security assessment. Don't duplicate this logic in new code.
 
 ## Testing Approach
 

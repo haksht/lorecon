@@ -3,6 +3,9 @@
 #include "config.h"
 #include "logger.h"
 #include "web_server.h"
+#include "utils/format_utils.h"
+#include "utils/security_scorer.h"
+#include <Preferences.h>
 
 IReconTool* ReconService::reconTool = nullptr;
 
@@ -63,13 +66,19 @@ bool ReconService::startTargetedCaptureByIndex(uint8_t deviceIndex, String& outM
     const TargetableDevice& device = reconState.getTargetableDevice(deviceIndex);
     
     // Use non-static buffer and explicit String construction to ensure copy
-    char msgBuffer[128];
-    snprintf(msgBuffer, sizeof(msgBuffer), "Targeted capture started on device 0x%08X", device.nodeId);
-    outMessage = String(msgBuffer);
+    outMessage = "Targeted capture started on device " + FormatUtils::formatNodeIdPadded(device.nodeId);
     return true;
 }
 
 bool ReconService::stopCapture(String& outMessage) {
+    LOG_INFO("ReconService: Stopping capture, switching to reconnaissance mode");
+    
+    // Clear persisted targeting mode from NVS
+    Preferences modePrefs;
+    modePrefs.begin("mode", false);
+    modePrefs.clear();
+    modePrefs.end();
+    
     reconState.scanState.mode = MODE_RECONNAISSANCE;
     outMessage = "Capture stopped, resumed reconnaissance";
     return true;
@@ -77,7 +86,7 @@ bool ReconService::stopCapture(String& outMessage) {
 
 void ReconService::fillDevice(JsonObject& deviceObj, const TargetableDevice& device, uint8_t index) {
     deviceObj["index"] = index + 1;
-    deviceObj["nodeId"] = String(device.nodeId, HEX);
+    deviceObj["nodeId"] = FormatUtils::formatNodeIdJson(device.nodeId);
     deviceObj["nodeIdDecimal"] = device.nodeId;
     const ScanConfig& cfg = reconState.getScanConfig(device.configIndex);
     deviceObj["frequency"] = cfg.frequency;
@@ -155,6 +164,16 @@ String ReconService::buildStatusJson() {
     doc["freeHeap"] = ESP.getFreeHeap();
     doc["heapSize"] = ESP.getHeapSize();
 
+    // Battery voltage reading (Heltec V3: GPIO 37 control, GPIO 1 ADC)
+    pinMode(Config::Hardware::VBAT_CTRL_PIN, OUTPUT);
+    digitalWrite(Config::Hardware::VBAT_CTRL_PIN, HIGH);
+    analogReadResolution(12);
+    float batteryVoltage = (analogReadMilliVolts(Config::Hardware::VBAT_ADC_PIN) * Config::Hardware::VBAT_SCALE) / 1000.0f;
+    // Map 3.2V (empty) to 4.2V (full) -> 0-100%
+    int batteryPercent = constrain((int)((batteryVoltage - 3.2f) / (4.2f - 3.2f) * 100.0f), 0, 100);
+    doc["batteryVoltage"] = serialized(String(batteryVoltage, 2));
+    doc["batteryPercent"] = batteryPercent;
+
     if (g_webServer) {
         doc["clientCount"] = g_webServer->getClientCount();
     }
@@ -182,7 +201,7 @@ String ReconService::buildStatusJson() {
         for (uint8_t i = 0; i < reconState.numTargetableDevices; i++) {
             const TargetableDevice& device = reconState.targetableDevices[i];
             if (device.configIndex == reconState.scanState.targetConfig) {
-                target["nodeId"] = String(device.nodeId, HEX);
+                target["nodeId"] = FormatUtils::formatNodeIdJson(device.nodeId);
                 target["deviceType"] = device.deviceType;
                 target["rssi"] = device.bestRSSI;
                 target["packetCount"] = device.packetCount;
@@ -283,7 +302,7 @@ String ReconService::buildPositionsJson() {
             continue;
         }
         JsonObject pos = positions.add<JsonObject>();
-        pos["nodeId"] = String(point.nodeId, HEX);
+        pos["nodeId"] = FormatUtils::formatNodeIdJson(point.nodeId);
         pos["lat"] = point.latitude;
         pos["lon"] = point.longitude;
         pos["alt"] = point.altitude;
@@ -314,7 +333,7 @@ String ReconService::buildGeoJson() {
         feature["type"] = "Feature";
 
         JsonObject properties = feature["properties"].to<JsonObject>();
-        properties["nodeId"] = String(point.nodeId, HEX);
+        properties["nodeId"] = FormatUtils::formatNodeIdJson(point.nodeId);
         properties["altitude"] = point.altitude;
         properties["timestamp"] = point.timestamp;
         properties["precision"] = point.precision;
@@ -333,13 +352,18 @@ String ReconService::buildGeoJson() {
 }
 
 String ReconService::buildKml() {
-    String kml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n";
+    uint8_t pointCount = geoIntel.getPointCount();
+    
+    // Pre-allocate string to prevent fragmentation (header ~300 bytes + ~200 bytes per point)
+    String kml;
+    kml.reserve(400 + pointCount * 250);
+    
+    kml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n";
     kml += "<kml xmlns=\"http://www.opengis.net/kml/2.2\">\n";
     kml += "  <Document>\n";
     kml += "    <name>ESP32 LoRa Sniffer - Device Positions</name>\n";
     kml += "    <description>Discovered device GPS positions</description>\n";
 
-    uint8_t pointCount = geoIntel.getPointCount();
     for (uint8_t i = 0; i < pointCount; i++) {
         const GeoPoint& point = geoIntel.getPoint(i);
         if (!point.valid) {
@@ -347,7 +371,7 @@ String ReconService::buildKml() {
         }
 
         kml += "    <Placemark>\n";
-        kml += "      <name>Device 0x" + String(point.nodeId, HEX) + "</name>\n";
+        kml += "      <name>Device " + FormatUtils::formatNodeIdPadded(point.nodeId) + "</name>\n";
         kml += "      <description>Altitude: " + String(point.altitude) + "m</description>\n";
         kml += "      <Point>\n";
         kml += "        <coordinates>" + String(point.longitude, 6) + "," + String(point.latitude, 6) + "," + String(point.altitude) + "</coordinates>\n";
@@ -525,9 +549,12 @@ String ReconService::buildSecurityAssessmentJson() {
 
     for (uint8_t i = 0; i < reconState.numTargetableDevices; i++) {
         const TargetableDevice& dev = reconState.getTargetableDevice(i);
-        uint8_t score = 100;
+        
+        // Use shared security scorer for consistent assessment
+        SecurityScorer::Assessment assessment = SecurityScorer::assess(dev);
+        
         JsonObject deviceObj = devices.add<JsonObject>();
-        deviceObj["nodeId"] = String(dev.nodeId, HEX);
+        deviceObj["nodeId"] = FormatUtils::formatNodeIdJson(dev.nodeId);
         deviceObj["nodeIdDecimal"] = dev.nodeId;
         deviceObj["deviceType"] = dev.deviceType;
         deviceObj["protocol"] = dev.protocol;
@@ -541,49 +568,35 @@ String ReconService::buildSecurityAssessmentJson() {
 
         JsonArray findings = deviceObj["findings"].to<JsonArray>();
 
-        if (dev.bestRSSI > -50) {
-            score = score > 15 ? score - 15 : 0;
+        // Add findings based on assessment
+        if (assessment.physicalProximity) {
             findings.add("High signal strength (physical proximity risk)");
         }
-
-        bool maybeUnencrypted = (dev.packetCount > 10 && strcmp(dev.protocol, "Meshtastic") == 0);
-        if (maybeUnencrypted) {
+        if (assessment.possibleUnencrypted) {
             findings.add("Heavy traffic without confirmed encryption");
         }
-
-        if (dev.isRouter) {
-            score = score > 10 ? score - 10 : 0;
+        if (assessment.isRouter) {
             findings.add("Router device - elevated attack surface");
         }
-
-        if (dev.packetCount > 100) {
-            score = score > 15 ? score - 15 : 0;
+        if (assessment.chatty) {
             findings.add("Chatty device leaking metadata");
         }
-
-        if (dev.packetCount < 5) {
-            score = score > 5 ? score - 5 : 0;
+        if (assessment.intermittent) {
             findings.add("Intermittent transmissions (weak power or sporadic)");
         }
-
-        if (strstr(dev.firmwareVersion, "v1.x") != nullptr || strstr(dev.firmwareVersion, "v2.0") != nullptr) {
-            score = score > 20 ? score - 20 : 0;
+        if (assessment.outdatedFirmware) {
             findings.add("Outdated firmware signature detected");
         }
 
-        const char* rating;
-        if (score >= 80) {
-            rating = "secure";
-        } else if (score >= 60) {
-            rating = "moderate";
-            moderateCount++;
-        } else {
-            rating = "vulnerable";
+        // Track counts
+        if (strcmp(assessment.rating, "vulnerable") == 0) {
             vulnerableCount++;
+        } else if (strcmp(assessment.rating, "moderate") == 0) {
+            moderateCount++;
         }
 
-        deviceObj["score"] = score;
-        deviceObj["riskLevel"] = rating;
+        deviceObj["score"] = assessment.score;
+        deviceObj["riskLevel"] = assessment.rating;
 
         if (findings.size() == 0) {
             findings.add("No obvious vulnerabilities detected");
@@ -649,9 +662,7 @@ String ReconService::buildReplaySlotsJson() {
         
         // Include node ID if available
         if (packet.nodeId != 0) {
-            char nodeIdHex[9];
-            snprintf(nodeIdHex, sizeof(nodeIdHex), "%08X", packet.nodeId);
-            slot["nodeId"] = nodeIdHex;
+            slot["nodeId"] = FormatUtils::formatNodeIdJson(packet.nodeId);
         }
         
         // Include packet ID if available

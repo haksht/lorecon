@@ -9,6 +9,7 @@
 #include "radio_controller.h"
 #include "lora_recon_tool.h"  // For g_reconTool global
 #include <SD.h>
+#include <Preferences.h>
 
 /**
  * Set reconnaissance tool reference
@@ -234,15 +235,22 @@ String APIController::getConfig() {
  * POST /api/scan/start
  * 
  * Start or resume reconnaissance scan.
- * NOTE: If in targeted capture mode, this will NOT override it - 
- *       user must explicitly stop capture first.
+ * Will switch from any mode (including targeted capture) to reconnaissance.
+ * This is an explicit user action, so it's allowed.
  */
 String APIController::startScan() {
-    // Check if we're in targeted capture mode - don't auto-override
-    if (reconState.scanState.mode == MODE_TARGETED_CAPTURE) {
-        LOG_WARN("API: startScan called while in targeted capture mode - ignoring");
-        return createErrorResponse("Cannot start scan while in targeted capture mode. Stop capture first.");
-    }
+    // Log mode transition for debugging
+    const char* prevMode = (reconState.scanState.mode == MODE_TARGETED_CAPTURE) ? "targeted_capture" :
+                           (reconState.scanState.mode == MODE_INTERACTIVE_MENU) ? "menu" :
+                           (reconState.scanState.mode == MODE_PACKET_REPLAY) ? "replay" : "reconnaissance";
+    LOG_INFO("API: startScan called (previous mode: %s)", prevMode);
+    
+    // Clear persisted targeting mode from NVS
+    Preferences modePrefs;
+    modePrefs.begin("mode", false);
+    modePrefs.clear();
+    modePrefs.end();
+    LOG_INFO("API: Cleared persisted targeting mode");
     
     // Resume reconnaissance WITHOUT clearing discovered devices/data
     LOG_INFO("API: Resuming reconnaissance scan");
@@ -274,15 +282,15 @@ String APIController::startScan() {
 /**
  * POST /api/scan/stop
  * 
- * Stop current scan (only if in reconnaissance mode)
- * Does NOT affect targeted capture mode.
+ * Stop current scan and enter menu mode.
+ * Works from any mode - this is an explicit user action.
  */
 String APIController::stopScan() {
-    // If in targeted capture mode, don't interfere
-    if (reconState.scanState.mode == MODE_TARGETED_CAPTURE) {
-        LOG_WARN("API: stopScan called while in targeted capture mode - ignoring");
-        return createSuccessResponse("Targeted capture remains active. Use stop-capture to exit.");
-    }
+    // Log mode transition for debugging
+    const char* prevMode = (reconState.scanState.mode == MODE_TARGETED_CAPTURE) ? "targeted_capture" :
+                           (reconState.scanState.mode == MODE_INTERACTIVE_MENU) ? "menu" :
+                           (reconState.scanState.mode == MODE_PACKET_REPLAY) ? "replay" : "reconnaissance";
+    LOG_INFO("API: stopScan called (previous mode: %s)", prevMode);
     
     reconState.scanState.mode = MODE_INTERACTIVE_MENU;
     if (g_reconTool) {

@@ -8,6 +8,7 @@
 #include "user_interface.h"
 #include "lora_recon_tool.h"
 #include "psk_decryption_simple.h"
+#include "utils/security_scorer.h"
 #include <Arduino.h>
 #include <esp_task_wdt.h>
 
@@ -127,71 +128,35 @@ void showSecurityAssessment() {
   for (uint8_t i = 0; i < reconState.numTargetableDevices; i++) {
     const TargetableDevice& dev = reconState.getTargetableDevice(i);
     
-    // Calculate security score (100 = perfect, 0 = critical)
-    uint8_t score = 100;
+    // Use shared security scorer for consistent assessment
+    SecurityScorer::Assessment assessment = SecurityScorer::assess(dev);
+    
+    // Build vulnerability string for display
     String vulnerabilities = "";
-    
-    // Check 1: Signal strength (too strong = physical security risk)
-    if (dev.bestRSSI > -50) {
-      score -= 15;
-      vulnerabilities += "Physical ";
-    }
-    
-    // Check 2: Encryption status (would need PSK test results)
-    // Placeholder for when PSK testing is validated
-    bool maybeUnencrypted = (dev.packetCount > 10 && strcmp(dev.protocol, "Meshtastic") == 0);
-    if (maybeUnencrypted) {
-      // Will be updated once PSK testing works
-      vulnerabilities += "Crypto? ";
-    }
-    
-    // Check 3: Routing device (higher attack surface)
-    if (dev.isRouter) {
-      score -= 10;
-      vulnerabilities += "Router ";
-    }
-    
-    // Check 4: High packet count (chatty = info leakage)
-    if (dev.packetCount > 100) {
-      score -= 15;
-      vulnerabilities += "Chatty ";
-    }
-    
-    // Check 5: Low packet count (intermittent = weak battery?)
-    if (dev.packetCount < 5) {
-      score -= 5;
-      vulnerabilities += "Weak ";
-    }
-    
-    // Check 6: Firmware version check
-    if (strstr(dev.firmwareVersion, "v1.x") != nullptr || 
-        strstr(dev.firmwareVersion, "v2.0") != nullptr) {
-      score -= 20;
-      vulnerabilities += "OldFW ";
-    }
+    if (assessment.physicalProximity) vulnerabilities += "Physical ";
+    if (assessment.possibleUnencrypted) vulnerabilities += "Crypto? ";
+    if (assessment.isRouter) vulnerabilities += "Router ";
+    if (assessment.chatty) vulnerabilities += "Chatty ";
+    if (assessment.intermittent) vulnerabilities += "Weak ";
+    if (assessment.outdatedFirmware) vulnerabilities += "OldFW ";
     
     if (vulnerabilities.length() == 0) {
       vulnerabilities = "None detected";
     }
     
-    // Rating
-    const char* rating;
-    if (score >= 80) {
-      rating = "✅ SECURE  ";
-    } else if (score >= 60) {
-      rating = "⚠️ MODERATE";
-      moderateCount++;
-    } else {
-      rating = "🚨 VULNERABLE";
+    // Track counts
+    if (strcmp(assessment.rating, "vulnerable") == 0) {
       vulnerableCount++;
+    } else if (strcmp(assessment.rating, "moderate") == 0) {
+      moderateCount++;
     }
     
     // Print summary line
     Serial.printf("0x%08X (%8s) | %3d/100 %s |\n",
-                  dev.nodeId, dev.deviceType, score, rating);
+                  dev.nodeId, dev.deviceType, assessment.score, assessment.ratingEmoji);
     
     // Store for detailed breakdown
-    assessments[i] = {i, score, rating, vulnerabilities, &dev};
+    assessments[i] = {i, assessment.score, assessment.ratingEmoji, vulnerabilities, &dev};
   }
   
   Serial.println("------------------------|----------------|---------------");
@@ -504,7 +469,7 @@ void displayWelcomeMessage() {
   Serial.printf("Scanning %d configurations\n", reconState.getNumConfigs());
   
   #ifdef ENABLE_PSK_TESTING
-  Serial.printf("PSK testing: ENABLED (%d default keys)\n", 14); // NUM_DEFAULT_PSKS
+  Serial.printf("PSK testing: ENABLED (%d default keys)\n", PSKDecryption::getDefaultPSKCount());
   #else
   Serial.println("PSK testing: DISABLED");
   #endif

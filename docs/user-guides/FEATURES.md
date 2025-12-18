@@ -81,7 +81,7 @@ A production-ready LoRa packet capture and analysis platform for security resear
 #### PacketProcessor Features
 - **Queue management** (max 10 packets, overflow protection)
 - **Protocol analysis coordination** (Meshtastic, LoRaWAN)
-- **PSK decryption coordination** (14 default keys)
+- **PSK decryption coordination** (23 default keys including leaked 2023 admin keys)
 - **Activity tracking** (via TextPacketDiagnostic)
 - **Last packet storage** (for replay capture)
 
@@ -119,14 +119,16 @@ A production-ready LoRa packet capture and analysis platform for security resear
 **Architecture**: PSK testing via PacketProcessor coordination  
 **Files**: `psk_decryption_simple.cpp/.h`, `psk_tests.h`
 
-- **14 default Meshtastic PSKs** including:
-  - Standard 16-byte keys (most common: "AQ==", "1PG7OiApB1nwvP+rz05pAQ==", etc.)
-  - Single-byte variants (0x01-0x05: "AQ==", "Ag==", "Aw==", "BA==", "BQ==")
-  - Weak test keys:
-    - All zeros: "AAAAAAAAAAAAAAAAAAAAAA=="
-    - ASCII "1234567890123456": "MTIzNDU2Nzg5MDEyMzQ1Ng=="
-    - ASCII "testtesttesttest": "dGVzdHRlc3R0ZXN0dGVzdA=="
-    - ASCII "meshtasticmeshtast": "bWVzaHRhc3RpY21lc2h0YXN0"
+- **23 default Meshtastic PSKs** including:
+  - Standard 16-byte keys (most common: "AQ==", "1PG7OiApB1nwvP+rz05pAQ==")
+  - Legacy single-byte variants (0x01-0x09, pre-2.0 firmware)
+  - **LEAKED KEYS from 2023 security incidents:**
+    - Admin channel default (pre-2.2): "PKdTs51e4EB0BoOevIN0Dw==" ⚠️ CRITICAL
+    - Secondary channel default: "shmLkA9H74gAeLH3eGCqsw=="
+    - Debug/dev key (leaked on GitHub): "ogDPnKVRN7wz/VF8nt6LkA=="
+    - EU868 regional default: "ZQ+HdKKbbAU4dSCGt66Qqw=="
+  - Channel preset derived keys (LongFast, MediumSlow, ShortFast, etc.)
+  - Weak test keys (all zeros, "1234567890123456", "testtesttesttest")
 - **AES-128/256 decryption** (Meshtastic encryption standard)
 - **Automated test suite** (Base64 parsing, PSK loading, decryption logic)
 - **Message extraction** (pulls plaintext from decrypted packets)
@@ -145,7 +147,7 @@ A production-ready LoRa packet capture and analysis platform for security resear
 
 **What it cannot decrypt**: Direct messages (DMs) - these use Public Key Cryptography (PKC) in firmware 2.5.0+
 
-**What it does**: Tests captured Meshtastic packets against 14 common default encryption keys. When a match is found, decrypts broadcasts and channel messages to reveal content, GPS data, and telemetry. Integrates with GPS extraction for POSITION_APP packets.
+**What it does**: Tests captured Meshtastic packets against 23 known encryption keys including leaked admin keys from 2023 security incidents. When a match is found, decrypts broadcasts and channel messages to reveal content, GPS data, and telemetry. Can identify devices running vulnerable firmware. Integrates with GPS extraction for POSITION_APP packets.
 
 **Current Status**: Code complete and working. Successfully decrypts position broadcasts, telemetry, and channel messages sent with default PSKs. Direct messages require PKC decryption (not feasible without private key).
 

@@ -10,6 +10,7 @@
 #include "packet_logger.h"
 #include "wifi_manager.h"
 #include "config.h"
+#include "utils/format_utils.h"
 #include <LittleFS.h>
 #include <SD.h>
 #include <Update.h>
@@ -59,6 +60,14 @@ bool WebServer::begin(IReconTool* tool, uint16_t port) {
     // Create server and WebSocket
     server = new AsyncWebServer(port);
     ws = new AsyncWebSocket("/ws");
+    
+    // Check allocations succeeded
+    if (!server || !ws) {
+        LOG_ERROR("Failed to allocate web server or WebSocket - out of memory");
+        if (server) { delete server; server = nullptr; }
+        if (ws) { delete ws; ws = nullptr; }
+        return false;
+    }
     
     // Setup WebSocket
     setupWebSocket();
@@ -409,7 +418,14 @@ void WebServer::handleGetDevice(AsyncWebServerRequest* request) {
     }
     
     String nodeIdStr = request->getParam("nodeId")->value();
-    uint32_t nodeId = strtoul(nodeIdStr.c_str(), nullptr, 16);
+    char* endPtr = nullptr;
+    uint32_t nodeId = strtoul(nodeIdStr.c_str(), &endPtr, 16);
+    
+    // Validate parse succeeded (endPtr moved and no trailing garbage)
+    if (endPtr == nodeIdStr.c_str() || (*endPtr != '\0' && !isspace(*endPtr))) {
+        request->send(400, "application/json", "{\"status\":\"error\",\"error\":\"Invalid nodeId format\"}");
+        return;
+    }
     
     String json = APIController::getDevice(nodeId);
     request->send(200, "application/json", json);
@@ -423,7 +439,14 @@ void WebServer::handleStartCapture(AsyncWebServerRequest* request) {
     }
     
     String nodeIdStr = request->getParam("nodeId", true)->value();
-    uint32_t nodeId = strtoul(nodeIdStr.c_str(), nullptr, 16);
+    char* endPtr = nullptr;
+    uint32_t nodeId = strtoul(nodeIdStr.c_str(), &endPtr, 16);
+    
+    // Validate parse succeeded
+    if (endPtr == nodeIdStr.c_str() || (*endPtr != '\0' && !isspace(*endPtr))) {
+        request->send(400, "application/json", "{\"status\":\"error\",\"error\":\"Invalid nodeId format\"}");
+        return;
+    }
     
     String json = APIController::startTargetedCapture(nodeId);
     request->send(200, "application/json", json);
@@ -722,6 +745,10 @@ void WebServer::handleReplayPacket(AsyncWebServerRequest* request) {
 }
 
 void WebServer::handleStartFrequencyTargeting(AsyncWebServerRequest* request) {
+    // Note: Not protected - allows easy setup via web UI
+    // Once in targeting mode, it persists across reboots
+    // Other mode-changing endpoints (scan/capture) ARE protected
+    
     AsyncWebParameter* param = nullptr;
     if (request->hasParam("configIndex", true)) {
         param = request->getParam("configIndex", true);
@@ -930,7 +957,7 @@ void WebServer::broadcastAggregatedUpdate() {
     // Build JSON (keep it small)
     JsonDocument doc;
     doc["type"] = "packet";
-    doc["nodeId"] = String(aggStats.lastNodeId, HEX);
+    doc["nodeId"] = FormatUtils::formatNodeIdJson(aggStats.lastNodeId);
     doc["rssi"] = aggStats.lastRSSI;
     doc["count"] = aggStats.packetCount;
     
@@ -952,24 +979,13 @@ void WebServer::broadcastAggregatedUpdate() {
 
 /**
  * Periodic maintenance - cleanup dead connections
+ * 
+ * NOTE: Disabled because cleanupClients() causes stack overflow.
+ * AsyncWebServer handles cleanup internally.
  */
 void WebServer::periodicUpdate() {
-    // Disabled - cleanupClients() causes stack overflow
-    // Let AsyncWebServer handle cleanup internally
-    return;
-    
-    if (!ws) {
-        return;
-    }
-
-    if (activeClients.load(std::memory_order_relaxed) == 0) {
-        return;
-    }
-
-    if (ws) {
-        ws->cleanupClients();
-        ws->pingAll();
-    }
+    // Intentionally empty - AsyncWebServer handles cleanup internally
+    // Previous cleanupClients() calls caused stack overflow issues
 }
 
 void WebServer::service() {
@@ -1005,7 +1021,7 @@ void WebServer::broadcastDeviceUpdate(uint32_t nodeId) {
     
     JsonDocument doc;
     doc["type"] = "deviceUpdate";
-    doc["nodeId"] = String(nodeId, HEX);
+    doc["nodeId"] = FormatUtils::formatNodeIdJson(nodeId);
     doc["timestamp"] = millis();
     
     String json;

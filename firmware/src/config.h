@@ -32,6 +32,11 @@ namespace Hardware {
     
     // SD Card (optional)
     constexpr uint8_t SD_CS = 5;         // SD card chip select (GPIO 5, not 21 which conflicts with OLED_RST)
+    
+    // Battery ADC (Heltec WiFi LoRa 32 V3)
+    constexpr uint8_t VBAT_ADC_PIN = 1;   // GPIO 1 - battery voltage ADC
+    constexpr uint8_t VBAT_CTRL_PIN = 37; // GPIO 37 - ADC control (set HIGH to enable)
+    constexpr float VBAT_SCALE = 4.9f;    // Voltage divider scaling factor
 }
 
 // ============================================================================
@@ -181,9 +186,10 @@ namespace Logging {
 // ============================================================================
 namespace PSK {
     // Number of default PSKs to test
-    // Includes: AQ==, 1PG7OiApB1nwvP+rz05pAQ==, and 12 other common keys
-    // See psk_decryption_simple.cpp for full list
-    constexpr uint8_t NUM_DEFAULT_KEYS = 14;
+    // Includes: Current defaults, legacy single-byte, admin channel leaks,
+    // named channel derivations, test keys, and regional defaults
+    // See psk_decryption_simple.cpp for full list with history
+    constexpr uint8_t NUM_DEFAULT_KEYS = 23;
     
     // AES key size (bytes)
     constexpr uint8_t KEY_SIZE = 16;

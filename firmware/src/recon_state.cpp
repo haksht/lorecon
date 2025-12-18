@@ -4,6 +4,7 @@
 
 #include "recon_state.h"
 #include "config.h"
+#include "utils/format_utils.h"
 
 // Compile-time check: Ensure rfActivity array size matches NUM_CONFIGS
 static_assert(sizeof(((ReconState*)0)->rfActivity) / sizeof(RFActivity) >= 16, 
@@ -186,7 +187,7 @@ void ReconState::addTargetableDevice(uint32_t nodeId, uint8_t configIndex, float
         device->originatedPackets = 0;
         device->relayedPackets = 0;
         device->firstSeen = millis();
-        device->powerClass = estimatePowerClass(rssi);
+        device->powerClass = FormatUtils::estimatePowerClass(rssi);
         device->isRouter = false;
         
         strncpy(device->protocol, protocol, sizeof(device->protocol) - 1);
@@ -370,11 +371,7 @@ const char* ReconState::identifyDeviceType(const uint8_t* data, size_t length,
     return "Unknown Device";
 }
 
-uint8_t ReconState::estimatePowerClass(float rssi) const {
-    if (rssi > -70) return 2;  // High power (>100mW)
-    if (rssi > -90) return 1;  // Medium power (10-100mW)
-    return 0;                  // Low power (<10mW)
-}
+// estimatePowerClass moved to utils/format_utils.h as FormatUtils::estimatePowerClass()
 
 bool ReconState::isRoutingDevice(const uint8_t* data, size_t length, const char* protocol) const {
     if (strcmp(protocol, "Meshtastic") == 0 && length >= 12) {
@@ -628,29 +625,49 @@ void ReconState::checkForAnomalies(const uint8_t* data, size_t length, uint32_t 
     TargetableDevice* device = findTargetableDevice(nodeId);
     if (!device) return;
     
-    // Check 1: Packet size outlier
-    if (length > 255) {
+    // Cooldown: prevent spam by checking if we recently logged this anomaly type for this device
+    // Uses a simple check: skip if same device+type already in recent anomalies
+    auto shouldSkip = [this, nodeId](AnomalyType type) -> bool {
+        unsigned long now = millis();
+        uint8_t checkCount = std::min((uint16_t)numAnomalies, (uint16_t)Config::Anomaly::MAX_ANOMALIES);
+        // Check last 10 anomalies for same device+type within cooldown period
+        for (uint8_t i = 0; i < std::min(checkCount, (uint8_t)10); i++) {
+            uint8_t idx = (numAnomalies - 1 - i) % Config::Anomaly::MAX_ANOMALIES;
+            if (anomalies[idx].nodeId == nodeId && 
+                anomalies[idx].type == type &&
+                (now - anomalies[idx].timestamp) < 300000) {  // 5 minute cooldown
+                return true;
+            }
+        }
+        return false;
+    };
+    
+    // Check 1: Packet size outlier (very rare, likely protocol error)
+    if (length > 255 && !shouldSkip(AnomalyType::PACKET_SIZE_OUTLIER)) {
         char desc[64];
         snprintf(desc, sizeof(desc), "Packet size %u exceeds typical LoRa MTU", length);
         recordAnomaly(nodeId, AnomalyType::PACKET_SIZE_OUTLIER, 0.5f, desc);
     }
     
     // Check 2: Rate violation (packets per minute)
-    // Only check if we have established average interval and sufficient packet count
-    // Require minimum 100ms interval to avoid false positives on legitimate burst traffic
-    if (device->avgPacketInterval > 100 && device->packetCount >= 5) {
+    // Raise threshold: 60 packets/min = 1/sec is more reasonable for some protocols
+    if (device->avgPacketInterval > 100 && device->packetCount >= 5 && 
+        !shouldSkip(AnomalyType::RATE_VIOLATION)) {
         float packetsPerMin = 60000.0f / device->avgPacketInterval;
-        if (packetsPerMin > Config::Anomaly::RATE_LIMIT_PACKETS_PER_MIN) {
+        // Use 60 pkt/min threshold (1 per second) - more permissive than before
+        if (packetsPerMin > 60) {
             char desc[64];
-            snprintf(desc, sizeof(desc), "Rate %.1f pkt/min exceeds limit", packetsPerMin);
+            snprintf(desc, sizeof(desc), "Rate %.1f pkt/min (>1/sec)", packetsPerMin);
             recordAnomaly(nodeId, AnomalyType::RATE_VIOLATION, 0.8f, desc);
         }
     }
     
-    // Check 3: RSSI inconsistency (possible spoofing)
-    if (device->rssiStdDev > Config::Anomaly::RSSI_STDDEV_THRESHOLD) {
+    // Check 3: RSSI inconsistency (possible spoofing or mobile device)
+    // Raise threshold: 20 dBm variance is more reasonable for mobile devices
+    if (device->rssiStdDev > 20.0f && device->packetCount >= 5 &&
+        !shouldSkip(AnomalyType::RSSI_INCONSISTENCY)) {
         char desc[64];
-        snprintf(desc, sizeof(desc), "RSSI variance %.1f dBm suggests location change", device->rssiStdDev);
+        snprintf(desc, sizeof(desc), "RSSI stddev %.1f dBm (possible mobile/spoof)", device->rssiStdDev);
         recordAnomaly(nodeId, AnomalyType::RSSI_INCONSISTENCY, 0.7f, desc);
     }
     

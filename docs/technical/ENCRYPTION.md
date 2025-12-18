@@ -40,7 +40,9 @@ Meshtastic firmware 2.5.0+ (released June 2024) uses **two different encryption 
 **Default Key:** `"AQ=="` (base64-encoded single byte)  
 **Custom Keys:** Users can set custom PSK, but defaults are common
 
-**Your Tool:** ✅ **Can decrypt these with known channel PSK**
+**Your Tool:** ✅ **Can decrypt these with known channel PSK (23 keys tested)**
+
+**⚠️ 2023 Security Incidents:** Several admin and debug keys were leaked, allowing decryption of traffic from devices that haven't been updated. Key #15 (`PKdTs51e4EB0BoOevIN0Dw==`) is the admin channel default from pre-2.2 firmware - devices using this are vulnerable to remote configuration attacks.
 
 #### 2. Public Key Cryptography (Curve25519) ❌ You Cannot Decrypt
 
@@ -199,7 +201,7 @@ These packets are sent **automatically** by Meshtastic devices and **always use 
 **Expected Results:**
 ```
 [RECON] Packet #8: Meshtastic, 120 bytes, -38.0 dBm
-[PSK] Testing all 5 default PSKs...
+[PSK] Testing all 23 default PSKs...
 [PSK] ❌ No valid decryption found
 [PSK] Note: Direct messages use PKC (cannot decrypt)
 ```
@@ -210,18 +212,32 @@ These packets are sent **automatically** by Meshtastic devices and **always use 
 
 ## 🔑 Default PSK Database
 
-Your tool tests these 5 common default channel PSKs:
+Your tool tests 23 PSKs including leaked 2023 admin keys:
 
 ```cpp
+// Core defaults (1-5)
 1. "AQ=="                      // Default (99% of devices)
 2. "1PG7OiApB1nwvP+rz05pAQ=="  // Common alternative
 3. "d1iq21lNSh7BP6MOkP6cQA=="  // Channel variant 1
 4. "2f8aH6iT8K9jQ1P3mD4nBw=="  // Channel variant 2
 5. "7h3kL9mR5wX2pY8qE6tZcA=="  // Channel variant 3
+
+// Extended defaults (6-14)
+6-14. Additional channel presets and regional variants
+
+// ⚠️ 2023 Leaked Keys (15-23) - CRITICAL
+15. "PKdTs51e4EB0BoOevIN0Dw=="  // Admin channel default (pre-2.2) ⚠️
+16. Secondary channel default
+17. Debug/dev key leaked on GitHub
+18. EU868 regional default
+19-23. Channel preset derived keys (MediumFast, ShortFast, LongSlow, etc.)
 ```
+
+**⚠️ Security Note:** Devices decrypted with key #15 are vulnerable to remote configuration attacks (pre-2.2 admin key leak).
 
 **Success Rate:**
 - Default installations: ~99% (use "AQ==")
+- Legacy installations: Higher with leaked keys
 - Custom configurations: Varies (need specific PSK)
 
 ---
