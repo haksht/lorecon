@@ -13,6 +13,7 @@
 #include "config.h"
 #include "repositories/packet_store.h"
 #include "repositories/node_tracker.h"
+#include "repositories/device_repository.h"
 
 class ReconState {
 private:
@@ -23,6 +24,7 @@ private:
     // Repository delegates (Phase 2 migration - public arrays kept for compatibility)
     PacketStore packetStore_;
     NodeTracker nodeTracker_;
+    DeviceRepository deviceRepo_;
 
 public:
     // Core reconnaissance state
