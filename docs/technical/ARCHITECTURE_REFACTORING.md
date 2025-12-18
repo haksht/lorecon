@@ -43,14 +43,22 @@ private:
     NodeTracker nodeTracker_;
     DeviceRepository deviceRepo_;
 public:
-    // Public API unchanged - delegates to repositories
-    void addTargetableDevice(...) { deviceRepo_.addOrUpdate(...); }
-    bool capturePacketForReplay(...) { return packetStore_.capturePacket(...); }
-    void updateNode(...) { nodeTracker_.updateNode(...); }
+    // Public API uses getters - delegates to repositories
+    uint8_t getNumTargetableDevices() const { return deviceRepo_.count(); }
+    uint8_t getNodeCount() const { return nodeTracker_.count(); }
+    uint8_t getNumCapturedPackets() const { return packetStore_.count(); }
+    const TargetableDevice& getTargetableDevice(uint8_t i) const { return deviceRepo_.getByIndex(i); }
 };
 ```
 
-Legacy public arrays kept in sync for backward compatibility.
+### Phase 3: Legacy Array Removal ✅ (Dec 18, 2025)
+
+Removed duplicate legacy arrays that were consuming ~11.8KB of RAM:
+- `targetableDevices[20]` - 2,800 bytes
+- `trackedNodes[150]` - 6,000 bytes  
+- `replaySlots[10]` - 3,040 bytes
+
+All consumers now use getter methods instead of direct array access.
 
 ### Quick Wins ✅
 

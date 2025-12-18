@@ -117,8 +117,7 @@ bool LoRaReconTool::initialize() {
     // Apply initial configuration and start receiving
     const ScanConfig& cfg = reconState.getScanConfig(reconState.scanState.currentConfig);
     if (!radioController->applyConfig(cfg)) {
-        LOG_ERROR("Failed to apply initial config");
-        REPORT_RADIO_ERROR(ErrorCodes::RADIO_CONFIG_FAILED, "Initial radio configuration failed");
+        LOG_ERROR("Failed to apply initial radio configuration");
         return false;
     }
     
@@ -182,14 +181,13 @@ void LoRaReconTool::update() {
         // Update network intelligence statistics
         reconState.updateNetworkIntel();
         
-        // Check if device archival is needed (fragmentation management)
-        DeviceArchiver archiver;
-        archiver.checkAndArchive(
-            reconState.targetableDevices,
-            reconState.numTargetableDevices,
-            reconState.trackedNodes,
-            reconState.nodeCount
-        );
+        // Check memory pressure and archive/rotate devices if needed
+        if (deviceArchiver) {
+            deviceArchiver->checkAndArchive(
+                reconState.getDeviceRepository(),
+                reconState.getNodeTracker()
+            );
+        }
         
         lastHealthCheck = now;
     }
@@ -263,7 +261,7 @@ void LoRaReconTool::handleReconnaissanceMode(uint32_t now) {
         if (reconState.scanState.currentConfig == 0) {
             uint32_t elapsed = (now - reconState.scanState.reconStartTime) / 1000;
             LOG_INFO("Cycle complete - %u seconds elapsed, %d targetable devices found", 
-                     (unsigned int)elapsed, reconState.numTargetableDevices);
+                     (unsigned int)elapsed, reconState.getNumTargetableDevices());
         }
         
         const ScanConfig& cfg = reconState.getScanConfig(reconState.scanState.currentConfig);
@@ -388,7 +386,7 @@ void LoRaReconTool::startFrequencyTargeting(uint8_t configIndex) {
     
     // Check for known activity
     uint8_t activityCount = 0;
-    for (uint8_t i = 0; i < reconState.numTargetableDevices; i++) {
+    for (uint8_t i = 0; i < reconState.getNumTargetableDevices(); i++) {
         if (reconState.getTargetableDevice(i).configIndex == configIndex) {
             activityCount++;
         }

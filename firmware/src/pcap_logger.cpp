@@ -4,6 +4,7 @@
 
 #include "pcap_logger.h"
 #include "logger.h"
+#include "utils/sd_utils.h"
 #include <time.h>
 
 // PCAP Global Header structure
@@ -46,8 +47,8 @@ bool PCAPLogger::begin(const char* filename) {
         close();
     }
     
-    // Ensure SD is mounted
-    if (!SD.begin()) {
+    // Use shared SD initialization
+    if (!SDUtils::isAvailable()) {
         LOG_ERROR("SD card not available");
         return false;
     }

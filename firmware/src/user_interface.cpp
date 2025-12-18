@@ -45,7 +45,7 @@ void showDeviceTypeSummary() {
   } typeStats[20];
   uint8_t numTypes = 0;
   
-  for (uint8_t i = 0; i < reconState.numTargetableDevices; i++) {
+  for (uint8_t i = 0; i < reconState.getNumTargetableDevices(); i++) {
     const TargetableDevice& dev = reconState.getTargetableDevice(i);
     
     // Find existing type or create new
@@ -101,7 +101,7 @@ void showSecurityAssessment() {
   Serial.println("\n🛡️ SECURITY VULNERABILITY ASSESSMENT");
   Serial.println("====================================");
   
-  if (reconState.numTargetableDevices == 0) {
+  if (reconState.getNumTargetableDevices() == 0) {
     Serial.println("No devices available for assessment.");
     Serial.print("\nPress any key to continue: ");
     waitForSerialInput();
@@ -125,7 +125,7 @@ void showSecurityAssessment() {
   uint8_t vulnerableCount = 0;
   uint8_t moderateCount = 0;
   
-  for (uint8_t i = 0; i < reconState.numTargetableDevices; i++) {
+  for (uint8_t i = 0; i < reconState.getNumTargetableDevices(); i++) {
     const TargetableDevice& dev = reconState.getTargetableDevice(i);
     
     // Use shared security scorer for consistent assessment
@@ -166,7 +166,7 @@ void showSecurityAssessment() {
     Serial.println("\n🔍 DETAILED VULNERABILITY ANALYSIS:");
     Serial.println("===================================");
     
-    for (uint8_t i = 0; i < reconState.numTargetableDevices; i++) {
+    for (uint8_t i = 0; i < reconState.getNumTargetableDevices(); i++) {
       if (assessments[i].score >= 80) continue; // Skip secure devices
       
       const TargetableDevice* dev = assessments[i].dev;
@@ -209,11 +209,11 @@ void showSecurityAssessment() {
   
   // Summary
   Serial.printf("\n📊 NETWORK SUMMARY:\n");
-  Serial.printf("   Total Devices: %d\n", reconState.numTargetableDevices);
+  Serial.printf("   Total Devices: %d\n", reconState.getNumTargetableDevices());
   Serial.printf("   🚨 Vulnerable: %d\n", vulnerableCount);
   Serial.printf("   ⚠️  Moderate Risk: %d\n", moderateCount);
   Serial.printf("   ✅ Secure: %d\n", 
-                reconState.numTargetableDevices - vulnerableCount - moderateCount);
+                reconState.getNumTargetableDevices() - vulnerableCount - moderateCount);
   
   if (vulnerableCount > 0) {
     Serial.println("\n   Status: 🚨 High-priority targets identified");
@@ -255,9 +255,9 @@ void showActivityDetails() {
     
     // Show activity on this frequency
     const RFActivity& activity = reconState.getRFActivity(reconState.scanState.targetConfig);
-    Serial.printf("\nPackets Captured: %d\n", reconState.numCapturedPackets);
+    Serial.printf("\nPackets Captured: %d\n", reconState.getNumCapturedPackets());
     Serial.printf("Replay Slots Available: %d/%d\n", 
-                  Config::Replay::MAX_SLOTS - reconState.numCapturedPackets, Config::Replay::MAX_SLOTS);
+                  Config::Replay::MAX_SLOTS - reconState.getNumCapturedPackets(), Config::Replay::MAX_SLOTS);
     
     if (activity.activityCount > 0) {
       uint32_t now = millis();
@@ -276,7 +276,7 @@ void showActivityDetails() {
     Serial.println("-----------|--------------------------|-------|--------");
     
     uint8_t devicesOnFreq = 0;
-    for (uint8_t i = 0; i < reconState.numTargetableDevices; i++) {
+    for (uint8_t i = 0; i < reconState.getNumTargetableDevices(); i++) {
       const TargetableDevice& dev = reconState.getTargetableDevice(i);
       if (dev.configIndex == reconState.scanState.targetConfig) {
         Serial.printf("0x%08X | %-24s | %5.1f | %6d\n",
@@ -353,7 +353,7 @@ void showReconResults() {
   uint32_t reconTime = reconState.getReconDuration();
   Serial.printf("Scan Duration: %u seconds\n", (unsigned int)reconTime);
   Serial.printf("Total Detections: %d\n", reconState.scanState.totalDetections);
-  Serial.printf("Targetable Devices: %d\n", reconState.numTargetableDevices);
+  Serial.printf("Targetable Devices: %d\n", reconState.getNumTargetableDevices());
   Serial.println();
   
   // Show RF Activity Summary
@@ -383,7 +383,7 @@ void showReconResults() {
   Serial.println();
   
   // Show Targetable Devices
-  if (reconState.numTargetableDevices == 0) {
+  if (reconState.getNumTargetableDevices() == 0) {
     Serial.println("TARGETABLE DEVICES: None\n");
     Serial.println("ℹ️  No devices with decoded packets found.");
     Serial.println("   RF activity detected above, but no targetable node IDs captured.");
@@ -393,7 +393,7 @@ void showReconResults() {
     Serial.println("ID | Device Type          | Node ID    | Protocol     | RSSI  | Pkts | Router");
     Serial.println("---|----------------------|------------|--------------|-------|------|-------");
     
-    for (uint8_t i = 0; i < reconState.numTargetableDevices; i++) {
+    for (uint8_t i = 0; i < reconState.getNumTargetableDevices(); i++) {
       const TargetableDevice& dev = reconState.getTargetableDevice(i);
       
       Serial.printf("%2d | %-20s | 0x%08X | %-12s | %5.1f | %4d | %s\n",
@@ -409,8 +409,8 @@ void showReconResults() {
   
   // Show full command menu regardless of whether devices were found
   Serial.println("\nCOMMANDS:");
-  if (reconState.numTargetableDevices > 0) {
-    Serial.println("1-" + String(reconState.numTargetableDevices) + " : Target device for capture");
+  if (reconState.getNumTargetableDevices() > 0) {
+    Serial.println("1-" + String(reconState.getNumTargetableDevices()) + " : Target device for capture");
   }
   Serial.println("a   : Show activity details");
   Serial.println("d   : Show device type analysis");
@@ -423,20 +423,20 @@ void showReconResults() {
   Serial.println("b   : Reboot device (clears all data)");
   Serial.println("s   : Show summary again");
   Serial.println("v   : Security vulnerability assessment");
-  Serial.print("\nSelect target (1-" + String(reconState.numTargetableDevices) + ") or command: ");
+  Serial.print("\nSelect target (1-" + String(reconState.getNumTargetableDevices()) + ") or command: ");
 }
 
 // Print scanning statistics
 void printStats() {
   Serial.println("\n=== RECONNAISSANCE SUMMARY ===");
   Serial.printf("Total packets: %d\n", reconState.scanState.totalPackets);
-  Serial.printf("Targetable devices: %d\n", reconState.numTargetableDevices);
-  Serial.printf("Active nodes: %d\n", reconState.nodeCount);
+  Serial.printf("Targetable devices: %d\n", reconState.getNumTargetableDevices());
+  Serial.printf("Active nodes: %d\n", reconState.getNodeCount());
   Serial.printf("Current: %s\n", reconState.getScanConfig(reconState.scanState.currentConfig).protocol);
   
-  if (reconState.numTargetableDevices > 0) {
+  if (reconState.getNumTargetableDevices() > 0) {
     Serial.println("\n--- Targetable Devices ---");
-    for (uint8_t i = 0; i < reconState.numTargetableDevices; i++) {
+    for (uint8_t i = 0; i < reconState.getNumTargetableDevices(); i++) {
       const TargetableDevice& dev = reconState.getTargetableDevice(i);
       uint32_t now = millis();
       uint32_t ageMs = (dev.lastSeen <= now) ? (now - dev.lastSeen) : 0;
@@ -499,7 +499,7 @@ void showFrequencyTargetingMenu() {
     
     // Check if this frequency has detected activity
     bool hasActivity = false;
-    for (uint8_t j = 0; j < reconState.numTargetableDevices; j++) {
+    for (uint8_t j = 0; j < reconState.getNumTargetableDevices(); j++) {
       if (reconState.getTargetableDevice(j).configIndex == i) {
         hasActivity = true;
         break;
@@ -551,7 +551,7 @@ void handleFrequencyTargetingInput() {
       const ScanConfig& cfg = reconState.getScanConfig(i);
       uint8_t deviceCount = 0;
       
-      for (uint8_t j = 0; j < reconState.numTargetableDevices; j++) {
+      for (uint8_t j = 0; j < reconState.getNumTargetableDevices(); j++) {
         if (reconState.getTargetableDevice(j).configIndex == i) {
           deviceCount++;
         }

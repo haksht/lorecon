@@ -1,11 +1,19 @@
 /**
  * Device Archiver Implementation
+ * 
+ * Refactored Dec 2025 to use repository pattern instead of raw arrays.
+ * See device_archiver.h for full documentation.
  */
 
 #include "device_archiver.h"
+#include "repositories/device_repository.h"
+#include "repositories/node_tracker.h"
 #include "logger.h"
+#include "utils/sd_utils.h"
 #include <esp_heap_caps.h>
 #include <ArduinoJson.h>
+#include <vector>
+#include <algorithm>
 
 DeviceArchiver::DeviceArchiver() 
     : stats()
@@ -15,25 +23,26 @@ DeviceArchiver::DeviceArchiver()
 void DeviceArchiver::initializeSD() {
     if (sdInitialized) return;
     
-    if (SD.begin(Config::Hardware::SD_CS)) {
+    if (SDUtils::initialize()) {
         sdInitialized = true;
-        LOG_INFO("[ARCHIVE] SD card initialized");
+        LOG_INFO("[ARCHIVE] SD card initialized for device archival");
+        SDUtils::ensureDirectory("/recon");
     } else {
-        LOG_WARN("[ARCHIVE] SD card not available - archival disabled");
+        LOG_WARN("[ARCHIVE] SD card not available - using rotation-only mode");
     }
 }
 
 bool DeviceArchiver::isSDAvailable() const {
-    return sdInitialized || SD.begin(Config::Hardware::SD_CS);
+    return sdInitialized || SDUtils::isAvailable();
 }
 
 float DeviceArchiver::getCurrentFragmentation() const {
-    // Use ESP.getHeapFragmentation() instead of low-level heap_caps API
     uint32_t freeHeap = ESP.getFreeHeap();
     uint32_t maxBlock = ESP.getMaxAllocHeap();
     
     if (freeHeap == 0) return 0.0f;
     
+    // Fragmentation = how much of free heap is unusable due to fragmentation
     float fragmentation = 100.0f * (1.0f - (float)maxBlock / (float)freeHeap);
     return fragmentation;
 }
@@ -43,98 +52,208 @@ bool DeviceArchiver::shouldArchive() const {
     return frag >= Config::Archiver::FRAGMENTATION_THRESHOLD;
 }
 
-bool DeviceArchiver::checkAndArchive(TargetableDevice* devices, uint8_t& deviceCount,
-                                     TrackedNode* hotNodes, uint8_t& hotNodeCount) {
-    if (!isSDAvailable()) {
-        // No SD card - use aggressive rotation instead
-        return rotateDevicesNoSD(devices, deviceCount, Config::Tracking::MAX_DEVICES);
-    }
-    
-    initializeSD();
-    
+bool DeviceArchiver::checkAndArchive(DeviceRepository& deviceRepo, NodeTracker& nodeTracker) {
     if (!shouldArchive()) {
         return false;  // Fragmentation is acceptable
     }
     
-    LOG_INFO("[ARCHIVE] Fragmentation threshold exceeded, triggering archival...");
-    return archiveInactiveDevices(devices, deviceCount, hotNodes, hotNodeCount);
+    LOG_INFO("[ARCHIVE] Fragmentation %.1f%% exceeds threshold %.1f%%",
+             getCurrentFragmentation(), Config::Archiver::FRAGMENTATION_THRESHOLD);
+    
+    initializeSD();
+    
+    if (isSDAvailable()) {
+        return archiveInactiveDevices(deviceRepo, nodeTracker);
+    } else {
+        // No SD card - use rotation to free memory
+        LOG_INFO("[ARCHIVE] No SD - rotating oldest devices to free memory");
+        
+        // Remove ~20% of devices to relieve memory pressure
+        uint8_t deviceRemoveCount = max((uint8_t)2, (uint8_t)(deviceRepo.count() / 5));
+        uint8_t nodeRemoveCount = max((uint8_t)2, (uint8_t)(nodeTracker.count() / 5));
+        
+        bool rotatedDevices = rotateOldestDevices(deviceRepo, deviceRemoveCount);
+        bool rotatedNodes = rotateOldestNodes(nodeTracker, nodeRemoveCount);
+        
+        return rotatedDevices || rotatedNodes;
+    }
 }
 
-uint8_t DeviceArchiver::identifyColdDevices(const TargetableDevice* devices, uint8_t deviceCount,
-                                            uint8_t* coldIndices, uint8_t maxCold) const {
+bool DeviceArchiver::archiveInactiveDevices(DeviceRepository& deviceRepo, NodeTracker& nodeTracker) {
+    float fragBefore = getCurrentFragmentation();
+    uint32_t heapBefore = ESP.getFreeHeap();
     uint32_t now = millis();
-    uint8_t coldCount = 0;
     
     // Keep at least MIN_ACTIVE_DEVICES in RAM
-    if (deviceCount <= Config::Archiver::MIN_ACTIVE_DEVICES) {
-        return 0;
+    if (deviceRepo.count() <= Config::Archiver::MIN_ACTIVE_DEVICES) {
+        LOG_INFO("[ARCHIVE] Only %d devices - skipping archival", deviceRepo.count());
+        return false;
     }
     
-    for (uint8_t i = 0; i < deviceCount && coldCount < maxCold; i++) {
-        uint32_t inactiveMs = now - devices[i].lastSeen;
+    // Find inactive devices (not seen for DEVICE_INACTIVITY_MS)
+    // We need to identify them first, then remove (can't modify while iterating)
+    std::vector<uint32_t> coldDeviceIds;
+    coldDeviceIds.reserve(deviceRepo.count());
+    
+    for (uint8_t i = 0; i < deviceRepo.count(); i++) {
+        const TargetableDevice& device = deviceRepo.getByIndex(i);
+        uint32_t inactiveMs = now - device.lastSeen;
+        
         if (inactiveMs > Config::Archiver::DEVICE_INACTIVITY_MS) {
-            coldIndices[coldCount++] = i;
+            coldDeviceIds.push_back(device.nodeId);
         }
     }
     
-    return coldCount;
-}
-
-bool DeviceArchiver::rotateDevicesNoSD(TargetableDevice* devices, uint8_t& deviceCount,
-                                       uint8_t maxDevices, float fragmentationThreshold) {
-    if (deviceCount < maxDevices) return false;  // No need to rotate
-    
-    float currentFrag = getCurrentFragmentation();
-    if (currentFrag < fragmentationThreshold) return false;  // Fragmentation acceptable
-    
-    LOG_INFO("[ARCHIVE] No SD card - aggressive rotation mode");
-    LOG_INFO("[ARCHIVE] Devices: %u/%u, Fragmentation: %.1f%%", deviceCount, maxDevices, currentFrag);
-    
-    // Find oldest 30% of devices to remove (minimum 2, maximum 10)
-    uint8_t removeCount = max(2, min(10, deviceCount * 3 / 10));
-    uint32_t now = millis();
-    
-    // Create sorted list of devices by lastSeen (oldest first)
-    struct DeviceAge {
-        uint8_t index;
-        uint32_t lastSeen;
-    };
-    DeviceAge ages[Config::Tracking::MAX_DEVICES];
-    
-    for (uint8_t i = 0; i < deviceCount; i++) {
-        ages[i].index = i;
-        ages[i].lastSeen = devices[i].lastSeen;
+    // Keep minimum devices even if inactive
+    size_t maxToArchive = deviceRepo.count() - Config::Archiver::MIN_ACTIVE_DEVICES;
+    if (coldDeviceIds.size() > maxToArchive) {
+        coldDeviceIds.resize(maxToArchive);
     }
     
-    // Simple bubble sort (small array, embedded-friendly)
-    for (uint8_t i = 0; i < deviceCount - 1; i++) {
-        for (uint8_t j = i + 1; j < deviceCount; j++) {
-            if (ages[i].lastSeen > ages[j].lastSeen) {
-                DeviceAge temp = ages[i];
-                ages[i] = ages[j];
-                ages[j] = temp;
+    if (coldDeviceIds.empty()) {
+        LOG_INFO("[ARCHIVE] No inactive devices to archive");
+        return false;
+    }
+    
+    LOG_INFO("[ARCHIVE] Archiving %d inactive devices...", coldDeviceIds.size());
+    
+    // Write devices to SD and remove from repository
+    uint8_t archived = 0;
+    for (uint32_t nodeId : coldDeviceIds) {
+        const TargetableDevice* device = deviceRepo.findByNodeId(nodeId);
+        if (device && writeDeviceToArchive(*device)) {
+            archived++;
+        }
+    }
+    
+    // Remove archived devices from repository
+    for (uint32_t nodeId : coldDeviceIds) {
+        deviceRepo.removeByNodeId(nodeId);
+    }
+    
+    // Also archive cold nodes
+    std::vector<uint32_t> coldNodeIds;
+    for (uint8_t i = 0; i < nodeTracker.count(); i++) {
+        const TrackedNode* node = nodeTracker.getByIndex(i);
+        if (node) {
+            uint32_t inactiveMs = now - node->lastSeen;
+            if (inactiveMs > Config::Archiver::DEVICE_INACTIVITY_MS) {
+                if (writeNodeToArchive(*node)) {
+                    coldNodeIds.push_back(node->nodeId);
+                }
             }
         }
     }
     
-    // Remove oldest devices
-    uint8_t oldestIndices[10];
-    for (uint8_t i = 0; i < removeCount; i++) {
-        oldestIndices[i] = ages[i].index;
-        uint32_t inactiveMs = now - devices[ages[i].index].lastSeen;
-        LOG_INFO("[ARCHIVE] Dropping device 0x%08X (inactive %lu ms)", 
-                devices[ages[i].index].nodeId, inactiveMs);
+    // Remove archived nodes
+    for (uint32_t nodeId : coldNodeIds) {
+        nodeTracker.removeByNodeId(nodeId);
     }
     
-    // Compact array
-    compactDeviceArray(devices, deviceCount, oldestIndices, removeCount);
+    // Update stats
+    uint32_t heapAfter = ESP.getFreeHeap();
+    float fragAfter = getCurrentFragmentation();
+    
+    stats.totalArchived += archived;
+    stats.lastArchiveTime = now;
+    stats.bytesFreed = (heapAfter > heapBefore) ? (heapAfter - heapBefore) : 0;
+    stats.fragmentationBefore = fragBefore;
+    stats.fragmentationAfter = fragAfter;
+    
+    LOG_INFO("[ARCHIVE] ✓ Archived %d devices, %d nodes", archived, coldNodeIds.size());
+    LOG_INFO("[ARCHIVE] Fragmentation: %.1f%% → %.1f%% (freed %u bytes)", 
+             fragBefore, fragAfter, stats.bytesFreed);
+    
+    logArchiveOperation(archived, fragBefore, fragAfter);
+    
+    return archived > 0;
+}
+
+bool DeviceArchiver::rotateOldestDevices(DeviceRepository& deviceRepo, uint8_t removeCount) {
+    if (deviceRepo.count() <= Config::Archiver::MIN_ACTIVE_DEVICES) {
+        return false;  // Don't remove below minimum
+    }
+    
+    // Cap removal to not go below minimum
+    uint8_t maxRemove = deviceRepo.count() - Config::Archiver::MIN_ACTIVE_DEVICES;
+    removeCount = min(removeCount, maxRemove);
+    
+    if (removeCount == 0) return false;
+    
+    float fragBefore = getCurrentFragmentation();
+    
+    // Find oldest devices by lastSeen
+    struct DeviceAge {
+        uint32_t nodeId;
+        uint32_t lastSeen;
+    };
+    
+    std::vector<DeviceAge> ages;
+    ages.reserve(deviceRepo.count());
+    
+    for (uint8_t i = 0; i < deviceRepo.count(); i++) {
+        const TargetableDevice& dev = deviceRepo.getByIndex(i);
+        ages.push_back({dev.nodeId, dev.lastSeen});
+    }
+    
+    // Sort by lastSeen (oldest first)
+    std::sort(ages.begin(), ages.end(), [](const DeviceAge& a, const DeviceAge& b) {
+        return a.lastSeen < b.lastSeen;
+    });
+    
+    // Remove oldest N
+    uint32_t now = millis();
+    for (uint8_t i = 0; i < removeCount && i < ages.size(); i++) {
+        uint32_t inactiveMs = now - ages[i].lastSeen;
+        LOG_INFO("[ARCHIVE] Rotating out device 0x%08X (inactive %lu ms)", 
+                ages[i].nodeId, inactiveMs);
+        deviceRepo.removeByNodeId(ages[i].nodeId);
+    }
     
     float fragAfter = getCurrentFragmentation();
-    LOG_INFO("[ARCHIVE] ✓ Dropped %u devices, %u remain (frag %.1f%% → %.1f%%)",
-            removeCount, deviceCount, currentFrag, fragAfter);
+    stats.totalRotated += removeCount;
     
-    stats.totalArchived += removeCount;  // Track as "archived" even though not saved
+    LOG_INFO("[ARCHIVE] ✓ Rotated %d devices (frag %.1f%% → %.1f%%)",
+            removeCount, fragBefore, fragAfter);
     
+    return true;
+}
+
+bool DeviceArchiver::rotateOldestNodes(NodeTracker& nodeTracker, uint8_t removeCount) {
+    if (nodeTracker.count() <= 5) {  // Keep minimum nodes
+        return false;
+    }
+    
+    uint8_t maxRemove = nodeTracker.count() - 5;
+    removeCount = min(removeCount, maxRemove);
+    
+    if (removeCount == 0) return false;
+    
+    // Find oldest nodes
+    struct NodeAge {
+        uint32_t nodeId;
+        uint32_t lastSeen;
+    };
+    
+    std::vector<NodeAge> ages;
+    ages.reserve(nodeTracker.count());
+    
+    for (uint8_t i = 0; i < nodeTracker.count(); i++) {
+        const TrackedNode* node = nodeTracker.getByIndex(i);
+        if (node) {
+            ages.push_back({node->nodeId, node->lastSeen});
+        }
+    }
+    
+    std::sort(ages.begin(), ages.end(), [](const NodeAge& a, const NodeAge& b) {
+        return a.lastSeen < b.lastSeen;
+    });
+    
+    for (uint8_t i = 0; i < removeCount && i < ages.size(); i++) {
+        nodeTracker.removeByNodeId(ages[i].nodeId);
+    }
+    
+    LOG_INFO("[ARCHIVE] ✓ Rotated %d nodes", removeCount);
     return true;
 }
 
@@ -145,9 +264,9 @@ bool DeviceArchiver::writeDeviceToArchive(const TargetableDevice& device) {
         return false;
     }
     
-    // Create JSON document (allocate on heap temporarily)
     JsonDocument doc;
     
+    doc["type"] = "device";
     doc["nodeId"] = device.nodeId;
     doc["configIndex"] = device.configIndex;
     doc["bestRSSI"] = device.bestRSSI;
@@ -162,9 +281,8 @@ bool DeviceArchiver::writeDeviceToArchive(const TargetableDevice& device) {
     doc["powerClass"] = device.powerClass;
     doc["archivedAt"] = millis();
     
-    // Write as single-line JSON
     serializeJson(doc, archive);
-    archive.println();  // Newline separator
+    archive.println();  // Newline separator (JSON Lines format)
     archive.close();
     
     return true;
@@ -195,119 +313,8 @@ bool DeviceArchiver::writeNodeToArchive(const TrackedNode& node) {
     return true;
 }
 
-bool DeviceArchiver::compactDeviceArray(TargetableDevice* devices, uint8_t& deviceCount,
-                                        const uint8_t* removeIndices, uint8_t removeCount) {
-    if (removeCount == 0) return true;
-    
-    // Mark devices for removal
-    bool toRemove[Config::Tracking::MAX_DEVICES] = {false};
-    for (uint8_t i = 0; i < removeCount; i++) {
-        toRemove[removeIndices[i]] = true;
-    }
-    
-    // Compact array by shifting kept devices down
-    uint8_t writePos = 0;
-    for (uint8_t readPos = 0; readPos < deviceCount; readPos++) {
-        if (!toRemove[readPos]) {
-            if (writePos != readPos) {
-                devices[writePos] = devices[readPos];
-            }
-            writePos++;
-        }
-    }
-    
-    deviceCount = writePos;
-    return true;
-}
-
-bool DeviceArchiver::compactNodeArray(TrackedNode* nodes, uint8_t& nodeCount,
-                                     const uint8_t* removeIndices, uint8_t removeCount) {
-    if (removeCount == 0) return true;
-    
-    bool toRemove[Config::Tracking::MAX_HOT_NODES] = {false};
-    for (uint8_t i = 0; i < removeCount; i++) {
-        toRemove[removeIndices[i]] = true;
-    }
-    
-    uint8_t writePos = 0;
-    for (uint8_t readPos = 0; readPos < nodeCount; readPos++) {
-        if (!toRemove[readPos]) {
-            if (writePos != readPos) {
-                nodes[writePos] = nodes[readPos];
-            }
-            writePos++;
-        }
-    }
-    
-    nodeCount = writePos;
-    return true;
-}
-
-bool DeviceArchiver::archiveInactiveDevices(TargetableDevice* devices, uint8_t& deviceCount,
-                                            TrackedNode* hotNodes, uint8_t& hotNodeCount) {
-    float fragBefore = getCurrentFragmentation();
-    uint32_t heapBefore = ESP.getFreeHeap();
-    
-    // Identify cold devices
-    uint8_t coldIndices[Config::Tracking::MAX_DEVICES];
-    uint8_t coldCount = identifyColdDevices(devices, deviceCount, coldIndices, Config::Tracking::MAX_DEVICES);
-    
-    if (coldCount == 0) {
-        LOG_INFO("[ARCHIVE] No inactive devices to archive");
-        return false;
-    }
-    
-    LOG_INFO("[ARCHIVE] Archiving %d inactive devices...", coldCount);
-    
-    // Write devices to SD
-    uint8_t archived = 0;
-    for (uint8_t i = 0; i < coldCount; i++) {
-        uint8_t idx = coldIndices[i];
-        if (writeDeviceToArchive(devices[idx])) {
-            archived++;
-        }
-    }
-    
-    // Compact array to remove archived devices
-    compactDeviceArray(devices, deviceCount, coldIndices, archived);
-    
-    // Also archive cold nodes
-    uint32_t now = millis();
-    uint8_t coldNodeIndices[Config::Tracking::MAX_HOT_NODES];
-    uint8_t coldNodeCount = 0;
-    
-    for (uint8_t i = 0; i < hotNodeCount; i++) {
-        uint32_t inactiveMs = now - hotNodes[i].lastSeen;
-        if (inactiveMs > Config::Archiver::DEVICE_INACTIVITY_MS) {
-            if (writeNodeToArchive(hotNodes[i])) {
-                coldNodeIndices[coldNodeCount++] = i;
-            }
-        }
-    }
-    
-    compactNodeArray(hotNodes, hotNodeCount, coldNodeIndices, coldNodeCount);
-    
-    // Update stats
-    uint32_t heapAfter = ESP.getFreeHeap();
-    float fragAfter = getCurrentFragmentation();
-    
-    stats.totalArchived += archived;
-    stats.lastArchiveTime = millis();
-    stats.bytesFreed = heapAfter - heapBefore;
-    stats.fragmentationBefore = fragBefore;
-    stats.fragmentationAfter = fragAfter;
-    
-    LOG_INFO("[ARCHIVE] ✓ Archived %d devices, %d nodes", archived, coldNodeCount);
-    LOG_INFO("[ARCHIVE] Fragmentation: %.1f%% -> %.1f%% (freed %u bytes)", 
-             fragBefore, fragAfter, stats.bytesFreed);
-    
-    logArchiveOperation(archived, fragBefore, fragAfter);
-    
-    return archived > 0;
-}
-
 void DeviceArchiver::logArchiveOperation(uint8_t archivedCount, float fragBefore, float fragAfter) {
-    File statsFile = SD.open(Config::Archiver::STATS_FILE, FILE_WRITE);
+    File statsFile = SD.open(Config::Archiver::STATS_FILE, FILE_APPEND);
     if (!statsFile) return;
     
     JsonDocument doc;
@@ -323,16 +330,24 @@ void DeviceArchiver::logArchiveOperation(uint8_t archivedCount, float fragBefore
 }
 
 bool DeviceArchiver::restoreDevice(uint32_t nodeId, TargetableDevice& device) {
-    // TODO: Implement if needed - search archive file for nodeId and restore
-    // For now, archival is one-way to keep it simple
+    // TODO: Implement device restoration from archive
+    // Would need to:
+    // 1. Open archive file
+    // 2. Search for nodeId in JSON Lines
+    // 3. Parse and populate device struct
+    // 4. Optionally remove from archive or mark as restored
+    LOG_WARN("[ARCHIVE] restoreDevice() not yet implemented");
     return false;
 }
 
 void DeviceArchiver::printStats() const {
     Serial.println("\n[ARCHIVE STATS]");
-    Serial.printf("  Total archived: %u devices\n", stats.totalArchived);
+    Serial.printf("  Total archived to SD: %u devices\n", stats.totalArchived);
+    Serial.printf("  Total rotated (no-SD): %u devices\n", stats.totalRotated);
     Serial.printf("  Total restored: %u devices\n", stats.totalRestored);
-    Serial.printf("  Bytes freed: %u\n", stats.bytesFreed);
-    Serial.printf("  Last fragmentation: %.1f%% -> %.1f%%\n", 
+    Serial.printf("  Last operation freed: %u bytes\n", stats.bytesFreed);
+    Serial.printf("  Last fragmentation: %.1f%% → %.1f%%\n", 
                   stats.fragmentationBefore, stats.fragmentationAfter);
+    Serial.printf("  Current fragmentation: %.1f%%\n", getCurrentFragmentation());
+    Serial.printf("  Current free heap: %u bytes\n", ESP.getFreeHeap());
 }

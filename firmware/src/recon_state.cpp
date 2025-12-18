@@ -65,16 +65,13 @@ ReconState::ReconState() {
 }
 
 void ReconState::initialize() {
-    // Initialize counters
-    numTargetableDevices = 0;
-    nodeCount = 0;
-    numCapturedPackets = 0;
-    
     // Clear all arrays
     memset(rfActivity, 0, sizeof(rfActivity));
-    memset(targetableDevices, 0, sizeof(targetableDevices));
-    memset(trackedNodes, 0, sizeof(trackedNodes));
-    memset(replaySlots, 0, sizeof(replaySlots));
+    
+    // Clear repositories
+    deviceRepo_.clear();
+    nodeTracker_.clear();
+    packetStore_.clear();
     
     // Initialize scan state
     scanState.mode = MODE_RECONNAISSANCE;
@@ -175,7 +172,6 @@ void ReconState::addTargetableDevice(uint32_t nodeId, uint8_t configIndex, float
     if (existing) {
         // Delegate update to repository
         deviceRepo_.addOrUpdate(nodeId, configIndex, rssi, protocol, nullptr, 0);
-        numTargetableDevices = deviceRepo_.count();
         return;
     }
     
@@ -210,13 +206,14 @@ void ReconState::addTargetableDevice(uint32_t nodeId, uint8_t configIndex, float
         Serial.printf("[TARGET] New targetable device: 0x%08X (%s) on %s (%.1f dBm)\n", 
                       nodeId, device->deviceType, getScanConfig(configIndex).protocol, rssi);
     }
-    
-    // Keep legacy count in sync
-    numTargetableDevices = deviceRepo_.count();
 }
 
 const TargetableDevice& ReconState::getTargetableDevice(uint8_t index) const {
     return deviceRepo_.getByIndex(index);
+}
+
+TargetableDevice* ReconState::getTargetableDeviceMutable(uint8_t index) {
+    return deviceRepo_.getByIndexMutable(index);
 }
 
 TargetableDevice* ReconState::findTargetableDevice(uint32_t nodeId) {
@@ -225,27 +222,23 @@ TargetableDevice* ReconState::findTargetableDevice(uint32_t nodeId) {
 
 void ReconState::clearTargetableDevices() {
     deviceRepo_.clear();
-    // Keep legacy fields in sync
-    numTargetableDevices = 0;
-    memset(targetableDevices, 0, sizeof(targetableDevices));
 }
 
 // Node tracking - delegates to NodeTracker
 void ReconState::updateNode(uint32_t nodeId, const char* protocol, float rssi) {
     nodeTracker_.updateNode(nodeId, protocol, rssi);
-    // Keep legacy fields in sync for backward compatibility
-    nodeCount = nodeTracker_.count();
 }
 
 TrackedNode* ReconState::findNode(uint32_t nodeId) {
     return nodeTracker_.findNode(nodeId);
 }
 
+const TrackedNode* ReconState::getTrackedNode(uint8_t index) const {
+    return nodeTracker_.getByIndex(index);
+}
+
 void ReconState::clearNodes() {
     nodeTracker_.clear();
-    // Keep legacy fields in sync
-    nodeCount = 0;
-    memset(trackedNodes, 0, sizeof(trackedNodes));
 }
 
 bool ReconState::hasRFActivity() const {
@@ -347,7 +340,7 @@ void ReconState::printStateSummary() const {
     Serial.printf("Total packets: %d, Total detections: %d\n", 
                   scanState.totalPackets, scanState.totalDetections);
     Serial.printf("Targetable devices: %d, Tracked nodes: %d\n", 
-                  numTargetableDevices, nodeCount);
+                  deviceRepo_.count(), nodeTracker_.count());
     Serial.printf("Recon duration: %u seconds\n", (unsigned int)getReconDuration());
     
     if (hasRFActivity()) {
@@ -381,14 +374,9 @@ void ReconState::printStateSummary() const {
 bool ReconState::capturePacketForReplay(const uint8_t* data, size_t length, uint8_t configIndex,
                                         float rssi, const char* protocol, const char* decryptedText,
                                         uint32_t nodeId, uint32_t packetId) {
-    bool success = packetStore_.capturePacket(data, length, configIndex, 
-                                               static_cast<int16_t>(rssi),
-                                               nodeId, packetId, protocol, decryptedText);
-    if (success) {
-        // Keep legacy fields in sync for backward compatibility
-        numCapturedPackets = packetStore_.count();
-    }
-    return success;
+    return packetStore_.capturePacket(data, length, configIndex, 
+                                       static_cast<int16_t>(rssi),
+                                       nodeId, packetId, protocol, decryptedText);
 }
 
 const CapturedPacket& ReconState::getReplayPacket(uint8_t index) const {
@@ -397,9 +385,6 @@ const CapturedPacket& ReconState::getReplayPacket(uint8_t index) const {
 
 void ReconState::clearReplaySlots() {
     packetStore_.clear();
-    // Keep legacy fields in sync
-    numCapturedPackets = 0;
-    memset(replaySlots, 0, sizeof(replaySlots));
 }
 
 // Calculate network intelligence statistics
@@ -411,9 +396,12 @@ void ReconState::updateNetworkIntel() {
     networkIntel.encryptedNetworks = 0;
     networkIntel.beaconDevices = 0;
     
+    const uint8_t numDevices = deviceRepo_.count();
+    const uint8_t numPackets = packetStore_.count();
+    
     // Analyze transmission patterns from targetable devices
-    for (uint8_t i = 0; i < numTargetableDevices; i++) {
-        const TargetableDevice& dev = targetableDevices[i];
+    for (uint8_t i = 0; i < numDevices; i++) {
+        const TargetableDevice& dev = deviceRepo_.getByIndex(i);
         
         if (dev.originatedPackets > 0 && dev.relayedPackets > 0) {
             networkIntel.mixedNodes++;
@@ -434,13 +422,14 @@ void ReconState::updateNetworkIntel() {
     uint8_t packetIdCounts[Config::Replay::MAX_SLOTS] = {0};
     uint8_t uniquePacketIds = 0;
     
-    for (uint8_t i = 0; i < numCapturedPackets; i++) {
-        if (replaySlots[i].packetId == 0) continue;
+    for (uint8_t i = 0; i < numPackets; i++) {
+        const CapturedPacket& pkt = packetStore_.getPacket(i);
+        if (pkt.packetId == 0) continue;
         
         // Check if we've seen this packet ID
         bool found = false;
         for (uint8_t j = 0; j < uniquePacketIds; j++) {
-            if (seenPacketIds[j] == replaySlots[i].packetId) {
+            if (seenPacketIds[j] == pkt.packetId) {
                 packetIdCounts[j]++;
                 found = true;
                 break;
@@ -448,7 +437,7 @@ void ReconState::updateNetworkIntel() {
         }
         
         if (!found && uniquePacketIds < Config::Replay::MAX_SLOTS) {
-            seenPacketIds[uniquePacketIds] = replaySlots[i].packetId;
+            seenPacketIds[uniquePacketIds] = pkt.packetId;
             packetIdCounts[uniquePacketIds] = 1;
             uniquePacketIds++;
         }
@@ -464,18 +453,20 @@ void ReconState::updateNetworkIntel() {
     // Estimate encrypted networks (groups of devices with failed decryption)
     // This is a rough heuristic - devices with no decrypted text but valid packets
     uint8_t encryptedDevices = 0;
-    for (uint8_t i = 0; i < numTargetableDevices; i++) {
+    for (uint8_t i = 0; i < numDevices; i++) {
+        const TargetableDevice& dev = deviceRepo_.getByIndex(i);
         // Check if device has packets but we have no successful decryptions
         bool hasEncryptedOnly = true;
-        for (uint8_t j = 0; j < numCapturedPackets; j++) {
-            if (replaySlots[j].nodeId == targetableDevices[i].nodeId) {
-                if (replaySlots[j].decryptedText[0] != '\0') {
+        for (uint8_t j = 0; j < numPackets; j++) {
+            const CapturedPacket& pkt = packetStore_.getPacket(j);
+            if (pkt.nodeId == dev.nodeId) {
+                if (pkt.decryptedText[0] != '\0') {
                     hasEncryptedOnly = false;
                     break;
                 }
             }
         }
-        if (hasEncryptedOnly && targetableDevices[i].packetCount > 0) {
+        if (hasEncryptedOnly && dev.packetCount > 0) {
             encryptedDevices++;
         }
     }

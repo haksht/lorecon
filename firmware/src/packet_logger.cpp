@@ -7,6 +7,7 @@
 
 #include "packet_logger.h"
 #include "pcap_logger.h"
+#include "utils/sd_utils.h"
 #include <SPI.h>
 #include <time.h>
 
@@ -26,8 +27,8 @@ PacketLogger::PacketLogger()
 bool PacketLogger::initialize() {
     Serial.println("[SD] Initializing SD card logger...");
     
-    // Try to initialize SD card
-    if (!SD.begin(SD_CS_PIN)) {
+    // Use shared SD initialization
+    if (!SDUtils::initialize(SD_CS_PIN)) {
         Serial.println("[SD] ⚠️  No SD card detected");
         Serial.println("[SD]   Insert SD card for data logging capability");
         Serial.println("[SD]   Device will continue without logging");
@@ -35,28 +36,8 @@ bool PacketLogger::initialize() {
         return false;
     }
     
-    // Check card type
-    uint8_t cardType = SD.cardType();
-    if (cardType == CARD_NONE) {
-        Serial.println("[SD] ❌ No SD card attached");
-        sdAvailable = false;
-        return false;
-    }
-    
-    // Print card info
-    Serial.print("[SD] ✅ SD card detected: ");
-    if (cardType == CARD_MMC) {
-        Serial.println("MMC");
-    } else if (cardType == CARD_SD) {
-        Serial.println("SDSC");
-    } else if (cardType == CARD_SDHC) {
-        Serial.println("SDHC");
-    } else {
-        Serial.println("UNKNOWN");
-    }
-    
-    uint64_t cardSize = SD.cardSize() / (1024 * 1024);
-    Serial.printf("[SD] Card size: %llu MB\n", cardSize);
+    Serial.printf("[SD] ✅ SD card detected: %s\n", SDUtils::getCardTypeString());
+    Serial.printf("[SD] Card size: %llu MB\n", SDUtils::getCardSizeMB());
     
     sdAvailable = true;
     return true;
