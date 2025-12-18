@@ -1,8 +1,9 @@
 /**
  * API Controller Implementation
  * 
- * Thin orchestration layer between HTTP endpoints and ReconService.
+ * Thin orchestration layer between HTTP endpoints and service layer.
  * Uses JsonUtils for standardized response formatting.
+ * JSON building delegated to JsonBuilders namespace.
  */
 
 #include "api_controller.h"
@@ -10,10 +11,16 @@
 #include "logger.h"
 #include "mode_manager.h"
 #include "recon_service.h"
+#include "recon_state.h"
+#include "geo_intelligence.h"
+#include "json_builders.h"
 #include "radio_controller.h"
 #include "lora_recon_tool.h"  // For g_reconTool global
 #include "utils/json_utils.h"
 #include <SD.h>
+
+// External references
+extern GeoIntelligence geoIntel;
 
 /**
  * Set reconnaissance tool reference
@@ -24,23 +31,33 @@ void APIController::setReconTool(IReconTool* tool) {
 }
 
 // ============================================================================
-// Simple pass-through methods to ReconService
-// These exist to provide a stable API layer if ReconService internals change
+// Simple pass-through methods to JsonBuilders
+// These exist to provide a stable API layer if internals change
 // ============================================================================
 
-String APIController::getDevices() { return ReconService::buildDevicesJson(); }
-String APIController::getDevice(uint32_t nodeId) { return ReconService::buildDeviceJson(nodeId); }
-String APIController::getPositions() { return ReconService::buildPositionsJson(); }
-String APIController::exportGeoJSON() { return ReconService::buildGeoJson(); }
-String APIController::exportKML() { return ReconService::buildKml(); }
-String APIController::getStatus() { return ReconService::buildStatusJson(); }
-String APIController::getStatistics() { return ReconService::buildStatisticsJson(); }
-String APIController::getRFActivity() { return ReconService::buildActivityJson(); }
-String APIController::getReconSummary() { return ReconService::buildReconSummaryJson(); }
-String APIController::getDeviceTypeSummary() { return ReconService::buildDeviceTypeSummaryJson(); }
-String APIController::getSecurityAssessment() { return ReconService::buildSecurityAssessmentJson(); }
-String APIController::getReplaySlots() { return ReconService::buildReplaySlotsJson(); }
-String APIController::getDiagnostics() { return ReconService::buildDiagnosticsJson(); }
+String APIController::getDevices() { return JsonBuilders::buildDevicesJson(reconState); }
+
+String APIController::getDevice(uint32_t nodeId) { 
+    // Find device index by nodeId
+    for (uint8_t i = 0; i < reconState.getNumTargetableDevices(); i++) {
+        if (reconState.getTargetableDevice(i).nodeId == nodeId) {
+            return JsonBuilders::buildDeviceJson(reconState, i);
+        }
+    }
+    return JsonUtils::error("Device not found");
+}
+
+String APIController::getPositions() { return JsonBuilders::buildPositionsJson(geoIntel); }
+String APIController::exportGeoJSON() { return JsonBuilders::buildGeoJson(geoIntel); }
+String APIController::exportKML() { return JsonBuilders::buildKml(geoIntel); }
+String APIController::getStatus() { return JsonBuilders::buildStatusJson(reconState); }
+String APIController::getStatistics() { return JsonBuilders::buildStatisticsJson(reconState); }
+String APIController::getRFActivity() { return JsonBuilders::buildActivityJson(reconState); }
+String APIController::getReconSummary() { return JsonBuilders::buildReconSummaryJson(reconState, geoIntel); }
+String APIController::getDeviceTypeSummary() { return JsonBuilders::buildDeviceTypeSummaryJson(reconState); }
+String APIController::getSecurityAssessment() { return JsonBuilders::buildSecurityAssessmentJson(reconState); }
+String APIController::getReplaySlots() { return JsonBuilders::buildReplaySlotsJson(reconState); }
+String APIController::getDiagnostics() { return JsonBuilders::buildDiagnosticsJson(); }
 
 // ============================================================================
 // Action methods with error handling
@@ -200,14 +217,14 @@ String APIController::getDashboard() {
     
     // Status data
     JsonDocument statusDoc;
-    deserializeJson(statusDoc, ReconService::buildStatusJson());
+    deserializeJson(statusDoc, JsonBuilders::buildStatusJson(reconState));
     if (statusDoc["status"].is<const char*>() && statusDoc["status"] == "success") {
         doc["systemStatus"] = statusDoc;
     }
     
     // Devices list
     JsonDocument devicesDoc;
-    deserializeJson(devicesDoc, ReconService::buildDevicesJson());
+    deserializeJson(devicesDoc, JsonBuilders::buildDevicesJson(reconState));
     if (devicesDoc["devices"].is<JsonArray>()) {
         doc["devices"] = devicesDoc["devices"];
         doc["deviceCount"] = devicesDoc["devices"].size();
@@ -218,7 +235,7 @@ String APIController::getDashboard() {
     
     // RF Activity
     JsonDocument activityDoc;
-    deserializeJson(activityDoc, ReconService::buildActivityJson());
+    deserializeJson(activityDoc, JsonBuilders::buildActivityJson(reconState));
     if (activityDoc["activities"].is<JsonArray>()) {
         doc["activities"] = activityDoc["activities"];
     }
