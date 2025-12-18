@@ -39,6 +39,9 @@ private:
     GeoPoint points[Config::Tracking::MAX_GEO_POINTS];
     uint8_t numPoints;
     
+    // Store/update point with deduplication
+    bool storePoint(const GeoPoint& point);
+    
     // Meshtastic protobuf parsing helpers
     bool parseProtobufPosition(const uint8_t* payload, size_t length, GeoPoint& point);
     int32_t decodeVarint(const uint8_t* data, size_t maxLen, size_t& bytesRead);

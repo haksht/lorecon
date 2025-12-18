@@ -75,11 +75,6 @@ public:
     // Statistics
     static String getStatistics();
     static String getRFActivity();
-    
-private:
-    // Helper methods
-    static String createErrorResponse(const String& error);
-    static String createSuccessResponse(const String& message);
 };
 
 #endif // API_CONTROLLER_H

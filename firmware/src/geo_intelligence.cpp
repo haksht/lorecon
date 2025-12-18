@@ -6,12 +6,60 @@
 #include <ArduinoJson.h>
 #include "utils/protobuf_utils.h"
 #include "utils/format_utils.h"
+#include "logger.h"
 
 // Global instance
 GeoIntelligence geoIntel;
 
 GeoIntelligence::GeoIntelligence() : numPoints(0) {
     memset(points, 0, sizeof(points));
+}
+
+/**
+ * Store or update a geo point, handling deduplication and logging
+ * 
+ * @param point The point to store (must have nodeId and timestamp set)
+ * @return true if point was stored/updated, false if duplicate position
+ */
+bool GeoIntelligence::storePoint(const GeoPoint& point) {
+    // Check if we already have this exact position (deduplicate)
+    for (uint8_t i = 0; i < numPoints; i++) {
+        if (points[i].nodeId == point.nodeId &&
+            fabsf(points[i].latitude - point.latitude) < 0.000001f &&
+            fabsf(points[i].longitude - point.longitude) < 0.000001f) {
+            // Update timestamp of existing position
+            points[i].timestamp = millis();
+            return true;  // Already have this position
+        }
+    }
+    
+    // Check if we already have a position for this node (update instead of add)
+    bool updated = false;
+    for (uint8_t i = 0; i < numPoints; i++) {
+        if (points[i].nodeId == point.nodeId) {
+            points[i] = point;
+            updated = true;
+            break;
+        }
+    }
+    
+    if (!updated) {
+        // Store new point (replace oldest if full)
+        if (numPoints < Config::Tracking::MAX_GEO_POINTS) {
+            points[numPoints++] = point;
+        } else {
+            memmove(points, points + 1, sizeof(GeoPoint) * (Config::Tracking::MAX_GEO_POINTS - 1));
+            points[Config::Tracking::MAX_GEO_POINTS - 1] = point;
+        }
+    }
+    
+    LOG_INFO("📍 GPS: Node 0x%08X at %.6f°%s, %.6f°%s, Alt %.1fm",
+             point.nodeId,
+             fabsf(point.latitude), point.latitude >= 0 ? "N" : "S",
+             fabsf(point.longitude), point.longitude >= 0 ? "E" : "W",
+             point.altitude);
+    
+    return true;
 }
 
 bool GeoIntelligence::extractPosition(const uint8_t* data, size_t length, uint32_t nodeId) {
@@ -32,47 +80,7 @@ bool GeoIntelligence::extractPosition(const uint8_t* data, size_t length, uint32
     
     // Parse protobuf position data starting at offset 9
     if (parseProtobufPosition(data + 9, length - 9, point)) {
-        // Check if we already have this exact position (deduplicate)
-        for (uint8_t i = 0; i < numPoints; i++) {
-            if (points[i].nodeId == nodeId &&
-                fabsf(points[i].latitude - point.latitude) < 0.000001f &&
-                fabsf(points[i].longitude - point.longitude) < 0.000001f) {
-                // Update timestamp of existing position
-                points[i].timestamp = millis();
-                return true;  // Already have this position
-            }
-        }
-        
-        // Check if we already have a position for this node (update instead of add)
-        bool updated = false;
-        for (uint8_t i = 0; i < numPoints; i++) {
-            if (points[i].nodeId == nodeId) {
-                // Update existing entry
-                points[i] = point;
-                updated = true;
-                break;
-            }
-        }
-        
-        if (!updated) {
-            // Store new point (replace oldest if full)
-            if (numPoints < Config::Tracking::MAX_GEO_POINTS) {
-                points[numPoints++] = point;
-            } else {
-                // Replace oldest entry
-                memmove(points, points + 1, sizeof(GeoPoint) * (Config::Tracking::MAX_GEO_POINTS - 1));
-                points[Config::Tracking::MAX_GEO_POINTS - 1] = point;
-            }
-        }
-        
-        Serial.println("\n📍 GPS POSITION EXTRACTED!");
-        Serial.printf("   Node: 0x%08X\n", nodeId);
-        Serial.printf("   Lat:  %f° %s\n", fabsf(point.latitude), point.latitude >= 0 ? "N" : "S");
-        Serial.printf("   Lon:  %f° %s\n", fabsf(point.longitude), point.longitude >= 0 ? "E" : "W");
-        Serial.printf("   Alt:  %.1f m\n", point.altitude);
-        Serial.printf("   Precision: %d\n\n", point.precision);
-        
-        return true;
+        return storePoint(point);
     }
     
     return false;
@@ -111,47 +119,7 @@ bool GeoIntelligence::extractPositionFromDecrypted(const uint8_t* decrypted, siz
     
     // Parse protobuf position data
     if (parseProtobufPosition(decrypted + offset, payloadLen, point)) {
-        // Check if we already have this exact position (deduplicate)
-        for (uint8_t i = 0; i < numPoints; i++) {
-            if (points[i].nodeId == nodeId &&
-                fabsf(points[i].latitude - point.latitude) < 0.000001f &&
-                fabsf(points[i].longitude - point.longitude) < 0.000001f) {
-                // Update timestamp of existing position
-                points[i].timestamp = millis();
-                return true;  // Already have this position
-            }
-        }
-        
-        // Check if we already have a position for this node (update instead of add)
-        bool updated = false;
-        for (uint8_t i = 0; i < numPoints; i++) {
-            if (points[i].nodeId == nodeId) {
-                // Update existing entry
-                points[i] = point;
-                updated = true;
-                break;
-            }
-        }
-        
-        if (!updated) {
-            // Store new point (replace oldest if full)
-            if (numPoints < Config::Tracking::MAX_GEO_POINTS) {
-                points[numPoints++] = point;
-            } else {
-                // Replace oldest entry
-                memmove(points, points + 1, sizeof(GeoPoint) * (Config::Tracking::MAX_GEO_POINTS - 1));
-                points[Config::Tracking::MAX_GEO_POINTS - 1] = point;
-            }
-        }
-        
-        Serial.println("\n📍 GPS POSITION EXTRACTED!");
-        Serial.printf("   Node: 0x%08X\n", nodeId);
-        Serial.printf("   Lat:  %f° %s\n", fabsf(point.latitude), point.latitude >= 0 ? "N" : "S");
-        Serial.printf("   Lon:  %f° %s\n", fabsf(point.longitude), point.longitude >= 0 ? "E" : "W");
-        Serial.printf("   Alt:  %.1f m\n", point.altitude);
-        Serial.printf("   Precision: %d\n\n", point.precision);
-        
-        return true;
+        return storePoint(point);
     }
     
     return false;
