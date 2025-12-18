@@ -9,6 +9,9 @@
  * - CORS support for development
  * 
  * Design: Asynchronous, non-blocking server for reliable operation
+ * 
+ * Note: REST API handlers are in api_handlers.cpp/h
+ *       WiFi handlers are in wifi_handlers.cpp/h
  */
 
 #ifndef WEB_SERVER_H
@@ -19,11 +22,7 @@
 #include <AsyncTCP.h>
 #include <DNSServer.h>
 #include <atomic>
-#include <vector>
-#include "freertos/FreeRTOS.h"
-#include "freertos/semphr.h"
 #include "irecon_tool.h"
-#include "data_structures.h"
 #include "packet_processor.h"  // For PacketEvent
 
 // Aggregated packet stats for efficient WebSocket updates
@@ -48,6 +47,10 @@ struct AggregatedStats {
  * 
  * Provides REST API and real-time updates for web/mobile clients.
  * All operations are asynchronous to avoid blocking LoRa reception.
+ * 
+ * Handler modules:
+ * - api_handlers.cpp: REST API endpoints
+ * - wifi_handlers.cpp: WiFi configuration endpoints
  */
 class WebServer {
 public:
@@ -87,58 +90,15 @@ private:
     static constexpr uint32_t BROADCAST_INTERVAL_MS = 500;  // 2 Hz max
     static constexpr uint32_t DISCONNECT_COOLDOWN_MS = 100;  // Wait after disconnect
     
-    // Request handlers
+    // Server setup (routes use handlers from api_handlers.cpp and wifi_handlers.cpp)
     void setupRoutes();
     void setupWebSocket();
+    void serveStaticFiles();
     
-    // REST API handlers
-    static void handleGetDevices(AsyncWebServerRequest* request);
-    static void handleGetDevice(AsyncWebServerRequest* request);
-    static void handleStartCapture(AsyncWebServerRequest* request);
-    static void handleStopCapture(AsyncWebServerRequest* request);
-    static void handleGetPositions(AsyncWebServerRequest* request);
-    static void handleExportGeoJSON(AsyncWebServerRequest* request);
-    static void handleExportKML(AsyncWebServerRequest* request);
-    static void handleGetStatus(AsyncWebServerRequest* request);
-    static void handleGetDashboard(AsyncWebServerRequest* request);
-    static void handleGetStatistics(AsyncWebServerRequest* request);
-    static void handleGetActivity(AsyncWebServerRequest* request);
-    static void handleGetConfig(AsyncWebServerRequest* request);
-    static void handleGetSystemConfig(AsyncWebServerRequest* request);
-    static void handleStartScan(AsyncWebServerRequest* request);
-    static void handleStopScan(AsyncWebServerRequest* request);
-    static void handleGetReconSummary(AsyncWebServerRequest* request);
-    static void handleGetDeviceTypeSummary(AsyncWebServerRequest* request);
-    static void handleGetSecurityAssessment(AsyncWebServerRequest* request);
-    static void handleGetAnomalies(AsyncWebServerRequest* request);
-    static void handleAcknowledgeAnomaly(AsyncWebServerRequest* request);
-    static void handleGetTemporalData(AsyncWebServerRequest* request);
-    static void handleGetPSKStats(AsyncWebServerRequest* request);
-    static void handleGetReplaySlots(AsyncWebServerRequest* request);
-    static void handleClearReplaySlots(AsyncWebServerRequest* request);
-    static void handleClearDevices(AsyncWebServerRequest* request);
-    static void handleReplayPacket(AsyncWebServerRequest* request);
-    static void handleStartFrequencyTargeting(AsyncWebServerRequest* request);
-    static void handleGetDiagnostics(AsyncWebServerRequest* request);
-    static void handleSetVerboseMode(AsyncWebServerRequest* request);
-    static void handleExportPCAP(AsyncWebServerRequest* request);
-    static void handleCommand(AsyncWebServerRequest* request);
-    
-    // WiFi Setup handlers
-    static void handleGetWiFiStatus(AsyncWebServerRequest* request);
-    static void handleSetWiFiCredentials(AsyncWebServerRequest* request);
-    static void handleClearWiFiCredentials(AsyncWebServerRequest* request);
-    
-    // WebSocket handlers
+    // WebSocket handlers (kept here as they manage internal state)
     static void handleWebSocketEvent(AsyncWebSocket* server, AsyncWebSocketClient* client,
                                     AwsEventType type, void* arg, uint8_t* data, size_t len);
     static void handleWebSocketMessage(AsyncWebSocketClient* client, uint8_t* data, size_t len);
-    
-    // Static file serving (for PWA)
-    void serveStaticFiles();
-    
-    // CORS headers for development
-    void addCORSHeaders(AsyncWebServerResponse* response);
 
     bool cleanupWebSocketClients();
 };

@@ -1,18 +1,23 @@
 /**
  * Web Server Implementation
+ * 
+ * Core server lifecycle, WebSocket handling, and route setup.
+ * REST API handlers are in api_handlers.cpp
+ * WiFi handlers are in wifi_handlers.cpp
  */
 
 #include "web_server.h"
+#include "api_handlers.h"
+#include "wifi_handlers.h"
 #include "api_controller.h"
 #include "api_security.h"
 #include "logger.h"
 #include "recon_state.h"
-#include "packet_logger.h"
 #include "wifi_manager.h"
 #include "config.h"
 #include "utils/format_utils.h"
+#include "utils/json_utils.h"
 #include <LittleFS.h>
-#include <SD.h>
 #include <Update.h>
 #include <ArduinoJson.h>
 
@@ -38,10 +43,6 @@ WebServer::WebServer()
 
 /**
  * Start web server
- * 
- * @param tool Reconnaissance tool interface
- * @param port HTTP port (default: 80)
- * @return true if server started successfully
  */
 bool WebServer::begin(IReconTool* tool, uint16_t port) {
     if (!tool) {
@@ -83,7 +84,7 @@ bool WebServer::begin(IReconTool* tool, uint16_t port) {
     // Serve static files for PWA
     serveStaticFiles();
     
-    // Enable CORS for development (restrict to same origin in production)
+    // Enable CORS for development
     DefaultHeaders::Instance().addHeader("Access-Control-Allow-Origin", "*");
     DefaultHeaders::Instance().addHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
     DefaultHeaders::Instance().addHeader("Access-Control-Allow-Headers", "Content-Type, " + String(Config::Security::AUTH_HEADER));
@@ -92,7 +93,6 @@ bool WebServer::begin(IReconTool* tool, uint16_t port) {
     APISecurity::begin();
     
     // Start DNS server for captive portal (only in AP mode)
-    // This redirects ALL DNS queries to our IP, so any website visit opens our page
     if (wifiManager.isSetupMode()) {
         dnsServer = new DNSServer();
         dnsServer->setErrorReplyCode(DNSReplyCode::NoError);
@@ -142,72 +142,72 @@ void WebServer::stop() {
 
 /**
  * Setup REST API routes
+ * 
+ * Routes delegate to handlers in api_handlers.cpp and wifi_handlers.cpp
  */
 void WebServer::setupRoutes() {
     // Device Management
-    server->on("/api/devices", HTTP_GET, handleGetDevices);
-    server->on("/api/device", HTTP_GET, handleGetDevice);  // ?nodeId=0x12345678
-    server->on("/api/capture/start", HTTP_POST, handleStartCapture);  // Body: {nodeId: 0x12345678}
-    server->on("/api/capture/stop", HTTP_POST, handleStopCapture);
+    server->on("/api/devices", HTTP_GET, APIHandlers::handleGetDevices);
+    server->on("/api/device", HTTP_GET, APIHandlers::handleGetDevice);
+    server->on("/api/capture/start", HTTP_POST, APIHandlers::handleStartCapture);
+    server->on("/api/capture/stop", HTTP_POST, APIHandlers::handleStopCapture);
     
     // Geographic Data
-    server->on("/api/positions", HTTP_GET, handleGetPositions);
-    server->on("/api/export/geojson", HTTP_GET, handleExportGeoJSON);
-    server->on("/api/export/kml", HTTP_GET, handleExportKML);
-    server->on("/api/export/pcap", HTTP_GET, handleExportPCAP);
+    server->on("/api/positions", HTTP_GET, APIHandlers::handleGetPositions);
+    server->on("/api/export/geojson", HTTP_GET, APIHandlers::handleExportGeoJSON);
+    server->on("/api/export/kml", HTTP_GET, APIHandlers::handleExportKML);
+    server->on("/api/export/pcap", HTTP_GET, APIHandlers::handleExportPCAP);
     
     // Status & Config
-    server->on("/api/status", HTTP_GET, handleGetStatus);
-    server->on("/api/dashboard", HTTP_GET, handleGetDashboard);
-    server->on("/api/statistics", HTTP_GET, handleGetStatistics);
-    server->on("/api/activity", HTTP_GET, handleGetActivity);
-    server->on("/api/config", HTTP_GET, handleGetConfig);
-    server->on("/api/config/system", HTTP_GET, handleGetSystemConfig);
-    server->on("/api/recon/summary", HTTP_GET, handleGetReconSummary);
-    server->on("/api/recon/device-types", HTTP_GET, handleGetDeviceTypeSummary);
-    server->on("/api/recon/security", HTTP_GET, handleGetSecurityAssessment);
-    server->on("/api/replay/slots", HTTP_GET, handleGetReplaySlots);
-    server->on("/api/replay/clear", HTTP_POST, handleClearReplaySlots);
-    server->on("/api/devices/clear", HTTP_POST, handleClearDevices);
-    server->on("/api/replay/transmit", HTTP_POST, handleReplayPacket);
-    server->on("/api/frequency/target", HTTP_POST, handleStartFrequencyTargeting);
-    server->on("/api/diagnostics", HTTP_GET, handleGetDiagnostics);
-    server->on("/api/diagnostics/verbose", HTTP_POST, handleSetVerboseMode);
+    server->on("/api/status", HTTP_GET, APIHandlers::handleGetStatus);
+    server->on("/api/dashboard", HTTP_GET, APIHandlers::handleGetDashboard);
+    server->on("/api/statistics", HTTP_GET, APIHandlers::handleGetStatistics);
+    server->on("/api/activity", HTTP_GET, APIHandlers::handleGetActivity);
+    server->on("/api/config", HTTP_GET, APIHandlers::handleGetConfig);
+    server->on("/api/config/system", HTTP_GET, APIHandlers::handleGetSystemConfig);
+    server->on("/api/recon/summary", HTTP_GET, APIHandlers::handleGetReconSummary);
+    server->on("/api/recon/device-types", HTTP_GET, APIHandlers::handleGetDeviceTypeSummary);
+    server->on("/api/recon/security", HTTP_GET, APIHandlers::handleGetSecurityAssessment);
+    server->on("/api/replay/slots", HTTP_GET, APIHandlers::handleGetReplaySlots);
+    server->on("/api/replay/clear", HTTP_POST, APIHandlers::handleClearReplaySlots);
+    server->on("/api/devices/clear", HTTP_POST, APIHandlers::handleClearDevices);
+    server->on("/api/replay/transmit", HTTP_POST, APIHandlers::handleReplayPacket);
+    server->on("/api/frequency/target", HTTP_POST, APIHandlers::handleStartFrequencyTargeting);
+    server->on("/api/diagnostics", HTTP_GET, APIHandlers::handleGetDiagnostics);
+    server->on("/api/diagnostics/verbose", HTTP_POST, APIHandlers::handleSetVerboseMode);
     
     // Temporal & Anomaly Analysis
-    server->on("/api/anomalies", HTTP_GET, handleGetAnomalies);
-    server->on("/api/anomaly/acknowledge", HTTP_POST, handleAcknowledgeAnomaly);  // Body: {index: 0}
-    server->on("/api/temporal", HTTP_GET, handleGetTemporalData);
+    server->on("/api/anomalies", HTTP_GET, APIHandlers::handleGetAnomalies);
+    server->on("/api/anomaly/acknowledge", HTTP_POST, APIHandlers::handleAcknowledgeAnomaly);
+    server->on("/api/temporal", HTTP_GET, APIHandlers::handleGetTemporalData);
     
-    // PSK/Decryption Stats (for attack dashboard)
-    server->on("/api/psk/stats", HTTP_GET, handleGetPSKStats);
+    // PSK/Decryption Stats
+    server->on("/api/psk/stats", HTTP_GET, APIHandlers::handleGetPSKStats);
     
-    // Command handling (reboot, etc.)
-    server->on("/api/command", HTTP_POST, handleCommand);
+    // Command handling
+    server->on("/api/command", HTTP_POST, APIHandlers::handleCommand);
     
     // Scan Control
-    server->on("/api/scan/start", HTTP_POST, handleStartScan);
-    server->on("/api/scan/stop", HTTP_POST, handleStopScan);
+    server->on("/api/scan/start", HTTP_POST, APIHandlers::handleStartScan);
+    server->on("/api/scan/stop", HTTP_POST, APIHandlers::handleStopScan);
     
-    // WiFi Setup (for first-run configuration)
-    server->on("/api/wifi/status", HTTP_GET, handleGetWiFiStatus);
-    server->on("/api/wifi/configure", HTTP_POST, handleSetWiFiCredentials);
-    server->on("/api/wifi/clear", HTTP_POST, handleClearWiFiCredentials);
+    // WiFi Setup
+    server->on("/api/wifi/status", HTTP_GET, WiFiHandlers::handleGetWiFiStatus);
+    server->on("/api/wifi/configure", HTTP_POST, WiFiHandlers::handleSetWiFiCredentials);
+    server->on("/api/wifi/clear", HTTP_POST, WiFiHandlers::handleClearWiFiCredentials);
     
-    // OTA Firmware Update (PROTECTED - requires authentication)
+    // OTA Firmware Update (kept inline - complex state management)
     server->on("/api/firmware/upload", HTTP_POST,
         [](AsyncWebServerRequest *request) {
-            // Check authentication for OTA - critical security endpoint
             if (!APISecurity::isAuthenticated(request)) {
                 APISecurity::sendUnauthorized(request);
                 return;
             }
             
-            // Response after upload completes
             bool success = !Update.hasError();
             String response = success ? 
-                "{\"status\":\"success\",\"message\":\"Firmware uploaded successfully. Rebooting in 3 seconds...\"}" :
-                "{\"status\":\"error\",\"message\":\"Firmware upload failed. Check serial output.\"}";
+                JsonUtils::success("Firmware uploaded successfully. Rebooting in 3 seconds...") :
+                JsonUtils::error("Firmware upload failed. Check serial output.");
             
             AsyncWebServerResponse *resp = request->beginResponse(200, "application/json", response);
             resp->addHeader("Connection", "close");
@@ -220,33 +220,28 @@ void WebServer::setupRoutes() {
             }
         },
         [](AsyncWebServerRequest *request, String filename, size_t index, uint8_t *data, size_t len, bool final) {
-            // Check authentication on first chunk
             if (index == 0 && !APISecurity::isAuthenticated(request)) {
                 LOG_ERROR("OTA upload rejected - unauthorized");
                 return;
             }
             
-            // Handle firmware upload chunks
             if (index == 0) {
                 LOG_INFO("OTA Update Start: %s", filename.c_str());
                 
-                // Validate file extension
                 if (!filename.endsWith(".bin")) {
                     LOG_ERROR("Invalid firmware file - must be .bin");
                     return;
                 }
                 
-                // Begin OTA update
                 if (!Update.begin(UPDATE_SIZE_UNKNOWN)) {
                     Update.printError(Serial);
                     LOG_ERROR("OTA begin failed");
                     return;
                 }
                 
-                LOG_INFO("OTA upload started, free space: %d bytes", UPDATE_SIZE_UNKNOWN);
+                LOG_INFO("OTA upload started");
             }
             
-            // Write firmware chunk
             if (len) {
                 if (Update.write(data, len) != len) {
                     Update.printError(Serial);
@@ -254,13 +249,11 @@ void WebServer::setupRoutes() {
                     return;
                 }
                 
-                // Log progress every 100KB
                 if (index % 102400 == 0) {
                     LOG_INFO("OTA progress: %d bytes written", index + len);
                 }
             }
             
-            // Finalize upload
             if (final) {
                 if (Update.end(true)) {
                     LOG_INFO("OTA Update complete: %d bytes", index + len);
@@ -274,27 +267,24 @@ void WebServer::setupRoutes() {
     
     // Health check
     server->on("/api/health", HTTP_GET, [](AsyncWebServerRequest* request) {
-        request->send(200, "application/json", "{\"status\":\"ok\",\"service\":\"ESP32 LoRa Sniffer\"}");
+        request->send(200, "application/json", JsonUtils::healthOk());
     });
     
-    // Get API token (for authenticated access from web UI)
-    // Returns token info - the actual token is shown in serial output at boot
+    // Auth info
     server->on("/api/auth/info", HTTP_GET, [](AsyncWebServerRequest* request) {
-        JsonDocument doc;
-        doc["authEnabled"] = Config::Security::AUTH_ENABLED;
-        doc["authHeader"] = Config::Security::AUTH_HEADER;
-        doc["tokenHint"] = "Check serial output at boot for API token";
-        doc["protectedEndpoints"] = JsonArray();
-        doc["protectedEndpoints"].add("/api/devices/clear");
-        doc["protectedEndpoints"].add("/api/replay/transmit");
-        doc["protectedEndpoints"].add("/api/replay/clear");
-        doc["protectedEndpoints"].add("/api/wifi/configure");
-        doc["protectedEndpoints"].add("/api/wifi/clear");
-        doc["protectedEndpoints"].add("/api/command");
-        doc["protectedEndpoints"].add("/api/firmware/upload");
-        
-        String json;
-        serializeJson(doc, json);
+        String json = JsonUtils::successWithData([](JsonDocument& doc) {
+            doc["authEnabled"] = Config::Security::AUTH_ENABLED;
+            doc["authHeader"] = Config::Security::AUTH_HEADER;
+            doc["tokenHint"] = "Check serial output at boot for API token";
+            JsonArray protected_eps = doc["protectedEndpoints"].to<JsonArray>();
+            protected_eps.add("/api/devices/clear");
+            protected_eps.add("/api/replay/transmit");
+            protected_eps.add("/api/replay/clear");
+            protected_eps.add("/api/wifi/configure");
+            protected_eps.add("/api/wifi/clear");
+            protected_eps.add("/api/command");
+            protected_eps.add("/api/firmware/upload");
+        });
         request->send(200, "application/json", json);
     });
     
@@ -313,508 +303,61 @@ void WebServer::setupWebSocket() {
  * Serve static files for Progressive Web App
  */
 void WebServer::serveStaticFiles() {
-    // Simple test page to verify connectivity
+    // Simple test pages
     server->on("/test", HTTP_GET, [](AsyncWebServerRequest* request) {
-        request->send(200, "text/html", "<html><body><h1>ESP32 Web Server Working!</h1><p>If you see this, the server is running.</p></body></html>");
+        request->send(200, "text/html", "<html><body><h1>ESP32 Web Server Working!</h1></body></html>");
     });
     
-    // API test page
     server->on("/apitest", HTTP_GET, [](AsyncWebServerRequest* request) {
         String html = "<html><head><style>body{font-family:sans-serif;padding:20px;}</style></head><body>";
         html += "<h1>API Test</h1>";
         html += "<button onclick=\"fetch('/api/status').then(r=>r.json()).then(d=>alert(JSON.stringify(d)))\">Test API</button>";
-        html += "<button onclick=\"ws=new WebSocket('ws://'+location.host+'/ws');ws.onopen=()=>alert('WS Connected!');ws.onerror=()=>alert('WS Error')\">Test WebSocket</button>";
+        html += "<button onclick=\"ws=new WebSocket('ws://'+location.host+'/ws');ws.onopen=()=>alert('WS Connected!')\">Test WebSocket</button>";
         html += "</body></html>";
         request->send(200, "text/html", html);
     });
     
-    // =========================================================================
-    // CAPTIVE PORTAL SUPPORT
-    // =========================================================================
-    // When phones/laptops connect to the AP, they check for internet by hitting
-    // specific URLs. We intercept these and redirect to our setup page.
-    // This gives users the "hotel WiFi" experience - config page auto-opens!
-    
-    // Android captive portal detection
-    server->on("/generate_204", HTTP_GET, [](AsyncWebServerRequest* request) {
-        request->redirect("/");
-    });
-    server->on("/gen_204", HTTP_GET, [](AsyncWebServerRequest* request) {
-        request->redirect("/");
-    });
-    
-    // iOS/macOS captive portal detection
-    server->on("/hotspot-detect.html", HTTP_GET, [](AsyncWebServerRequest* request) {
-        request->redirect("/");
-    });
-    server->on("/library/test/success.html", HTTP_GET, [](AsyncWebServerRequest* request) {
-        request->redirect("/");
-    });
-    
-    // Windows captive portal detection
-    server->on("/ncsi.txt", HTTP_GET, [](AsyncWebServerRequest* request) {
-        request->redirect("/");
-    });
-    server->on("/connecttest.txt", HTTP_GET, [](AsyncWebServerRequest* request) {
-        request->redirect("/");
-    });
-    
-    // Firefox captive portal detection
-    server->on("/success.txt", HTTP_GET, [](AsyncWebServerRequest* request) {
-        request->redirect("/");
-    });
-    
-    // Generic fallback for other captive portal checks
-    server->on("/fwlink", HTTP_GET, [](AsyncWebServerRequest* request) {
-        request->redirect("/");
-    });
+    // Captive portal detection endpoints
+    server->on("/generate_204", HTTP_GET, [](AsyncWebServerRequest* request) { request->redirect("/"); });
+    server->on("/gen_204", HTTP_GET, [](AsyncWebServerRequest* request) { request->redirect("/"); });
+    server->on("/hotspot-detect.html", HTTP_GET, [](AsyncWebServerRequest* request) { request->redirect("/"); });
+    server->on("/library/test/success.html", HTTP_GET, [](AsyncWebServerRequest* request) { request->redirect("/"); });
+    server->on("/ncsi.txt", HTTP_GET, [](AsyncWebServerRequest* request) { request->redirect("/"); });
+    server->on("/connecttest.txt", HTTP_GET, [](AsyncWebServerRequest* request) { request->redirect("/"); });
+    server->on("/success.txt", HTTP_GET, [](AsyncWebServerRequest* request) { request->redirect("/"); });
+    server->on("/fwlink", HTTP_GET, [](AsyncWebServerRequest* request) { request->redirect("/"); });
     
     // Root serves index.html
     server->serveStatic("/", LittleFS, "/webapp/").setDefaultFile("index.html");
     
-    // Fallback - serve index.html for SPA routing (also helps with captive portal)
+    // Fallback handler
     server->onNotFound([](AsyncWebServerRequest* request) {
-        // Silently ignore common browser icon requests to reduce log noise
         String url = request->url();
-        if (url.indexOf("apple-touch-icon") >= 0 || 
-            url.indexOf("favicon") >= 0 ||
-            url.endsWith(".ico")) {
-            request->send(204);  // No Content - silently handle
+        
+        // Silently handle browser icon requests
+        if (url.indexOf("apple-touch-icon") >= 0 || url.indexOf("favicon") >= 0 || url.endsWith(".ico")) {
+            request->send(204);
             return;
         }
         
-        // Check if it's an API request
+        // API 404
         if (url.startsWith("/api/")) {
-            request->send(404, "application/json", "{\"status\":\"error\",\"error\":\"Endpoint not found\"}");
-        } else {
-            // For captive portal: redirect common detection paths
-            String host = request->host();
-            // If request is to a non-local hostname, it's likely a captive portal check
-            if (!host.startsWith("192.168.") && !host.endsWith(".local") && host != "localhost") {
-                request->redirect("http://192.168.4.1/");
-                return;
-            }
-            // Serve index.html for PWA routing
-            request->send(LittleFS, "/webapp/index.html", "text/html");
+            request->send(404, "application/json", JsonUtils::error("Endpoint not found"));
+            return;
         }
+        
+        // Captive portal redirect for external hosts
+        String host = request->host();
+        if (!host.startsWith("192.168.") && !host.endsWith(".local") && host != "localhost") {
+            request->redirect("http://192.168.4.1/");
+            return;
+        }
+        
+        // SPA routing fallback
+        request->send(LittleFS, "/webapp/index.html", "text/html");
     });
     
-    LOG_INFO("✓ Static file serving configured (with captive portal)");
-}
-
-// =============================================================================
-// REST API HANDLERS
-// =============================================================================
-
-void WebServer::handleGetDevices(AsyncWebServerRequest* request) {
-    String json = APIController::getDevices();
-    request->send(200, "application/json", json);
-}
-
-void WebServer::handleGetDevice(AsyncWebServerRequest* request) {
-    if (!request->hasParam("nodeId")) {
-        request->send(400, "application/json", "{\"status\":\"error\",\"error\":\"Missing nodeId parameter\"}");
-        return;
-    }
-    
-    String nodeIdStr = request->getParam("nodeId")->value();
-    char* endPtr = nullptr;
-    uint32_t nodeId = strtoul(nodeIdStr.c_str(), &endPtr, 16);
-    
-    // Validate parse succeeded (endPtr moved and no trailing garbage)
-    if (endPtr == nodeIdStr.c_str() || (*endPtr != '\0' && !isspace(*endPtr))) {
-        request->send(400, "application/json", "{\"status\":\"error\",\"error\":\"Invalid nodeId format\"}");
-        return;
-    }
-    
-    String json = APIController::getDevice(nodeId);
-    request->send(200, "application/json", json);
-}
-
-void WebServer::handleStartCapture(AsyncWebServerRequest* request) {
-    // Read JSON body (simplified - in production, use AsyncWebServerRequest body handler)
-    if (!request->hasParam("nodeId", true)) {
-        request->send(400, "application/json", "{\"status\":\"error\",\"error\":\"Missing nodeId in body\"}");
-        return;
-    }
-    
-    String nodeIdStr = request->getParam("nodeId", true)->value();
-    char* endPtr = nullptr;
-    uint32_t nodeId = strtoul(nodeIdStr.c_str(), &endPtr, 16);
-    
-    // Validate parse succeeded
-    if (endPtr == nodeIdStr.c_str() || (*endPtr != '\0' && !isspace(*endPtr))) {
-        request->send(400, "application/json", "{\"status\":\"error\",\"error\":\"Invalid nodeId format\"}");
-        return;
-    }
-    
-    String json = APIController::startTargetedCapture(nodeId);
-    request->send(200, "application/json", json);
-}
-
-void WebServer::handleStopCapture(AsyncWebServerRequest* request) {
-    String json = APIController::stopCapture();
-    request->send(200, "application/json", json);
-}
-
-void WebServer::handleGetPositions(AsyncWebServerRequest* request) {
-    String json = APIController::getPositions();
-    request->send(200, "application/json", json);
-}
-
-void WebServer::handleExportGeoJSON(AsyncWebServerRequest* request) {
-    String json = APIController::exportGeoJSON();
-    request->send(200, "application/json", json);
-}
-
-void WebServer::handleExportKML(AsyncWebServerRequest* request) {
-    String kml = APIController::exportKML();
-    request->send(200, "application/vnd.google-earth.kml+xml", kml);
-}
-
-void WebServer::handleExportPCAP(AsyncWebServerRequest* request) {
-    #ifdef ENABLE_PCAP_EXPORT
-    // Get current PCAP session file from packet logger
-    extern PacketLogger packetLogger;
-    
-    // Check if SD card is available
-    if (!packetLogger.isAvailable()) {
-        request->send(404, "application/json", 
-            "{\"status\":\"error\",\"message\":\"SD card not available. Insert SD card and restart device to enable PCAP capture.\"}");
-        LOG_WARN("PCAP download requested but SD card not available");
-        return;
-    }
-    
-    String sessionFile = packetLogger.getCurrentSessionFile();
-    
-    // Check if a session is active (session file is just the filename, e.g. "snf_12345.csv")
-    if (sessionFile.isEmpty()) {
-        request->send(404, "application/json", 
-            "{\"status\":\"error\",\"message\":\"No active logging session. Wait for packet capture to start.\"}");
-        LOG_WARN("PCAP download requested but no active session");
-        return;
-    }
-    
-    // Build PCAP file path: /logs/<session>.pcap
-    String pcapFile = "/logs/";
-    if (sessionFile.endsWith(".csv")) {
-        pcapFile += sessionFile.substring(0, sessionFile.length() - 4) + ".pcap";
-    } else {
-        pcapFile += sessionFile + ".pcap";
-    }
-    
-    // Check if PCAP file exists
-    if (SD.exists(pcapFile.c_str())) {
-        // Send file with proper MIME type and force download
-        request->send(SD, pcapFile, "application/vnd.tcpdump.pcap", true);
-        LOG_INFO("PCAP file downloaded: %s", pcapFile.c_str());
-    } else {
-        // PCAP file doesn't exist - provide helpful error message
-        String csvPath = "/logs/" + sessionFile;
-        bool csvExists = SD.exists(csvPath.c_str());
-        
-        String errorMsg;
-        if (csvExists) {
-            errorMsg = "{\"status\":\"error\",\"message\":\"PCAP file not found. CSV logging is active but PCAP generation may have failed. Check SD card space and PCAP logger status.\"}";
-        } else {
-            errorMsg = "{\"status\":\"error\",\"message\":\"No packet capture file available. Ensure SD card is inserted and packets have been captured.\"}";
-        }
-        
-        request->send(404, "application/json", errorMsg);
-        LOG_WARN("PCAP download requested but file not found: %s (CSV exists: %s)", 
-                 pcapFile.c_str(), csvExists ? "yes" : "no");
-    }
-    #else
-    // PCAP export disabled
-    request->send(501, "application/json", 
-        "{\"status\":\"error\",\"message\":\"PCAP export is disabled. Enable ENABLE_PCAP_EXPORT in config.h and recompile.\"}");
-    #endif
-}
-
-void WebServer::handleGetStatus(AsyncWebServerRequest* request) {
-    String json = APIController::getStatus();
-    request->send(200, "application/json", json);
-}
-
-void WebServer::handleGetDashboard(AsyncWebServerRequest* request) {
-    String json = APIController::getDashboard();
-    request->send(200, "application/json", json);
-}
-
-void WebServer::handleGetStatistics(AsyncWebServerRequest* request) {
-    String json = APIController::getStatistics();
-    request->send(200, "application/json", json);
-}
-
-void WebServer::handleGetActivity(AsyncWebServerRequest* request) {
-    String json = APIController::getRFActivity();
-    request->send(200, "application/json", json);
-}
-
-void WebServer::handleGetConfig(AsyncWebServerRequest* request) {
-    String json = APIController::getConfig();
-    request->send(200, "application/json", json);
-}
-
-void WebServer::handleGetSystemConfig(AsyncWebServerRequest* request) {
-    String json = APIController::getSystemConfig();
-    request->send(200, "application/json", json);
-}
-
-void WebServer::handleCommand(AsyncWebServerRequest* request) {
-    // Authentication required - command can reboot device
-    if (!APISecurity::isAuthenticated(request)) {
-        APISecurity::sendUnauthorized(request);
-        return;
-    }
-    
-    AsyncWebParameter* param = nullptr;
-    if (request->hasParam("command", true)) {
-        param = request->getParam("command", true);
-    } else if (request->hasParam("command")) {
-        param = request->getParam("command");
-    }
-
-    if (!param) {
-        request->send(400, "application/json", "{\"status\":\"error\",\"error\":\"Missing command\"}");
-        return;
-    }
-
-    String cmd = param->value();
-    
-    // Handle reboot command
-    if (cmd == "b") {
-        String response = "{\"status\":\"success\",\"message\":\"Rebooting device...\"}";
-        AsyncWebServerResponse *resp = request->beginResponse(200, "application/json", response);
-        resp->addHeader("Connection", "close");
-        request->send(resp);
-        
-        LOG_INFO("Reboot command received via web API");
-        delay(1000);
-        ESP.restart();
-        return;
-    }
-    
-    // Unknown command
-    request->send(400, "application/json", "{\"status\":\"error\",\"error\":\"Unknown command\"}");
-}
-
-void WebServer::handleStartScan(AsyncWebServerRequest* request) {
-    String json = APIController::startScan();
-    request->send(200, "application/json", json);
-}
-
-void WebServer::handleStopScan(AsyncWebServerRequest* request) {
-    String json = APIController::stopScan();
-    request->send(200, "application/json", json);
-}
-
-void WebServer::handleGetReconSummary(AsyncWebServerRequest* request) {
-    String json = APIController::getReconSummary();
-    request->send(200, "application/json", json);
-}
-
-void WebServer::handleGetDeviceTypeSummary(AsyncWebServerRequest* request) {
-    String json = APIController::getDeviceTypeSummary();
-    request->send(200, "application/json", json);
-}
-
-void WebServer::handleGetSecurityAssessment(AsyncWebServerRequest* request) {
-    String json = APIController::getSecurityAssessment();
-    request->send(200, "application/json", json);
-}
-
-void WebServer::handleGetAnomalies(AsyncWebServerRequest* request) {
-    bool unacknowledgedOnly = false;
-    if (request->hasParam("unacknowledged")) {
-        String val = request->getParam("unacknowledged")->value();
-        unacknowledgedOnly = (val == "true" || val == "1");
-    }
-    
-    String json = APIController::getAnomalies(unacknowledgedOnly);
-    request->send(200, "application/json", json);
-}
-
-void WebServer::handleAcknowledgeAnomaly(AsyncWebServerRequest* request) {
-    if (!request->hasParam("index", true)) {
-        request->send(400, "application/json", "{\"status\":\"error\",\"error\":\"Missing index in body\"}");
-        return;
-    }
-    
-    String indexStr = request->getParam("index", true)->value();
-    
-    // Safe parsing with bounds checking to prevent integer overflow
-    char* endPtr = nullptr;
-    unsigned long indexVal = strtoul(indexStr.c_str(), &endPtr, 10);
-    
-    // Validate: must be a valid number and within uint8_t range
-    if (endPtr == indexStr.c_str() || *endPtr != '\0' || indexVal > 255) {
-        request->send(400, "application/json", "{\"status\":\"error\",\"error\":\"Invalid index (0-255)\"}");
-        return;
-    }
-    
-    uint8_t index = static_cast<uint8_t>(indexVal);
-    
-    String json = APIController::acknowledgeAnomaly(index);
-    request->send(200, "application/json", json);
-}
-
-void WebServer::handleGetTemporalData(AsyncWebServerRequest* request) {
-    String json = APIController::getTemporalData();
-    request->send(200, "application/json", json);
-}
-
-void WebServer::handleGetPSKStats(AsyncWebServerRequest* request) {
-    String json = APIController::getPSKStats();
-    request->send(200, "application/json", json);
-}
-
-void WebServer::handleGetReplaySlots(AsyncWebServerRequest* request) {
-    String json = APIController::getReplaySlots();
-    request->send(200, "application/json", json);
-}
-
-void WebServer::handleClearReplaySlots(AsyncWebServerRequest* request) {
-    // Protected endpoint - requires authentication
-    if (!APISecurity::isAuthenticated(request)) {
-        APISecurity::sendUnauthorized(request);
-        return;
-    }
-    
-    String json = APIController::clearReplaySlots();
-    request->send(200, "application/json", json);
-}
-
-void WebServer::handleClearDevices(AsyncWebServerRequest* request) {
-    // Protected endpoint - requires authentication
-    if (!APISecurity::isAuthenticated(request)) {
-        APISecurity::sendUnauthorized(request);
-        return;
-    }
-    
-    String json = APIController::clearDevices();
-    request->send(200, "application/json", json);
-}
-
-void WebServer::handleReplayPacket(AsyncWebServerRequest* request) {
-    // Protected endpoint - requires authentication (transmits RF)
-    if (!APISecurity::isAuthenticated(request)) {
-        APISecurity::sendUnauthorized(request);
-        return;
-    }
-    
-    // Get parameters from POST body
-    AsyncWebParameter* slotParam = nullptr;
-    AsyncWebParameter* repeatParam = nullptr;
-    AsyncWebParameter* delayParam = nullptr;
-
-    if (request->hasParam("slotIndex", true)) {
-        slotParam = request->getParam("slotIndex", true);
-    } else if (request->hasParam("slotIndex")) {
-        slotParam = request->getParam("slotIndex");
-    }
-
-    if (request->hasParam("repeatCount", true)) {
-        repeatParam = request->getParam("repeatCount", true);
-    } else if (request->hasParam("repeatCount")) {
-        repeatParam = request->getParam("repeatCount");
-    }
-
-    if (request->hasParam("delayMs", true)) {
-        delayParam = request->getParam("delayMs", true);
-    } else if (request->hasParam("delayMs")) {
-        delayParam = request->getParam("delayMs");
-    }
-
-    if (!slotParam) {
-        request->send(400, "application/json", "{\"status\":\"error\",\"error\":\"Missing slotIndex\"}");
-        return;
-    }
-
-    uint8_t rawSlotIndex = strtoul(slotParam->value().c_str(), nullptr, 0);
-    uint8_t rawRepeatCount = repeatParam ? strtoul(repeatParam->value().c_str(), nullptr, 0) : 1;
-    uint16_t rawDelayMs = delayParam ? strtoul(delayParam->value().c_str(), nullptr, 0) : 1000;
-    
-    // Apply security bounds to prevent abuse
-    uint8_t repeatCount;
-    uint16_t delayMs;
-    APISecurity::boundReplayParams(rawRepeatCount, rawDelayMs, repeatCount, delayMs);
-
-    String json = APIController::replayPacket(rawSlotIndex, repeatCount, delayMs);
-    request->send(200, "application/json", json);
-}
-
-void WebServer::handleStartFrequencyTargeting(AsyncWebServerRequest* request) {
-    // Note: Not protected - allows easy setup via web UI
-    // Once in targeting mode, it persists across reboots
-    // Other mode-changing endpoints (scan/capture) ARE protected
-    
-    AsyncWebParameter* param = nullptr;
-    if (request->hasParam("configIndex", true)) {
-        param = request->getParam("configIndex", true);
-    } else if (request->hasParam("configIndex")) {
-        param = request->getParam("configIndex");
-    }
-
-    if (!param) {
-        request->send(400, "application/json", "{\"status\":\"error\",\"error\":\"Missing configIndex\"}");
-        return;
-    }
-
-    String indexStr = param->value();
-    uint32_t rawIndex = strtoul(indexStr.c_str(), nullptr, 0);
-
-    if (rawIndex > UINT8_MAX) {
-        request->send(400, "application/json", "{\"status\":\"error\",\"error\":\"configIndex out of range\"}");
-        return;
-    }
-
-    uint8_t configIndex = static_cast<uint8_t>(rawIndex);
-    if (!reconState.isValidConfigIndex(configIndex) && rawIndex > 0) {
-        uint32_t adjusted = rawIndex - 1;
-        if (adjusted <= UINT8_MAX && reconState.isValidConfigIndex(static_cast<uint8_t>(adjusted))) {
-            configIndex = static_cast<uint8_t>(adjusted);
-        }
-    }
-
-    String json = APIController::startFrequencyTargeting(configIndex);
-    request->send(200, "application/json", json);
-}
-
-void WebServer::handleGetDiagnostics(AsyncWebServerRequest* request) {
-    String json = APIController::getDiagnostics();
-    request->send(200, "application/json", json);
-}
-
-void WebServer::handleSetVerboseMode(AsyncWebServerRequest* request) {
-    AsyncWebParameter* param = nullptr;
-    if (request->hasParam("enable", true)) {
-        param = request->getParam("enable", true);
-    } else if (request->hasParam("enable")) {
-        param = request->getParam("enable");
-    }
-
-    if (!param) {
-        request->send(400, "application/json", "{\"status\":\"error\",\"error\":\"Missing enable parameter\"}");
-        return;
-    }
-
-    String enableStr = param->value();
-    enableStr.trim();
-    enableStr.toLowerCase();
-
-    bool enableVerbose;
-    if (enableStr == "true" || enableStr == "1" || enableStr == "yes" || enableStr == "on" || enableStr == "verbose") {
-        enableVerbose = true;
-    } else if (enableStr == "false" || enableStr == "0" || enableStr == "no" || enableStr == "off" || enableStr == "quiet") {
-        enableVerbose = false;
-    } else {
-        request->send(400, "application/json", "{\"status\":\"error\",\"error\":\"Invalid enable value\"}");
-        return;
-    }
-
-    String json = APIController::setVerboseMode(enableVerbose);
-    request->send(200, "application/json", json);
+    LOG_INFO("✓ Static file serving configured");
 }
 
 // =============================================================================
@@ -825,16 +368,12 @@ void WebServer::handleWebSocketEvent(AsyncWebSocket* server, AsyncWebSocketClien
                                     AwsEventType type, void* arg, uint8_t* data, size_t len) {
     switch (type) {
         case WS_EVT_CONNECT:
-            // Don't access client object - can cause heap corruption
             LOG_INFO("WebSocket client connected");
             if (g_webServer) {
-                g_webServer->disconnectInProgress.store(false, std::memory_order_release);  // Clear flag
+                g_webServer->disconnectInProgress.store(false, std::memory_order_release);
                 g_webServer->activeClients.fetch_add(1, std::memory_order_relaxed);
                 g_webServer->lastBroadcast = millis();
-                // Delay ACK to let any pending TCP operations settle
-                // This helps prevent race with previous client's disconnect
                 vTaskDelay(pdMS_TO_TICKS(50));
-                // Send a simple ACK - but only if socket is stable
                 if (g_webServer->ws && g_webServer->ws->count() > 0 &&
                     !g_webServer->disconnectInProgress.load(std::memory_order_acquire)) {
                     g_webServer->ws->textAll("{\"type\":\"connected\"}");
@@ -843,19 +382,14 @@ void WebServer::handleWebSocketEvent(AsyncWebSocket* server, AsyncWebSocketClien
             break;
             
         case WS_EVT_DISCONNECT:
-            // Don't access client object - it may already be freed
             LOG_INFO("WebSocket client disconnected");
             if (g_webServer) {
-                // Set flag FIRST to block any pending data events
                 g_webServer->disconnectInProgress.store(true, std::memory_order_release);
-                // Record disconnect time for cooldown period
                 g_webServer->lastDisconnectTime = millis();
                 
                 size_t previous = g_webServer->activeClients.load(std::memory_order_relaxed);
                 while (previous != 0 && !g_webServer->activeClients.compare_exchange_weak(
-                           previous, previous - 1, std::memory_order_relaxed)) {
-                    // Loop until the decrement succeeds or count hits zero
-                }
+                           previous, previous - 1, std::memory_order_relaxed)) {}
                 g_webServer->aggStats = AggregatedStats{};
                 g_webServer->lastBroadcast = millis();
                 g_webServer->pendingPacketBroadcast.store(false, std::memory_order_relaxed);
@@ -864,8 +398,6 @@ void WebServer::handleWebSocketEvent(AsyncWebSocket* server, AsyncWebSocketClien
             break;
             
         case WS_EVT_DATA:
-            // CRITICAL: Ignore all data events if disconnect in progress
-            // AsyncWebServer can deliver stale WS_EVT_DATA after WS_EVT_DISCONNECT
             if (g_webServer && !g_webServer->disconnectInProgress.load(std::memory_order_acquire)) {
                 handleWebSocketMessage(client, data, len);
             }
@@ -878,38 +410,23 @@ void WebServer::handleWebSocketEvent(AsyncWebSocket* server, AsyncWebSocketClien
 }
 
 void WebServer::handleWebSocketMessage(AsyncWebSocketClient* client, uint8_t* data, size_t len) {
-    // Safety checks: validate all inputs
-    // Don't access client methods - it may be freed/disconnected
-    if (!client || !data) {
-        return;
-    }
-    
-    // Ignore invalid or garbage messages  
-    if (len == 0 || len > 1024) {  // WebSocket message size limit
-        return;  // Silently ignore
-    }
+    if (!client || !data || len == 0 || len > 1024) return;
 
-    // Check if it looks like JSON (starts with '{')
     if (len > 0 && data[0] == '{') {
-        // Just log that we received a message - no client ID access
         LOG_INFO("WebSocket JSON command (len=%u)", len);
-        // Future: handle commands routed over WebSocket
     }
-    // Silently ignore other messages (pings, pongs, binary data, garbage)
 }
 
 /**
- * Handle packet event from PacketProcessor (callback)
+ * Handle packet event from PacketProcessor
  */
 void WebServer::handlePacketEvent(const PacketEvent& evt) {
-    // Aggregate packet data
     aggStats.packetCount++;
     aggStats.lastNodeId = evt.nodeId;
     aggStats.lastProtocol = evt.protocol;
     aggStats.lastRSSI = evt.rssi;
     aggStats.lastSNR = evt.snr;
     
-    // Copy message safely to prevent dangling pointer
     if (evt.message && strlen(evt.message) > 0) {
         strncpy(aggStats.lastMessage, evt.message, sizeof(aggStats.lastMessage) - 1);
         aggStats.lastMessage[sizeof(aggStats.lastMessage) - 1] = '\0';
@@ -924,29 +441,22 @@ void WebServer::handlePacketEvent(const PacketEvent& evt) {
 }
 
 /**
- * Broadcast aggregated packet update to all WebSocket clients
+ * Broadcast aggregated packet update
  */
 void WebServer::broadcastAggregatedUpdate() {
-    // Safety checks: no broadcast if no websocket, no stats, or no clients
     if (!ws || !server || aggStats.packetCount == 0) {
         pendingPacketBroadcast.store(false, std::memory_order_relaxed);
         return;
     }
     
-    // CRITICAL: Check disconnect flag BEFORE any socket operation
     if (disconnectInProgress.load(std::memory_order_acquire)) {
         pendingPacketBroadcast.store(false, std::memory_order_relaxed);
         return;
     }
     
-    // CRITICAL: Enforce cooldown after disconnect to let TCP stack settle
     uint32_t timeSinceDisconnect = millis() - lastDisconnectTime;
-    if (timeSinceDisconnect < DISCONNECT_COOLDOWN_MS) {
-        // TCP stack may still be processing - skip this broadcast
-        return;
-    }
+    if (timeSinceDisconnect < DISCONNECT_COOLDOWN_MS) return;
     
-    // Double-check client count right before sending
     size_t clientCount = ws->count();
     if (clientCount == 0) {
         pendingPacketBroadcast.store(false, std::memory_order_relaxed);
@@ -954,7 +464,6 @@ void WebServer::broadcastAggregatedUpdate() {
         return;
     }
 
-    // Build JSON (keep it small)
     JsonDocument doc;
     doc["type"] = "packet";
     doc["nodeId"] = FormatUtils::formatNodeIdJson(aggStats.lastNodeId);
@@ -964,8 +473,6 @@ void WebServer::broadcastAggregatedUpdate() {
     String json;
     serializeJson(doc, json);
 
-    // Non-blocking send with length check
-    // Re-check disconnect flag right before send (race condition mitigation)
     if (json.length() > 0 && json.length() < 256 && 
         !disconnectInProgress.load(std::memory_order_acquire) &&
         ws->count() > 0) {
@@ -977,24 +484,15 @@ void WebServer::broadcastAggregatedUpdate() {
     pendingPacketBroadcast.store(false, std::memory_order_relaxed);
 }
 
-/**
- * Periodic maintenance - cleanup dead connections
- * 
- * NOTE: Disabled because cleanupClients() causes stack overflow.
- * AsyncWebServer handles cleanup internally.
- */
 void WebServer::periodicUpdate() {
     // Intentionally empty - AsyncWebServer handles cleanup internally
-    // Previous cleanupClients() calls caused stack overflow issues
 }
 
 void WebServer::service() {
-    // Process DNS requests for captive portal
     if (dnsServer) {
         dnsServer->processNextRequest();
     }
     
-    // Throttled broadcast to prevent watchdog timeout
     uint32_t now = millis();
     if (now - lastBroadcast >= BROADCAST_INTERVAL_MS) {
         bool broadcastPending = pendingPacketBroadcast.load(std::memory_order_relaxed);
@@ -1003,19 +501,13 @@ void WebServer::service() {
         }
     }
 
-    // Clear cleanup flag
     pendingClientCleanup.store(false, std::memory_order_relaxed);
 }
 
-/**
- * Broadcast device update to all connected WebSocket clients
- */
 void WebServer::broadcastDeviceUpdate(uint32_t nodeId) {
-    // CRITICAL: Check disconnect flag BEFORE any socket operation
     if (!ws || !server || ws->count() == 0 || 
         disconnectInProgress.load(std::memory_order_acquire)) return;
     
-    // CRITICAL: Enforce cooldown after disconnect to let TCP stack settle
     uint32_t timeSinceDisconnect = millis() - lastDisconnectTime;
     if (timeSinceDisconnect < DISCONNECT_COOLDOWN_MS) return;
     
@@ -1027,21 +519,15 @@ void WebServer::broadcastDeviceUpdate(uint32_t nodeId) {
     String json;
     serializeJson(doc, json);
     
-    // Re-check state before sending
     if (!disconnectInProgress.load(std::memory_order_acquire) && ws->count() > 0) {
         ws->textAll(json);
     }
 }
 
-/**
- * Broadcast status update to all connected WebSocket clients
- */
 void WebServer::broadcastStatusUpdate() {
-    // CRITICAL: Check disconnect flag BEFORE any socket operation
     if (!ws || !server || ws->count() == 0 ||
         disconnectInProgress.load(std::memory_order_acquire)) return;
     
-    // CRITICAL: Enforce cooldown after disconnect to let TCP stack settle
     uint32_t timeSinceDisconnect = millis() - lastDisconnectTime;
     if (timeSinceDisconnect < DISCONNECT_COOLDOWN_MS) return;
 
@@ -1055,156 +541,17 @@ void WebServer::broadcastStatusUpdate() {
     String json;
     serializeJson(doc, json);
 
-    // Re-check state before sending
     if (!disconnectInProgress.load(std::memory_order_acquire) && ws->count() > 0) {
         ws->textAll(json);
     }
 }
 
-/**
- * Get number of connected WebSocket clients
- */
 size_t WebServer::getClientCount() const {
     return activeClients.load(std::memory_order_relaxed);
 }
 
 bool WebServer::cleanupWebSocketClients() {
-    if (!ws) {
-        return true;
-    }
-
+    if (!ws) return true;
     ws->cleanupClients();
     return true;
-}
-
-// =============================================================================
-// WIFI SETUP HANDLERS
-// =============================================================================
-
-/**
- * GET /api/wifi/status - Get current WiFi status and mode
- */
-void WebServer::handleGetWiFiStatus(AsyncWebServerRequest* request) {
-    JsonDocument doc;
-    
-    doc["mode"] = wifiManager.isSetupMode() ? "setup" : "normal";
-    doc["connected"] = wifiManager.isConnected();
-    doc["ip"] = wifiManager.getIPAddress().toString();
-    doc["ssid"] = wifiManager.getSSID();
-    doc["rssi"] = wifiManager.getRSSI();
-    doc["hasStoredCredentials"] = wifiManager.hasStoredCredentials();
-    doc["storedSSID"] = wifiManager.getStoredSSID();
-    
-    // Unique device identifiers (for conference scenarios)
-    doc["deviceId"] = wifiManager.getDeviceId();
-    doc["apSSID"] = wifiManager.getUniqueAPSSID();
-    doc["mdnsHostname"] = wifiManager.getUniqueMDNSHostname();
-    
-    // WiFi mode as string
-    switch (wifiManager.getMode()) {
-        case WiFiMode::AP: doc["wifiMode"] = "AP"; break;
-        case WiFiMode::STA: doc["wifiMode"] = "STA"; break;
-        case WiFiMode::AP_STA: doc["wifiMode"] = "AP_STA"; break;
-        default: doc["wifiMode"] = "OFF"; break;
-    }
-    
-    String json;
-    serializeJson(doc, json);
-    request->send(200, "application/json", json);
-}
-
-/**
- * POST /api/wifi/configure - Save WiFi credentials and restart
- * 
- * Body: { "ssid": "MyHotspot", "password": "secret123" }
- * Requires: X-API-Token header
- */
-void WebServer::handleSetWiFiCredentials(AsyncWebServerRequest* request) {
-    // Authentication required - credentials are sensitive
-    if (!APISecurity::isAuthenticated(request)) {
-        APISecurity::sendUnauthorized(request);
-        return;
-    }
-    
-    if (!request->hasParam("ssid", true)) {
-        request->send(400, "application/json", 
-            "{\"status\":\"error\",\"message\":\"Missing 'ssid' parameter\"}");
-        return;
-    }
-    
-    String ssid = request->getParam("ssid", true)->value();
-    String password = "";
-    
-    if (request->hasParam("password", true)) {
-        password = request->getParam("password", true)->value();
-    }
-    
-    // Validate SSID
-    if (ssid.isEmpty() || ssid.length() > 32) {
-        request->send(400, "application/json", 
-            "{\"status\":\"error\",\"message\":\"Invalid SSID (1-32 characters)\"}");
-        return;
-    }
-    
-    // Save credentials
-    if (!wifiManager.saveCredentials(ssid.c_str(), password.c_str())) {
-        request->send(500, "application/json", 
-            "{\"status\":\"error\",\"message\":\"Failed to save credentials\"}");
-        return;
-    }
-    
-    LOG_INFO("WiFi credentials saved for: %s", ssid.c_str());
-    LOG_INFO("Device will restart in 3 seconds to connect...");
-    
-    // Send success response
-    JsonDocument doc;
-    doc["status"] = "success";
-    doc["message"] = "Credentials saved. Device restarting to connect to your hotspot...";
-    doc["ssid"] = ssid;
-    
-    String json;
-    serializeJson(doc, json);
-    
-    AsyncWebServerResponse *response = request->beginResponse(200, "application/json", json);
-    response->addHeader("Connection", "close");
-    request->send(response);
-    
-    // Schedule restart to apply new credentials
-    delay(2000);
-    ESP.restart();
-}
-
-/**
- * POST /api/wifi/clear - Clear stored credentials (return to setup mode)
- * Requires: X-API-Token header
- */
-void WebServer::handleClearWiFiCredentials(AsyncWebServerRequest* request) {
-    // Authentication required - clears credentials and reboots
-    if (!APISecurity::isAuthenticated(request)) {
-        APISecurity::sendUnauthorized(request);
-        return;
-    }
-    
-    if (!wifiManager.clearCredentials()) {
-        request->send(500, "application/json", 
-            "{\"status\":\"error\",\"message\":\"Failed to clear credentials\"}");
-        return;
-    }
-    
-    LOG_INFO("WiFi credentials cleared - returning to setup mode");
-    
-    JsonDocument doc;
-    doc["status"] = "success";
-    doc["message"] = "Credentials cleared. Device restarting in setup mode...";
-    
-    String json;
-    serializeJson(doc, json);
-    
-    AsyncWebServerResponse *response = request->beginResponse(200, "application/json", json);
-    response->addHeader("Connection", "close");
-    request->send(response);
-    
-    // Restart to enter setup mode
-    delay(2000);
-    ESP.restart();
 }

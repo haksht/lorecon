@@ -11,8 +11,8 @@
  */
 
 #include <esp_task_wdt.h>
-#include <Preferences.h>
 #include "command_handler.h"
+#include "mode_manager.h"
 #include "irecon_tool.h"  // Interface only
 #include "lora_recon_tool.h"  // For g_reconTool global
 #include "radio_controller.h"  // Need full definition for method calls
@@ -149,10 +149,8 @@ void CommandHandler::cmdResumeRecon(IReconTool* tool) {
                   reconState.numCapturedPackets);
     
     // Clear persisted targeting mode from NVS
-    Preferences modePrefs;
-    modePrefs.begin("mode", false);
-    modePrefs.clear();
-    modePrefs.end();
+    ModeManager modeManager;
+    modeManager.clearPersistedMode();
     Serial.println("[MODE] Cleared persisted targeting mode");
     
     // Reset only the scan state to restart the cycle

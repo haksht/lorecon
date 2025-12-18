@@ -1,11 +1,12 @@
 #include "recon_service.h"
 #include "radio_controller.h"
+#include "mode_manager.h"
 #include "config.h"
 #include "logger.h"
 #include "web_server.h"
 #include "utils/format_utils.h"
+#include "utils/json_utils.h"
 #include "utils/security_scorer.h"
-#include <Preferences.h>
 
 IReconTool* ReconService::reconTool = nullptr;
 
@@ -15,16 +16,6 @@ void ReconService::initialize(IReconTool* tool) {
 
 bool ReconService::isInitialized() {
     return reconTool != nullptr;
-}
-
-TargetableDevice* ReconService::findTargetableDevice(uint32_t nodeId) {
-    for (uint8_t i = 0; i < reconState.numTargetableDevices; i++) {
-        TargetableDevice& device = reconState.targetableDevices[i];
-        if (device.nodeId == nodeId) {
-            return &device;
-        }
-    }
-    return nullptr;
 }
 
 uint8_t ReconService::findDeviceIndex(uint32_t nodeId) {
@@ -74,10 +65,8 @@ bool ReconService::stopCapture(String& outMessage) {
     LOG_INFO("ReconService: Stopping capture, switching to reconnaissance mode");
     
     // Clear persisted targeting mode from NVS
-    Preferences modePrefs;
-    modePrefs.begin("mode", false);
-    modePrefs.clear();
-    modePrefs.end();
+    ModeManager modeManager;
+    modeManager.clearPersistedMode();
     
     reconState.scanState.mode = MODE_RECONNAISSANCE;
     outMessage = "Capture stopped, resumed reconnaissance";
@@ -123,18 +112,17 @@ String ReconService::buildDevicesJson() {
 }
 
 String ReconService::buildDeviceJson(uint32_t nodeId) {
-    JsonDocument doc;
-    TargetableDevice* device = findTargetableDevice(nodeId);
+    TargetableDevice* device = reconState.findTargetableDevice(nodeId);
 
     if (!device) {
-        doc["status"] = "error";
-        doc["error"] = "Device not found";
-    } else {
-        doc["status"] = "success";
-        JsonObject deviceObj = doc["device"].to<JsonObject>();
-        fillDevice(deviceObj, *device, 0);
-        deviceObj.remove("index");
+        return JsonUtils::error("Device not found");
     }
+    
+    JsonDocument doc;
+    doc["status"] = "success";
+    JsonObject deviceObj = doc["device"].to<JsonObject>();
+    fillDevice(deviceObj, *device, 0);
+    deviceObj.remove("index");
 
     String response;
     serializeJson(doc, response);
