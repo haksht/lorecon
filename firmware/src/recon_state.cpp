@@ -164,52 +164,46 @@ void ReconState::clearRFActivity() {
     memset(rfActivity, 0, sizeof(rfActivity));
 }
 
+// Device management - delegates storage to DeviceRepository, identification stays here
 void ReconState::addTargetableDevice(uint32_t nodeId, uint8_t configIndex, float rssi, 
                                     const char* protocol, const uint8_t* packetData, 
                                     size_t packetLength) {
     if (nodeId == 0 || configIndex >= NUM_CONFIGS) return;
     
-    // Find existing device or create new entry
-    TargetableDevice* device = findTargetableDevice(nodeId);
+    // Check if device already exists
+    TargetableDevice* existing = deviceRepo_.findByNodeId(nodeId);
+    if (existing) {
+        // Delegate update to repository
+        deviceRepo_.addOrUpdate(nodeId, configIndex, rssi, protocol, nullptr, 0);
+        numTargetableDevices = deviceRepo_.count();
+        return;
+    }
     
-    if (!device && numTargetableDevices < Config::Tracking::MAX_DEVICES) {
-        device = &targetableDevices[numTargetableDevices++];
-        device->nodeId = nodeId;
-        device->configIndex = configIndex;
-        device->packetCount = 0;
-        device->avgRSSI = rssi;
-        device->bestRSSI = rssi;
-        device->rssiStdDev = 0.0f;  // Initialize variance tracking
-        device->rssiM2 = 0.0f;      // Initialize Welford's M2
-        device->avgPacketInterval = 0;
-        device->lastPacketInterval = 0;
-        device->periodicityScore = 0;
-        device->originatedPackets = 0;
-        device->relayedPackets = 0;
-        device->firstSeen = millis();
-        device->powerClass = FormatUtils::estimatePowerClass(rssi);
-        device->isRouter = false;
-        
-        strncpy(device->protocol, protocol, sizeof(device->protocol) - 1);
-        device->protocol[sizeof(device->protocol) - 1] = '\0';
-        
-        // Initialize device type
-        strncpy(device->deviceType, "Unknown Device", sizeof(device->deviceType) - 1);
-        device->deviceType[sizeof(device->deviceType) - 1] = '\0';
-        
-        // Perform device type identification
-        if (packetData && packetLength > 0) {
-            const char* detectedType = identifyDeviceType(packetData, packetLength, protocol, rssi);
-            strncpy(device->deviceType, detectedType, sizeof(device->deviceType) - 1);
-            device->deviceType[sizeof(device->deviceType) - 1] = '\0';
-            device->isRouter = isRoutingDevice(packetData, packetLength, protocol);
-            
-            // Add firmware version detection
-            const char* fwVersion = estimateFirmwareVersion(packetData, packetLength, protocol);
-            strncpy(device->firmwareVersion, fwVersion, sizeof(device->firmwareVersion) - 1);
-            device->firmwareVersion[sizeof(device->firmwareVersion) - 1] = '\0';
-        }
-        
+    // New device - do identification here, then add via repository
+    DeviceIdentification id;
+    id.deviceType = "Unknown Device";
+    id.firmwareVersion = "Unknown";
+    id.isRouter = false;
+    id.powerClass = FormatUtils::estimatePowerClass(rssi);
+    
+    if (packetData && packetLength > 0) {
+        id.deviceType = identifyDeviceType(packetData, packetLength, protocol, rssi);
+        id.isRouter = isRoutingDevice(packetData, packetLength, protocol);
+        id.firmwareVersion = estimateFirmwareVersion(packetData, packetLength, protocol);
+    }
+    
+    // Set up identifier callback with our computed values
+    // (DeviceRepository will use this for new devices)
+    static DeviceIdentification cachedId;
+    cachedId = id;
+    deviceRepo_.setDeviceIdentifier([](const uint8_t*, size_t, const char*, float) {
+        return cachedId;
+    });
+    
+    TargetableDevice* device = deviceRepo_.addOrUpdate(nodeId, configIndex, rssi, protocol, 
+                                                        packetData, packetLength);
+    
+    if (device) {
         // Increment total detections counter when new device is added
         scanState.totalDetections++;
         
@@ -217,60 +211,21 @@ void ReconState::addTargetableDevice(uint32_t nodeId, uint8_t configIndex, float
                       nodeId, device->deviceType, getScanConfig(configIndex).protocol, rssi);
     }
     
-    if (device) {
-        // Cap packetCount at UINT16_MAX to prevent overflow (65,536 packets is ~18 hrs at 1 pkt/sec)
-        if (device->packetCount < UINT16_MAX) {
-            device->packetCount++;
-        }
-        
-        // Update RSSI statistics with running variance calculation
-        float oldAvg = device->avgRSSI;
-        // Use incremental formula to avoid precision loss: newAvg = oldAvg + (x - oldAvg)/n
-        device->avgRSSI = oldAvg + (rssi - oldAvg) / device->packetCount;
-        
-        // Update RSSI standard deviation using Welford's online algorithm
-        if (device->packetCount > 1) {
-            float delta = rssi - oldAvg;
-            float delta2 = rssi - device->avgRSSI;
-            // Update M2 (sum of squared differences)
-            device->rssiM2 += delta * delta2;
-            // Calculate standard deviation from M2 (use fabs to handle floating point precision errors)
-            device->rssiStdDev = sqrt(fabs(device->rssiM2) / (device->packetCount - 1));
-        }
-        
-        if (rssi > device->bestRSSI) {
-            device->bestRSSI = rssi;
-            device->configIndex = configIndex;  // Update to best config
-        }
-        device->lastSeen = millis();
-    }
+    // Keep legacy count in sync
+    numTargetableDevices = deviceRepo_.count();
 }
 
 const TargetableDevice& ReconState::getTargetableDevice(uint8_t index) const {
-    static TargetableDevice emptyDevice;
-    static bool initialized = false;
-    if (!initialized) {
-        memset(&emptyDevice, 0, sizeof(emptyDevice));
-        strncpy(emptyDevice.deviceType, "Unknown", sizeof(emptyDevice.deviceType) - 1);
-        emptyDevice.deviceType[sizeof(emptyDevice.deviceType) - 1] = '\0';
-        strncpy(emptyDevice.firmwareVersion, "Unknown", sizeof(emptyDevice.firmwareVersion) - 1);
-        emptyDevice.firmwareVersion[sizeof(emptyDevice.firmwareVersion) - 1] = '\0';
-        initialized = true;
-    }
-    if (index >= numTargetableDevices) return emptyDevice;
-    return targetableDevices[index];
+    return deviceRepo_.getByIndex(index);
 }
 
 TargetableDevice* ReconState::findTargetableDevice(uint32_t nodeId) {
-    for (uint8_t i = 0; i < numTargetableDevices; i++) {
-        if (targetableDevices[i].nodeId == nodeId) {
-            return &targetableDevices[i];
-        }
-    }
-    return nullptr;
+    return deviceRepo_.findByNodeId(nodeId);
 }
 
 void ReconState::clearTargetableDevices() {
+    deviceRepo_.clear();
+    // Keep legacy fields in sync
     numTargetableDevices = 0;
     memset(targetableDevices, 0, sizeof(targetableDevices));
 }
