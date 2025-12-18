@@ -11,12 +11,16 @@
 #include <Arduino.h>
 #include "data_structures.h"
 #include "config.h"
+#include "repositories/packet_store.h"
 
 class ReconState {
 private:
     // Scan configurations - made const and part of state
     static const ScanConfig scanConfigs[];
     static const uint8_t NUM_CONFIGS;
+    
+    // Repository delegates (Phase 2 migration - public arrays kept for compatibility)
+    PacketStore packetStore_;
 
 public:
     // Core reconnaissance state
