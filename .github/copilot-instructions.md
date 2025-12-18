@@ -83,7 +83,7 @@ No exceptions (embedded C++). Return `bool` for success/failure. Use `LOG_ERROR(
   - `device_repository.h/cpp`: Targetable device storage with Welford's RSSI stats
   - `packet_store.h/cpp`: Replay slot management for captured packets
   - `node_tracker.h/cpp`: Hot node tracking for behavioral analysis
-  - `json_utils.h`: Standardized JSON response helpers (`JsonUtils::success()`, `JsonUtils::error()`, `JsonUtils::successWithData()`)
+- **`firmware/src/json_builders.h/cpp`**: Extracted JSON response builders from ReconService (13 functions)
 - **`platformio.ini`**: Build flags include `-DBOARD_HELTEC_V3`, `-DHAS_OLED_DISPLAY`. Filters exclude test files with `build_src_filter`.
 
 ## Common Gotchas
@@ -103,6 +103,7 @@ No exceptions (embedded C++). Return `bool` for success/failure. Use `LOG_ERROR(
 13. **Device-Unique AP Password**: Format is `recon-XXYYZZ` where XXYYZZ matches the SSID suffix. Use `Config::WiFi::DEFAULT_AP_PASSWORD_PREFIX`.
 14. **Shared Utilities**: Use `utils/format_utils.h` for node ID formatting, `utils/security_scorer.h` for security assessment, `utils/json_utils.h` for API responses. Don't duplicate this logic in new code.
 15. **API Response Format**: Use `JsonUtils::success()`, `JsonUtils::error()`, `JsonUtils::successWithData()` for consistent JSON responses. Don't manually build `{"status":"success"}` patterns.
+16. **Arduino String with printf**: When passing Arduino `String` to `LOG_INFO`/`Serial.printf` with `%s`, always use `.c_str()`. The temporary String is destroyed before printf executes otherwise, causing garbage output.
 
 ## Testing Approach
 
