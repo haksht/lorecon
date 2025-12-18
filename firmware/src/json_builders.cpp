@@ -14,6 +14,7 @@
 #include "utils/format_utils.h"
 #include "utils/security_scorer.h"
 #include "config.h"
+#include "web_server.h"  // For g_webServer->getClientCount()
 
 namespace JsonBuilders {
 
@@ -94,23 +95,62 @@ String buildDeviceJson(ReconState& reconState, uint8_t deviceIndex) {
 String buildStatusJson(ReconState& reconState) {
     JsonDocument doc;
     doc["status"] = "success";
+    doc["mode"] = Internal::modeToString(reconState.scanState.mode);
+    doc["uptime"] = millis() / 1000;
+    doc["devices"] = reconState.getNumTargetableDevices();
+    doc["totalPackets"] = reconState.scanState.totalPackets;
+    doc["droppedPackets"] = reconState.scanState.droppedPackets;
+    doc["peakQueueSize"] = reconState.scanState.peakQueueSize;
+    doc["capturedPackets"] = reconState.getNumCapturedPackets();
+    doc["freeHeap"] = ESP.getFreeHeap();
+    doc["heapSize"] = ESP.getHeapSize();
 
-    JsonObject system = doc["system"].to<JsonObject>();
-    system["mode"] = Internal::modeToString(reconState.scanState.mode);
-    system["uptimeSeconds"] = millis() / 1000;
-    system["freeHeap"] = ESP.getFreeHeap();
-    system["totalPackets"] = reconState.scanState.totalPackets;
-    system["totalDetections"] = reconState.scanState.totalDetections;
-    system["targetableDevices"] = reconState.getNumTargetableDevices();
-    system["nodesTracked"] = reconState.getNodeCount();
-    system["capturedPackets"] = reconState.getNumCapturedPackets();
+    // Battery voltage reading (Heltec V3: GPIO 37 control, GPIO 1 ADC)
+    pinMode(Config::Hardware::VBAT_CTRL_PIN, OUTPUT);
+    digitalWrite(Config::Hardware::VBAT_CTRL_PIN, HIGH);
+    analogReadResolution(12);
+    float batteryVoltage = (analogReadMilliVolts(Config::Hardware::VBAT_ADC_PIN) * Config::Hardware::VBAT_SCALE) / 1000.0f;
+    // Map 3.2V (empty) to 4.2V (full) -> 0-100%
+    int batteryPercent = constrain((int)((batteryVoltage - 3.2f) / (4.2f - 3.2f) * 100.0f), 0, 100);
+    doc["batteryVoltage"] = serialized(String(batteryVoltage, 2));
+    doc["batteryPercent"] = batteryPercent;
 
-    JsonObject scanning = doc["scanning"].to<JsonObject>();
-    scanning["currentConfig"] = reconState.scanState.currentConfig;
-    scanning["totalConfigs"] = reconState.getNumConfigs();
-    const ScanConfig& cfg = reconState.getScanConfig(reconState.scanState.currentConfig);
-    scanning["currentFrequency"] = cfg.frequency;
-    scanning["currentProtocol"] = cfg.protocol;
+    if (g_webServer) {
+        doc["clientCount"] = g_webServer->getClientCount();
+    }
+
+    // Scan info when in reconnaissance mode
+    if (reconState.scanState.mode == MODE_RECONNAISSANCE) {
+        JsonObject scan = doc["scan"].to<JsonObject>();
+        scan["currentConfig"] = reconState.scanState.currentConfig;
+        scan["totalConfigs"] = reconState.getNumConfigs();
+        uint32_t elapsed = millis() - reconState.scanState.reconStartTime;
+        scan["cyclesCompleted"] = elapsed / (reconState.getNumConfigs() * Config::Scanning::DWELL_TIME_MS);
+    } else if (reconState.scanState.mode == MODE_TARGETED_CAPTURE) {
+        // Add target information when in targeted mode
+        JsonObject target = doc["target"].to<JsonObject>();
+        target["targetedByDevice"] = reconState.scanState.targetedByDevice;
+
+        // Add config information
+        const ScanConfig& cfg = reconState.getScanConfig(reconState.scanState.targetConfig);
+        target["configIndex"] = reconState.scanState.targetConfig;
+        target["frequency"] = cfg.frequency;
+        target["protocol"] = cfg.protocol;
+        target["bandwidth"] = cfg.bandwidth;
+        target["spreadingFactor"] = cfg.spreadingFactor;
+
+        // Try to find the targetable device to get node ID
+        for (uint8_t i = 0; i < reconState.getNumTargetableDevices(); i++) {
+            const TargetableDevice& device = reconState.getTargetableDevice(i);
+            if (device.configIndex == reconState.scanState.targetConfig) {
+                target["nodeId"] = FormatUtils::formatNodeIdJson(device.nodeId);
+                target["deviceType"] = device.deviceType;
+                target["rssi"] = device.bestRSSI;
+                target["packetCount"] = device.packetCount;
+                break;
+            }
+        }
+    }
 
     String response;
     serializeJson(doc, response);
