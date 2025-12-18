@@ -4,9 +4,9 @@ Professional-grade visualization and analysis tools for ESP32 LoRa reconnaissanc
 
 ## 🎯 Quick Start for Conference Demos
 
-### Attack Dashboard (NEW!) 🔥
+### Attack Dashboard (Standalone HTML) 🔥
 
-**Standalone HTML dashboard for live presentations:**
+**Zero-dependency dashboard for live presentations:**
 ```bash
 # Just open in your browser - no Python needed!
 start attack_dashboard.html   # Windows
@@ -24,46 +24,46 @@ Enter your ESP32's IP (e.g., `172.20.10.3`) and click Connect.
 
 ---
 
-**Serial-based 5-panel dashboard with audio:**
+### Python-Based Tools
+
 ```bash
-# Install dependencies
+# Install all dependencies
 pip install -r requirements.txt
 
-# One-command demo launcher (auto-detects ESP32)
-python demo.py --auto-detect --audio --record
+# Quick demo with auto-detect (opens everything)
+python enhanced_live_visualizer.py --auto-detect --web --audio
 
-# Or specify port manually
-python demo.py COM3 --audio --record --web
+# Offline PSK vulnerability audit
+python psk_auditor.py capture.csv --verbose
 
-# List available ports
-python demo.py --list-ports
-```
+# Generate security assessment report
+python recon_report.py capture.csv --html report.html
 
-### Demo Launcher Features
-
-The `demo.py` script provides one-command setup:
-- 🔍 Auto-detects ESP32 port
-- 📊 Launches enhanced visualizer  
-- 🌐 Opens web UI in browser (optional)
-- 🔊 Enables audio feedback (optional)
-- 📸 Records screenshots at milestones (optional)
-- 🗺️ **Exports interactive HTML map on exit** (with GPS data)
-- ⏱️ Auto-exits after duration for scripted demos
-
-**Example: 5-minute recorded demo with all features**
-```bash
-python demo.py COM3 --web --audio --record --duration 300
-
-# Outputs:
-# - screenshots/milestone_*.png
-# - screenshots/lora_map.html (interactive map)
+# GPS tracking with animated trails
+python position_tracker.py capture.csv --map tracking.html
 ```
 
 ---
 
-## Enhanced Live Visualizer ⭐ NEW
+## 📊 Tool Overview
 
-**Conference demo edition** with 5-panel dashboard and audio feedback.
+| Tool | Purpose | Live/Offline | Output |
+|------|---------|--------------|--------|
+| `enhanced_live_visualizer.py` | 5-panel real-time dashboard | Live (Serial) | PNG, HTML map |
+| `psk_auditor.py` | PSK vulnerability scanner | Both | Console, JSON |
+| `recon_report.py` | Security assessment reports | Offline | Markdown, HTML, JSON |
+| `position_tracker.py` | GPS tracking & mapping | Both | HTML, PNG, GIF |
+| `meshtastic_decoder.py` | Offline packet decryption | Offline | Console, CSV |
+| `ws_monitor.py` | Headless WebSocket monitor | Live (WiFi) | Console, JSON |
+| `api_client.py` | REST API command-line client | Live (WiFi) | Console |
+| `session_analyzer.py` | SD card log analysis | Offline | Dashboard, HTML map |
+| `pcap_analyzer.py` | PCAP file analysis | Offline | CSV, JSON |
+
+---
+
+## Enhanced Live Visualizer ⭐
+
+**Conference demo edition** with 5-panel dashboard, audio feedback, and map export.
 
 ### Features
 
@@ -74,37 +74,29 @@ python demo.py COM3 --web --audio --record --duration 300
   4. 📦 **Packet Histogram** - Capture rates by device
   5. 🗺️ **GPS Map** - Geographic positions and movement trails
   
-- **Audio Feedback** - "Geiger counter" effect with protocol-specific tones:
-  - Meshtastic: 800 Hz
-  - LoRaWAN: 600 Hz
-  - Helium: 500 Hz
-  
+- **Audio Feedback** - "Geiger counter" effect with protocol-specific tones
 - **Auto-Screenshot** - Saves images at milestones (10, 50, 100, 500 packets)
-
-- **Interactive Map Export** ⭐ NEW
-  - Automatically exports `lora_map.html` on exit (when GPS data available)
-  - OpenStreetMap basemap with device markers
-  - Color-coded by protocol (Meshtastic=Blue, LoRaWAN=Orange, Helium=Green)
-  - Popup details: Node ID, protocol, packet count, RSSI, coordinates
-  - Movement trails for devices that changed position
-  - Auto-opens in default browser
-
-- **Protocol Colors** - Matches web UI color scheme:
-  - Meshtastic: Blue
-  - LoRaWAN: Orange
-  - Helium: Green
+- **Interactive Map Export** - Auto-generates HTML map on exit
+- **Auto-Detection** - Finds ESP32 serial port automatically
+- **Web UI Launch** - Opens browser to ESP32's web interface
 
 ### Usage
 
 ```bash
-# Full demo mode
-python enhanced_live_visualizer.py COM3 --audio --record
+# Full demo mode with all features
+python enhanced_live_visualizer.py COM3 --audio --record --web
 
-# JSON mode (if firmware supports structured output)
-python enhanced_live_visualizer.py COM3 --json --audio
+# Auto-detect ESP32 port
+python enhanced_live_visualizer.py --auto-detect --audio
 
-# Quiet mode (no audio)
-python enhanced_live_visualizer.py COM3 --record
+# List available serial ports
+python enhanced_live_visualizer.py --list-ports
+
+# Timed demo (auto-exit after 5 minutes)
+python enhanced_live_visualizer.py COM3 --duration 300 --record
+
+# Custom web UI host
+python enhanced_live_visualizer.py COM3 --web --web-ip 192.168.4.1
 ```
 
 **Outputs:**
@@ -112,78 +104,170 @@ python enhanced_live_visualizer.py COM3 --record
 - `screenshots/milestone_*.png` - Auto-captured screenshots
 - `screenshots/lora_map.html` - Interactive map (on exit, if GPS data)
 
-**Interactive Map Features:**
-- 🗺️ OpenStreetMap basemap
-- 📍 Device markers with popups (node ID, stats, coordinates)
-- 🎨 Color-coded by protocol
-- 🛤️ Movement trails for devices
-- 🌐 Auto-opens in browser
-
-### Requirements
-
-```bash
-pip install pyserial matplotlib folium sounddevice numpy
-```
-
-**Optional:** 
-- `sounddevice` and `numpy` for audio feedback (gracefully degrades if missing)
-- `folium` for interactive map export (gracefully degrades if missing)
-
 ---
 
-## REST API Client ⭐ NEW
+## 🔓 PSK Auditor ⭐ NEW
 
-Command-line client for interacting with ESP32's REST API - no browser needed.
+**Vulnerability scanner with risk classification** - Tests captured packets against 23 known Meshtastic PSKs.
 
-### Features
+### Risk Levels
 
-- Full access to all 30+ API endpoints
-- Status monitoring, device listing, capture control
-- PCAP/GeoJSON/KML export downloads
-- Replay slot management
-- Send serial-style commands remotely
+| Level | Description | Example Keys |
+|-------|-------------|--------------|
+| 🔴 CRITICAL | Leaked production keys | Admin key, Debug key (2023 leak) |
+| 🟠 HIGH | Default channel keys | Default, LongFast, ShortFast |
+| 🟡 MEDIUM | Regional defaults | EU868, US915 factory keys |
+| 🟢 LOW | Common test keys | Test, Development keys |
 
 ### Usage
 
 ```bash
-# Check system status
-python api_client.py status
+# Audit CSV capture file
+python psk_auditor.py capture.csv
 
-# List discovered devices
-python api_client.py devices
+# Verbose mode with decrypted content
+python psk_auditor.py capture.csv --verbose
 
-# Start targeting a device
-python api_client.py capture 0x401ACD4E
+# Live monitoring via WebSocket
+python psk_auditor.py --live 192.168.4.1
 
-# Download PCAP file
-python api_client.py download-pcap -o capture.pcap
+# Live monitoring via REST API
+python psk_auditor.py --api 192.168.4.1
 
-# Send command (r = resume recon)
-python api_client.py command r
-
-# Use custom host
-python api_client.py --host 192.168.4.1 status
+# Export results to JSON
+python psk_auditor.py capture.csv --output audit_results.json
 ```
 
-### Requirements
-
-```bash
-pip install requests
+**Example Output:**
+```
+🔴 CRITICAL: Leaked Admin Key
+   Device: !401acd4e
+   Decrypted: "GPS coordinates..."
+   Risk: Administrative access compromised
 ```
 
 ---
 
-## WebSocket Monitor ⭐ NEW
+## 📋 Security Report Generator ⭐ NEW
 
-Headless terminal-based monitor for real-time packet events. Perfect for SSH sessions.
+**Generates professional security assessment reports** from capture data.
+
+### Report Contents
+
+- Executive Summary with threat level assessment
+- Vulnerability analysis (default PSKs, leaked keys, GPS exposure)
+- Device inventory with security scores
+- Protocol distribution statistics
+- Recommendations for network hardening
+
+### Usage
+
+```bash
+# Generate Markdown report
+python recon_report.py capture.csv
+
+# Generate HTML report (styled)
+python recon_report.py capture.csv --html report.html
+
+# Generate JSON report (for automation)
+python recon_report.py capture.csv --json report.json
+
+# Load from live ESP32 API
+python recon_report.py --api 192.168.4.1 --html live_report.html
+
+# Custom report title
+python recon_report.py capture.csv --title "DEF CON Site Survey"
+```
+
+**Report includes:**
+- 🎯 Overall security score (0-100)
+- 🔴 Critical findings highlighted
+- 📊 Device breakdown by vulnerability type
+- 📍 GPS exposure analysis
+- 📝 Remediation recommendations
+
+---
+
+## 📍 Position Tracker ⭐ NEW
+
+**Dedicated GPS tracking and visualization** with animated timelines and movement trails.
 
 ### Features
 
-- No GUI dependencies (matplotlib not required)
-- Color-coded protocol output
-- RSSI signal strength visualization
-- Protocol filtering
-- JSON output for piping to other tools
+- **Interactive Maps** - Folium/Leaflet with OpenStreetMap
+- **Animated Trails** - AntPath showing device movement
+- **Timeline Animation** - GIF export showing position changes
+- **Live Monitoring** - Real-time map updates from ESP32
+- **Multi-format Export** - HTML, PNG, GIF outputs
+
+### Usage
+
+```bash
+# Generate interactive HTML map from CSV
+python position_tracker.py capture.csv --map tracking.html
+
+# Generate static PNG map
+python position_tracker.py capture.csv --static tracking.png
+
+# Generate animated GIF
+python position_tracker.py capture.csv --animate tracking.gif --fps 2
+
+# Live monitoring (updates map every 5 seconds)
+python position_tracker.py --live 192.168.4.1 --map live_map.html
+
+# Custom update interval
+python position_tracker.py --live 192.168.4.1 --update-interval 10
+```
+
+**Interactive Map Features:**
+- 🟢 Green markers = Start position
+- 🔴 Red markers = Last known position
+- 🔵 Blue markers = Intermediate positions
+- 🐜 Animated "ant trail" showing movement direction
+
+---
+
+## 🔐 Meshtastic Decoder ⭐ NEW
+
+**Offline packet decryption and protocol analysis** - Process captures without live ESP32.
+
+### Features
+
+- Tests 23 known Meshtastic PSKs (including 2023 leaked keys)
+- Extracts text messages and GPS positions
+- Parses Meshtastic protobuf headers
+- Processes PCAP and CSV capture files
+
+### Usage
+
+```bash
+# Decode CSV capture
+python meshtastic_decoder.py capture.csv
+
+# Decode PCAP file
+python meshtastic_decoder.py capture.pcap
+
+# Verbose output with hex dumps
+python meshtastic_decoder.py capture.csv --verbose
+
+# Run self-test with known data
+python meshtastic_decoder.py --test
+
+# Only show messages containing keyword
+python meshtastic_decoder.py capture.csv | grep -i "password"
+```
+
+**Decrypted Output:**
+```
+[!401acd4e] TEXT: "Meeting at 3pm"
+[!401acd4e] GPS: 37.7749, -122.4194
+```
+
+---
+
+## 🌐 WebSocket Monitor
+
+**Headless terminal monitor** - Perfect for SSH sessions and logging.
 
 ### Usage
 
@@ -191,38 +275,80 @@ Headless terminal-based monitor for real-time packet events. Perfect for SSH ses
 # Basic monitoring
 python ws_monitor.py
 
+# Custom host
+python ws_monitor.py --host 192.168.4.1
+
 # Filter by protocol
 python ws_monitor.py --filter meshtastic
 
 # JSON output (for piping)
 python ws_monitor.py --json | jq '.nodeId'
 
-# Quiet mode (packets only, no status)
+# Quiet mode (packets only)
 python ws_monitor.py --quiet
 
-# No colors (for logging)
+# No colors (for log files)
 python ws_monitor.py --no-color > packets.log
-```
-
-### Requirements
-
-```bash
-pip install websocket-client
 ```
 
 ---
 
-## PCAP Analyzer ⭐ NEW
+## 🔧 REST API Client
 
-Analyze PCAP files exported from ESP32 LoRa Sniffer.
+**Command-line access to all ESP32 API endpoints** - No browser needed.
 
-### Features
+### Usage
 
-- Parse custom LoRa pseudo-header (RSSI, SNR, frequency)
-- Protocol identification (Meshtastic, LoRaWAN, Helium)
-- Device statistics and signal quality analysis
-- Export to CSV/JSON
-- Open directly in Wireshark
+```bash
+# System status
+python api_client.py status
+
+# List discovered devices
+python api_client.py devices
+
+# Target specific device
+python api_client.py capture 0x401ACD4E
+
+# Download PCAP
+python api_client.py download-pcap -o capture.pcap
+
+# Send command
+python api_client.py command r   # Resume recon
+
+# Custom host
+python api_client.py --host 192.168.4.1 status
+```
+
+---
+
+## 📈 Session Analyzer
+
+**Offline dashboard for SD card captures** - Replay field sessions.
+
+### Usage
+
+```bash
+# Standard analysis
+python session_analyzer.py logs/snf_123456.csv --bin-seconds 60 --top-n 8
+
+# With map export
+python session_analyzer.py logs/snf_123456.csv --export-map
+
+# Custom bin size for timeline
+python session_analyzer.py capture.csv --bin-seconds 30
+```
+
+**Dashboard Panels:**
+1. Timeline - Packet capture rate over time
+2. Top Devices - Most active nodes
+3. Frequency Usage - Channel distribution
+4. GPS Scatter - Geographic positions
+
+---
+
+## 📦 PCAP Analyzer
+
+**Parse and analyze PCAP files** with custom LoRa pseudo-header.
 
 ### Usage
 
@@ -239,92 +365,91 @@ python pcap_analyzer.py capture.pcap --json
 # Open in Wireshark
 python pcap_analyzer.py capture.pcap --wireshark
 
-# Show raw hex dumps
+# Show raw hex
 python pcap_analyzer.py capture.pcap --raw
 ```
 
-### Requirements
+---
 
-Native PCAP parsing (no dependencies). Optional `scapy` for advanced analysis.
+## 📋 Requirements
+
+### Core Dependencies
+```bash
+pip install pyserial matplotlib requests websocket-client
+```
+
+### Full Installation (all features)
+```bash
+pip install -r requirements.txt
+```
+
+### Optional Dependencies
+
+| Package | Used By | Feature |
+|---------|---------|---------|
+| `folium` | position_tracker, visualizer | Interactive HTML maps |
+| `sounddevice` | visualizer | Audio feedback |
+| `cryptography` | psk_auditor, meshtastic_decoder | AES decryption |
+| `numpy` | visualizer | Audio generation |
+| `markdown` | recon_report | HTML report styling |
+
+All tools gracefully degrade if optional dependencies are missing.
 
 ---
 
-## PC Analyzer (Offline Log Analysis)
+## 🎪 Conference Demo Workflow
 
-Analyze captured packet logs from SD card (supports CSV and JSONL formats).
+### Preparation (Before Talk)
 
-### Features
+1. **Test hardware**: Verify ESP32 flashed and capturing
+2. **Pre-capture data**: Run overnight to build device database
+3. **Generate baseline report**: `python recon_report.py overnight.csv --html baseline.html`
 
-- Device mapping and tracking
-- Signal strength analysis
-- Protocol distribution
-- Timeline visualization
-- Supports both CSV and JSONL log formats
-
-### Usage
+### Live Demo Sequence
 
 ```bash
-# Analyze CSV file
-python pc_analyzer.py logs/capture.csv
+# 1. Start visualizer with all features
+python enhanced_live_visualizer.py --auto-detect --web --audio --record
 
-# Analyze JSONL file
-python pc_analyzer.py logs/packets.jsonl
+# 2. In another terminal, monitor PSK vulnerabilities
+python psk_auditor.py --live 192.168.4.1 --verbose
 
-# Analyze directory (finds all logs)
-python pc_analyzer.py logs/
+# 3. After demo, generate report
+python recon_report.py capture.csv --html findings.html
 
-# Export as JSON
-python pc_analyzer.py capture.csv --json results.json
+# 4. Generate GPS tracking visualization
+python position_tracker.py capture.csv --map tracking.html --animate tracking.gif
+```
+
+### Offline Demo (No Live RF)
+
+```bash
+# Use pre-captured data
+python session_analyzer.py captured_data.csv --export-map
+python psk_auditor.py captured_data.csv --verbose
+python meshtastic_decoder.py captured_data.csv
 ```
 
 ---
 
-## Session Analyzer (SD Log Dashboard)
+## 📁 Output Files
 
-Offline dashboard for SD-card CSV captures produced by the firmware's packet logger.
+| Tool | Output | Description |
+|------|--------|-------------|
+| `enhanced_live_visualizer.py` | `screenshots/milestone_*.png` | Auto-captured at packet milestones |
+| `enhanced_live_visualizer.py` | `screenshots/lora_map.html` | Interactive map on exit |
+| `position_tracker.py` | `*_tracking.html` | Interactive position map |
+| `position_tracker.py` | `*.gif` | Animated position timeline |
+| `recon_report.py` | `*_report.md/html/json` | Security assessment report |
+| `psk_auditor.py` | `audit_results.json` | Vulnerability scan results |
+| `session_analyzer.py` | `session_map.html` | Interactive session map |
 
-### Highlights
+---
 
-- **Portable story** – replay any field capture without needing live RF traffic.
-- **2×2 dashboard** – timeline, top devices, frequency usage, and GPS scatter in one view.
-- **Analyzer-friendly CSV** – consumes the enhanced schema written by `PacketLogger`.
-- **Interactive map export** ⭐ NEW – Generate HTML map with `--export-map`
+## 🔗 Related Documentation
 
-### Usage
-
-```bash
-# Standard analysis
-python session_analyzer.py logs/snf_123456.csv --bin-seconds 60 --top-n 8
-
-# With interactive map export
-python session_analyzer.py logs/snf_123456.csv --export-map
-
-# Custom map filename
-python session_analyzer.py logs/snf_123456.csv --export-map --map-output mymap.html
-```
-
-### Interactive Map Features
-
-When using `--export-map`:
-- 🗺️ OpenStreetMap basemap
-- 📍 Device markers with detailed popups
-- 🎨 Color-coded by protocol (Meshtastic/LoRaWAN/Helium)
-- 🛤️ Movement trails showing device paths
-- 📊 Legend with session stats
-- 🌐 Auto-opens in default browser
-
-Perfect for:
-- **Conference presentations** - Embed interactive map in slides
-- **Security reports** - Professional geographic visualization
-- **Team collaboration** - Share HTML file (self-contained, no server needed)
-
-### Workflow
-
-1. Insert SD card after a field session and copy the generated `snf_*.csv` file.
-2. Run `session_analyzer.py` with the CSV path (adjust `--bin-seconds` for different timelines).
-3. Add `--export-map` to generate interactive HTML map.
-4. Project the matplotlib window or save a screenshot for slides.
-5. Open the generated HTML map in browser or embed in presentation.
-
-> Tip: pair the analyzer with live captures for a two-part conference demo—live RF when available, SD replay when the spectrum is quiet.
+- [VISUALIZATION_GUIDE.md](VISUALIZATION_GUIDE.md) - Detailed visualization tips
+- [MAP_GUIDE.md](MAP_GUIDE.md) - Interactive map customization
+- [API_REFERENCE.md](../API_REFERENCE.md) - Complete REST API documentation
+- [FEATURES.md](../docs/user-guides/FEATURES.md) - Firmware feature guide
 
