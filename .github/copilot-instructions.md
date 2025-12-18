@@ -74,7 +74,11 @@ No exceptions (embedded C++). Return `bool` for success/failure. Use `LOG_ERROR(
 - **`firmware/src/main.cpp`**: 108-line entry point showing WiFi/LittleFS/PSK test initialization sequence
 - **`firmware/src/irecon_tool.h`**: Interface contract that breaks circular dependencies
 - **`firmware/src/data_structures.h`**: All shared structs (17 definitions): `CapturedPacket`, `QueuedPacket`, `ScanConfig`, etc.
-- **`firmware/src/utils/`**: Shared utilities (`format_utils.h`, `protobuf_utils.h`, `security_scorer.h`)
+- **`firmware/src/utils/`**: Shared utilities:
+  - `format_utils.h`: Node ID formatting (`formatNodeId`, `formatNodeIdJson`, `formatNodeIdPadded`, `estimatePowerClass`)
+  - `protobuf_utils.h`: Varint decoding utilities
+  - `security_scorer.h`: Unified security assessment scoring
+  - `json_utils.h`: Standardized JSON response helpers (`JsonUtils::success()`, `JsonUtils::error()`, `JsonUtils::successWithData()`)
 - **`platformio.ini`**: Build flags include `-DBOARD_HELTEC_V3`, `-DHAS_OLED_DISPLAY`. Filters exclude test files with `build_src_filter`.
 
 ## Common Gotchas
@@ -92,7 +96,8 @@ No exceptions (embedded C++). Return `bool` for success/failure. Use `LOG_ERROR(
 11. **API Security (v2.2.0+)**: Protected endpoints require `X-API-Token` header. Use `APISecurity::isAuthenticated(request)` guard on destructive endpoints. Token displayed at boot in serial output.
 12. **WiFi Credentials**: Stored in NVS (`Preferences` API), not JSON files. Use `WiFiManager` methods, never direct file access.
 13. **Device-Unique AP Password**: Format is `recon-XXYYZZ` where XXYYZZ matches the SSID suffix. Use `Config::WiFi::DEFAULT_AP_PASSWORD_PREFIX`.
-14. **Shared Utilities**: Use `utils/format_utils.h` for node ID formatting, `utils/security_scorer.h` for security assessment. Don't duplicate this logic in new code.
+14. **Shared Utilities**: Use `utils/format_utils.h` for node ID formatting, `utils/security_scorer.h` for security assessment, `utils/json_utils.h` for API responses. Don't duplicate this logic in new code.
+15. **API Response Format**: Use `JsonUtils::success()`, `JsonUtils::error()`, `JsonUtils::successWithData()` for consistent JSON responses. Don't manually build `{"status":"success"}` patterns.
 
 ## Testing Approach
 

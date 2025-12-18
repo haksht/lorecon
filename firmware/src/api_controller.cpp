@@ -1,5 +1,8 @@
 /**
  * API Controller Implementation
+ * 
+ * Thin orchestration layer between HTTP endpoints and ReconService.
+ * Uses JsonUtils for standardized response formatting.
  */
 
 #include "api_controller.h"
@@ -8,6 +11,7 @@
 #include "recon_service.h"
 #include "radio_controller.h"
 #include "lora_recon_tool.h"  // For g_reconTool global
+#include "utils/json_utils.h"
 #include <SD.h>
 #include <Preferences.h>
 
@@ -19,216 +23,105 @@ void APIController::setReconTool(IReconTool* tool) {
     LOG_INFO("API Controller initialized");
 }
 
-/**
- * Create error response JSON
- */
-String APIController::createErrorResponse(const String& error) {
-    JsonDocument doc;
-    doc["status"] = "error";
-    doc["error"] = error;
-    
-    String response;
-    serializeJson(doc, response);
-    return response;
-}
+// ============================================================================
+// Simple pass-through methods to ReconService
+// These exist to provide a stable API layer if ReconService internals change
+// ============================================================================
 
-/**
- * Create success response JSON with message
- */
-String APIController::createSuccessResponse(const String& message) {
-    JsonDocument doc;
-    doc["status"] = "success";
-    doc["message"] = message;
-    
-    String response;
-    serializeJson(doc, response);
-    return response;
-}
+String APIController::getDevices() { return ReconService::buildDevicesJson(); }
+String APIController::getDevice(uint32_t nodeId) { return ReconService::buildDeviceJson(nodeId); }
+String APIController::getPositions() { return ReconService::buildPositionsJson(); }
+String APIController::exportGeoJSON() { return ReconService::buildGeoJson(); }
+String APIController::exportKML() { return ReconService::buildKml(); }
+String APIController::getStatus() { return ReconService::buildStatusJson(); }
+String APIController::getStatistics() { return ReconService::buildStatisticsJson(); }
+String APIController::getRFActivity() { return ReconService::buildActivityJson(); }
+String APIController::getReconSummary() { return ReconService::buildReconSummaryJson(); }
+String APIController::getDeviceTypeSummary() { return ReconService::buildDeviceTypeSummaryJson(); }
+String APIController::getSecurityAssessment() { return ReconService::buildSecurityAssessmentJson(); }
+String APIController::getReplaySlots() { return ReconService::buildReplaySlotsJson(); }
+String APIController::getDiagnostics() { return ReconService::buildDiagnosticsJson(); }
 
-/**
- * GET /api/devices
- * 
- * Returns list of all discovered devices with their details
- */
-String APIController::getDevices() {
-    return ReconService::buildDevicesJson();
-}
+// ============================================================================
+// Action methods with error handling
+// ============================================================================
 
-/**
- * GET /api/device/:nodeId
- * 
- * Returns detailed information about specific device
- */
-String APIController::getDevice(uint32_t nodeId) {
-    return ReconService::buildDeviceJson(nodeId);
-}
-
-/**
- * POST /api/capture/start
- * 
- * Start targeted capture on specific device
- */
 String APIController::startTargetedCapture(uint32_t nodeId) {
     String message;
     if (!ReconService::startTargetedCaptureByNodeId(nodeId, message)) {
-        return createErrorResponse(message);
+        return JsonUtils::error(message);
     }
-    return createSuccessResponse(message);
+    return JsonUtils::success(message);
 }
 
-/**
- * POST /api/capture/stop
- * 
- * Stop current capture and resume reconnaissance
- */
 String APIController::stopCapture() {
     String message;
     ReconService::stopCapture(message);
-    return createSuccessResponse(message);
+    return JsonUtils::success(message);
 }
 
-/**
- * GET /api/packets
- * 
- * Returns recent packets (limited and paginated)
- */
+String APIController::clearReplaySlots() {
+    String message;
+    if (!ReconService::clearReplaySlots(message)) {
+        return JsonUtils::error(message);
+    }
+    return JsonUtils::success(message);
+}
+
+String APIController::clearDevices() {
+    String message;
+    if (!ReconService::clearDevices(message)) {
+        return JsonUtils::error(message);
+    }
+    return JsonUtils::success(message);
+}
+
+String APIController::replayPacket(uint8_t slotIndex, uint8_t repeatCount, uint16_t delayMs) {
+    String message;
+    if (!ReconService::replayPacket(slotIndex, repeatCount, delayMs, message)) {
+        return JsonUtils::error(message);
+    }
+    return JsonUtils::success(message);
+}
+
+String APIController::startFrequencyTargeting(uint8_t configIndex) {
+    String message;
+    if (!ReconService::startFrequencyTargeting(configIndex, message)) {
+        return JsonUtils::error(message);
+    }
+    return JsonUtils::success(message);
+}
+
+String APIController::setVerboseMode(bool enableVerbose) {
+    String message;
+    if (!ReconService::setVerboseMode(enableVerbose, message)) {
+        return JsonUtils::error(message);
+    }
+    return JsonUtils::success(message);
+}
+
+// ============================================================================
+// Methods with custom JSON building
+// ============================================================================
+
 String APIController::getPackets(int limit, int offset) {
-    JsonDocument doc;
-    doc["status"] = "success";
-    doc["limit"] = limit;
-    doc["offset"] = offset;
-    doc["totalPackets"] = reconState.scanState.totalPackets;
-    doc["packets"] = JsonArray();
-    doc["message"] = "Packet history requires SD card logging";
-
-    String response;
-    serializeJson(doc, response);
-    return response;
+    return JsonUtils::successWithData([&](JsonDocument& doc) {
+        doc["limit"] = limit;
+        doc["offset"] = offset;
+        doc["totalPackets"] = reconState.scanState.totalPackets;
+        doc["packets"] = JsonArray();
+        doc["message"] = "Packet history requires SD card logging";
+    });
 }
 
-/**
- * GET /api/positions
- * 
- * Returns all GPS positions from discovered devices
- */
-String APIController::getPositions() {
-    return ReconService::buildPositionsJson();
-}
-
-/**
- * GET /api/export/geojson
- * 
- * Export geographic data as GeoJSON
- */
-String APIController::exportGeoJSON() {
-    return ReconService::buildGeoJson();
-}
-
-/**
- * GET /api/export/kml
- * 
- * Export geographic data as KML (Google Earth format)
- */
-String APIController::exportKML() {
-    return ReconService::buildKml();
-}
-
-/**
- * GET /api/status
- * 
- * Returns current system status
- */
-String APIController::getStatus() {
-    return ReconService::buildStatusJson();
-}
-
-/**
- * GET /api/dashboard
- * 
- * Returns combined data for initial dashboard load
- * Reduces number of API calls on page load
- */
-String APIController::getDashboard() {
-    JsonDocument doc;
-    doc["status"] = "success";
-    
-    // Status data
-    JsonDocument statusDoc;
-    deserializeJson(statusDoc, ReconService::buildStatusJson());
-    if (statusDoc["status"].is<const char*>() && statusDoc["status"] == "success") {
-        doc["systemStatus"] = statusDoc;
-    }
-    
-    // Devices list
-    JsonDocument devicesDoc;
-    deserializeJson(devicesDoc, ReconService::buildDevicesJson());
-    if (devicesDoc["devices"].is<JsonArray>()) {
-        doc["devices"] = devicesDoc["devices"];
-        doc["deviceCount"] = devicesDoc["devices"].size();
-    } else {
-        doc["devices"] = JsonArray();
-        doc["deviceCount"] = 0;
-    }
-    
-    // RF Activity
-    JsonDocument activityDoc;
-    deserializeJson(activityDoc, ReconService::buildActivityJson());
-    if (activityDoc["activities"].is<JsonArray>()) {
-        doc["activities"] = activityDoc["activities"];
-    }
-    
-    // Replay slots
-    doc["replaySlots"] = reconState.numCapturedPackets;
-    doc["maxReplaySlots"] = Config::Replay::MAX_SLOTS;
-    
-    // Basic stats
-    doc["totalPackets"] = reconState.scanState.totalPackets;
-    doc["uptime"] = millis() / 1000;
-    doc["mode"] = reconState.scanState.mode;
-    doc["currentConfig"] = reconState.scanState.currentConfig;
-    
-    String response;
-    serializeJson(doc, response);
-    return response;
-}
-
-/**
- * GET /api/statistics
- * 
- * Returns comprehensive statistics
- */
-String APIController::getStatistics() {
-    return ReconService::buildStatisticsJson();
-}
-
-/**
- * GET /api/activity
- * 
- * Returns RF activity analysis
- */
-String APIController::getRFActivity() {
-    return ReconService::buildActivityJson();
-}
-
-/**
- * GET /api/config
- * 
- * Returns current configuration
- */
 String APIController::getConfig() {
-    JsonDocument doc;
-    
-    doc["status"] = "success";
-    
-    JsonObject config = doc["config"].to<JsonObject>();
-    config["scanDwellTime"] = Config::Scanning::DWELL_TIME_MS;
-    config["queueSize"] = Config::PacketProcessing::QUEUE_SIZE;
-    config["maxDevices"] = Config::Tracking::MAX_DEVICES;
-    config["deviceTimeout"] = Config::Tracking::DEVICE_TIMEOUT_MS;
-    
-    String response;
-    serializeJson(doc, response);
-    return response;
+    return JsonUtils::successWithData([](JsonDocument& doc) {
+        JsonObject config = doc["config"].to<JsonObject>();
+        config["scanDwellTime"] = Config::Scanning::DWELL_TIME_MS;
+        config["queueSize"] = Config::PacketProcessing::QUEUE_SIZE;
+        config["maxDevices"] = Config::Tracking::MAX_DEVICES;
+        config["deviceTimeout"] = Config::Tracking::DEVICE_TIMEOUT_MS;
+    });
 }
 
 /**
@@ -276,7 +169,7 @@ String APIController::startScan() {
         LOG_INFO("Radio reconfigured for reconnaissance");
     }
     
-    return createSuccessResponse("Reconnaissance scan started");
+    return JsonUtils::success("Reconnaissance scan started");
 }
 
 /**
@@ -296,67 +189,52 @@ String APIController::stopScan() {
     if (g_reconTool) {
         g_reconTool->setMenuModeEntered();
     }
-    return createSuccessResponse("Scan stopped");
+    return JsonUtils::success("Scan stopped");
 }
 
-String APIController::getReconSummary() {
-    return ReconService::buildReconSummaryJson();
-}
-
-String APIController::getDeviceTypeSummary() {
-    return ReconService::buildDeviceTypeSummaryJson();
-}
-
-String APIController::getSecurityAssessment() {
-    return ReconService::buildSecurityAssessmentJson();
-}
-
-String APIController::getReplaySlots() {
-    return ReconService::buildReplaySlotsJson();
-}
-
-String APIController::clearReplaySlots() {
-    String message;
-    if (!ReconService::clearReplaySlots(message)) {
-        return createErrorResponse(message);
+/**
+ * GET /api/dashboard
+ * 
+ * Combined data for initial page load
+ */
+String APIController::getDashboard() {
+    JsonDocument doc;
+    doc["status"] = "success";
+    
+    // Status data
+    JsonDocument statusDoc;
+    deserializeJson(statusDoc, ReconService::buildStatusJson());
+    if (statusDoc["status"].is<const char*>() && statusDoc["status"] == "success") {
+        doc["systemStatus"] = statusDoc;
     }
-    return createSuccessResponse(message);
-}
-
-String APIController::clearDevices() {
-    String message;
-    if (!ReconService::clearDevices(message)) {
-        return createErrorResponse(message);
+    
+    // Devices list
+    JsonDocument devicesDoc;
+    deserializeJson(devicesDoc, ReconService::buildDevicesJson());
+    if (devicesDoc["devices"].is<JsonArray>()) {
+        doc["devices"] = devicesDoc["devices"];
+        doc["deviceCount"] = devicesDoc["devices"].size();
+    } else {
+        doc["devices"] = JsonArray();
+        doc["deviceCount"] = 0;
     }
-    return createSuccessResponse(message);
-}
-
-String APIController::replayPacket(uint8_t slotIndex, uint8_t repeatCount, uint16_t delayMs) {
-    String message;
-    if (!ReconService::replayPacket(slotIndex, repeatCount, delayMs, message)) {
-        return createErrorResponse(message);
+    
+    // RF Activity
+    JsonDocument activityDoc;
+    deserializeJson(activityDoc, ReconService::buildActivityJson());
+    if (activityDoc["activities"].is<JsonArray>()) {
+        doc["activities"] = activityDoc["activities"];
     }
-    return createSuccessResponse(message);
-}
-
-String APIController::startFrequencyTargeting(uint8_t configIndex) {
-    String message;
-    if (!ReconService::startFrequencyTargeting(configIndex, message)) {
-        return createErrorResponse(message);
-    }
-    return createSuccessResponse(message);
-}
-
-String APIController::getDiagnostics() {
-    return ReconService::buildDiagnosticsJson();
-}
-
-String APIController::setVerboseMode(bool enableVerbose) {
-    String message;
-    if (!ReconService::setVerboseMode(enableVerbose, message)) {
-        return createErrorResponse(message);
-    }
-    return createSuccessResponse(message);
+    
+    // Stats
+    doc["replaySlots"] = reconState.numCapturedPackets;
+    doc["maxReplaySlots"] = Config::Replay::MAX_SLOTS;
+    doc["totalPackets"] = reconState.scanState.totalPackets;
+    doc["uptime"] = millis() / 1000;
+    doc["mode"] = reconState.scanState.mode;
+    doc["currentConfig"] = reconState.scanState.currentConfig;
+    
+    return JsonUtils::serialize(doc);
 }
 
 /**
@@ -502,11 +380,11 @@ String APIController::acknowledgeAnomaly(uint8_t index) {
     // Bounds check for circular buffer
     uint8_t maxIndex = std::min((uint16_t)state.numAnomalies, (uint16_t)Config::Anomaly::MAX_ANOMALIES);
     if (index >= maxIndex) {
-        return createErrorResponse("Invalid anomaly index");
+        return JsonUtils::error("Invalid anomaly index");
     }
     
     state.anomalies[index].acknowledged = true;
-    return createSuccessResponse("Anomaly acknowledged");
+    return JsonUtils::success("Anomaly acknowledged");
 }
 
 /**
