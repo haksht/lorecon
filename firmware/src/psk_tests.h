@@ -9,6 +9,7 @@
 
 #include <Arduino.h>
 #include "psk_decryption_simple.h"
+#include "config.h"
 
 class PSKTests {
 public:
@@ -71,13 +72,14 @@ private:
     static int testDefaultPSKs() {
         Serial.print("Test 3: Default PSK Loading... ");
         
-        // Verify PSK database is accessible
-        if (PSKDecryption::getDefaultPSKCount() == 14) {
+        // Verify PSK database is accessible - use Config constant, not hardcoded value
+        if (PSKDecryption::getDefaultPSKCount() == Config::PSK::NUM_DEFAULT_KEYS) {
             Serial.println("✅ PASS");
             return 1;
         }
         
-        Serial.println("❌ FAIL");
+        Serial.printf("❌ FAIL (expected %d, got %d)\n", 
+            Config::PSK::NUM_DEFAULT_KEYS, PSKDecryption::getDefaultPSKCount());
         return 0;
     }
     
