@@ -89,8 +89,9 @@ class ReconApp {
         try {
             const wifi = await this.get('/api/wifi/status');
             if (wifi && wifi.mode === 'setup') {
-                this.updateSetupBanner(true);
-                // Auto-show settings tab to configure WiFi
+                this.isSetupMode = true;
+                this.apSSID = wifi.apSSID;
+                this.updateSetupBanner(true, wifi.apSSID);
                 showToast('First run! Configure your phone hotspot to get started.', 'info');
             }
         } catch (error) {
@@ -249,6 +250,12 @@ class ReconApp {
         });
         
         this.currentTab = tabName;
+        
+        // Update setup banner visibility (only show on info tab)
+        if (this.isSetupMode !== undefined) {
+            this.updateSetupBanner(this.isSetupMode, this.apSSID);
+        }
+        
         this.loadTabContent(tabName);
     }
 
@@ -1024,7 +1031,9 @@ class ReconApp {
         const banner = document.getElementById('setup-banner');
         const bannerSsid = document.getElementById('banner-ssid');
         if (banner) {
-            banner.style.display = isSetupMode ? 'block' : 'none';
+            // Only show banner on info tab
+            const showBanner = isSetupMode && this.currentTab === 'info';
+            banner.style.display = showBanner ? 'block' : 'none';
             if (bannerSsid && apSSID) {
                 bannerSsid.textContent = apSSID;
             }
@@ -1034,6 +1043,9 @@ class ReconApp {
                 document.body.classList.remove('setup-mode');
             }
         }
+        // Store setup mode state for tab switching
+        this.isSetupMode = isSetupMode;
+        this.apSSID = apSSID;
     }
     
     showWiFiSetupModal() {
