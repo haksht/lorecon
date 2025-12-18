@@ -48,27 +48,27 @@ All repositories share common patterns:
 - Iterator support (`begin()`/`end()`)
 - Logging via `LOG_INFO`/`LOG_WARN` macros
 
-## Phase 2: Integration (PENDING)
+## Phase 2: Integration ✅ COMPLETED
 
-**Goal**: Have `ReconState` delegate to repositories internally while maintaining the existing public API.
+`ReconState` now delegates to repositories internally while maintaining the existing public API:
 
 ```cpp
-// Future ReconState.h
+// ReconState.h
 class ReconState {
 private:
-    DeviceRepository deviceRepo_;
     PacketStore packetStore_;
     NodeTracker nodeTracker_;
-    
+    DeviceRepository deviceRepo_;
+    // ...
 public:
-    // Existing API preserved
+    // Public API unchanged - delegates to repositories
     void addTargetableDevice(...) { deviceRepo_.addOrUpdate(...); }
-    uint8_t numTargetableDevices() const { return deviceRepo_.count(); }
-    // ... etc
+    bool capturePacketForReplay(...) { return packetStore_.capturePacket(...); }
+    void updateNode(...) { nodeTracker_.updateNode(...); }
 };
 ```
 
-This allows incremental migration without breaking consumers.
+Legacy public arrays (`replaySlots`, `trackedNodes`, `targetableDevices`) are kept in sync for backward compatibility with existing consumers. Future work can migrate consumers to use repositories directly.
 
 ## Phase 3: Service Layer (FUTURE)
 
