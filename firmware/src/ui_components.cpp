@@ -10,7 +10,7 @@
 
 // Display list of discovered devices
 void displayDeviceList() {
-    if (reconState.numTargetableDevices == 0) {
+    if (reconState.getNumTargetableDevices() == 0) {
         Serial.println("No targetable devices discovered yet.\n");
         return;
     }
@@ -19,7 +19,7 @@ void displayDeviceList() {
     Serial.println("ID | Device Type          | Node ID    | Protocol     | RSSI  | Pkts | Router | FW");
     Serial.println("---|----------------------|------------|--------------|-------|------|--------|-------");
     
-    for (uint8_t i = 0; i < reconState.numTargetableDevices; i++) {
+    for (uint8_t i = 0; i < reconState.getNumTargetableDevices(); i++) {
         displayDeviceSummary(reconState.getTargetableDevice(i), i);
     }
     Serial.println();
@@ -75,8 +75,8 @@ void displayActivitySummary() {
     Serial.println("RECONNAISSANCE SUMMARY:");
     Serial.printf("  Duration: %s\n", formatDuration(reconTime).c_str());
     Serial.printf("  Total Packets: %d\n", reconState.scanState.totalPackets);
-    Serial.printf("  Devices Found: %d\n", reconState.numTargetableDevices);
-    Serial.printf("  Tracked Nodes: %d\n", reconState.nodeCount);
+    Serial.printf("  Devices Found: %d\n", reconState.getNumTargetableDevices());
+    Serial.printf("  Tracked Nodes: %d\n", reconState.getNodeCount());
     Serial.println();
 }
 

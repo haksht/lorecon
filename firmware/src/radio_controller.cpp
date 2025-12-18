@@ -3,7 +3,7 @@
  */
 
 #include "radio_controller.h"
-#include "error_handler.h"
+#include "logger.h"
 #include "config.h"
 #include <SPI.h>
 
@@ -49,8 +49,7 @@ bool RadioController::initialize() {
     // Initialize radio module
     int state = radio.begin();
     if (state != RADIOLIB_ERR_NONE) {
-        Serial.printf("[RADIO] Initialization FAILED (error: %d)\n", state);
-        REPORT_RADIO_ERROR(ErrorCodes::RADIO_INIT_FAILED, "SX1262 initialization failed");
+        LOG_ERROR("SX1262 initialization failed (error: %d)", state);
         return false;
     }
     

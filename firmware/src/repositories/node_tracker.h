@@ -48,6 +48,13 @@ public:
     void clear();
     
     /**
+     * Remove a node by ID
+     * @param nodeId Node ID to remove
+     * @return true if node was found and removed
+     */
+    bool removeByNodeId(uint32_t nodeId);
+    
+    /**
      * Get current number of tracked nodes
      */
     uint8_t count() const { return nodeCount_; }

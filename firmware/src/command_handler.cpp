@@ -60,7 +60,7 @@ bool CommandHandler::handleCommand(char cmd) {
     // Then handle device selection (1-9)
     if (cmd >= '1' && cmd <= '9') {
         uint8_t deviceIndex = cmd - '1';
-        if (deviceIndex < reconState.numTargetableDevices) {
+        if (deviceIndex < reconState.getNumTargetableDevices()) {
             cmdDeviceTarget(reconTool, deviceIndex);
             return true;
         } else {
@@ -144,9 +144,9 @@ void CommandHandler::cmdResumeRecon(IReconTool* tool) {
     Serial.println("\n=== RESUMING RECONNAISSANCE ===");
     Serial.println("Restarting scan cycle while keeping discovered devices.");
     Serial.printf("Current devices: %d, Nodes: %d, Replay slots: %d\n", 
-                  reconState.numTargetableDevices, 
-                  reconState.nodeCount,
-                  reconState.numCapturedPackets);
+                  reconState.getNumTargetableDevices(), 
+                  reconState.getNodeCount(),
+                  reconState.getNumCapturedPackets());
     
     // Clear persisted targeting mode from NVS
     ModeManager modeManager;
@@ -318,14 +318,14 @@ void CommandHandler::cmdToggleQuietMode(IReconTool* tool) {
 }
 
 void CommandHandler::cmdClearPackets(IReconTool* tool) {
-    uint8_t count = reconState.numCapturedPackets;
+    uint8_t count = reconState.getNumCapturedPackets();
     reconState.clearReplaySlots();
     Serial.printf("\n✅ Cleared %d captured packet(s) from replay slots.\n\n", count);
 }
 
 void CommandHandler::cmdClearDevices(IReconTool* tool) {
-    uint8_t deviceCount = reconState.numTargetableDevices;
-    uint8_t nodeCount = reconState.nodeCount;
+    uint8_t deviceCount = reconState.getNumTargetableDevices();
+    uint8_t nodeCount = reconState.getNodeCount();
     reconState.clearTargetableDevices();
     reconState.clearNodes();
     Serial.printf("\n✅ Cleared %d device(s) and %d node(s).\n\n", deviceCount, nodeCount);

@@ -30,19 +30,9 @@ public:
     // Core reconnaissance state
     // RFActivity array sized to handle all scanning configurations
     RFActivity rfActivity[Config::Scanning::NUM_CONFIGURATIONS];
-    TargetableDevice targetableDevices[Config::Tracking::MAX_DEVICES];
-    uint8_t numTargetableDevices;
     
     // System state
     ScanState scanState;
-    
-    // Node tracking
-    TrackedNode trackedNodes[Config::Tracking::MAX_HOT_NODES];
-    uint8_t nodeCount;
-    
-    // Packet replay storage
-    CapturedPacket replaySlots[Config::Replay::MAX_SLOTS];
-    uint8_t numCapturedPackets;
     
     // PSK decryption statistics
     PSKStats pskStats;
@@ -77,16 +67,24 @@ public:
                             const char* protocol, const uint8_t* packetData = nullptr, 
                             size_t packetLength = 0);
     const TargetableDevice& getTargetableDevice(uint8_t index) const;
+    TargetableDevice* getTargetableDeviceMutable(uint8_t index);
     TargetableDevice* findTargetableDevice(uint32_t nodeId);
     void clearTargetableDevices();
+    uint8_t getNumTargetableDevices() const { return deviceRepo_.count(); }
     
     // Node tracking management
     void updateNode(uint32_t nodeId, const char* protocol, float rssi);
     TrackedNode* findNode(uint32_t nodeId);
     void clearNodes();
+    uint8_t getNodeCount() const { return nodeTracker_.count(); }
+    const TrackedNode* getTrackedNode(uint8_t index) const;
+    
+    // Repository access (for DeviceArchiver and other components that need direct access)
+    DeviceRepository& getDeviceRepository() { return deviceRepo_; }
+    NodeTracker& getNodeTracker() { return nodeTracker_; }
     
     // State queries
-    bool hasTargetableDevices() const { return numTargetableDevices > 0; }
+    bool hasTargetableDevices() const { return deviceRepo_.count() > 0; }
     bool hasRFActivity() const;
     uint32_t getReconDuration() const;
     
@@ -96,7 +94,7 @@ public:
                                 uint32_t nodeId = 0, uint32_t packetId = 0);
     const CapturedPacket& getReplayPacket(uint8_t index) const;
     void clearReplaySlots();
-    uint8_t getNumCapturedPackets() const { return numCapturedPackets; }
+    uint8_t getNumCapturedPackets() const { return packetStore_.count(); }
     
     // Statistics and reporting
     void printStateSummary() const;

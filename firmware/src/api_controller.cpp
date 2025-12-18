@@ -224,7 +224,7 @@ String APIController::getDashboard() {
     }
     
     // Stats
-    doc["replaySlots"] = reconState.numCapturedPackets;
+    doc["replaySlots"] = reconState.getNumCapturedPackets();
     doc["maxReplaySlots"] = Config::Replay::MAX_SLOTS;
     doc["totalPackets"] = reconState.scanState.totalPackets;
     doc["uptime"] = millis() / 1000;
@@ -263,9 +263,9 @@ String APIController::getSystemConfig() {
     
     // Current usage
     JsonObject usage = doc["usage"].to<JsonObject>();
-    usage["devices"] = reconState.numTargetableDevices;
-    usage["nodes"] = reconState.nodeCount;
-    usage["replaySlots"] = reconState.numCapturedPackets;
+    usage["devices"] = reconState.getNumTargetableDevices();
+    usage["nodes"] = reconState.getNodeCount();
+    usage["replaySlots"] = reconState.getNumCapturedPackets();
     usage["droppedPackets"] = reconState.scanState.droppedPackets;
     usage["totalPackets"] = reconState.scanState.totalPackets;
     
@@ -397,8 +397,8 @@ String APIController::getTemporalData() {
     // Beacon devices (periodic transmitters)
     JsonArray beacons = doc["beacons"].to<JsonArray>();
     uint8_t beaconCount = 0;
-    for (uint8_t i = 0; i < reconState.numTargetableDevices; i++) {
-        const TargetableDevice& device = reconState.targetableDevices[i];
+    for (uint8_t i = 0; i < reconState.getNumTargetableDevices(); i++) {
+        const TargetableDevice& device = reconState.getTargetableDevice(i);
         
         // Only include devices with high periodicity score
         if (device.periodicityScore >= Config::Anomaly::MIN_BEACON_CONFIDENCE) {

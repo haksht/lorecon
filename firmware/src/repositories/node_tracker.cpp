@@ -79,6 +79,33 @@ void NodeTracker::clear() {
     LOG_INFO("NodeTracker", "All tracked nodes cleared");
 }
 
+bool NodeTracker::removeByNodeId(uint32_t nodeId) {
+    // Find the index of the node
+    uint8_t index = UINT8_MAX;
+    for (uint8_t i = 0; i < nodeCount_; i++) {
+        if (nodes_[i].nodeId == nodeId) {
+            index = i;
+            break;
+        }
+    }
+    
+    if (index == UINT8_MAX) {
+        return false;  // Not found
+    }
+    
+    // Shift remaining nodes down to fill the gap
+    for (uint8_t i = index; i < nodeCount_ - 1; i++) {
+        nodes_[i] = nodes_[i + 1];
+    }
+    
+    nodeCount_--;
+    
+    // Clear the last slot by zero-initialization
+    nodes_[nodeCount_] = TrackedNode{};
+    
+    return true;
+}
+
 void NodeTracker::initializeNode(TrackedNode* node, uint32_t nodeId,
                                   const char* protocol, float rssi) {
     node->nodeId = nodeId;

@@ -118,6 +118,13 @@ public:
     void clear();
     
     /**
+     * Remove a device by node ID
+     * @param nodeId Device ID to remove
+     * @return true if device was found and removed
+     */
+    bool removeByNodeId(uint32_t nodeId);
+    
+    /**
      * Initialize/reset the repository
      */
     void initialize();

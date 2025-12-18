@@ -208,3 +208,22 @@ TargetableDevice* DeviceRepository::getByIndexMutable(uint8_t index) {
     }
     return &devices[index];
 }
+
+bool DeviceRepository::removeByNodeId(uint32_t nodeId) {
+    uint8_t index = findIndexByNodeId(nodeId);
+    if (index == UINT8_MAX) {
+        return false;  // Not found
+    }
+    
+    // Shift remaining devices down to fill the gap
+    for (uint8_t i = index; i < deviceCount - 1; i++) {
+        devices[i] = devices[i + 1];
+    }
+    
+    deviceCount--;
+    
+    // Clear the last slot
+    memset(&devices[deviceCount], 0, sizeof(TargetableDevice));
+    
+    return true;
+}

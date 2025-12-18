@@ -19,8 +19,8 @@ bool ReconService::isInitialized() {
 }
 
 uint8_t ReconService::findDeviceIndex(uint32_t nodeId) {
-    for (uint8_t i = 0; i < reconState.numTargetableDevices; i++) {
-        if (reconState.targetableDevices[i].nodeId == nodeId) {
+    for (uint8_t i = 0; i < reconState.getNumTargetableDevices(); i++) {
+        if (reconState.getTargetableDevice(i).nodeId == nodeId) {
             return i;
         }
     }
@@ -48,7 +48,7 @@ bool ReconService::startTargetedCaptureByIndex(uint8_t deviceIndex, String& outM
         return false;
     }
 
-    if (deviceIndex >= reconState.numTargetableDevices) {
+    if (deviceIndex >= reconState.getNumTargetableDevices()) {
         outMessage = "Invalid device index";
         return false;
     }
@@ -99,12 +99,12 @@ String ReconService::buildDevicesJson() {
     doc["status"] = "success";
 
     JsonArray devices = doc["devices"].to<JsonArray>();
-    for (uint8_t i = 0; i < reconState.numTargetableDevices; i++) {
+    for (uint8_t i = 0; i < reconState.getNumTargetableDevices(); i++) {
         JsonObject deviceObj = devices.add<JsonObject>();
-        fillDevice(deviceObj, reconState.targetableDevices[i], i);
+        fillDevice(deviceObj, reconState.getTargetableDevice(i), i);
     }
 
-    doc["totalDevices"] = reconState.numTargetableDevices;
+    doc["totalDevices"] = reconState.getNumTargetableDevices();
 
     String response;
     serializeJson(doc, response);
@@ -144,7 +144,7 @@ String ReconService::buildStatusJson() {
     doc["status"] = "success";
     doc["mode"] = modeToString(reconState.scanState.mode);
     doc["uptime"] = millis() / 1000;
-    doc["devices"] = reconState.numTargetableDevices;
+    doc["devices"] = reconState.getNumTargetableDevices();
     doc["totalPackets"] = reconState.scanState.totalPackets;
     doc["droppedPackets"] = reconState.scanState.droppedPackets;
     doc["peakQueueSize"] = reconState.scanState.peakQueueSize;
@@ -186,8 +186,8 @@ String ReconService::buildStatusJson() {
         target["spreadingFactor"] = cfg.spreadingFactor;
         
         // Try to find the targetable device to get node ID
-        for (uint8_t i = 0; i < reconState.numTargetableDevices; i++) {
-            const TargetableDevice& device = reconState.targetableDevices[i];
+        for (uint8_t i = 0; i < reconState.getNumTargetableDevices(); i++) {
+            const TargetableDevice& device = reconState.getTargetableDevice(i);
             if (device.configIndex == reconState.scanState.targetConfig) {
                 target["nodeId"] = FormatUtils::formatNodeIdJson(device.nodeId);
                 target["deviceType"] = device.deviceType;
@@ -209,14 +209,14 @@ String ReconService::buildStatisticsJson() {
 
     JsonObject stats = doc["statistics"].to<JsonObject>();
     stats["totalPackets"] = reconState.scanState.totalPackets;
-    stats["totalDevices"] = reconState.numTargetableDevices;
+    stats["totalDevices"] = reconState.getNumTargetableDevices();
 
     JsonObject protocols = stats["protocolDistribution"].to<JsonObject>();
     JsonObject freqDist = stats["frequencyDistribution"].to<JsonObject>();
 
     int meshtastic = 0, lorawan = 0, helium = 0, generic = 0;
-    for (uint8_t i = 0; i < reconState.numTargetableDevices; i++) {
-        const TargetableDevice& device = reconState.targetableDevices[i];
+    for (uint8_t i = 0; i < reconState.getNumTargetableDevices(); i++) {
+        const TargetableDevice& device = reconState.getTargetableDevice(i);
         if (strcmp(device.protocol, "Meshtastic") == 0) meshtastic++;
         else if (strcmp(device.protocol, "LoRaWAN") == 0) lorawan++;
         else if (strcmp(device.protocol, "Helium") == 0) helium++;
@@ -382,8 +382,8 @@ String ReconService::buildReconSummaryJson() {
     summary["reconDurationSeconds"] = reconState.getReconDuration();
     summary["totalPackets"] = reconState.scanState.totalPackets;
     summary["totalDetections"] = reconState.scanState.totalDetections;
-    summary["targetableDevices"] = reconState.numTargetableDevices;
-    summary["nodesTracked"] = reconState.nodeCount;
+    summary["targetableDevices"] = reconState.getNumTargetableDevices();
+    summary["nodesTracked"] = reconState.getNodeCount();
     summary["capturedPackets"] = reconState.getNumCapturedPackets();
     summary["verboseDiagnostics"] = TextPacketDiagnostic::isVerbose();
     
@@ -430,13 +430,14 @@ String ReconService::buildReconSummaryJson() {
 
     JsonArray devices = doc["devices"].to<JsonArray>();
     uint32_t now = millis();
-    for (uint8_t i = 0; i < reconState.numTargetableDevices; i++) {
+    for (uint8_t i = 0; i < reconState.getNumTargetableDevices(); i++) {
         JsonObject deviceObj = devices.add<JsonObject>();
-        fillDevice(deviceObj, reconState.targetableDevices[i], i);
-        uint32_t lastSeenAge = (reconState.targetableDevices[i].lastSeen > 0 && reconState.targetableDevices[i].lastSeen <= now) ?
-            (now - reconState.targetableDevices[i].lastSeen) : 0;
-        uint32_t firstSeenAge = (reconState.targetableDevices[i].firstSeen > 0 && reconState.targetableDevices[i].firstSeen <= now) ?
-            (now - reconState.targetableDevices[i].firstSeen) : 0;
+        const TargetableDevice& dev = reconState.getTargetableDevice(i);
+        fillDevice(deviceObj, dev, i);
+        uint32_t lastSeenAge = (dev.lastSeen > 0 && dev.lastSeen <= now) ?
+            (now - dev.lastSeen) : 0;
+        uint32_t firstSeenAge = (dev.firstSeen > 0 && dev.firstSeen <= now) ?
+            (now - dev.firstSeen) : 0;
         deviceObj["lastSeenSecondsAgo"] = lastSeenAge / 1000;
         deviceObj["firstSeenSecondsAgo"] = firstSeenAge / 1000;
     }
@@ -465,7 +466,7 @@ String ReconService::buildDeviceTypeSummaryJson() {
     uint8_t typeCount = 0;
     uint16_t totalRouters = 0;
 
-    for (uint8_t i = 0; i < reconState.numTargetableDevices; i++) {
+    for (uint8_t i = 0; i < reconState.getNumTargetableDevices(); i++) {
         const TargetableDevice& dev = reconState.getTargetableDevice(i);
 
         DeviceTypeStats* statPtr = nullptr;
@@ -518,9 +519,9 @@ String ReconService::buildDeviceTypeSummaryJson() {
 
     JsonObject summary = doc["summary"].to<JsonObject>();
     summary["totalDeviceTypes"] = typeCount;
-    summary["totalDevices"] = reconState.numTargetableDevices;
+    summary["totalDevices"] = reconState.getNumTargetableDevices();
     summary["routersDetected"] = totalRouters;
-    summary["hasDevices"] = reconState.numTargetableDevices > 0;
+    summary["hasDevices"] = reconState.getNumTargetableDevices() > 0;
 
     String response;
     serializeJson(doc, response);
@@ -535,7 +536,7 @@ String ReconService::buildSecurityAssessmentJson() {
     uint8_t vulnerableCount = 0;
     uint8_t moderateCount = 0;
 
-    for (uint8_t i = 0; i < reconState.numTargetableDevices; i++) {
+    for (uint8_t i = 0; i < reconState.getNumTargetableDevices(); i++) {
         const TargetableDevice& dev = reconState.getTargetableDevice(i);
         
         // Use shared security scorer for consistent assessment
@@ -592,11 +593,11 @@ String ReconService::buildSecurityAssessmentJson() {
     }
 
     JsonObject summary = doc["summary"].to<JsonObject>();
-    summary["totalDevices"] = reconState.numTargetableDevices;
+    summary["totalDevices"] = reconState.getNumTargetableDevices();
     summary["vulnerable"] = vulnerableCount;
     summary["moderate"] = moderateCount;
-    uint8_t secureCount = reconState.numTargetableDevices > vulnerableCount + moderateCount ?
-        reconState.numTargetableDevices - vulnerableCount - moderateCount : 0;
+    uint8_t secureCount = reconState.getNumTargetableDevices() > vulnerableCount + moderateCount ?
+        reconState.getNumTargetableDevices() - vulnerableCount - moderateCount : 0;
     summary["secure"] = secureCount;
 
     const char* statusMessage = "All devices appear secure";
@@ -613,7 +614,7 @@ String ReconService::buildSecurityAssessmentJson() {
         recommendations.add("Update vulnerable nodes to the latest firmware");
     } else if (moderateCount > 0) {
         recommendations.add("Monitor moderate-risk nodes for changes in behavior");
-    } else if (reconState.numTargetableDevices == 0) {
+    } else if (reconState.getNumTargetableDevices() == 0) {
         recommendations.add("No targetable devices detected during this session");
     } else {
         recommendations.add("Maintain watch for newly joining devices");
@@ -683,8 +684,8 @@ bool ReconService::clearReplaySlots(String& outMessage) {
 }
 
 bool ReconService::clearDevices(String& outMessage) {
-    uint8_t deviceCount = reconState.numTargetableDevices;
-    uint8_t nodeCount = reconState.nodeCount;
+    uint8_t deviceCount = reconState.getNumTargetableDevices();
+    uint8_t nodeCount = reconState.getNodeCount();
     
     reconState.clearTargetableDevices();
     reconState.clearNodes();
