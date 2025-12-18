@@ -446,62 +446,29 @@ void ReconState::printStateSummary() const {
     Serial.println("=====================================\n");
 }
 
-// Packet replay management
+// Packet replay management - delegates to PacketStore
 bool ReconState::capturePacketForReplay(const uint8_t* data, size_t length, uint8_t configIndex,
                                         float rssi, const char* protocol, const char* decryptedText,
                                         uint32_t nodeId, uint32_t packetId) {
-    if (numCapturedPackets >= Config::Replay::MAX_SLOTS) {
-        return false;  // Slots full
+    bool success = packetStore_.capturePacket(data, length, configIndex, 
+                                               static_cast<int16_t>(rssi),
+                                               nodeId, packetId, protocol, decryptedText);
+    if (success) {
+        // Keep legacy fields in sync for backward compatibility
+        numCapturedPackets = packetStore_.count();
     }
-    
-    if (length > Config::PacketProcessing::MAX_PACKET_SIZE) {
-        return false;  // Packet too large
-    }
-    
-    CapturedPacket& slot = replaySlots[numCapturedPackets];
-    memcpy(slot.data, data, length);
-    slot.length = length;
-    slot.configIndex = configIndex;
-    slot.originalRSSI = rssi;
-    slot.captureTime = millis();
-    slot.nodeId = nodeId;
-    slot.packetId = packetId;
-    strncpy(slot.protocol, protocol, sizeof(slot.protocol) - 1);
-    slot.protocol[sizeof(slot.protocol) - 1] = '\0';
-    
-    // Store decrypted text if available
-    if (decryptedText != nullptr && decryptedText[0] != '\0') {
-        strncpy(slot.decryptedText, decryptedText, sizeof(slot.decryptedText) - 1);
-        slot.decryptedText[sizeof(slot.decryptedText) - 1] = '\0';
-    } else {
-        slot.decryptedText[0] = '\0';  // Empty string if no decryption
-    }
-    
-    slot.valid = true;
-    
-    numCapturedPackets++;
-    
-    Serial.printf("[REPLAY] Packet captured to slot #%d (%d bytes, %s)\n",
-                  numCapturedPackets, length, protocol);
-    
-    return true;
+    return success;
 }
 
 const CapturedPacket& ReconState::getReplayPacket(uint8_t index) const {
-    static CapturedPacket emptyPacket;
-    static bool initialized = false;
-    if (!initialized) {
-        memset(&emptyPacket, 0, sizeof(emptyPacket));
-        initialized = true;
-    }
-    if (index >= numCapturedPackets) return emptyPacket;
-    return replaySlots[index];
+    return packetStore_.getPacket(index);
 }
 
 void ReconState::clearReplaySlots() {
+    packetStore_.clear();
+    // Keep legacy fields in sync
     numCapturedPackets = 0;
     memset(replaySlots, 0, sizeof(replaySlots));
-    Serial.println("[REPLAY] All replay slots cleared");
 }
 
 // Calculate network intelligence statistics
