@@ -40,7 +40,6 @@ public:
 private:
     static IReconTool* reconTool;
 
-    static TargetableDevice* findTargetableDevice(uint32_t nodeId);
     static const char* modeToString(OperationMode mode);
     static uint8_t findDeviceIndex(uint32_t nodeId);
     static void fillDevice(JsonObject& obj, const TargetableDevice& device, uint8_t index);

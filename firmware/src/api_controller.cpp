@@ -8,12 +8,12 @@
 #include "api_controller.h"
 #include "config.h"
 #include "logger.h"
+#include "mode_manager.h"
 #include "recon_service.h"
 #include "radio_controller.h"
 #include "lora_recon_tool.h"  // For g_reconTool global
 #include "utils/json_utils.h"
 #include <SD.h>
-#include <Preferences.h>
 
 /**
  * Set reconnaissance tool reference
@@ -139,11 +139,8 @@ String APIController::startScan() {
     LOG_INFO("API: startScan called (previous mode: %s)", prevMode);
     
     // Clear persisted targeting mode from NVS
-    Preferences modePrefs;
-    modePrefs.begin("mode", false);
-    modePrefs.clear();
-    modePrefs.end();
-    LOG_INFO("API: Cleared persisted targeting mode");
+    ModeManager modeManager;
+    modeManager.clearPersistedMode();
     
     // Resume reconnaissance WITHOUT clearing discovered devices/data
     LOG_INFO("API: Resuming reconnaissance scan");
@@ -323,13 +320,10 @@ String APIController::getAnomalies(bool unacknowledgedOnly) {
     JsonDocument doc;
     JsonArray anomaliesArray = doc["anomalies"].to<JsonArray>();
     
-    extern ReconState reconState;
-    ReconState& state = reconState;
-    
     // Handle circular buffer correctly
-    uint8_t maxIndex = std::min((uint16_t)state.numAnomalies, (uint16_t)Config::Anomaly::MAX_ANOMALIES);
+    uint8_t maxIndex = std::min((uint16_t)reconState.numAnomalies, (uint16_t)Config::Anomaly::MAX_ANOMALIES);
     for (uint8_t i = 0; i < maxIndex; i++) {
-        const AnomalyRecord& anomaly = state.anomalies[i];
+        const AnomalyRecord& anomaly = reconState.anomalies[i];
         
         // Filter acknowledged if requested
         if (unacknowledgedOnly && anomaly.acknowledged) {
@@ -359,8 +353,8 @@ String APIController::getAnomalies(bool unacknowledgedOnly) {
     }
     
     doc["total"] = maxIndex;  // Actual records in response (capped at MAX_ANOMALIES)
-    doc["totalDetected"] = state.numAnomalies;  // Total anomalies detected (may exceed buffer)
-    doc["unacknowledged"] = state.getUnacknowledgedAnomalies();
+    doc["totalDetected"] = reconState.numAnomalies;  // Total anomalies detected (may exceed buffer)
+    doc["unacknowledged"] = reconState.getUnacknowledgedAnomalies();
     doc["status"] = "success";
     
     String response;
@@ -374,16 +368,13 @@ String APIController::getAnomalies(bool unacknowledgedOnly) {
  * Mark anomaly as acknowledged
  */
 String APIController::acknowledgeAnomaly(uint8_t index) {
-    extern ReconState reconState;
-    ReconState& state = reconState;
-    
     // Bounds check for circular buffer
-    uint8_t maxIndex = std::min((uint16_t)state.numAnomalies, (uint16_t)Config::Anomaly::MAX_ANOMALIES);
+    uint8_t maxIndex = std::min((uint16_t)reconState.numAnomalies, (uint16_t)Config::Anomaly::MAX_ANOMALIES);
     if (index >= maxIndex) {
         return JsonUtils::error("Invalid anomaly index");
     }
     
-    state.anomalies[index].acknowledged = true;
+    reconState.anomalies[index].acknowledged = true;
     return JsonUtils::success("Anomaly acknowledged");
 }
 
@@ -394,22 +385,20 @@ String APIController::acknowledgeAnomaly(uint8_t index) {
  */
 String APIController::getTemporalData() {
     JsonDocument doc;
-    extern ReconState reconState;
-    ReconState& state = reconState;
     
     // Traffic histogram (24-hour buckets)
     JsonArray histogram = doc["histogram"].to<JsonArray>();
     for (uint8_t i = 0; i < 24; i++) {
         JsonObject hour = histogram.add<JsonObject>();
         hour["hour"] = i;
-        hour["packets"] = state.trafficHist.hourlyPackets[i];
+        hour["packets"] = reconState.trafficHist.hourlyPackets[i];
     }
     
     // Beacon devices (periodic transmitters)
     JsonArray beacons = doc["beacons"].to<JsonArray>();
     uint8_t beaconCount = 0;
-    for (uint8_t i = 0; i < state.numTargetableDevices; i++) {
-        const TargetableDevice& device = state.targetableDevices[i];
+    for (uint8_t i = 0; i < reconState.numTargetableDevices; i++) {
+        const TargetableDevice& device = reconState.targetableDevices[i];
         
         // Only include devices with high periodicity score
         if (device.periodicityScore >= Config::Anomaly::MIN_BEACON_CONFIDENCE) {
@@ -437,14 +426,12 @@ String APIController::getTemporalData() {
  */
 String APIController::getPSKStats() {
     JsonDocument doc;
-    extern ReconState reconState;
-    ReconState& state = reconState;
     
     // Overall stats
-    doc["attempts"] = state.pskStats.attempts;
-    doc["successes"] = state.pskStats.successes;
-    doc["successRate"] = state.pskStats.attempts > 0 
-        ? (float)state.pskStats.successes / state.pskStats.attempts * 100.0f 
+    doc["attempts"] = reconState.pskStats.attempts;
+    doc["successes"] = reconState.pskStats.successes;
+    doc["successRate"] = reconState.pskStats.attempts > 0 
+        ? (float)reconState.pskStats.successes / reconState.pskStats.attempts * 100.0f 
         : 0.0f;
     doc["totalKeys"] = Config::PSK::NUM_DEFAULT_KEYS;
     
@@ -453,13 +440,13 @@ String APIController::getPSKStats() {
     for (uint8_t i = 0; i < Config::PSK::NUM_DEFAULT_KEYS; i++) {
         JsonObject key = keys.add<JsonObject>();
         key["index"] = i;
-        key["hits"] = state.pskStats.hitCount[i];
+        key["hits"] = reconState.pskStats.hitCount[i];
     }
     
     // Count keys with at least one hit (networks cracked)
     uint8_t networksCracked = 0;
     for (uint8_t i = 0; i < Config::PSK::NUM_DEFAULT_KEYS; i++) {
-        if (state.pskStats.hitCount[i] > 0) {
+        if (reconState.pskStats.hitCount[i] > 0) {
             networksCracked++;
         }
     }

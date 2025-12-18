@@ -8,15 +8,15 @@
 #include "oled_display.h"
 #include "web_server.h"
 #include "device_archiver.h"
+#include "mode_manager.h"
 #include "config.h"
 #include "psk_decryption_simple.h"
 #include <LittleFS.h>
 #include <ArduinoJson.h>
 #include <esp_task_wdt.h>
-#include <Preferences.h>
 
-// NVS storage for mode persistence across reboots
-static Preferences modePrefs;
+// Mode manager for persistence
+static ModeManager modeManager;
 
 // Global pointer for tool instance
 LoRaReconTool* g_reconTool = nullptr;
@@ -85,26 +85,14 @@ bool LoRaReconTool::initialize() {
     reconState.initialize();
     
     // Check for persisted mode from previous session (survives reboots)
-    // Try read-write first to create namespace if needed, then read values
-    if (!modePrefs.begin("mode", false)) {  // Read-write to create if missing
-        LOG_WARN("Could not open mode preferences - fresh start");
-    }
-    uint8_t savedMode = modePrefs.getUChar("mode", MODE_RECONNAISSANCE);
-    uint8_t savedTargetCfg = modePrefs.getUChar("targetCfg", 0);
-    bool savedByDevice = modePrefs.getBool("byDevice", false);
-    modePrefs.end();
-    
-    if (savedMode == MODE_TARGETED_CAPTURE && reconState.isValidConfigIndex(savedTargetCfg)) {
-        LOG_INFO("🔄 Restoring persisted targeting mode (config %d)", savedTargetCfg);
-        reconState.scanState.mode = MODE_TARGETED_CAPTURE;
+    OperationMode savedMode;
+    uint8_t savedTargetCfg;
+    bool savedByDevice;
+    if (modeManager.loadPersistedMode(savedMode, savedTargetCfg, savedByDevice)) {
+        reconState.scanState.mode = savedMode;
         reconState.scanState.targetConfig = savedTargetCfg;
         reconState.scanState.targetedByDevice = savedByDevice;
         reconState.scanState.currentConfig = savedTargetCfg;
-    } else if (savedMode == MODE_TARGETED_CAPTURE) {
-        LOG_WARN("Persisted mode invalid, clearing");
-        modePrefs.begin("mode", false);
-        modePrefs.clear();
-        modePrefs.end();
     }
     
     // Initialize OLED display
@@ -350,12 +338,7 @@ void LoRaReconTool::startTargetedCapture(uint8_t deviceIndex) {
     reconState.scanState.currentConfig = target.configIndex;
     
     // Persist mode to NVS so it survives reboots
-    modePrefs.begin("mode", false);
-    modePrefs.putUChar("mode", MODE_TARGETED_CAPTURE);
-    modePrefs.putUChar("targetCfg", target.configIndex);
-    modePrefs.putBool("byDevice", true);
-    modePrefs.end();
-    LOG_INFO("Mode persisted to NVS");
+    modeManager.saveMode(MODE_TARGETED_CAPTURE, target.configIndex, true);
     
     // Clear any lingering menu timeout - we're now in targeting mode
     clearMenuTimeout();
@@ -430,12 +413,7 @@ void LoRaReconTool::startFrequencyTargeting(uint8_t configIndex) {
     reconState.scanState.currentConfig = configIndex;
     
     // Persist mode to NVS so it survives reboots
-    modePrefs.begin("mode", false);
-    modePrefs.putUChar("mode", MODE_TARGETED_CAPTURE);
-    modePrefs.putUChar("targetCfg", configIndex);
-    modePrefs.putBool("byDevice", false);
-    modePrefs.end();
-    LOG_INFO("Mode persisted to NVS");
+    modeManager.saveMode(MODE_TARGETED_CAPTURE, configIndex, false);
     
     // Clear any lingering menu timeout
     clearMenuTimeout();
