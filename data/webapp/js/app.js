@@ -10,6 +10,43 @@ function escapeHtml(text) {
     return div.innerHTML;
 }
 
+// ===== UI Helper Utilities =====
+// RSSI classification helper - eliminates 4+ duplicates across codebase
+function formatRSSI(rssi, includeValue = true) {
+    const value = rssi || -100;
+    const className = value > -70 ? 'rssi-strong' : value > -90 ? 'rssi-medium' : 'rssi-weak';
+    if (includeValue) {
+        return `<span class="${className}">${value.toFixed ? value.toFixed(1) : value} dBm</span>`;
+    }
+    return className;
+}
+
+// Error state HTML helper
+function renderErrorState(message, retryAction = null) {
+    let html = '<div class="error-state"><p class="error">' + escapeHtml(message) + '</p>';
+    if (retryAction) {
+        html += `<button data-action="${retryAction}" class="btn btn-primary">Retry</button>`;
+    }
+    html += '</div>';
+    return html;
+}
+
+// Loading state HTML helper
+function renderLoadingState(message = 'Loading...') {
+    return `<div class="loading-container"><div class="loading-spinner"></div><p>${escapeHtml(message)}</p></div>`;
+}
+
+// Placeholder state HTML helper
+function renderPlaceholder(emoji, title, subtitle = '') {
+    let html = `<div class="placeholder"><div style="font-size: 3rem; margin-bottom: 1rem; opacity: 0.5;">${emoji}</div>`;
+    html += `<p>${escapeHtml(title)}</p>`;
+    if (subtitle) {
+        html += `<p style="font-size: 0.9rem; margin-top: 0.5rem;">${escapeHtml(subtitle)}</p>`;
+    }
+    html += '</div>';
+    return html;
+}
+
 // Dependency checks - ensure scripts loaded in correct order
 if (typeof showToast === 'undefined') {
     console.error('FATAL: toast.js must be loaded before app.js');
@@ -289,7 +326,7 @@ class ReconApp {
     
     async showDevices() {
         // Show loading state
-        this.el.devicesContent.innerHTML = '<div class="loading-container"><div class="loading-spinner"></div><p>Loading devices...</p></div>';
+        this.el.devicesContent.innerHTML = renderLoadingState('Loading devices...');
         
         try {
             const data = await this.get('/api/devices');
@@ -336,7 +373,7 @@ class ReconApp {
             html += '</tr></thead><tbody>';
             
             enrichedDevices.forEach(device => {
-                const rssiClass = (device.rssi || -100) > -70 ? 'rssi-strong' : (device.rssi || -100) > -90 ? 'rssi-medium' : 'rssi-weak';
+                const rssiClass = formatRSSI(device.rssi, false);
                 
                 // Risk badge styling
                 let riskBadge = '';
@@ -377,13 +414,13 @@ class ReconApp {
             this.el.devicesContent.innerHTML = html;
         } catch (error) {
             console.error('Failed to load devices:', error);
-            this.el.devicesContent.innerHTML = '<div class="error-state"><p class="error">Failed to load devices</p><button data-action="retry-devices" class="btn btn-primary">Retry</button></div>';
+            this.el.devicesContent.innerHTML = renderErrorState('Failed to load devices', 'retry-devices');
         }
     }
 
     async showPackets() {
         // Show loading state
-        this.el.packetsContent.innerHTML = '<div class="loading-container"><div class="loading-spinner"></div><p>Loading packets...</p></div>';
+        this.el.packetsContent.innerHTML = renderLoadingState('Loading packets...');
         
         try {
             const data = await this.get('/api/replay/slots');
@@ -402,7 +439,7 @@ class ReconApp {
             
             grouped.forEach(group => {
                 group.packets.forEach((pkt, idx) => {
-                    const rssiClass = (pkt.rssi || -100) > -70 ? 'rssi-strong' : (pkt.rssi || -100) > -90 ? 'rssi-medium' : 'rssi-weak';
+                    const rssiClass = formatRSSI(pkt.rssi, false);
                     const isRelay = group.packets.length > 1 && idx > 0;
                     const rowClass = isRelay ? 'relay-row' : '';
                     
@@ -433,7 +470,7 @@ class ReconApp {
             this.el.packetsContent.innerHTML = html;
         } catch (error) {
             console.error('Failed to load packets:', error);
-            this.el.packetsContent.innerHTML = '<div class="error-state"><p class="error">Failed to load packets</p><button data-action="retry-packets" class="btn btn-primary">Retry</button></div>';
+            this.el.packetsContent.innerHTML = renderErrorState('Failed to load packets', 'retry-packets');
         }
     }
     
@@ -476,7 +513,7 @@ class ReconApp {
 
     async showFrequency() {
         // Show loading state
-        this.el.frequencyContent.innerHTML = '<div class="loading-container"><div class="loading-spinner"></div><p>Loading frequency data...</p></div>';
+        this.el.frequencyContent.innerHTML = renderLoadingState('Loading frequency data...');
         
         try {
             // Get activity data - now includes ALL configs with their names
@@ -501,7 +538,7 @@ class ReconApp {
             
             allConfigs.forEach(act => {
                 const isActive = act.packets > 0;
-                const rssiClass = act.avgRSSI > -70 ? 'rssi-strong' : act.avgRSSI > -90 ? 'rssi-medium' : 'rssi-weak';
+                const rssiClass = formatRSSI(act.avgRSSI, false);
                 const rowClass = isActive ? '' : 'inactive-row';
                 html += `<tr class="${rowClass}">`;
                 html += `<td><strong>${act.protocol}</strong> <span class="badge config-badge">#${act.configIndex}</span></td>`;
@@ -523,7 +560,7 @@ class ReconApp {
             this.el.frequencyContent.innerHTML = html;
         } catch (error) {
             console.error('Failed to load frequency data:', error);
-            this.el.frequencyContent.innerHTML = '<div class="error-state"><p class="error">Failed to load frequency data</p><button data-action="retry-frequency" class="btn btn-primary">Retry</button></div>';
+            this.el.frequencyContent.innerHTML = renderErrorState('Failed to load frequency data', 'retry-frequency');
         }
     }
 
@@ -749,17 +786,11 @@ class ReconApp {
                 html += '</tbody></table></div>';
                 this.el.gpsContent.innerHTML = html;
             } else {
-                this.el.gpsContent.innerHTML = `
-                    <div class="placeholder">
-                        <div style="font-size: 3rem; margin-bottom: 1rem; opacity: 0.5;">📍</div>
-                        <p>No GPS data captured yet.</p>
-                        <p style="font-size: 0.9rem; margin-top: 0.5rem;">Device positions will appear here once discovered during reconnaissance.</p>
-                    </div>
-                `;
+                this.el.gpsContent.innerHTML = renderPlaceholder('📍', 'No GPS data captured yet.', 'Device positions will appear here once discovered during reconnaissance.');
             }
         } catch (error) {
             console.error('Failed to load GPS:', error);
-            this.el.gpsContent.innerHTML = '<div class="error-state"><p class="error">Failed to load GPS data</p><button data-action="retry-gps" class="btn btn-primary">Retry</button></div>';
+            this.el.gpsContent.innerHTML = renderErrorState('Failed to load GPS data', 'retry-gps');
         }
         
         // Load security analysis from /api/recon/security
@@ -865,7 +896,7 @@ class ReconApp {
             }
         } catch (error) {
             console.error('Failed to load security data:', error);
-            this.el.securityContent.innerHTML = '<div class="error-state"><p class="error">Failed to load security data</p><button data-action="retry-security" class="btn btn-primary">Retry</button></div>';
+            this.el.securityContent.innerHTML = renderErrorState('Failed to load security data', 'retry-security');
         }
         
         // Load frequency analysis from /api/activity
@@ -897,7 +928,7 @@ class ReconApp {
                         html += `</div>`;
                         html += `<div style="display: flex; justify-content: space-between; font-size: 0.9rem; margin-bottom: 0.25rem;">`;
                         html += `<span>Packets: <strong>${freq.packets}</strong></span>`;
-                        html += `<span>Avg RSSI: <strong class="${freq.avgRSSI > -70 ? 'rssi-strong' : freq.avgRSSI > -90 ? 'rssi-medium' : 'rssi-weak'}">${freq.avgRSSI.toFixed(1)} dBm</strong></span>`;
+                        html += `<span>Avg RSSI: ${formatRSSI(freq.avgRSSI)}</span>`;
                         html += `</div>`;
                         html += `<div style="height: 6px; background: rgba(255,255,255,0.05); border-radius: 3px; overflow: hidden;">`;
                         html += `<div style="height: 100%; width: ${barWidth}%; background: var(--primary); border-radius: 3px; transition: width 0.3s;"></div>`;
@@ -915,27 +946,21 @@ class ReconApp {
             } else {
                 const freqAnalysisEl = document.getElementById('frequency-analysis-content');
                 if (freqAnalysisEl) {
-                    freqAnalysisEl.innerHTML = `
-                        <div class="placeholder">
-                            <div style="font-size: 3rem; margin-bottom: 1rem; opacity: 0.5;">📊</div>
-                            <p>No frequency data yet.</p>
-                            <p style="font-size: 0.9rem; margin-top: 0.5rem;">Frequency analysis will appear during reconnaissance.</p>
-                        </div>
-                    `;
+                    freqAnalysisEl.innerHTML = renderPlaceholder('📊', 'No frequency data yet.', 'Frequency analysis will appear during reconnaissance.');
                 }
             }
         } catch (error) {
             console.error('Failed to load frequency analysis:', error);
             const freqAnalysisEl = document.getElementById('frequency-analysis-content');
             if (freqAnalysisEl) {
-                freqAnalysisEl.innerHTML = '<div class="error-state"><p class="error">Failed to load frequency data</p><button data-action="retry-freq-analysis" class="btn btn-primary">Retry</button></div>';
+                freqAnalysisEl.innerHTML = renderErrorState('Failed to load frequency data', 'retry-freq-analysis');
             }
         }
     }
 
     async showSettings() {
         // Show loading state
-        this.el.settingsContent.innerHTML = '<div class="loading-container"><div class="loading-spinner"></div><p>Loading configuration...</p></div>';
+        this.el.settingsContent.innerHTML = renderLoadingState('Loading configuration...');
         
         // Load WiFi status
         await this.loadWiFiStatus();
@@ -966,7 +991,7 @@ class ReconApp {
             this.el.settingsContent.innerHTML = html;
         } catch (error) {
             console.error('Failed to load settings:', error);
-            this.el.settingsContent.innerHTML = '<div class="error-state"><p class="error">Failed to load configuration</p><p style="font-size: 0.85em; color: #999; margin-top: 0.5rem;">' + error.message + '</p></div>';
+            this.el.settingsContent.innerHTML = renderErrorState('Failed to load configuration: ' + error.message);
         }
         
         // Setup OTA form handler
