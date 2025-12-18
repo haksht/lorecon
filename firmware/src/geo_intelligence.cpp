@@ -4,6 +4,8 @@
 
 #include "geo_intelligence.h"
 #include <ArduinoJson.h>
+#include "utils/protobuf_utils.h"
+#include "utils/format_utils.h"
 
 // Global instance
 GeoIntelligence geoIntel;
@@ -292,7 +294,7 @@ void GeoIntelligence::exportKML(String& output) const {
         if (!p.valid) continue;
         
         output += "    <Placemark>\n";
-        output += "      <name>Node 0x" + String(p.nodeId, HEX) + "</name>\n";
+        output += "      <name>Node " + FormatUtils::formatNodeIdPadded(p.nodeId) + "</name>\n";;
         output += "      <description>Alt: " + String(p.altitude, 1) + "m, Time: " + String(p.timestamp) + "</description>\n";
         output += "      <Point>\n";
         output += "        <coordinates>" + String(p.longitude, 7) + "," + String(p.latitude, 7) + "," + String(p.altitude, 1) + "</coordinates>\n";
@@ -317,7 +319,7 @@ void GeoIntelligence::exportGeoJSON(String& output) const {
         feature["type"] = "Feature";
         
         JsonObject properties = feature["properties"].to<JsonObject>();
-        properties["nodeId"] = String("0x") + String(p.nodeId, HEX);
+        properties["nodeId"] = FormatUtils::formatNodeIdPadded(p.nodeId);
         properties["altitude"] = p.altitude;
         properties["timestamp"] = p.timestamp;
         properties["precision"] = p.precision;

@@ -1,4 +1,5 @@
 #include "protocol_analyzer.h"
+#include "utils/format_utils.h"
 #include <string.h>
 
 // Comprehensive packet analysis - calls all analysis functions and returns consolidated info
@@ -18,7 +19,7 @@ PacketInfo ProtocolAnalyzer::analyze(const uint8_t* data, size_t length, float r
     info.deviceType = identifyDeviceType(data, length, info.protocol, rssi);
     
     // Step 4: Estimate power class
-    info.powerClass = estimatePowerClass(rssi);
+    info.powerClass = FormatUtils::estimatePowerClass(rssi);
     
     // Step 5: Check if routing
     info.isRouter = isRoutingDevice(data, length, info.protocol);
@@ -130,12 +131,7 @@ const char* ProtocolAnalyzer::identifyDeviceType(const uint8_t* data, size_t len
     return "Unknown Device";
 }
 
-// Estimate power class based on RSSI patterns
-uint8_t ProtocolAnalyzer::estimatePowerClass(float rssi) {
-    if (rssi > -70) return 2;  // High power (>100mW)
-    if (rssi > -90) return 1;  // Medium power (10-100mW)
-    return 0;                  // Low power (<10mW)
-}
+// estimatePowerClass moved to FormatUtils::estimatePowerClass() in utils/format_utils.h
 
 // Check if device appears to be routing traffic (forwarding packets)
 bool ProtocolAnalyzer::isRoutingDevice(const uint8_t* data, size_t length, const char* protocol) {

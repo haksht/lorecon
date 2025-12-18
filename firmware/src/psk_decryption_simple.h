@@ -3,6 +3,7 @@
 
 #include <Arduino.h>
 #include "data_structures.h"  // For PSKStats struct
+#include "config.h"           // For Config::PSK::NUM_DEFAULT_KEYS
 
 // PSK decryption interface
 class PSKDecryption {
@@ -15,7 +16,7 @@ public:
   
   // Test helpers (made public for testing)
   static int decodeBase64(const char* input, uint8_t* output, size_t maxLen);  // Returns decoded byte count (0 on failure)
-  static uint8_t getDefaultPSKCount() { return 14; }  // NUM_DEFAULT_PSKS
+  static uint8_t getDefaultPSKCount() { return Config::PSK::NUM_DEFAULT_KEYS; }
   
   // Get last decrypted message (for web broadcast)
   static const char* getLastMessage() { return lastMessage; }

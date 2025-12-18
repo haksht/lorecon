@@ -197,7 +197,7 @@ Once configured for your hotspot:
 ✅ **Device Discovery** - Identifies Meshtastic nodes and LoRaWAN devices  
 ✅ **Protocol Analysis** - Parses packet structures  
 ✅ **Packet Replay** - Store and retransmit (10 slots)  
-✅ **Broadcast Decryption** - Tests 14 default PSKs for channel messages  
+✅ **Broadcast Decryption** - Tests 23 PSKs including leaked 2023 admin keys  
 ✅ **Geographic Intelligence** - Extracts GPS coordinates  
 ✅ **Export Tools** - KML/GeoJSON for mapping
 

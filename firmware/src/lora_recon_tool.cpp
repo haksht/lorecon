@@ -13,6 +13,10 @@
 #include <LittleFS.h>
 #include <ArduinoJson.h>
 #include <esp_task_wdt.h>
+#include <Preferences.h>
+
+// NVS storage for mode persistence across reboots
+static Preferences modePrefs;
 
 // Global pointer for tool instance
 LoRaReconTool* g_reconTool = nullptr;
@@ -80,6 +84,29 @@ bool LoRaReconTool::initialize() {
     // Initialize reconnaissance system
     reconState.initialize();
     
+    // Check for persisted mode from previous session (survives reboots)
+    // Try read-write first to create namespace if needed, then read values
+    if (!modePrefs.begin("mode", false)) {  // Read-write to create if missing
+        LOG_WARN("Could not open mode preferences - fresh start");
+    }
+    uint8_t savedMode = modePrefs.getUChar("mode", MODE_RECONNAISSANCE);
+    uint8_t savedTargetCfg = modePrefs.getUChar("targetCfg", 0);
+    bool savedByDevice = modePrefs.getBool("byDevice", false);
+    modePrefs.end();
+    
+    if (savedMode == MODE_TARGETED_CAPTURE && reconState.isValidConfigIndex(savedTargetCfg)) {
+        LOG_INFO("🔄 Restoring persisted targeting mode (config %d)", savedTargetCfg);
+        reconState.scanState.mode = MODE_TARGETED_CAPTURE;
+        reconState.scanState.targetConfig = savedTargetCfg;
+        reconState.scanState.targetedByDevice = savedByDevice;
+        reconState.scanState.currentConfig = savedTargetCfg;
+    } else if (savedMode == MODE_TARGETED_CAPTURE) {
+        LOG_WARN("Persisted mode invalid, clearing");
+        modePrefs.begin("mode", false);
+        modePrefs.clear();
+        modePrefs.end();
+    }
+    
     // Initialize OLED display
     oledDisplay = new OLEDDisplay();
     if (oledDisplay && oledDisplay->initialize()) {
@@ -108,15 +135,26 @@ bool LoRaReconTool::initialize() {
     }
     
     radioController->startReceive();
-    LOG_INFO("Reconnaissance started");
     
-    // Update display to show initial scanning status
+    // Log mode status
+    if (reconState.scanState.mode == MODE_TARGETED_CAPTURE) {
+        LOG_INFO("✅ Targeting mode restored - monitoring %s @ %.3f MHz", 
+                 cfg.protocol, cfg.frequency);
+    } else {
+        LOG_INFO("Reconnaissance started");
+    }
+    
+    // Update display to show current status
     if (oledDisplay && oledDisplay->isOn()) {
         static char freqStr[16];
         snprintf(freqStr, sizeof(freqStr), "%.3f", cfg.frequency);
-        oledDisplay->showScanningStatus(freqStr, cfg.spreadingFactor,
-                                        reconState.scanState.currentConfig,
-                                        reconState.getNumConfigs());
+        if (reconState.scanState.mode == MODE_TARGETED_CAPTURE) {
+            oledDisplay->showTargetingMode(freqStr);
+        } else {
+            oledDisplay->showScanningStatus(freqStr, cfg.spreadingFactor,
+                                            reconState.scanState.currentConfig,
+                                            reconState.getNumConfigs());
+        }
         oledDisplay->update();  // Render immediately during setup
     }
     
@@ -208,7 +246,7 @@ void LoRaReconTool::update() {
         case MODE_INTERACTIVE_MENU:
             // Auto-resume after timeout to prevent "left in menu mode" issue
             if (menuModeEnteredAt > 0 && (now - menuModeEnteredAt) >= Config::UI::MENU_TIMEOUT_MS) {
-                Serial.println("\n[!] Menu timeout - auto-resuming reconnaissance mode");
+                LOG_INFO("Menu timeout after %d ms - auto-resuming reconnaissance mode", Config::UI::MENU_TIMEOUT_MS);
                 reconState.scanState.mode = MODE_RECONNAISSANCE;
                 menuModeEnteredAt = 0;
             }
@@ -282,13 +320,9 @@ void LoRaReconTool::handlePacketReception() {
     int length = radioController->readPacket(tempBuffer, sizeof(tempBuffer));
     
     if (length > 0) {
-        // Get signal metrics (only for larger packets to save time)
-        float rssi = 0;
-        float snr = 0;
-        if (length >= 40) {
-            rssi = radioController->getRSSI();
-            snr = radioController->getSNR();
-        }
+        // Get signal metrics for all packets (RSSI is valuable for device tracking)
+        float rssi = radioController->getRSSI();
+        float snr = radioController->getSNR();
         
         // Queue the packet for processing
         uint8_t configIndex = reconState.scanState.currentConfig;
@@ -309,10 +343,19 @@ void LoRaReconTool::handlePacketReception() {
 void LoRaReconTool::startTargetedCapture(uint8_t deviceIndex) {
     const TargetableDevice& target = reconState.getTargetableDevice(deviceIndex);
     
+    LOG_INFO("Starting targeted capture on device 0x%08X (device targeting)", target.nodeId);
     reconState.scanState.mode = MODE_TARGETED_CAPTURE;
     reconState.scanState.targetConfig = target.configIndex;
     reconState.scanState.targetedByDevice = true;  // Device targeting
     reconState.scanState.currentConfig = target.configIndex;
+    
+    // Persist mode to NVS so it survives reboots
+    modePrefs.begin("mode", false);
+    modePrefs.putUChar("mode", MODE_TARGETED_CAPTURE);
+    modePrefs.putUChar("targetCfg", target.configIndex);
+    modePrefs.putBool("byDevice", true);
+    modePrefs.end();
+    LOG_INFO("Mode persisted to NVS");
     
     // Clear any lingering menu timeout - we're now in targeting mode
     clearMenuTimeout();
@@ -379,10 +422,20 @@ void LoRaReconTool::startFrequencyTargeting(uint8_t configIndex) {
     Serial.println("Monitoring for packets...\n");
     
     // Set up targeting mode
+    LOG_INFO("Starting frequency targeting on config %d: %s @ %.3f MHz", 
+             configIndex, cfg.protocol, cfg.frequency);
     reconState.scanState.mode = MODE_TARGETED_CAPTURE;
     reconState.scanState.targetConfig = configIndex;
     reconState.scanState.targetedByDevice = false;  // Frequency targeting
     reconState.scanState.currentConfig = configIndex;
+    
+    // Persist mode to NVS so it survives reboots
+    modePrefs.begin("mode", false);
+    modePrefs.putUChar("mode", MODE_TARGETED_CAPTURE);
+    modePrefs.putUChar("targetCfg", configIndex);
+    modePrefs.putBool("byDevice", false);
+    modePrefs.end();
+    LOG_INFO("Mode persisted to NVS");
     
     // Clear any lingering menu timeout
     clearMenuTimeout();

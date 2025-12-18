@@ -1213,13 +1213,18 @@ class ReconApp {
             switch(action) {
                 case 'toggle-scan':
                 case 'resume-recon':
-                    const result = await this.post('/api/scan/start', {});
-                    // Check if it was an error (targeted mode active)
-                    if (result && result.status === 'error') {
-                        showToast(result.message || 'Cannot resume - targeted capture active', 'warning');
-                    } else {
-                        showToast('Reconnaissance resumed', 'success');
+                    // Check current mode - if in targeting, confirm before exiting
+                    const status = await this.get('/api/status');
+                    const currentMode = (status?.mode || '').toLowerCase();
+                    if (currentMode.includes('target')) {
+                        if (!confirm('Exit frequency targeting and return to reconnaissance mode?')) {
+                            btn.disabled = originalDisabled;
+                            btn.classList.remove('btn-loading');
+                            return;
+                        }
                     }
+                    const result = await this.post('/api/scan/start', {});
+                    showToast('Reconnaissance resumed', 'success');
                     await this.updateStatus();
                     break;
                 case 'stop-capture':
@@ -1352,6 +1357,21 @@ class ReconApp {
                             html += '<div style="height: 6px; background: rgba(255,255,255,0.1); border-radius: 3px; overflow: hidden;">';
                             html += '<div style="height: 100%; width: ' + heapPercent + '%; background: ' + heapColor + '; border-radius: 3px;"></div>';
                             html += '</div></div>';
+                            
+                            // Battery
+                            if (diag.batteryVoltage !== undefined) {
+                                const batteryPercent = diag.batteryPercent || 0;
+                                const batteryVoltage = (diag.batteryVoltage || 0).toFixed(2);
+                                const batteryColor = batteryPercent > 50 ? 'var(--success)' : batteryPercent > 20 ? 'var(--warning)' : 'var(--danger)';
+                                html += '<div style="margin-bottom: 1.5rem; padding: 1rem; background: rgba(255,255,255,0.03); border-radius: 8px; border-left: 3px solid ' + batteryColor + ';">';
+                                html += '<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">';
+                                html += '<strong>🔋 Battery</strong>';
+                                html += '<span style="font-family: monospace; color: var(--text-secondary);">' + batteryVoltage + 'V (' + batteryPercent + '%)</span>';
+                                html += '</div>';
+                                html += '<div style="height: 6px; background: rgba(255,255,255,0.1); border-radius: 3px; overflow: hidden;">';
+                                html += '<div style="height: 100%; width: ' + batteryPercent + '%; background: ' + batteryColor + '; border-radius: 3px;"></div>';
+                                html += '</div></div>';
+                            }
                             
                             // Statistics
                             html += '<div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem; margin-bottom: 1rem;">';

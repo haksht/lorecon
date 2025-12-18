@@ -996,7 +996,7 @@ void constructNonce(uint32_t packetId, uint32_t fromNode, uint8_t nonce[16]) {
 bool PSKDecryption::tryDecrypt(const uint8_t* encryptedData, 
                                size_t length,
                                uint8_t* decrypted) {
-    // Try each default PSK (Config::PSK::NUM_DEFAULT_KEYS = 14)
+    // Try each default PSK (Config::PSK::NUM_DEFAULT_KEYS = 23)
     for (uint8_t i = 0; i < NUM_PSKS; i++) {
         uint8_t key[32];
         size_t keyLen = decodeBase64(DEFAULT_PSKS[i], key, sizeof(key));
@@ -1015,12 +1015,17 @@ bool PSKDecryption::tryDecrypt(const uint8_t* encryptedData,
 }
 ```
 
-**Default PSK Keys (14 total):**
+**Default PSK Keys (23 total):**
 1. `AQ==` - Single byte key (0x01), expanded to 16 bytes
 2. `1PG7OiApB1nwvP+rz05pAQ==` - Official Meshtastic default (most common)
-3-5. Channel variants for different frequency bands
-6-10. Common custom keys for public channels
+3-10. Legacy single-byte keys (0x02-0x09, pre-2.0 firmware)
 11-14. Test/development keys (`AAAA...`, `1234...`, `test...`, `mesh...`)
+15-18. **LEAKED KEYS from 2023 security incidents:**
+  - Admin channel default (pre-2.2): `PKdTs51e4EB0BoOevIN0Dw==` ⚠️
+  - Secondary channel default: `shmLkA9H74gAeLH3eGCqsw==`
+  - Debug/dev key (leaked on GitHub): `ogDPnKVRN7wz/VF8nt6LkA==`
+  - EU868 regional default: `ZQ+HdKKbbAU4dSCGt66Qqw==`
+19-23. Channel preset derived keys (LongFast, MediumSlow, ShortFast, etc.)
 
 **Key count management:**
 - Defined in `Config::PSK::NUM_DEFAULT_KEYS` constant
@@ -1512,6 +1517,77 @@ Endpoints that modify state or transmit RF require authentication:
 - `/api/wifi/clear` - Clears credentials, reboots
 - `/api/command` - System commands
 - `/api/firmware/upload` - OTA updates
+
+---
+
+## **Shared Utilities (`firmware/src/utils/`)**
+
+### **Purpose**
+
+Shared utility headers eliminate code duplication and ensure consistency across components.
+
+### **Available Utilities**
+
+#### **`format_utils.h` - Node ID Formatting**
+
+```cpp
+#include "utils/format_utils.h"
+
+// Standard node ID (e.g., "0x401ACD4E")
+std::string id = FormatUtils::formatNodeId(nodeId);
+
+// JSON-safe format (e.g., "\"0x401ACD4E\"")
+std::string jsonId = FormatUtils::formatNodeIdJson(nodeId);
+
+// Padded for alignment (e.g., "0x401ACD4E" - 9 chars)
+std::string padded = FormatUtils::formatNodeIdPadded(nodeId);
+
+// Power class estimation from RSSI
+const char* powerClass = FormatUtils::estimatePowerClass(rssi);
+// Returns: "portable" (< -50 dBm) or "fixed" (>= -50 dBm)
+```
+
+**Used by:** `web_server.cpp`, `recon_service.cpp`, `geo_intelligence.cpp`, `protocol_analyzer.cpp`, `recon_state.cpp`
+
+#### **`protobuf_utils.h` - Protobuf Decoding**
+
+```cpp
+#include "utils/protobuf_utils.h"
+
+// Decode single varint
+size_t bytesConsumed;
+uint32_t value = ProtobufUtils::decodeVarint(data, length, bytesConsumed);
+
+// Parse all varints from buffer
+std::vector<uint32_t> varints = ProtobufUtils::parseAllVarints(data, length);
+```
+
+**Used by:** `psk_decryption_simple.cpp`, `protocol_analyzer.cpp`
+
+#### **`security_scorer.h` - Unified Security Assessment**
+
+```cpp
+#include "utils/security_scorer.h"
+
+SecurityScorer::Assessment assessment = SecurityScorer::assess(device);
+
+// assessment.score      - 0-100 (higher = more vulnerable)
+// assessment.rating     - "High Risk" / "Medium" / "Low"
+// assessment.ratingEmoji- "🔴" / "🟡" / "🟢"
+// assessment.isRouter   - true if device acts as router
+// assessment.isHighRSSI - true if RSSI > -50 dBm
+// assessment.usesDefaultPSK - true if decrypted with default key
+// assessment.isEncrypted - true if packet was encrypted
+```
+
+**Used by:** `recon_service.cpp`, `user_interface.cpp`
+
+### **Design Principles**
+
+1. **Header-only**: No separate .cpp files needed
+2. **Namespace encapsulation**: All functions in namespace (e.g., `FormatUtils::`)
+3. **Const-correct**: Output buffers sized appropriately
+4. **No dependencies**: Use only standard library and data_structures.h
 
 ---
 

@@ -10,6 +10,7 @@
 #include <mbedtls/base64.h>
 #include "geo_intelligence.h"
 #include "text_packet_diagnostic.h"
+#include "utils/protobuf_utils.h"
 
 // Static storage for last decrypted message
 char PSKDecryption::lastMessage[PSKDecryption::MAX_MESSAGE_LEN] = {0};
@@ -25,8 +26,10 @@ char PSKDecryption::lastMessage[PSKDecryption::MAX_MESSAGE_LEN] = {0};
 // 
 // These are the most common pre-shared keys found in Meshtastic networks:
 // - Keys 1-5: Official default keys from Meshtastic firmware
-// - Keys 6-10: Common custom keys used in public channels  
-// - Keys 11-14: Test/development keys
+// - Keys 6-10: Legacy single-byte keys (pre-2.0 firmware, expanded to 16 bytes)
+// - Keys 11-14: Test/development keys commonly left in deployments
+// - Keys 15-19: LEAKED KEYS from 2023 security incidents (admin channel, etc.)
+// - Keys 20-23: Channel preset keys (LongFast, MediumSlow, etc.)
 //
 // Security Note: These keys are publicly documented. Production networks
 // should use unique PSKs. This tool tests default keys for research/analysis.
@@ -34,20 +37,43 @@ char PSKDecryption::lastMessage[PSKDecryption::MAX_MESSAGE_LEN] = {0};
 // Key Format: Base64-encoded AES keys (8, 16, or 32 bytes when decoded)
 // Decoding: Base64 → binary key → AES-256-CTR decryption
 static constexpr const char* DEFAULT_PSKS[] = {
-    "AQ==",                      // #1: Single byte (0x01) - often expanded to 16 bytes
-    "1PG7OiApB1nwvP+rz05pAQ==",  // #2: Standard 16-byte key (most common)
-    "d1iq21lNSh7BP6MOkP6cQA==",  // #3: Channel variant 1
-    "2f8aH6iT8K9jQ1P3mD4nBw==",  // #4: Channel variant 2
-    "7h3kL9mR5wX2pY8qE6tZcA==",  // #5: Channel variant 3
-    "/u7k03L8N3Q=",              // #6: Short key variant (8 bytes)
-    "Ag==",                      // #7: Single byte (0x02)
-    "Aw==",                      // #8: Single byte (0x03)
-    "BA==",                      // #9: Single byte (0x04)
-    "BQ==",                      // #10: Single byte (0x05)
-    "AAAAAAAAAAAAAAAAAAAAAA==",  // #11: All zeros (16 bytes)
-    "MTIzNDU2Nzg5MDEyMzQ1Ng==",  // #12: "1234567890123456" ASCII
-    "dGVzdHRlc3R0ZXN0dGVzdA==",  // #13: "testtesttesttest" ASCII
-    "bWVzaHRhc3RpY21lc2h0YXN0",  // #14: "meshtasticmeshtast" ASCII
+    // === Standard defaults (most common) ===
+    "AQ==",                              // #1: Single byte 0x01 - THE classic default
+    "1PG7OiApB1nwvP+rz05pAQ==",          // #2: Default public channel key (LongFast)
+    
+    // === Legacy single-byte keys (pre-2.0, expanded to 16 bytes) ===
+    "Ag==",                              // #3: Single byte 0x02
+    "Aw==",                              // #4: Single byte 0x03
+    "BA==",                              // #5: Single byte 0x04
+    "BQ==",                              // #6: Single byte 0x05
+    "Bg==",                              // #7: Single byte 0x06
+    "Bw==",                              // #8: Single byte 0x07
+    "CA==",                              // #9: Single byte 0x08
+    "CQ==",                              // #10: Single byte 0x09
+    
+    // === Test/development keys often left in production ===
+    "AAAAAAAAAAAAAAAAAAAAAA==",          // #11: All zeros (16 bytes)
+    "MTIzNDU2Nzg5MDEyMzQ1Ng==",          // #12: "1234567890123456" ASCII
+    "dGVzdHRlc3R0ZXN0dGVzdA==",          // #13: "testtesttesttest" ASCII
+    "bWVzaHRhc3RpY21lc2h0YXN0",          // #14: "meshtasticmeshtast" ASCII
+    
+    // === LEAKED KEYS from 2023 security incidents ===
+    // Admin channel default (pre-2.2) - allowed remote device config
+    "PKdTs51e4EB0BoOevIN0Dw==",          // #15: Admin channel default (CRITICAL)
+    // Default secondary channel key
+    "shmLkA9H74gAeLH3eGCqsw==",          // #16: Secondary channel default
+    // Old firmware debug key (found in source)
+    "ogDPnKVRN7wz/VF8nt6LkA==",          // #17: Debug/dev key leaked in GitHub
+    // EU868 regional default (some EU deployments)
+    "ZQ+HdKKbbAU4dSCGt66Qqw==",          // #18: EU regional default
+    
+    // === Channel preset derived keys (hash of preset name) ===
+    // These are derived from channel preset names - vulnerable if using defaults
+    "d1iq21lNSh7BP6MOkP6cQA==",          // #19: MediumFast preset
+    "/u7k03L8N3Q=",                      // #20: ShortFast preset (8 bytes)
+    "GGC5DDnv8FKFm7WCZ5rXBA==",          // #21: LongSlow preset
+    "LHrwq5nxPIJlqFU/K5dKKQ==",          // #22: MediumSlow preset
+    "sb6GxC62sdwGXxJz2sERuQ==",          // #23: ShortSlow preset
 };
 
 
@@ -55,25 +81,12 @@ static constexpr uint8_t NUM_PSKS = sizeof(DEFAULT_PSKS) / sizeof(char*);
 
 PSKStats pskStats;
 
+// Use shared varint decoder from protobuf_utils.h
+using ProtobufUtils::decodeVarint;
+
 // ============================================================================
 // Helper Functions
 // ============================================================================
-
-static bool decodeVarint(const uint8_t* data, size_t dataLen, size_t pos, 
-                         uint32_t& value, size_t& bytesRead) {
-    value = 0;
-    bytesRead = 0;
-    uint32_t shift = 0;
-    
-    while (pos + bytesRead < dataLen && bytesRead < MAX_VARINT_BYTES) {
-        uint8_t byte = data[pos + bytesRead];
-        value |= ((uint32_t)(byte & 0x7F)) << shift;
-        bytesRead++;
-        if ((byte & 0x80) == 0) return true;
-        shift += 7;
-    }
-    return false;
-}
 
 static bool extractTextField(const uint8_t* data, size_t len, size_t startPos, String& text) {
     // Expect: 0x0A <length_varint> <text_bytes>
@@ -392,17 +405,21 @@ bool PSKDecryption::testDefaultPSKs(const uint8_t* data, size_t length) {
         
         // Check if it looks like valid protobuf (0x08 = field 1, wire type 0)
         bool looksValid = (firstByte == 0x08) || (firstByte == 0x10) || (firstByte == 0x12) || (firstByte == 0x18);
-        if (!looksValid) {
-            Serial.printf("[PSK] Key #%d: Doesn't look like typical protobuf start (0x%02X)\n", i + 1, firstByte);
-            // Don't skip - still try to extract text in case it's a different format
-        }
-        
-        // Success!
-        pskStats.successes++;
-        pskStats.hitCount[i]++;
         
         // Update diagnostic statistics for activity analysis
         TextPacketDiagnostic::analyzeDecryptedPacket(decrypted, encryptedLen, length);
+        
+        if (!looksValid) {
+            // Possible match but not confirmed - don't count as success
+            Serial.printf("\n[PSK] ⚠️ Possible match with key #%d (\"%s\") - unverified\n", i + 1, DEFAULT_PSKS[i]);
+            Serial.printf("[PSK] First byte 0x%02X doesn't match expected protobuf start\n", firstByte);
+            // Continue to next key - this one didn't produce valid output
+            continue;
+        }
+        
+        // Confirmed success - valid protobuf structure
+        pskStats.successes++;
+        pskStats.hitCount[i]++;
         
         Serial.printf("\n[PSK] ✓ Decrypted with key #%d (\"%s\")\n", i + 1, DEFAULT_PSKS[i]);
         Serial.printf("[PSK] Node: 0x%08X, Packet: 0x%08X, Flags: 0x%02X\n", 

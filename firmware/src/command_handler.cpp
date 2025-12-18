@@ -11,6 +11,7 @@
  */
 
 #include <esp_task_wdt.h>
+#include <Preferences.h>
 #include "command_handler.h"
 #include "irecon_tool.h"  // Interface only
 #include "lora_recon_tool.h"  // For g_reconTool global
@@ -34,9 +35,24 @@ CommandHandler::CommandHandler(IReconTool* tool)
 }
 
 bool CommandHandler::handleCommand(char cmd) {
+    // Filter out serial noise - only accept printable ASCII commands
+    // Ignore control characters, high bytes, and common noise patterns
+    if (cmd < 0x20 || cmd > 0x7E) {
+        // Log noise for debugging (but not newlines which are common)
+        if (cmd != '\n' && cmd != '\r') {
+            Serial.printf("[SERIAL-NOISE] Ignoring non-printable byte: 0x%02X\n", (uint8_t)cmd);
+        }
+        return false;
+    }
+    
+    // Log ALL valid serial input to catch phantom commands
+    Serial.printf("[SERIAL-CMD] Received: '%c' (0x%02X) in mode %d\n", 
+                  cmd, (uint8_t)cmd, reconState.scanState.mode);
+    
     // First check if it's a special command in the dispatch table
     const CommandEntry* entry = findCommand(cmd);
     if (entry) {
+        Serial.printf("[SERIAL-CMD] Executing: %s\n", entry->description);
         entry->handler(reconTool);
         return true;
     }
@@ -131,6 +147,13 @@ void CommandHandler::cmdResumeRecon(IReconTool* tool) {
                   reconState.numTargetableDevices, 
                   reconState.nodeCount,
                   reconState.numCapturedPackets);
+    
+    // Clear persisted targeting mode from NVS
+    Preferences modePrefs;
+    modePrefs.begin("mode", false);
+    modePrefs.clear();
+    modePrefs.end();
+    Serial.println("[MODE] Cleared persisted targeting mode");
     
     // Reset only the scan state to restart the cycle
     reconState.scanState.mode = MODE_RECONNAISSANCE;

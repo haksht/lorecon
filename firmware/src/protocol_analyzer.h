@@ -40,7 +40,7 @@ public:
     uint32_t extractNodeId(const uint8_t* data, size_t length, const char* protocol);
     uint32_t extractPacketId(const uint8_t* data, size_t length, const char* protocol);
     const char* identifyDeviceType(const uint8_t* data, size_t length, const char* protocol, float rssi);
-    uint8_t estimatePowerClass(float rssi);
+    // estimatePowerClass moved to FormatUtils::estimatePowerClass()
     bool isRoutingDevice(const uint8_t* data, size_t length, const char* protocol);
     const char* estimateFirmwareVersion(const uint8_t* data, size_t length, const char* protocol);
 };

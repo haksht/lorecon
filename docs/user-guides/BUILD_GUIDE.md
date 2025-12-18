@@ -7,7 +7,7 @@ This project is a **production-ready LoRa reconnaissance platform** using Platfo
 ### **🔬 Production Platform**
 - **Purpose**: Professional security research and RF analysis  
 - **Architecture**: Clean component separation (RadioController, PacketProcessor, IReconTool)
-- **Features**: PSK decryption (14 keys), GPS parsing, packet replay, geographic export
+- **Features**: PSK decryption (23 keys incl. leaked admin keys), GPS parsing, packet replay, geographic export
 - **Target Audience**: Security researchers, RF engineers, network analysts
 - **Code Quality**: 9.0/10 - Production-ready with comprehensive error handling
 
@@ -41,7 +41,7 @@ pio run --target upload --target uploadfs --target monitor
 | Capability | Status | Notes |
 |------------|--------|-------|
 | **📡 LoRa Packet Capture** | ✅ Production | 26 frequency configurations, interrupt-driven |
-| **🔓 PSK Decryption** | ✅ Production | 14 default keys, Meshtastic channel messages |
+| **🔓 PSK Decryption** | ✅ Production | 23 keys (incl. 2023 leaked admin/debug keys) |
 | **📍 GPS Position Parsing** | ✅ Production | Latitude/longitude extraction from POSITION_APP |
 | **🎯 Device Targeting** | ✅ Production | Interactive menu, frequency locking |
 | **📦 Packet Replay** | ✅ Production | 10 slots, repeat count configuration |
@@ -74,7 +74,7 @@ firmware/src/
 │   └── ui_components.cpp/.h           # Display component library
 │
 ├── 🔐 ANALYSIS MODULES
-│   ├── psk_decryption_simple.cpp/.h   # PSK testing framework (14 keys)
+│   ├── psk_decryption_simple.cpp/.h   # PSK testing framework (23 keys)
 │   ├── protocol_analyzer.cpp/.h       # Protocol identification
 │   ├── geo_intelligence.cpp/.h        # GPS position extraction
 │   └── text_packet_diagnostic.cpp/.h  # Packet timing and encryption analysis

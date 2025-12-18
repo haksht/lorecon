@@ -29,6 +29,8 @@
 #include "oled_display.h"
 #include "api_security.h"
 #include <LittleFS.h>
+#include <Preferences.h>
+#include <esp_system.h>
 #include "soc/rtc_cntl_reg.h"
 #include "soc/soc.h"
 
@@ -45,6 +47,31 @@ void setup() {
     
     // Initialize logger first
     Logger::setInstance(&serialLogger);
+    
+    // Log restart reason for debugging spontaneous reboots
+    esp_reset_reason_t resetReason = esp_reset_reason();
+    const char* resetReasonStr;
+    switch (resetReason) {
+        case ESP_RST_POWERON:   resetReasonStr = "Power-on"; break;
+        case ESP_RST_EXT:       resetReasonStr = "External pin"; break;
+        case ESP_RST_SW:        resetReasonStr = "Software reset (esp_restart)"; break;
+        case ESP_RST_PANIC:     resetReasonStr = "Exception/panic"; break;
+        case ESP_RST_INT_WDT:   resetReasonStr = "Interrupt watchdog"; break;
+        case ESP_RST_TASK_WDT:  resetReasonStr = "Task watchdog"; break;
+        case ESP_RST_WDT:       resetReasonStr = "Other watchdog"; break;
+        case ESP_RST_DEEPSLEEP: resetReasonStr = "Deep sleep wake"; break;
+        case ESP_RST_BROWNOUT:  resetReasonStr = "Brownout"; break;
+        case ESP_RST_SDIO:      resetReasonStr = "SDIO"; break;
+        default:                resetReasonStr = "Unknown"; break;
+    }
+    LOG_INFO("\n========================================");
+    LOG_INFO("     ESP32 RESTART DETECTED");
+    LOG_INFO("========================================");
+    LOG_INFO("Reset reason: %s (code %d)", resetReasonStr, resetReason);
+    if (resetReason == ESP_RST_PANIC || resetReason == ESP_RST_TASK_WDT || 
+        resetReason == ESP_RST_INT_WDT || resetReason == ESP_RST_WDT) {
+        LOG_WARN("⚠️  ABNORMAL RESTART - check for bugs or blocking code");
+    }
     
     // Initialize LittleFS for web app files
     if (!LittleFS.begin(true)) {
