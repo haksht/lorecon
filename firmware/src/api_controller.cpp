@@ -19,9 +19,6 @@
 #include "utils/json_utils.h"
 #include <SD.h>
 
-// External references
-extern GeoIntelligence geoIntel;
-
 /**
  * Set reconnaissance tool reference
  */
