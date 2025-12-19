@@ -102,15 +102,16 @@ A production-ready LoRa packet capture and analysis platform for security resear
 ### 🔄 Packet Replay (ESSENTIAL)
 **Status**: ✅ Production Ready  
 **Build Flag**: Always enabled  
-**Files**: `lora_recon_tool.cpp`, `recon_state.cpp`
+**Files**: `lora_recon_tool.cpp`, `recon_state.cpp`, `repositories/packet_store.cpp`
 
-- **10 replay slots** (256 bytes each)
-- **Interactive capture** (press 'c' during targeted mode)
+- **10 replay slots** (circular buffer - oldest replaced when full)
+- **Auto-capture** (packets automatically saved during scanning)
+- **FIFO behavior** (always shows 10 most recent packets)
 - **Replay menu** (list, select, transmit captured packets)
 - **Configuration preservation** (replays with original radio settings)
-- **Metadata tracking** (original RSSI, timestamp, protocol)
+- **Metadata tracking** (original RSSI, timestamp, protocol, decrypted text)
 
-**What it does**: Lets you save interesting packets during capture and retransmit them later for testing or demonstration purposes.
+**What it does**: Automatically captures packets during scanning into a circular buffer. When slots are full, oldest packets are replaced, ensuring you always have the 10 most recent packets available for replay or analysis.
 
 ---
 
