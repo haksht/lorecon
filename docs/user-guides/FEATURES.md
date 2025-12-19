@@ -1,6 +1,6 @@
 # Feature Documentation
 
-**ESP32 LoRa Reconnaissance Tool v2.0**
+**ESP32 LoRa Reconnaissance Tool v2.2.0**
 
 ## 🎯 Tool Identity
 
@@ -79,7 +79,7 @@ A production-ready LoRa packet capture and analysis platform for security resear
 - **Configuration management** (frequency, BW, SF, sync word)
 
 #### PacketProcessor Features
-- **Queue management** (max 10 packets, overflow protection)
+- **Queue management** (100-packet queue, overflow protection with drop tracking)
 - **Protocol analysis coordination** (Meshtastic, LoRaWAN)
 - **PSK decryption coordination** (23 default keys including leaked 2023 admin keys)
 - **Activity tracking** (via TextPacketDiagnostic)
@@ -442,5 +442,5 @@ Reduces serial output by 95% to minimize packet processing time and capture gaps
 ---
 
 **Last Updated**: November 19, 2025  
-**Version**: 2.0 Production  
+**Version**: 2.2.0 Production  
 **Status**: Ready for security research and RF experimentation

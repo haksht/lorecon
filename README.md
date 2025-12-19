@@ -47,10 +47,10 @@ LittleFS serves the web UI assets. SD card is optional but required for PCAP exp
 
 1. Power the ESP32 and wait for `ESP32-LoRa-Sniffer` WiFi AP.
 2. Connect a phone/laptop, browse to `http://192.168.4.1`.
-3. Use the interactive web UI with **6 tabs**:
+3. Use the interactive web UI with **7 tabs**:
    - **Info:** System status, GPS data, security assessment, frequency analysis
    - **Devices:** Discovered devices with targeting controls and packet counts
-   - **Packets:** Captured packets with formatted timestamps and replay controls
+   - **Replay:** Captured packets with formatted timestamps and replay controls
    - **Frequencies:** 26-config targeting menu with activity indicators
    - **Network:** Interactive canvas map with:
      - Threat-level color coding (red/orange/green based on vulnerability score)
@@ -59,6 +59,7 @@ LittleFS serves the web UI assets. SD card is optional but required for PCAP exp
      - Touch-friendly controls for mobile
      - Real-time device discovery animation
    - **Stats:** Protocol breakdown with war room dashboard
+   - **Settings:** WiFi configuration, diagnostics, system controls
 4. **Security Assessment:**
    - Multi-factor vulnerability scoring (0-100 scale)
    - Considers: RSSI proximity, encryption status, router role, traffic patterns, firmware version
@@ -106,16 +107,18 @@ firmware/src/
 
 data/webapp/
   index.html                -> minimal single-page UI
-  assets/                   -> inline CSS/JS bundle (small footprint)
+  css/style.css             -> dark theme, responsive layout
+  js/                       -> app.js, network-map.js, war-room.js, toast.js
 
 docs/
   user-guides/        -> BUILD_GUIDE.md, FEATURES.md, TROUBLESHOOTING.md
   technical/          -> ARCHITECTURE.md, ENCRYPTION.md, NETWORK_HUNTING_GUIDE.md
   hardware/           -> TDECK_STATUS.md, TDECK_PLUS_INVESTIGATION.md
-  api/                -> recon_service.md
 
 tools/
-  live_visualizer.py, pc_analyzer.py, analyze_logs.py
+  enhanced_live_visualizer.py  -> 5-panel matplotlib dashboard
+  psk_auditor.py, recon_report.py, position_tracker.py
+  api_client.py, ws_monitor.py, attack_dashboard.html
 ```
 
 ## Legal Use
