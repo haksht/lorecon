@@ -8,8 +8,9 @@
 /**
  * PacketStore - Repository for captured packets (replay slots)
  * 
- * Encapsulates the fixed-size circular buffer of captured packets
- * that can be replayed for testing or analysis.
+ * Implements a circular buffer (FIFO) of captured packets for replay.
+ * When full, oldest packets are automatically replaced by new ones,
+ * ensuring the most recent packets are always available.
  * 
  * Thread Safety: NOT thread-safe. Caller must ensure single-thread access
  * or provide external synchronization.
@@ -21,8 +22,9 @@ public:
     PacketStore();
     
     /**
-     * Capture a packet to the replay store
-     * @return true if captured, false if store is full
+     * Capture a packet to the replay store (circular buffer)
+     * When full, overwrites oldest packet automatically.
+     * @return true if captured successfully, false on invalid input
      */
     bool capturePacket(const uint8_t* data, size_t length,
                        uint8_t configIndex, int16_t rssi,
@@ -71,7 +73,8 @@ public:
 
 private:
     CapturedPacket slots_[MAX_SLOTS];
-    uint8_t numCaptured_;
+    uint8_t numCaptured_;   // Number of valid packets (0 to MAX_SLOTS)
+    uint8_t writeIndex_;    // Next write position (circular)
     
     // Empty packet returned for invalid index access
     static CapturedPacket emptyPacket_;

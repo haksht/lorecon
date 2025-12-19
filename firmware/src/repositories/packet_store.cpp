@@ -5,7 +5,7 @@
 CapturedPacket PacketStore::emptyPacket_;
 bool PacketStore::emptyInitialized_ = false;
 
-PacketStore::PacketStore() : numCaptured_(0) {
+PacketStore::PacketStore() : numCaptured_(0), writeIndex_(0) {
     memset(slots_, 0, sizeof(slots_));
     initializeEmptyPacket();
 }
@@ -25,12 +25,6 @@ bool PacketStore::capturePacket(const uint8_t* data, size_t length,
                                  bool viaMqtt, uint8_t priority,
                                  const char* protocol,
                                  const char* decryptedText) {
-    if (isFull()) {
-        LOG_WARN("PacketStore", "Cannot capture - store full (%d/%d slots)", 
-                 numCaptured_, MAX_SLOTS);
-        return false;
-    }
-    
     if (data == nullptr || length == 0) {
         LOG_WARN("PacketStore", "Cannot capture - invalid data");
         return false;
@@ -43,7 +37,9 @@ bool PacketStore::capturePacket(const uint8_t* data, size_t length,
         length = sizeof(slots_[0].data);
     }
     
-    CapturedPacket& slot = slots_[numCaptured_];
+    // Circular buffer: write to current position, then advance
+    // When full, this overwrites the oldest packet
+    CapturedPacket& slot = slots_[writeIndex_];
     
     // Copy packet data
     memcpy(slot.data, data, length);
@@ -77,10 +73,19 @@ bool PacketStore::capturePacket(const uint8_t* data, size_t length,
     }
     
     slot.valid = true;
-    numCaptured_++;
     
-    LOG_INFO("PacketStore", "Packet captured to slot #%d (%d bytes, %s)",
-             numCaptured_, length, protocol ? protocol : "unknown");
+    // Log with info about overwrite if buffer was full
+    if (numCaptured_ >= MAX_SLOTS) {
+        LOG_INFO("PacketStore", "Packet captured to slot #%d (replaced oldest, %d bytes, %s)",
+                 writeIndex_ + 1, length, protocol ? protocol : "unknown");
+    } else {
+        numCaptured_++;
+        LOG_INFO("PacketStore", "Packet captured to slot #%d (%d bytes, %s)",
+                 numCaptured_, length, protocol ? protocol : "unknown");
+    }
+    
+    // Advance write index circularly
+    writeIndex_ = (writeIndex_ + 1) % MAX_SLOTS;
     
     return true;
 }
@@ -94,6 +99,7 @@ const CapturedPacket& PacketStore::getPacket(uint8_t index) const {
 
 void PacketStore::clear() {
     numCaptured_ = 0;
+    writeIndex_ = 0;
     memset(slots_, 0, sizeof(slots_));
     LOG_INFO("PacketStore", "All replay slots cleared");
 }
