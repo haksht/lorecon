@@ -13,7 +13,7 @@ sounddevice>=0.4.0
 # REST API client (api_client.py, recon_report.py)
 requests>=2.28.0
 
-# WebSocket monitor (ws_monitor.py, psk_auditor.py)
+# WebSocket monitor (ws_monitor.py, psk_auditor.py, timeline_replay.py)
 websocket-client>=1.4.0
 
 # PSK decryption (psk_auditor.py, meshtastic_decoder.py)
@@ -22,5 +22,9 @@ cryptography>=41.0.0
 # HTML report generation (optional - recon_report.py)
 markdown>=3.4.0
 
+# Rich terminal UI (timeline_replay.py) - beautiful progress bars and tables
+rich>=13.0.0
+
 # PCAP analysis (pcap_analyzer.py) - optional, native parsing works without it
 # scapy>=2.5.0
+

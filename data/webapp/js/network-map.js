@@ -632,12 +632,13 @@ class NetworkMap {
             // Draw signal strength indicator
             this.drawSignalBars(device);
             
-            // Draw node ID
+            // Draw node ID (show last 4 chars for uniqueness, with 0x prefix to match device list)
             this.ctx.fillStyle = this.colors.text;
             this.ctx.font = 'bold 10px Arial';
             this.ctx.textAlign = 'center';
-            const shortId = device.nodeId ? device.nodeId.substring(0, 4) : '????';
-            this.ctx.fillText(shortId, device.position.x, device.position.y + this.nodeRadius + MAP_CONFIG.labelOffset);
+            const nodeIdStr = device.nodeId || '';
+            const shortId = nodeIdStr.length > 4 ? nodeIdStr.slice(-4) : nodeIdStr || '????';
+            this.ctx.fillText(`0x..${shortId}`, device.position.x, device.position.y + this.nodeRadius + MAP_CONFIG.labelOffset);
         }
     }
     
@@ -664,7 +665,7 @@ class NetworkMap {
         const padding = 10;
         const lineHeight = 18;
         const lines = [
-            `ID: ${device.nodeId || 'Unknown'}`,
+            `ID: 0x${device.nodeId || 'Unknown'}`,
             `Protocol: ${device.protocol || 'Unknown'}`,
             `RSSI: ${(device.rssi || device.avgRSSI || 0).toFixed(1)} dBm`,
             `Packets: ${device.packetCount || 0}`

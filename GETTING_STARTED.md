@@ -188,7 +188,65 @@ Once configured for your hotspot:
 
 ---
 
-## 📡 What This Tool Does
+## � API Authentication
+
+### Why API Tokens?
+
+Destructive actions (packet replay, WiFi reset, device targeting) require authentication to prevent unauthorized remote control of your device. **Read-only endpoints (devices, status, packets) are public** for easy visualization.
+
+### Finding Your Token
+
+The API token is displayed at boot in **serial output**:
+
+```
+[INFO] API authentication: ENABLED
+[INFO] Token: a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6
+[INFO] Use header: X-API-Token: <token>
+```
+
+### Using the Token
+
+**Web UI**: The built-in web interface handles authentication automatically.
+
+**Python Tools**: The tools in `tools/` use the token via query parameter:
+```bash
+python api_client.py --host 192.168.4.1 --token YOUR_TOKEN replay 0
+```
+
+**cURL/HTTP**:
+```bash
+# Protected endpoint (requires token)
+curl -H "X-API-Token: YOUR_TOKEN" http://192.168.4.1/api/replay/transmit -d '{"slotIndex":0}'
+
+# Public endpoint (no token needed)
+curl http://192.168.4.1/api/devices
+```
+
+### Protected vs Public Endpoints
+
+| Endpoint Type | Authentication | Examples |
+|---------------|----------------|----------|
+| **Public (GET)** | None | `/api/status`, `/api/devices`, `/api/packets` |
+| **Protected (POST)** | Token required | `/api/replay/transmit`, `/api/capture/start`, `/api/wifi/clear` |
+
+### Regenerating Token
+
+If your token is compromised:
+1. Go to **Settings** tab → **Security** section
+2. Click **Regenerate Token**
+3. New token appears in serial output
+
+### Disabling Authentication (Demo Mode)
+
+For demos where security isn't needed, edit `firmware/src/config.h`:
+```cpp
+constexpr bool AUTH_ENABLED = false;  // Change from true
+```
+Rebuild and upload. All endpoints become public.
+
+---
+
+## �📡 What This Tool Does
 
 ### Core Capabilities
 
