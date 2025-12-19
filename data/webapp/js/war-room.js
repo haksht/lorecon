@@ -3,6 +3,26 @@
    Real-time operational metrics and activity monitoring
    ================================================================= */
 
+// Debug configuration - matches app.js pattern
+const WAR_DEBUG = {
+    enabled: false,  // Set to true for verbose war room logging
+    log: (...args) => WAR_DEBUG.enabled && console.log('[WarRoom]', ...args),
+    warn: (...args) => console.warn('[WarRoom]', ...args),
+    error: (...args) => console.error('[WarRoom]', ...args)
+};
+
+/**
+ * Escape HTML entities to prevent XSS attacks
+ * @param {string} text - Raw text to escape
+ * @returns {string} HTML-escaped text
+ */
+function warRoomEscapeHtml(text) {
+    if (!text) return '';
+    const div = document.createElement('div');
+    div.textContent = String(text);
+    return div.innerHTML;
+}
+
 class WarRoom {
     constructor(containerId) {
         this.container = document.getElementById(containerId);
@@ -22,15 +42,15 @@ class WarRoom {
         this.lastUpdateTime = Date.now();
         
         if (!this.container) {
-            console.error('[WarRoom] Container not found:', containerId);
+            WAR_DEBUG.error('Container not found:', containerId);
         } else {
-            console.log('[WarRoom] Initialized');
+            WAR_DEBUG.log('Initialized');
             this.render();
         }
     }
     
     update(data) {
-        console.log('[WarRoom] Updating with data:', data);
+        WAR_DEBUG.log('Updating with data:', data);
         
         // Update metrics from status data
         if (data.devices !== undefined) this.metrics.activeDevices = data.devices;
@@ -143,7 +163,7 @@ class WarRoom {
                         ${this.renderFrequencyBars()}
                     </div>
                     <div class="frequency-legend">
-                        <span class="freq-current">Current: ${this.metrics.currentFreq}</span>
+                        <span class="freq-current">Current: ${warRoomEscapeHtml(this.metrics.currentFreq)}</span>
                     </div>
                 </div>
                 
@@ -186,10 +206,10 @@ class WarRoom {
         return this.recentEvents.map(event => {
             const icon = this.getEventIcon(event.type);
             return `
-                <div class="event-item event-${event.type}">
+                <div class="event-item event-${warRoomEscapeHtml(event.type)}">
                     <span class="event-icon">${icon}</span>
-                    <span class="event-message">${event.message}</span>
-                    <span class="event-time">${event.timestamp}</span>
+                    <span class="event-message">${warRoomEscapeHtml(event.message)}</span>
+                    <span class="event-time">${warRoomEscapeHtml(event.timestamp)}</span>
                 </div>
             `;
         }).join('');
@@ -204,13 +224,6 @@ class WarRoom {
             'scan': '📡'
         };
         return icons[type] || '•';
-    }
-    
-    formatUptime(seconds) {
-        const h = Math.floor(seconds / 3600);
-        const m = Math.floor((seconds % 3600) / 60);
-        const s = seconds % 60;
-        return h > 0 ? `${h}h ${m}m` : m > 0 ? `${m}m ${s}s` : `${s}s`;
     }
 }
 

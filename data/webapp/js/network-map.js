@@ -13,6 +13,62 @@ const MAP_DEBUG = {
     error: (...args) => console.error('[NetworkMap]', ...args)
 };
 
+/**
+ * Escape HTML entities to prevent XSS attacks
+ * @param {string} text - Raw text to escape
+ * @returns {string} HTML-escaped text
+ */
+function mapEscapeHtml(text) {
+    if (!text) return '';
+    const div = document.createElement('div');
+    div.textContent = String(text);
+    return div.innerHTML;
+}
+
+/**
+ * Configuration constants for network map visualization
+ * Centralized magic numbers for easy tuning
+ * @namespace MAP_CONFIG
+ */
+const MAP_CONFIG = {
+    // Node sizing
+    nodeRadius: 20,              // Default node circle radius in pixels
+    clickRadius: 50,             // Click/touch detection radius (2.5x node for easier mobile taps)
+    innerIconRadius: 5,          // Offset from nodeRadius for inner icon circle
+    selectionRingOffset: 3,      // Extra radius for selection highlight ring
+    
+    // Animation
+    pulseSpeed: 0.05,            // Phase increment per animation frame
+    pulseAmplitude: 5,           // Max pixels of pulse expansion
+    glowPulseMultiplier: 2,      // Pulse speed multiplier for glow effects
+    
+    // Layout
+    defaultCanvasHeight: 600,    // Fallback height if offsetHeight unavailable
+    resizeDelay: 100,            // Ms delay before resize to ensure render
+    
+    // Tooltip positioning
+    tooltipOffset: 10,           // Gap between node and tooltip
+    labelOffset: 15,             // Gap below node for ID label
+    
+    // Connection lines
+    connectionLineWidth: 2,      // Width of device connection lines
+    connectionAlpha: 0.3,        // Opacity of connection lines
+    
+    // RSSI thresholds for distance calculation
+    rssi: {
+        strong: -70,             // dBm threshold for strong signal
+        medium: -90,             // dBm threshold for medium signal
+        weak: -110               // dBm threshold for weak signal (below = very weak)
+    },
+    
+    // Distance visualization (RSSI to pixels mapping)
+    distance: {
+        minRadius: 80,           // Minimum distance from center (strong signal)
+        maxRadius: 0.4,          // Max distance as fraction of canvas size
+        maxRandomJitter: 30      // Random position jitter in pixels
+    }
+};
+
 class NetworkMap {
     constructor(canvasId, detailsPanelId) {
         this.canvas = document.getElementById(canvasId);
@@ -36,11 +92,11 @@ class NetworkMap {
         this.selectedNode = null;
         this.hoveredNode = null;
         
-        // Layout
+        // Layout - use config constants
         this.centerX = 0;
         this.centerY = 0;
-        this.nodeRadius = 20;
-        this.clickRadius = 50; // Generous click area - 2.5x node radius
+        this.nodeRadius = MAP_CONFIG.nodeRadius;
+        this.clickRadius = MAP_CONFIG.clickRadius;
         
         // Animation
         this.animationFrame = null;
@@ -79,7 +135,7 @@ class NetworkMap {
         const resizeCanvas = () => {
             const container = this.canvas.parentElement;
             if (!container) {
-                console.error('[NetworkMap] Canvas has no parent element');
+                MAP_DEBUG.error('Canvas has no parent element');
                 return;
             }
             
@@ -89,7 +145,7 @@ class NetworkMap {
             // Get actual container dimensions
             const rect = container.getBoundingClientRect();
             this.canvas.width = rect.width;
-            this.canvas.height = this.canvas.offsetHeight || 600;
+            this.canvas.height = this.canvas.offsetHeight || MAP_CONFIG.defaultCanvasHeight;
             
             this.centerX = this.canvas.width / 2;
             this.centerY = this.canvas.height / 2;
@@ -103,7 +159,7 @@ class NetworkMap {
         
         window.addEventListener('resize', resizeCanvas);
         // Small delay to ensure canvas has rendered
-        setTimeout(resizeCanvas, 100);
+        setTimeout(resizeCanvas, MAP_CONFIG.resizeDelay);
         resizeCanvas();
         
         MAP_DEBUG.log('Canvas setup complete:', this.canvas.width, 'x', this.canvas.height);
@@ -221,7 +277,7 @@ class NetworkMap {
     
     findNodeAtPosition(x, y) {
         // Use larger click radius for easier clicking
-        const clickRadius = this.clickRadius || 50;
+        const clickRadius = this.clickRadius || MAP_CONFIG.clickRadius;
         
         MAP_DEBUG.log(`Finding node at (${x.toFixed(0)}, ${y.toFixed(0)})`);
         MAP_DEBUG.log(`Total devices in array: ${this.devices.length}`);
@@ -365,7 +421,7 @@ class NetworkMap {
     
     startAnimation() {
         const animate = () => {
-            this.pulsePhase += 0.05;
+            this.pulsePhase += MAP_CONFIG.pulseSpeed;
             this.redraw();
             this.animationFrame = requestAnimationFrame(animate);
         };
@@ -429,7 +485,7 @@ class NetworkMap {
     
     drawCenter() {
         // Draw sniffer device at center
-        const pulse = Math.sin(this.pulsePhase) * 5;
+        const pulse = Math.sin(this.pulsePhase) * MAP_CONFIG.pulseAmplitude;
         
         this.ctx.fillStyle = '#ff6b6b';
         this.ctx.beginPath();
@@ -529,7 +585,7 @@ class NetworkMap {
             
             // Draw outer glow if selected
             if (isSelected) {
-                const glowPulse = Math.sin(this.pulsePhase * 2) * 5 + 5;
+                const glowPulse = Math.sin(this.pulsePhase * MAP_CONFIG.glowPulseMultiplier) * MAP_CONFIG.pulseAmplitude + MAP_CONFIG.pulseAmplitude;
                 this.ctx.fillStyle = nodeColor + '40';
                 this.ctx.beginPath();
                 this.ctx.arc(device.position.x, device.position.y, this.nodeRadius + glowPulse, 0, 2 * Math.PI);
@@ -559,7 +615,7 @@ class NetworkMap {
                     this.ctx.strokeStyle = nodeColor;
                     this.ctx.lineWidth = 2;
                     this.ctx.beginPath();
-                    this.ctx.arc(device.position.x, device.position.y, this.nodeRadius - 5, 0, 2 * Math.PI);
+                    this.ctx.arc(device.position.x, device.position.y, this.nodeRadius - MAP_CONFIG.innerIconRadius, 0, 2 * Math.PI);
                     this.ctx.stroke();
                 }
             }
@@ -569,7 +625,7 @@ class NetworkMap {
                 this.ctx.strokeStyle = '#ffffff';
                 this.ctx.lineWidth = 3;
                 this.ctx.beginPath();
-                this.ctx.arc(device.position.x, device.position.y, this.nodeRadius + 3, 0, 2 * Math.PI);
+                this.ctx.arc(device.position.x, device.position.y, this.nodeRadius + MAP_CONFIG.selectionRingOffset, 0, 2 * Math.PI);
                 this.ctx.stroke();
             }
             
@@ -581,7 +637,7 @@ class NetworkMap {
             this.ctx.font = 'bold 10px Arial';
             this.ctx.textAlign = 'center';
             const shortId = device.nodeId ? device.nodeId.substring(0, 4) : '????';
-            this.ctx.fillText(shortId, device.position.x, device.position.y + this.nodeRadius + 15);
+            this.ctx.fillText(shortId, device.position.x, device.position.y + this.nodeRadius + MAP_CONFIG.labelOffset);
         }
     }
     
@@ -621,11 +677,11 @@ class NetworkMap {
         const tooltipHeight = lines.length * lineHeight + padding * 2;
         
         // Position tooltip near mouse
-        let x = device.position.x + this.nodeRadius + 10;
+        let x = device.position.x + this.nodeRadius + MAP_CONFIG.tooltipOffset;
         let y = device.position.y - tooltipHeight / 2;
         
         // Keep tooltip on screen
-        if (x + tooltipWidth > this.canvas.width) x = device.position.x - this.nodeRadius - tooltipWidth - 10;
+        if (x + tooltipWidth > this.canvas.width) x = device.position.x - this.nodeRadius - tooltipWidth - MAP_CONFIG.tooltipOffset;
         if (y < 0) y = 0;
         if (y + tooltipHeight > this.canvas.height) y = this.canvas.height - tooltipHeight;
         
@@ -674,11 +730,11 @@ class NetworkMap {
         }
         
         let html = '<div class="node-details-card" style="padding: 1.5rem; background: rgba(26, 26, 46, 0.95); border-radius: 8px; border: 2px solid rgba(74, 144, 226, 0.5); margin: 0.5rem 0;">';
-        html += `<h3 style="margin: 0 0 1rem 0; color: #4a90e2; font-size: 1.2rem; font-weight: 600;">📡 Device 0x${device.nodeId || 'Unknown'}</h3>`;
+        html += `<h3 style="margin: 0 0 1rem 0; color: #4a90e2; font-size: 1.2rem; font-weight: 600;">📡 Device 0x${mapEscapeHtml(device.nodeId || 'Unknown')}</h3>`;
         
         html += '<div style="display: grid; gap: 0.75rem; font-size: 1rem;">';
-        html += `<div style="display: flex; justify-content: space-between; padding: 0.5rem; background: rgba(255,255,255,0.05); border-radius: 4px;"><span style="color: #a0a0a0;">Protocol:</span><strong style="color: #e0e0e0;">${device.protocol || 'Unknown'}</strong></div>`;
-        html += `<div style="display: flex; justify-content: space-between; padding: 0.5rem; background: rgba(255,255,255,0.05); border-radius: 4px;"><span style="color: #a0a0a0;">Device Type:</span><strong style="color: #e0e0e0;">${device.deviceType || 'Unknown'}</strong></div>`;
+        html += `<div style="display: flex; justify-content: space-between; padding: 0.5rem; background: rgba(255,255,255,0.05); border-radius: 4px;"><span style="color: #a0a0a0;">Protocol:</span><strong style="color: #e0e0e0;">${mapEscapeHtml(device.protocol || 'Unknown')}</strong></div>`;
+        html += `<div style="display: flex; justify-content: space-between; padding: 0.5rem; background: rgba(255,255,255,0.05); border-radius: 4px;"><span style="color: #a0a0a0;">Device Type:</span><strong style="color: #e0e0e0;">${mapEscapeHtml(device.deviceType || 'Unknown')}</strong></div>`;
         html += `<div style="display: flex; justify-content: space-between; padding: 0.5rem; background: rgba(255,255,255,0.05); border-radius: 4px;"><span style="color: #a0a0a0;">RSSI:</span><strong style="color: #e0e0e0;">${rssi.toFixed(1)} dBm</strong></div>`;
         html += `<div style="display: flex; justify-content: space-between; padding: 0.5rem; background: rgba(255,255,255,0.05); border-radius: 4px;"><span style="color: #a0a0a0;">Packets:</span><strong style="color: #e0e0e0;">${device.packetCount || 0}</strong></div>`;
         html += `<div style="display: flex; justify-content: space-between; padding: 0.5rem; background: rgba(255,255,255,0.05); border-radius: 4px;"><span style="color: #a0a0a0;">Last Seen:</span><strong style="color: #e0e0e0;">${lastSeen}</strong></div>`;
