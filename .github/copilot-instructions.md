@@ -73,16 +73,15 @@ No exceptions (embedded C++). Return `bool` for success/failure. Use `LOG_ERROR(
 - **`docs/technical/ARCHITECTURE.md`**: 1400-line deep dive into v2.0 design, ISR patterns, memory safety
 - **`firmware/src/main.cpp`**: 108-line entry point showing WiFi/LittleFS/PSK test initialization sequence
 - **`firmware/src/irecon_tool.h`**: Interface contract that breaks circular dependencies
-- **`firmware/src/data_structures.h`**: All shared structs (17 definitions): `CapturedPacket`, `QueuedPacket`, `ScanConfig`, etc.
+- **`firmware/src/data_structures.h`**: All shared structs (16 definitions): `CapturedPacket`, `QueuedPacket`, `ScanConfig`, etc.
 - **`firmware/src/utils/`**: Shared utilities:
   - `format_utils.h`: Node ID formatting (`formatNodeId`, `formatNodeIdJson`, `formatNodeIdPadded`, `estimatePowerClass`)
   - `protobuf_utils.h`: Varint decoding utilities
   - `security_scorer.h`: Unified security assessment scoring
   - `json_utils.h`: Standardized JSON response helpers (`JsonUtils::success()`, `JsonUtils::error()`, `JsonUtils::successWithData()`)
 - **`firmware/src/repositories/`**: Storage layer (delegates from ReconState):
-  - `device_repository.h/cpp`: Targetable device storage with Welford's RSSI stats
-  - `packet_store.h/cpp`: Replay slot management for captured packets
-  - `node_tracker.h/cpp`: Hot node tracking for behavioral analysis
+  - `device_repository.h/cpp`: Targetable device storage with Welford's RSSI stats (50 devices max, LRU eviction)
+  - `packet_store.h/cpp`: Replay slot management with FIFO circular buffer and packet deduplication
 - **`firmware/src/json_builders.h/cpp`**: Extracted JSON response builders from ReconService (13 functions)
 - **`platformio.ini`**: Build flags include `-DBOARD_HELTEC_V3`, `-DHAS_OLED_DISPLAY`. Filters exclude test files with `build_src_filter`.
 

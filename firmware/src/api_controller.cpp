@@ -271,14 +271,12 @@ String APIController::getSystemConfig() {
     // Device tracking
     JsonObject tracking = doc["tracking"].to<JsonObject>();
     tracking["maxDevices"] = Config::Tracking::MAX_DEVICES;
-    tracking["maxNodes"] = Config::Tracking::MAX_HOT_NODES;
     tracking["maxGeoPoints"] = Config::Tracking::MAX_GEO_POINTS;
     tracking["deviceTimeoutMs"] = Config::Tracking::DEVICE_TIMEOUT_MS;
     
     // Current usage
     JsonObject usage = doc["usage"].to<JsonObject>();
     usage["devices"] = reconState.getNumTargetableDevices();
-    usage["nodes"] = reconState.getNodeCount();
     usage["replaySlots"] = reconState.getNumCapturedPackets();
     usage["droppedPackets"] = reconState.scanState.droppedPackets;
     usage["totalPackets"] = reconState.scanState.totalPackets;

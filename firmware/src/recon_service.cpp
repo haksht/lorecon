@@ -92,13 +92,11 @@ bool ReconService::clearReplaySlots(String& outMessage) {
 
 bool ReconService::clearDevices(String& outMessage) {
     uint8_t deviceCount = reconState.getNumTargetableDevices();
-    uint8_t nodeCount = reconState.getNodeCount();
     
     reconState.clearTargetableDevices();
-    reconState.clearNodes();
     
     char msg[64];
-    snprintf(msg, sizeof(msg), "Cleared %d devices and %d nodes", deviceCount, nodeCount);
+    snprintf(msg, sizeof(msg), "Cleared %d devices", deviceCount);
     outMessage = msg;
     return true;
 }

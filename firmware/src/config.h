@@ -92,27 +92,16 @@ namespace Logging {
 }
 
 // ============================================================================
-// DEVICE TRACKING - TIERED STORAGE
+// DEVICE TRACKING
 // ============================================================================
 namespace Tracking {
     // Maximum targetable devices to track
-    constexpr uint8_t MAX_DEVICES = 20;
+    // Each device ~100 bytes, so 50 devices = ~5KB RAM
+    // Increased from 20 to handle busy environments (conferences, urban areas)
+    constexpr uint8_t MAX_DEVICES = 50;
     
     // Maximum RF activity entries (non-device signals)
     constexpr uint8_t MAX_RF_ACTIVITIES = 16;
-    
-    // TIERED NODE TRACKING:
-    // HOT tier: Full telemetry (RSSI, packet count, protocol)
-    // WARM tier: Basic presence tracking (ID, first/last seen)
-    // Pure LRU: Hot tier fills naturally, oldest evicted to warm when capacity reached
-    
-    // Hot nodes - full tracking with all telemetry (150 * 40 bytes = 6KB)
-    constexpr uint8_t MAX_HOT_NODES = 150;
-    
-    // Warm nodes - historical presence only (200 * 16 bytes = 3.2KB)
-    constexpr uint8_t MAX_WARM_NODES = 200;
-    
-    // Total tracking capacity: 350 unique nodes in ~9.2KB RAM
     
     // Maximum GPS points to store
     constexpr uint8_t MAX_GEO_POINTS = 50;
@@ -330,10 +319,6 @@ static_assert(Config::PacketProcessing::MAX_PACKET_SIZE == 256,
 // Verify index types can hold maximum values
 static_assert(Config::Tracking::MAX_DEVICES <= 255,
               "Device indices use uint8_t, must fit in 0-255 range");
-static_assert(Config::Tracking::MAX_HOT_NODES <= 255,
-              "Hot node indices use uint8_t, must fit in 0-255 range");
-static_assert(Config::Tracking::MAX_WARM_NODES <= 255,
-              "Warm node indices use uint8_t, must fit in 0-255 range");
 static_assert(Config::Scanning::NUM_CONFIGURATIONS <= 255,
               "Config indices use uint8_t, must fit in 0-255 range");
 

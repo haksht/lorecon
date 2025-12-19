@@ -12,7 +12,6 @@
 #include "data_structures.h"
 #include "config.h"
 #include "repositories/packet_store.h"
-#include "repositories/node_tracker.h"
 #include "repositories/device_repository.h"
 
 class ReconState {
@@ -21,9 +20,8 @@ private:
     static const ScanConfig scanConfigs[];
     static const uint8_t NUM_CONFIGS;
     
-    // Repository delegates (Phase 2 migration - public arrays kept for compatibility)
+    // Repository delegates
     PacketStore packetStore_;
-    NodeTracker nodeTracker_;
     DeviceRepository deviceRepo_;
 
 public:
@@ -72,16 +70,8 @@ public:
     void clearTargetableDevices();
     uint8_t getNumTargetableDevices() const { return deviceRepo_.count(); }
     
-    // Node tracking management
-    void updateNode(uint32_t nodeId, const char* protocol, float rssi);
-    TrackedNode* findNode(uint32_t nodeId);
-    void clearNodes();
-    uint8_t getNodeCount() const { return nodeTracker_.count(); }
-    const TrackedNode* getTrackedNode(uint8_t index) const;
-    
     // Repository access (for DeviceArchiver and other components that need direct access)
     DeviceRepository& getDeviceRepository() { return deviceRepo_; }
-    NodeTracker& getNodeTracker() { return nodeTracker_; }
     
     // State queries
     bool hasTargetableDevices() const { return deviceRepo_.count() > 0; }
