@@ -183,10 +183,7 @@ void LoRaReconTool::update() {
         
         // Check memory pressure and archive/rotate devices if needed
         if (deviceArchiver) {
-            deviceArchiver->checkAndArchive(
-                reconState.getDeviceRepository(),
-                reconState.getNodeTracker()
-            );
+            deviceArchiver->checkAndArchive(reconState.getDeviceRepository());
         }
         
         lastHealthCheck = now;

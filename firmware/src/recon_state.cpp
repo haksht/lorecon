@@ -70,7 +70,6 @@ void ReconState::initialize() {
     
     // Clear repositories
     deviceRepo_.clear();
-    nodeTracker_.clear();
     packetStore_.clear();
     
     // Initialize scan state
@@ -224,23 +223,6 @@ void ReconState::clearTargetableDevices() {
     deviceRepo_.clear();
 }
 
-// Node tracking - delegates to NodeTracker
-void ReconState::updateNode(uint32_t nodeId, const char* protocol, float rssi) {
-    nodeTracker_.updateNode(nodeId, protocol, rssi);
-}
-
-TrackedNode* ReconState::findNode(uint32_t nodeId) {
-    return nodeTracker_.findNode(nodeId);
-}
-
-const TrackedNode* ReconState::getTrackedNode(uint8_t index) const {
-    return nodeTracker_.getByIndex(index);
-}
-
-void ReconState::clearNodes() {
-    nodeTracker_.clear();
-}
-
 bool ReconState::hasRFActivity() const {
     for (uint8_t i = 0; i < NUM_CONFIGS; i++) {
         if (rfActivity[i].activityCount > 0) {
@@ -339,8 +321,7 @@ void ReconState::printStateSummary() const {
                   scanState.mode, scanState.currentConfig, NUM_CONFIGS);
     Serial.printf("Total packets: %d, Total detections: %d\n", 
                   scanState.totalPackets, scanState.totalDetections);
-    Serial.printf("Targetable devices: %d, Tracked nodes: %d\n", 
-                  deviceRepo_.count(), nodeTracker_.count());
+    Serial.printf("Targetable devices: %d\n", deviceRepo_.count());
     Serial.printf("Recon duration: %u seconds\n", (unsigned int)getReconDuration());
     
     if (hasRFActivity()) {

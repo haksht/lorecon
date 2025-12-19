@@ -12,7 +12,7 @@
  * 4. Optionally restoring devices from archive if they reappear
  * 
  * Integration:
- * - Uses DeviceRepository and NodeTracker via their public interfaces
+ * - Uses DeviceRepository via its public interface
  * - Called periodically from LoRaReconTool::update() (every 5 minutes)
  * - SD archival writes JSON Lines format to /recon/archive.jsonl
  * 
@@ -24,7 +24,6 @@
  * 
  * File Format (archive.jsonl):
  * {"type":"device","nodeId":123456,"protocol":"Meshtastic",...,"archivedAt":12345678}
- * {"type":"node","nodeId":789012,"protocol":"LoRaWAN",...,"archivedAt":12345679}
  * 
  * Future Enhancements:
  * - TODO: Implement restoreDevice() for full round-trip archival
@@ -43,7 +42,6 @@
 
 // Forward declarations for repository pattern
 class DeviceRepository;
-class NodeTracker;
 
 /**
  * Statistics tracking for archival operations
@@ -73,7 +71,7 @@ struct ArchiveStats {
  * Usage:
  *   DeviceArchiver archiver;
  *   // In periodic update (every 5 min):
- *   archiver.checkAndArchive(deviceRepo, nodeTracker);
+ *   archiver.checkAndArchive(deviceRepo);
  */
 class DeviceArchiver {
 public:
@@ -86,18 +84,16 @@ public:
     /**
      * Check fragmentation and archive if needed
      * @param deviceRepo Reference to device repository
-     * @param nodeTracker Reference to node tracker
      * @return true if archival was performed
      */
-    bool checkAndArchive(DeviceRepository& deviceRepo, NodeTracker& nodeTracker);
+    bool checkAndArchive(DeviceRepository& deviceRepo);
     
     /**
      * Force archival of inactive devices (manual trigger)
      * @param deviceRepo Reference to device repository
-     * @param nodeTracker Reference to node tracker  
      * @return true if any devices were archived
      */
-    bool archiveInactiveDevices(DeviceRepository& deviceRepo, NodeTracker& nodeTracker);
+    bool archiveInactiveDevices(DeviceRepository& deviceRepo);
     
     /**
      * Attempt to restore device from archive
@@ -127,12 +123,10 @@ private:
     
     // Archive write operations
     bool writeDeviceToArchive(const TargetableDevice& device);
-    bool writeNodeToArchive(const TrackedNode& node);
     void logArchiveOperation(uint8_t archivedCount, float fragBefore, float fragAfter);
     
     // No-SD fallback: rotation instead of archival
     bool rotateOldestDevices(DeviceRepository& deviceRepo, uint8_t removeCount);
-    bool rotateOldestNodes(NodeTracker& nodeTracker, uint8_t removeCount);
 };
 
 #endif // DEVICE_ARCHIVER_H

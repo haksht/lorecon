@@ -7,7 +7,6 @@
 
 #include "device_archiver.h"
 #include "repositories/device_repository.h"
-#include "repositories/node_tracker.h"
 #include "logger.h"
 #include "utils/sd_utils.h"
 #include <esp_heap_caps.h>
@@ -52,7 +51,7 @@ bool DeviceArchiver::shouldArchive() const {
     return frag >= Config::Archiver::FRAGMENTATION_THRESHOLD;
 }
 
-bool DeviceArchiver::checkAndArchive(DeviceRepository& deviceRepo, NodeTracker& nodeTracker) {
+bool DeviceArchiver::checkAndArchive(DeviceRepository& deviceRepo) {
     if (!shouldArchive()) {
         return false;  // Fragmentation is acceptable
     }
@@ -63,23 +62,19 @@ bool DeviceArchiver::checkAndArchive(DeviceRepository& deviceRepo, NodeTracker& 
     initializeSD();
     
     if (isSDAvailable()) {
-        return archiveInactiveDevices(deviceRepo, nodeTracker);
+        return archiveInactiveDevices(deviceRepo);
     } else {
         // No SD card - use rotation to free memory
         LOG_INFO("[ARCHIVE] No SD - rotating oldest devices to free memory");
         
         // Remove ~20% of devices to relieve memory pressure
         uint8_t deviceRemoveCount = max((uint8_t)2, (uint8_t)(deviceRepo.count() / 5));
-        uint8_t nodeRemoveCount = max((uint8_t)2, (uint8_t)(nodeTracker.count() / 5));
         
-        bool rotatedDevices = rotateOldestDevices(deviceRepo, deviceRemoveCount);
-        bool rotatedNodes = rotateOldestNodes(nodeTracker, nodeRemoveCount);
-        
-        return rotatedDevices || rotatedNodes;
+        return rotateOldestDevices(deviceRepo, deviceRemoveCount);
     }
 }
 
-bool DeviceArchiver::archiveInactiveDevices(DeviceRepository& deviceRepo, NodeTracker& nodeTracker) {
+bool DeviceArchiver::archiveInactiveDevices(DeviceRepository& deviceRepo) {
     float fragBefore = getCurrentFragmentation();
     uint32_t heapBefore = ESP.getFreeHeap();
     uint32_t now = millis();
@@ -131,25 +126,6 @@ bool DeviceArchiver::archiveInactiveDevices(DeviceRepository& deviceRepo, NodeTr
         deviceRepo.removeByNodeId(nodeId);
     }
     
-    // Also archive cold nodes
-    std::vector<uint32_t> coldNodeIds;
-    for (uint8_t i = 0; i < nodeTracker.count(); i++) {
-        const TrackedNode* node = nodeTracker.getByIndex(i);
-        if (node) {
-            uint32_t inactiveMs = now - node->lastSeen;
-            if (inactiveMs > Config::Archiver::DEVICE_INACTIVITY_MS) {
-                if (writeNodeToArchive(*node)) {
-                    coldNodeIds.push_back(node->nodeId);
-                }
-            }
-        }
-    }
-    
-    // Remove archived nodes
-    for (uint32_t nodeId : coldNodeIds) {
-        nodeTracker.removeByNodeId(nodeId);
-    }
-    
     // Update stats
     uint32_t heapAfter = ESP.getFreeHeap();
     float fragAfter = getCurrentFragmentation();
@@ -160,7 +136,7 @@ bool DeviceArchiver::archiveInactiveDevices(DeviceRepository& deviceRepo, NodeTr
     stats.fragmentationBefore = fragBefore;
     stats.fragmentationAfter = fragAfter;
     
-    LOG_INFO("[ARCHIVE] ✓ Archived %d devices, %d nodes", archived, coldNodeIds.size());
+    LOG_INFO("[ARCHIVE] ✓ Archived %d devices", archived);
     LOG_INFO("[ARCHIVE] Fragmentation: %.1f%% → %.1f%% (freed %u bytes)", 
              fragBefore, fragAfter, stats.bytesFreed);
     
@@ -219,44 +195,6 @@ bool DeviceArchiver::rotateOldestDevices(DeviceRepository& deviceRepo, uint8_t r
     return true;
 }
 
-bool DeviceArchiver::rotateOldestNodes(NodeTracker& nodeTracker, uint8_t removeCount) {
-    if (nodeTracker.count() <= 5) {  // Keep minimum nodes
-        return false;
-    }
-    
-    uint8_t maxRemove = nodeTracker.count() - 5;
-    removeCount = min(removeCount, maxRemove);
-    
-    if (removeCount == 0) return false;
-    
-    // Find oldest nodes
-    struct NodeAge {
-        uint32_t nodeId;
-        uint32_t lastSeen;
-    };
-    
-    std::vector<NodeAge> ages;
-    ages.reserve(nodeTracker.count());
-    
-    for (uint8_t i = 0; i < nodeTracker.count(); i++) {
-        const TrackedNode* node = nodeTracker.getByIndex(i);
-        if (node) {
-            ages.push_back({node->nodeId, node->lastSeen});
-        }
-    }
-    
-    std::sort(ages.begin(), ages.end(), [](const NodeAge& a, const NodeAge& b) {
-        return a.lastSeen < b.lastSeen;
-    });
-    
-    for (uint8_t i = 0; i < removeCount && i < ages.size(); i++) {
-        nodeTracker.removeByNodeId(ages[i].nodeId);
-    }
-    
-    LOG_INFO("[ARCHIVE] ✓ Rotated %d nodes", removeCount);
-    return true;
-}
-
 bool DeviceArchiver::writeDeviceToArchive(const TargetableDevice& device) {
     File archive = SD.open(Config::Archiver::ARCHIVE_FILE, FILE_APPEND);
     if (!archive) {
@@ -283,31 +221,6 @@ bool DeviceArchiver::writeDeviceToArchive(const TargetableDevice& device) {
     
     serializeJson(doc, archive);
     archive.println();  // Newline separator (JSON Lines format)
-    archive.close();
-    
-    return true;
-}
-
-bool DeviceArchiver::writeNodeToArchive(const TrackedNode& node) {
-    File archive = SD.open(Config::Archiver::ARCHIVE_FILE, FILE_APPEND);
-    if (!archive) {
-        return false;
-    }
-    
-    JsonDocument doc;
-    
-    doc["type"] = "node";
-    doc["nodeId"] = node.nodeId;
-    doc["protocol"] = node.protocol;
-    doc["packetCount"] = node.packetCount;
-    doc["avgRSSI"] = node.avgRSSI;
-    doc["bestRSSI"] = node.bestRSSI;
-    doc["lastSeen"] = node.lastSeen;
-    doc["firstSeen"] = node.firstSeen;
-    doc["archivedAt"] = millis();
-    
-    serializeJson(doc, archive);
-    archive.println();
     archive.close();
     
     return true;

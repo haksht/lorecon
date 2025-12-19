@@ -76,7 +76,6 @@ void displayActivitySummary() {
     Serial.printf("  Duration: %s\n", formatDuration(reconTime).c_str());
     Serial.printf("  Total Packets: %d\n", reconState.scanState.totalPackets);
     Serial.printf("  Devices Found: %d\n", reconState.getNumTargetableDevices());
-    Serial.printf("  Tracked Nodes: %d\n", reconState.getNodeCount());
     Serial.println();
 }
 

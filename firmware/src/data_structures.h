@@ -94,18 +94,6 @@ struct TargetableDevice {
   uint8_t powerClass;       // Estimated power class (0=low, 1=med, 2=high)
 };
 
-// Node tracking for behavioral analysis
-struct TrackedNode {
-  uint32_t nodeId;
-  String protocol;
-  uint16_t packetCount;
-  float avgRSSI;
-  float bestRSSI;
-  uint32_t lastSeen;
-  uint32_t firstSeen;
-  bool active;
-};
-
 // System state management
 struct ScanState {
   OperationMode mode;

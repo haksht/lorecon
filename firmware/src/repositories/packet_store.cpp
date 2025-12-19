@@ -30,6 +30,17 @@ bool PacketStore::capturePacket(const uint8_t* data, size_t length,
         return false;
     }
     
+    // Deduplicate: skip if we already have this packet (mesh relay copy)
+    // Only check packetId if it's non-zero (0 means unknown/not parsed)
+    if (packetId != 0) {
+        for (uint8_t i = 0; i < numCaptured_; i++) {
+            if (slots_[i].valid && slots_[i].packetId == packetId) {
+                LOG_INFO("PacketStore", "Skipping duplicate packet 0x%08X (relay copy)", packetId);
+                return false;
+            }
+        }
+    }
+    
     // Clamp length to max packet size
     if (length > sizeof(slots_[0].data)) {
         LOG_WARN("PacketStore", "Truncating packet from %d to %d bytes",

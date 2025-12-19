@@ -143,9 +143,8 @@ void CommandHandler::cmdResumeRecon(IReconTool* tool) {
     // Resume reconnaissance WITHOUT clearing discovered devices/data
     Serial.println("\n=== RESUMING RECONNAISSANCE ===");
     Serial.println("Restarting scan cycle while keeping discovered devices.");
-    Serial.printf("Current devices: %d, Nodes: %d, Replay slots: %d\n", 
+    Serial.printf("Current devices: %d, Replay slots: %d\n", 
                   reconState.getNumTargetableDevices(), 
-                  reconState.getNodeCount(),
                   reconState.getNumCapturedPackets());
     
     // Clear persisted targeting mode from NVS
@@ -349,9 +348,7 @@ void CommandHandler::cmdClearPackets(IReconTool* tool) {
 
 void CommandHandler::cmdClearDevices(IReconTool* tool) {
     uint8_t deviceCount = reconState.getNumTargetableDevices();
-    uint8_t nodeCount = reconState.getNodeCount();
     reconState.clearTargetableDevices();
-    reconState.clearNodes();
-    Serial.printf("\n✅ Cleared %d device(s) and %d node(s).\n\n", deviceCount, nodeCount);
+    Serial.printf("\n✅ Cleared %d device(s).\n\n", deviceCount);
 }
 

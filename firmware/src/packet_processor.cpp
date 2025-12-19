@@ -117,7 +117,6 @@ void PacketProcessor::processSinglePacket(const QueuedPacket& qp, OLEDDisplay* d
     if (info.nodeId != 0) {
         reconState.addTargetableDevice(info.nodeId, reconState.scanState.currentConfig, 
                                       qp.rssi, info.protocol, qp.data, qp.length, info.hopCount);
-        reconState.updateNode(info.nodeId, info.protocol, qp.rssi);
         // Anomaly detection uses updated avgRSSI, so must be AFTER addTargetableDevice
         reconState.checkForAnomalies(qp.data, qp.length, info.nodeId, qp.rssi);
     }

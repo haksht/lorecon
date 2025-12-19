@@ -73,6 +73,10 @@ void fillDevice(ArduinoJson::JsonObject& obj, const TargetableDevice& dev, uint8
 
 } // namespace Internal
 
+// =============================================================================
+// DEVICE ENDPOINTS
+// =============================================================================
+
 String buildDevicesJson(ReconState& reconState) {
     JsonDocument doc;
     doc["status"] = "success";
@@ -106,6 +110,10 @@ String buildDeviceJson(ReconState& reconState, uint8_t deviceIndex) {
     serializeJson(doc, response);
     return response;
 }
+
+// =============================================================================
+// STATUS & STATISTICS ENDPOINTS
+// =============================================================================
 
 String buildStatusJson(ReconState& reconState) {
     JsonDocument doc;
@@ -247,6 +255,10 @@ String buildActivityJson(ReconState& reconState) {
     return response;
 }
 
+// =============================================================================
+// GEO/POSITION ENDPOINTS
+// =============================================================================
+
 String buildPositionsJson(GeoIntelligence& geoIntel) {
     JsonDocument doc;
     doc["status"] = "success";
@@ -341,6 +353,10 @@ String buildKml(GeoIntelligence& geoIntel) {
     return kml;
 }
 
+// =============================================================================
+// SUMMARY & ANALYSIS ENDPOINTS
+// =============================================================================
+
 String buildReconSummaryJson(ReconState& reconState, GeoIntelligence& geoIntel) {
     JsonDocument doc;
     doc["status"] = "success";
@@ -352,7 +368,6 @@ String buildReconSummaryJson(ReconState& reconState, GeoIntelligence& geoIntel) 
     summary["totalPackets"] = reconState.scanState.totalPackets;
     summary["totalDetections"] = reconState.scanState.totalDetections;
     summary["targetableDevices"] = reconState.getNumTargetableDevices();
-    summary["nodesTracked"] = reconState.getNodeCount();
     summary["capturedPackets"] = reconState.getNumCapturedPackets();
     summary["verboseDiagnostics"] = TextPacketDiagnostic::isVerbose();
     
@@ -591,6 +606,10 @@ String buildSecurityAssessmentJson(ReconState& reconState) {
     serializeJson(doc, response);
     return response;
 }
+
+// =============================================================================
+// REPLAY & DIAGNOSTIC ENDPOINTS
+// =============================================================================
 
 String buildReplaySlotsJson(ReconState& reconState) {
     JsonDocument doc;

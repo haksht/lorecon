@@ -431,7 +431,6 @@ void printStats() {
   Serial.println("\n=== RECONNAISSANCE SUMMARY ===");
   Serial.printf("Total packets: %d\n", reconState.scanState.totalPackets);
   Serial.printf("Targetable devices: %d\n", reconState.getNumTargetableDevices());
-  Serial.printf("Active nodes: %d\n", reconState.getNodeCount());
   Serial.printf("Current: %s\n", reconState.getScanConfig(reconState.scanState.currentConfig).protocol);
   
   if (reconState.getNumTargetableDevices() > 0) {

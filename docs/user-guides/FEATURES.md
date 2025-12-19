@@ -56,7 +56,7 @@ A production-ready LoRa packet capture and analysis platform for security resear
   - **ISM Band** (2 configs): Generic 915/920 MHz experimental frequencies
 - **Sequential frequency scanning** (~12s dwell time per config, ~5 minute full cycle)
 - **RF activity monitoring** (RSSI tracking, peak detection per config)
-- **Device enumeration** (node IDs, signal strength, device types)
+- **Device tracking** (50 devices max, LRU eviction for long sessions)
 - **Protocol detection** (Meshtastic, LoRaWAN, Helium, generic)
 - **Interactive targeting** (select discovered devices or frequencies for focused capture)
 - **Resume capability** ('r' command keeps discovered devices)
@@ -106,12 +106,13 @@ A production-ready LoRa packet capture and analysis platform for security resear
 
 - **10 replay slots** (circular buffer - oldest replaced when full)
 - **Auto-capture** (packets automatically saved during scanning)
-- **FIFO behavior** (always shows 10 most recent packets)
+- **FIFO behavior** (always shows 10 most recent unique packets)
+- **Packet deduplication** (skips relay copies with same packetId)
 - **Replay menu** (list, select, transmit captured packets)
 - **Configuration preservation** (replays with original radio settings)
 - **Metadata tracking** (original RSSI, timestamp, protocol, decrypted text)
 
-**What it does**: Automatically captures packets during scanning into a circular buffer. When slots are full, oldest packets are replaced, ensuring you always have the 10 most recent packets available for replay or analysis.
+**What it does**: Automatically captures packets during scanning into a circular buffer with deduplication. When slots are full, oldest packets are replaced, ensuring you always have the 10 most recent *unique* packets available for replay or analysis. Mesh relay copies are automatically filtered out.
 
 ---
 
