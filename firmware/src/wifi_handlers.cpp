@@ -17,6 +17,11 @@ extern WiFiManager wifiManager;
 namespace WiFiHandlers {
 
 void handleGetWiFiStatus(AsyncWebServerRequest* request) {
+    // Debug log to trace setup mode issue
+    LOG_INFO("WiFi status requested: setupMode=%s, connected=%s", 
+             wifiManager.isSetupMode() ? "true" : "false",
+             wifiManager.isConnected() ? "true" : "false");
+    
     String json = JsonUtils::successWithData([](JsonDocument& doc) {
         doc["mode"] = wifiManager.isSetupMode() ? "setup" : "normal";
         doc["connected"] = wifiManager.isConnected();

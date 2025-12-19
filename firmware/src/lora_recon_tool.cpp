@@ -40,8 +40,7 @@ LoRaReconTool::LoRaReconTool()
 
 // Initialize the reconnaissance tool
 bool LoRaReconTool::initialize() {
-    Serial.begin(Config::UI::SERIAL_BAUD);
-    delay(Config::UI::SERIAL_INIT_DELAY_MS);
+    // Serial already initialized in main.cpp for reset reason logging
     
     LOG_INFO("ESP32 LoRa Reconnaissance Tool v2.0");
     

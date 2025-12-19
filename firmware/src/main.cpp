@@ -45,7 +45,11 @@ void setup() {
     // The Heltec V3 battery circuit causes a brief voltage dip when switching power sources
     WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0);
     
-    // Initialize logger first
+    // Initialize Serial FIRST so reset reason logging works
+    Serial.begin(Config::UI::SERIAL_BAUD);
+    delay(100);  // Brief delay for serial to stabilize
+    
+    // Initialize logger
     Logger::setInstance(&serialLogger);
     
     // Log restart reason for debugging spontaneous reboots
