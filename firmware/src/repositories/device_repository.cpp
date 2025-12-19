@@ -51,7 +51,8 @@ TargetableDevice* DeviceRepository::addOrUpdate(
     float rssi,
     const char* protocol,
     const uint8_t* packetData,
-    size_t packetLength
+    size_t packetLength,
+    uint8_t hopCount
 ) {
     if (nodeId == 0) return nullptr;
     
@@ -60,7 +61,7 @@ TargetableDevice* DeviceRepository::addOrUpdate(
     
     if (device) {
         // Update existing device
-        updateExistingDevice(device, configIndex, rssi);
+        updateExistingDevice(device, configIndex, rssi, hopCount);
         return device;
     }
     
@@ -71,7 +72,7 @@ TargetableDevice* DeviceRepository::addOrUpdate(
     }
     
     device = &devices[deviceCount++];
-    initializeNewDevice(device, nodeId, configIndex, rssi, protocol, packetData, packetLength);
+    initializeNewDevice(device, nodeId, configIndex, rssi, protocol, packetData, packetLength, hopCount);
     
     LOG_INFO("[DEVICE] New: 0x%08X (%s) %.1f dBm", nodeId, device->deviceType, rssi);
     
@@ -85,7 +86,8 @@ void DeviceRepository::initializeNewDevice(
     float rssi,
     const char* protocol,
     const uint8_t* packetData,
-    size_t packetLength
+    size_t packetLength,
+    uint8_t hopCount
 ) {
     memset(device, 0, sizeof(TargetableDevice));
     
@@ -99,8 +101,21 @@ void DeviceRepository::initializeNewDevice(
     device->avgPacketInterval = 0;
     device->lastPacketInterval = 0;
     device->periodicityScore = 0;
-    device->originatedPackets = 0;
-    device->relayedPackets = 0;
+    
+    // Track first packet as originated or relayed based on hop count
+    if (hopCount != 0xFF) {
+        if (hopCount >= 3) {
+            device->originatedPackets = 1;
+            device->relayedPackets = 0;
+        } else {
+            device->originatedPackets = 0;
+            device->relayedPackets = 1;
+        }
+    } else {
+        device->originatedPackets = 0;
+        device->relayedPackets = 0;
+    }
+    
     device->firstSeen = millis();
     device->lastSeen = millis();
     device->powerClass = FormatUtils::estimatePowerClass(rssi);
@@ -140,11 +155,30 @@ void DeviceRepository::initializeNewDevice(
 void DeviceRepository::updateExistingDevice(
     TargetableDevice* device,
     uint8_t configIndex,
-    float rssi
+    float rssi,
+    uint8_t hopCount
 ) {
     // Cap packetCount at UINT16_MAX to prevent overflow
     if (device->packetCount < UINT16_MAX) {
         device->packetCount++;
+    }
+    
+    // Track originated vs relayed packets based on hop count
+    // Meshtastic default hop limit is 3. If hop count == 3, packet is from originator.
+    // If hop count < 3, it's been relayed (decremented by each hop).
+    // hop count 0xFF means unknown (non-Meshtastic or older code paths).
+    if (hopCount != 0xFF) {
+        if (hopCount >= 3) {
+            // Full hop count = originated by this sender
+            device->originatedPackets++;
+        } else {
+            // Decremented hop count = relayed packet
+            device->relayedPackets++;
+            // If we see relayed packets, this device is likely a router
+            if (!device->isRouter && device->relayedPackets >= 2) {
+                device->isRouter = true;
+            }
+        }
     }
     
     // Update RSSI statistics with running variance calculation (Welford's algorithm)

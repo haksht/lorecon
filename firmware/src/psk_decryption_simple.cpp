@@ -199,6 +199,9 @@ int PSKDecryption::decodeBase64(const char* input, uint8_t* output, size_t maxLe
 bool PSKDecryption::testDefaultPSKs(const uint8_t* data, size_t length) {
     pskStats.attempts++;
     
+    // Clear lastMessage to prevent stale data from previous packets
+    lastMessage[0] = '\0';
+    
     // Validate minimum packet structure
     if (length < 20) {
         Serial.printf("[PSK] Packet too small (%d bytes, need ≥20)\n", length);

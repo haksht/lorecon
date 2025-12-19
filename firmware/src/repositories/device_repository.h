@@ -61,6 +61,7 @@ public:
      * @param protocol Protocol name
      * @param packetData Optional packet data for device identification
      * @param packetLength Length of packet data
+     * @param hopCount Hop count from packet header (0xFF = unknown, for distinguishing originated vs relayed)
      * @return Pointer to the device (new or updated), nullptr if storage full
      */
     TargetableDevice* addOrUpdate(
@@ -69,7 +70,8 @@ public:
         float rssi,
         const char* protocol,
         const uint8_t* packetData = nullptr,
-        size_t packetLength = 0
+        size_t packetLength = 0,
+        uint8_t hopCount = 0xFF
     );
     
     /**
@@ -157,16 +159,19 @@ private:
         float rssi,
         const char* protocol,
         const uint8_t* packetData,
-        size_t packetLength
+        size_t packetLength,
+        uint8_t hopCount = 0xFF
     );
     
     /**
      * Update existing device with new packet data
+     * @param hopCount Hop count from packet header (0xFF = unknown)
      */
     void updateExistingDevice(
         TargetableDevice* device,
         uint8_t configIndex,
-        float rssi
+        float rssi,
+        uint8_t hopCount = 0xFF
     );
 };
 

@@ -20,6 +20,9 @@ void PacketStore::initializeEmptyPacket() {
 bool PacketStore::capturePacket(const uint8_t* data, size_t length,
                                  uint8_t configIndex, int16_t rssi,
                                  uint32_t nodeId, uint32_t packetId,
+                                 uint8_t hopCount, uint32_t destId,
+                                 uint8_t channel, bool wantAck,
+                                 bool viaMqtt, uint8_t priority,
                                  const char* protocol,
                                  const char* decryptedText) {
     if (isFull()) {
@@ -49,7 +52,13 @@ bool PacketStore::capturePacket(const uint8_t* data, size_t length,
     slot.originalRSSI = rssi;
     slot.captureTime = millis();
     slot.nodeId = nodeId;
+    slot.destId = destId;
     slot.packetId = packetId;
+    slot.hopCount = hopCount;
+    slot.channel = channel;
+    slot.wantAck = wantAck;
+    slot.viaMqtt = viaMqtt;
+    slot.priority = priority;
     
     // Copy protocol string safely
     if (protocol != nullptr) {

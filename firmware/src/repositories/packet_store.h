@@ -27,7 +27,10 @@ public:
     bool capturePacket(const uint8_t* data, size_t length,
                        uint8_t configIndex, int16_t rssi,
                        uint32_t nodeId, uint32_t packetId,
-                       const char* protocol,
+                       uint8_t hopCount, uint32_t destId = 0xFFFFFFFF,
+                       uint8_t channel = 0, bool wantAck = false,
+                       bool viaMqtt = false, uint8_t priority = 0,
+                       const char* protocol = nullptr,
                        const char* decryptedText = nullptr);
     
     /**

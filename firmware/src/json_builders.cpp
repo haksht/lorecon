@@ -38,14 +38,19 @@ void fillDevice(ArduinoJson::JsonObject& obj, const TargetableDevice& dev, uint8
     obj["deviceType"] = dev.deviceType;
     obj["firmwareVersion"] = dev.firmwareVersion;
     obj["packetCount"] = dev.packetCount;
+    obj["originatedPackets"] = dev.originatedPackets;
+    obj["relayedPackets"] = dev.relayedPackets;
     obj["avgRSSI"] = dev.avgRSSI;
     obj["bestRSSI"] = dev.bestRSSI;
+    obj["rssiStdDev"] = serialized(String(dev.rssiStdDev, 1));
     obj["rssi"] = dev.avgRSSI;  // UI compatibility alias
     obj["firstSeen"] = dev.firstSeen;
     obj["lastSeen"] = dev.lastSeen;
     obj["isRouter"] = dev.isRouter;
     obj["configIndex"] = dev.configIndex;
     obj["powerClass"] = dev.powerClass;
+    obj["periodicityScore"] = dev.periodicityScore;
+    obj["avgPacketInterval"] = dev.avgPacketInterval;
     
     // Add frequency from config lookup (UI expects this field)
     const ScanConfig& cfg = reconState.getScanConfig(dev.configIndex);
@@ -54,6 +59,7 @@ void fillDevice(ArduinoJson::JsonObject& obj, const TargetableDevice& dev, uint8
     // Add lastSeenSecondsAgo for UI (avoids client-side timestamp math issues)
     uint32_t now = millis();
     obj["lastSeenSecondsAgo"] = (dev.lastSeen > 0 && dev.lastSeen <= now) ? (now - dev.lastSeen) / 1000 : 0;
+    obj["firstSeenSecondsAgo"] = (dev.firstSeen > 0 && dev.firstSeen <= now) ? (now - dev.firstSeen) / 1000 : 0;
     
     // Derive power descriptor from powerClass
     const char* descriptor = "Low";
@@ -621,6 +627,25 @@ String buildReplaySlotsJson(ReconState& reconState) {
             snprintf(packetIdHex, sizeof(packetIdHex), "%08X", packet.packetId);
             slot["packetId"] = packetIdHex;
         }
+        
+        // Include hop count if available (from flags lower 3 bits)
+        if (packet.hopCount > 0) {
+            slot["hopCount"] = packet.hopCount;
+        }
+        
+        // Include destination ID if it's a direct message (not broadcast)
+        if (packet.destId != 0 && packet.destId != 0xFFFFFFFF) {
+            slot["destId"] = FormatUtils::formatNodeIdJson(packet.destId);
+        }
+        slot["isBroadcast"] = (packet.destId == 0xFFFFFFFF);
+        
+        // Include channel index
+        slot["channel"] = packet.channel;
+        
+        // Include flag information
+        if (packet.wantAck) slot["wantAck"] = true;
+        if (packet.viaMqtt) slot["viaMqtt"] = true;
+        if (packet.priority > 0) slot["priority"] = packet.priority;
         
         // Include decrypted text if available
         if (packet.decryptedText[0] != '\0') {

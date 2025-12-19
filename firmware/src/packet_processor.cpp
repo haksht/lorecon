@@ -116,7 +116,7 @@ void PacketProcessor::processSinglePacket(const QueuedPacket& qp, OLEDDisplay* d
     // This updates lastSeen timestamp, so must be AFTER temporal update
     if (info.nodeId != 0) {
         reconState.addTargetableDevice(info.nodeId, reconState.scanState.currentConfig, 
-                                      qp.rssi, info.protocol, qp.data, qp.length);
+                                      qp.rssi, info.protocol, qp.data, qp.length, info.hopCount);
         reconState.updateNode(info.nodeId, info.protocol, qp.rssi);
         // Anomaly detection uses updated avgRSSI, so must be AFTER addTargetableDevice
         reconState.checkForAnomalies(qp.data, qp.length, info.nodeId, qp.rssi);
@@ -205,24 +205,48 @@ void PacketProcessor::handleReconPacket(const PacketInfo& info, const uint8_t* d
         // Attempt decryption
         bool decrypted = PSKDecryption::testDefaultPSKs(payload, payloadLen);
         
-        // Extract node ID from packet header if it's a Meshtastic packet (starts with 0xFF 0xFF 0xFF 0xFF)
+        // Extract header fields from Meshtastic packet
         uint32_t nodeId = 0;
+        uint32_t destId = 0xFFFFFFFF;
         uint32_t packetId = 0;
+        uint8_t hopCount = 0;
+        uint8_t channel = 0;
+        bool wantAck = false;
+        bool viaMqtt = false;
+        uint8_t priority = 0;
+        
         if (payloadLen >= 16 && payload[0] == 0xFF && payload[1] == 0xFF && 
             payload[2] == 0xFF && payload[3] == 0xFF) {
+            // Destination ID at bytes 0-3 (little-endian) - skip, it's always 0xFFFFFFFF for broadcast
+            destId = ((uint32_t)payload[0]) | ((uint32_t)payload[1] << 8) |
+                     ((uint32_t)payload[2] << 16) | ((uint32_t)payload[3] << 24);
+            // Source/From ID at bytes 4-7 (little-endian)
             nodeId = ((uint32_t)payload[4]) | ((uint32_t)payload[5] << 8) |
                      ((uint32_t)payload[6] << 16) | ((uint32_t)payload[7] << 24);
-            // Extract packet ID at offset 8-11 (little-endian)
+            // Packet ID at offset 8-11 (little-endian)
             if (payloadLen >= 12) {
                 packetId = ((uint32_t)payload[8]) | ((uint32_t)payload[9] << 8) |
                            ((uint32_t)payload[10] << 16) | ((uint32_t)payload[11] << 24);
             }
+            // Flags at byte 12
+            if (payloadLen >= 13) {
+                uint8_t flags = payload[12];
+                hopCount = flags & 0x07;           // Bits 0-2: hop count
+                wantAck = (flags >> 3) & 0x01;     // Bit 3: want acknowledgment
+                viaMqtt = (flags >> 4) & 0x01;     // Bit 4: via MQTT gateway
+                priority = (flags >> 5) & 0x03;   // Bits 5-6: priority (0-3)
+            }
+            // Channel at byte 13
+            if (payloadLen >= 14) {
+                channel = payload[13];
+            }
         }
         
-        // Auto-capture packet for replay with decrypted text, node ID, and packet ID
+        // Auto-capture packet for replay with all header fields
         const char* decryptedText = PSKDecryption::getLastMessage();
         if (reconState.capturePacketForReplay(data, length, reconState.scanState.currentConfig, 
-                                               rssi, info.protocol, decryptedText, nodeId, packetId)) {
+                                               rssi, info.protocol, decryptedText, nodeId, packetId, hopCount,
+                                               destId, channel, wantAck, viaMqtt, priority)) {
             if (decryptedText && decryptedText[0] != '\0') {
                 Serial.printf("   ✅ Packet auto-captured with text: \"%s\"\n", decryptedText);
             } else {
@@ -280,25 +304,48 @@ void PacketProcessor::handleTargetedPacket(const PacketInfo& info, const uint8_t
         // Attempt decryption
         bool decrypted = PSKDecryption::testDefaultPSKs(payload, payloadLen);
         
-        // Extract node ID and packet ID from packet header if it's a Meshtastic packet
+        // Extract all header fields from Meshtastic packet
         uint32_t nodeId = 0;
+        uint32_t destId = 0xFFFFFFFF;
         uint32_t packetId = 0;
+        uint8_t hopCount = 0;
+        uint8_t channel = 0;
+        bool wantAck = false;
+        bool viaMqtt = false;
+        uint8_t priority = 0;
+        
         if (payloadLen >= 16 && payload[0] == 0xFF && payload[1] == 0xFF && 
             payload[2] == 0xFF && payload[3] == 0xFF) {
-            // Node ID is at bytes 4-7 (little-endian)
+            // Destination ID at bytes 0-3 (little-endian)
+            destId = ((uint32_t)payload[0]) | ((uint32_t)payload[1] << 8) |
+                     ((uint32_t)payload[2] << 16) | ((uint32_t)payload[3] << 24);
+            // Source/From ID at bytes 4-7 (little-endian)
             nodeId = ((uint32_t)payload[4]) | ((uint32_t)payload[5] << 8) |
                      ((uint32_t)payload[6] << 16) | ((uint32_t)payload[7] << 24);
-            // Packet ID is at bytes 8-11 (little-endian)
+            // Packet ID at bytes 8-11 (little-endian)
             if (payloadLen >= 12) {
                 packetId = ((uint32_t)payload[8]) | ((uint32_t)payload[9] << 8) |
                            ((uint32_t)payload[10] << 16) | ((uint32_t)payload[11] << 24);
             }
+            // Flags at byte 12
+            if (payloadLen >= 13) {
+                uint8_t flags = payload[12];
+                hopCount = flags & 0x07;           // Bits 0-2: hop count
+                wantAck = (flags >> 3) & 0x01;     // Bit 3: want acknowledgment
+                viaMqtt = (flags >> 4) & 0x01;     // Bit 4: via MQTT gateway
+                priority = (flags >> 5) & 0x03;   // Bits 5-6: priority (0-3)
+            }
+            // Channel at byte 13
+            if (payloadLen >= 14) {
+                channel = payload[13];
+            }
         }
         
-        // Auto-capture packet for replay with decrypted text, node ID, and packet ID
+        // Auto-capture packet for replay with all header fields
         const char* decryptedText = PSKDecryption::getLastMessage();
         if (reconState.capturePacketForReplay(data, length, reconState.scanState.currentConfig, 
-                                               rssi, info.protocol, decryptedText, nodeId, packetId)) {
+                                               rssi, info.protocol, decryptedText, nodeId, packetId, hopCount,
+                                               destId, channel, wantAck, viaMqtt, priority)) {
             if (decrypted && decryptedText && decryptedText[0] != '\0') {
                 Serial.printf("   ✅ Packet auto-captured with text: \"%s\"\n", decryptedText);
             } else {

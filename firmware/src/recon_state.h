@@ -65,7 +65,7 @@ public:
     // Targetable device management
     void addTargetableDevice(uint32_t nodeId, uint8_t configIndex, float rssi, 
                             const char* protocol, const uint8_t* packetData = nullptr, 
-                            size_t packetLength = 0);
+                            size_t packetLength = 0, uint8_t hopCount = 0xFF);
     const TargetableDevice& getTargetableDevice(uint8_t index) const;
     TargetableDevice* getTargetableDeviceMutable(uint8_t index);
     TargetableDevice* findTargetableDevice(uint32_t nodeId);
@@ -91,7 +91,9 @@ public:
     // Packet replay management
     bool capturePacketForReplay(const uint8_t* data, size_t length, uint8_t configIndex, 
                                 float rssi, const char* protocol, const char* decryptedText = nullptr,
-                                uint32_t nodeId = 0, uint32_t packetId = 0);
+                                uint32_t nodeId = 0, uint32_t packetId = 0, uint8_t hopCount = 0,
+                                uint32_t destId = 0xFFFFFFFF, uint8_t channel = 0,
+                                bool wantAck = false, bool viaMqtt = false, uint8_t priority = 0);
     const CapturedPacket& getReplayPacket(uint8_t index) const;
     void clearReplaySlots();
     uint8_t getNumCapturedPackets() const { return packetStore_.count(); }

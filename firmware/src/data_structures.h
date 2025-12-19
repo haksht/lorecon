@@ -27,8 +27,14 @@ struct CapturedPacket {
   uint8_t configIndex;  // Which radio config to use for replay
   float originalRSSI;
   uint32_t captureTime;
-  uint32_t nodeId;      // Node ID extracted from packet header (0 if unknown)
+  uint32_t nodeId;      // From field - original sender (0 if unknown)
+  uint32_t destId;      // To field - destination (0xFFFFFFFF = broadcast)
   uint32_t packetId;    // Packet ID for deduplication (0 if unknown)
+  uint8_t hopCount;     // Hop count from flags (lower 3 bits of byte 12)
+  uint8_t channel;      // Channel index (byte 13)
+  bool wantAck;         // Sender wants acknowledgment (flags bit 3)
+  bool viaMqtt;         // Packet came via MQTT gateway (flags bit 4)
+  uint8_t priority;     // Packet priority 0-3 (flags bits 5-6)
   char protocol[16];
   char decryptedText[256];  // Stores decrypted message text if available
   bool valid;

@@ -1,4 +1,18 @@
-/* ESP32 LoRa Recon - Simplified Client */
+/* ESP32 LoRa Recon - Modular Client
+ * Refactored for maintainability with:
+ * - Debug flag for conditional logging
+ * - Shared table/card rendering utilities
+ * - Action dispatch table pattern
+ * - CSS utility classes (no inline styles)
+ */
+
+// ===== Debug Configuration =====
+const DEBUG = {
+    enabled: false,  // Set to true for verbose logging
+    log: (...args) => DEBUG.enabled && console.log('[App]', ...args),
+    warn: (...args) => console.warn('[App]', ...args),
+    error: (...args) => console.error('[App]', ...args)
+};
 
 // ===== Security Utilities =====
 // HTML escape function to prevent XSS attacks
@@ -21,6 +35,13 @@ function formatRSSI(rssi, includeValue = true) {
     return className;
 }
 
+// Get color class based on percentage threshold
+function getThresholdClass(value, highThreshold = 50, medThreshold = 25) {
+    if (value > highThreshold) return 'text-success';
+    if (value > medThreshold) return 'text-warning';
+    return 'text-danger';
+}
+
 // Error state HTML helper
 function renderErrorState(message, retryAction = null) {
     let html = '<div class="error-state"><p class="error">' + escapeHtml(message) + '</p>';
@@ -38,25 +59,121 @@ function renderLoadingState(message = 'Loading...') {
 
 // Placeholder state HTML helper
 function renderPlaceholder(emoji, title, subtitle = '') {
-    let html = `<div class="placeholder"><div style="font-size: 3rem; margin-bottom: 1rem; opacity: 0.5;">${emoji}</div>`;
-    html += `<p>${escapeHtml(title)}</p>`;
-    if (subtitle) {
-        html += `<p style="font-size: 0.9rem; margin-top: 0.5rem;">${escapeHtml(subtitle)}</p>`;
-    }
-    html += '</div>';
-    return html;
+    return `<div class="placeholder">
+        <div class="text-muted" style="font-size: 3rem; margin-bottom: 1rem;">${emoji}</div>
+        <p>${escapeHtml(title)}</p>
+        ${subtitle ? `<p class="text-sm mt-sm text-muted">${escapeHtml(subtitle)}</p>` : ''}
+    </div>`;
 }
+
+// ===== Shared Table Rendering =====
+const TableRenderer = {
+    // Render a complete table with headers and rows
+    render(columns, rows, rowRenderer, options = {}) {
+        const { tableClass = 'table', wrapperClass = 'table-wrapper' } = options;
+        let html = `<div class="${wrapperClass}">`;
+        html += `<table class="${tableClass}"><thead><tr>`;
+        columns.forEach(col => { html += `<th>${col}</th>`; });
+        html += '</tr></thead><tbody>';
+        rows.forEach((row, idx) => { html += rowRenderer(row, idx); });
+        html += '</tbody></table></div>';
+        return html;
+    },
+    
+    // Common row cell formatters
+    cell: {
+        code: (value, prefix = '') => `<td><code>${prefix}${escapeHtml(value)}</code></td>`,
+        text: (value) => `<td>${escapeHtml(value)}</td>`,
+        html: (value) => `<td>${value}</td>`,
+        rssi: (value) => `<td>${formatRSSI(value)}</td>`,
+        badge: (text, className) => `<td><span class="${className}">${text}</span></td>`,
+        button: (action, value, text, icon = '') => 
+            `<td><button data-action="${action}" data-value="${escapeHtml(value)}" class="btn btn-primary btn-small">${icon} ${text}</button></td>`
+    }
+};
+
+// ===== Shared Card Rendering =====
+const CardRenderer = {
+    // Metric card for stats display
+    metric(label, value, colorClass = 'text-primary', bgClass = 'card-primary') {
+        return `<div class="metric-card ${bgClass}">
+            <div class="metric-label">${escapeHtml(label)}</div>
+            <div class="metric-value ${colorClass}">${value}</div>
+        </div>`;
+    },
+    
+    // Status indicator with optional progress bar
+    status(label, value, colorClass, showProgress = false, percent = 0) {
+        let html = `<div class="status-indicator card-base ${colorClass.replace('text-', 'card-')}">
+            <div class="flex-between mb-sm">
+                <strong>${escapeHtml(label)}</strong>
+                <span class="${colorClass} text-bold">${value}</span>
+            </div>`;
+        if (showProgress) {
+            html += `<div class="progress-track">
+                <div class="progress-fill" style="width: ${percent}%; background: var(--${colorClass.replace('text-', '')})"></div>
+            </div>`;
+        }
+        html += '</div>';
+        return html;
+    },
+    
+    // Item card with header and optional details
+    item(header, headerBadge, badgeClass, content) {
+        return `<div class="item-card" style="border-left: 3px solid var(--${badgeClass.replace('text-', '')})">
+            <div class="item-card-header">
+                <div>${header}</div>
+                <div class="item-badge" style="background: var(--${badgeClass.replace('text-', '')}); color: #000">${headerBadge}</div>
+            </div>
+            ${content}
+        </div>`;
+    },
+    
+    // Section with header
+    section(title, content, headerClass = 'section-header') {
+        return `<h4 class="${headerClass}">${title}</h4>${content}`;
+    }
+};
+
+// ===== Modal Rendering =====
+const ModalRenderer = {
+    create(id, title, content, titleColor = 'text-primary') {
+        return `<div class="modal-backdrop" id="${id}">
+            <div class="modal-box">
+                <div class="modal-header-section">
+                    <h3 class="${titleColor}">${title}</h3>
+                </div>
+                <div class="modal-body-section">${content}</div>
+                <div class="modal-footer-section">
+                    <button onclick="document.getElementById('${id}').remove()" class="btn btn-primary">Close</button>
+                </div>
+            </div>
+        </div>`;
+    },
+    
+    show(html) {
+        const container = document.createElement('div');
+        container.innerHTML = html;
+        document.body.appendChild(container.firstChild);
+        
+        // Close on backdrop click
+        const modal = document.body.lastElementChild;
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) modal.remove();
+        });
+    }
+};
 
 // Dependency checks - ensure scripts loaded in correct order
 if (typeof showToast === 'undefined') {
-    console.error('FATAL: toast.js must be loaded before app.js');
+    DEBUG.error('FATAL: toast.js must be loaded before app.js');
     alert('Script loading error - please refresh the page');
 }
 if (typeof WarRoom === 'undefined') {
-    console.warn('WARNING: war-room.js not loaded - War Room tab will be disabled');
+    DEBUG.warn('war-room.js not loaded - War Room tab will be disabled');
 }
 if (typeof NetworkMap === 'undefined') {
-    console.warn('WARNING: network-map.js not loaded - Network Map will be disabled');
+    DEBUG.warn('network-map.js not loaded - Network Map will be disabled');
 }
 
 class ReconApp {
@@ -369,7 +486,7 @@ class ReconApp {
             
             let html = '<div class="table-wrapper">';
             html += '<table class="table"><thead><tr>';
-            html += '<th>Node ID</th><th>Risk</th><th>Type</th><th>Protocol</th><th>Packets</th><th>RSSI</th><th>Frequency</th><th>Last Seen</th><th>Actions</th>';
+            html += '<th>Node ID</th><th>Risk</th><th>Type</th><th>Router</th><th>Power</th><th>Pkts (Orig/Relay)</th><th>RSSI (Avg/Best)</th><th>Frequency</th><th>First Seen</th><th>Last Seen</th><th>Actions</th>';
             html += '</tr></thead><tbody>';
             
             enrichedDevices.forEach(device => {
@@ -392,19 +509,37 @@ class ReconApp {
                     riskClass = 'risk-unknown';
                 }
                 
+                // Router indicator
+                const routerBadge = device.isRouter ? '✅' : '—';
+                
+                // Power class indicator
+                const powerBadge = device.powerClass >= 2 ? '🔋 High' : (device.powerClass === 1 ? '🔋 Med' : '🪫 Low');
+                
+                // Packet counts
+                const origPkts = device.originatedPackets || 0;
+                const relayPkts = device.relayedPackets || 0;
+                const totalPkts = device.packetCount || 0;
+                const pktDisplay = `${totalPkts} (${origPkts}/${relayPkts})`;
+                
+                // RSSI display with best
+                const avgRssi = device.avgRSSI || device.rssi || 0;
+                const bestRssi = device.bestRSSI || avgRssi;
+                const rssiDisplay = `${avgRssi.toFixed(0)} / ${bestRssi.toFixed(0)}`;
+                
                 // Escape all user-derived data for XSS prevention
                 const safeNodeId = escapeHtml(device.nodeId);
                 const safeDeviceType = escapeHtml(device.deviceType || 'Unknown');
-                const safeProtocol = escapeHtml(device.protocol || '—');
                 
                 html += '<tr>';
                 html += `<td><code>0x${safeNodeId}</code></td>`;
                 html += `<td><span class="${riskClass}">${riskBadge}</span></td>`;
                 html += `<td>${safeDeviceType}</td>`;
-                html += `<td><code>${safeProtocol}</code></td>`;
-                html += `<td>${device.packetCount || 0}</td>`;
-                html += `<td><span class="${rssiClass}">${device.rssi || '—'} dBm</span></td>`;
+                html += `<td>${routerBadge}</td>`;
+                html += `<td><small>${powerBadge}</small></td>`;
+                html += `<td>${pktDisplay}</td>`;
+                html += `<td><span class="${rssiClass}">${rssiDisplay} dBm</span></td>`;
                 html += `<td>${(device.frequency || 0).toFixed(3)} MHz</td>`;
+                html += `<td>${this.formatDuration(device.firstSeenSecondsAgo || 0)} ago</td>`;
                 html += `<td>${this.formatLastSeen(device.lastSeenSecondsAgo)}</td>`;
                 html += `<td><button data-action="target-device" data-value="${safeNodeId}" class="btn btn-primary btn-small">🎯 Target</button></td>`;
                 html += '</tr>';
@@ -434,7 +569,7 @@ class ReconApp {
             
             let html = '<div class="table-wrapper">';
             html += '<table class="table"><thead><tr>';
-            html += '<th>Protocol</th><th>Node ID</th><th>Packet ID</th><th>Size</th><th>RSSI</th><th>Frequency</th><th>Captured</th><th>Message</th><th>Actions</th>';
+            html += '<th>Protocol</th><th>From</th><th>To</th><th>Hops</th><th>Ch</th><th>Flags</th><th>Packet ID</th><th>Size</th><th>RSSI</th><th>Frequency</th><th>Captured</th><th>Message</th><th>Actions</th>';
             html += '</tr></thead><tbody>';
             
             grouped.forEach(group => {
@@ -443,9 +578,28 @@ class ReconApp {
                     const isRelay = group.packets.length > 1 && idx > 0;
                     const rowClass = isRelay ? 'relay-row' : '';
                     
+                    // Build flags display
+                    let flags = [];
+                    if (pkt.wantAck) flags.push('ACK');
+                    if (pkt.viaMqtt) flags.push('MQTT');
+                    if (pkt.priority > 0) flags.push('P' + pkt.priority);
+                    const flagsStr = flags.length > 0 ? flags.join(' ') : '—';
+                    
+                    // Destination display (broadcast or specific node)
+                    let destDisplay = '—';
+                    if (pkt.isBroadcast === true || pkt.isBroadcast === undefined) {
+                        destDisplay = '<span class="broadcast-badge">📢</span>';
+                    } else if (pkt.destId) {
+                        destDisplay = '<code>0x' + pkt.destId + '</code>';
+                    }
+                    
                     html += `<tr class="${rowClass}">`;
                     html += `<td><code>${pkt.protocol || 'Unknown'}</code></td>`;
                     html += `<td>${pkt.nodeId ? '<code>0x' + pkt.nodeId + '</code>' : '—'}</td>`;
+                    html += `<td>${destDisplay}</td>`;
+                    html += `<td>${pkt.hopCount !== undefined ? pkt.hopCount : '—'}</td>`;
+                    html += `<td>${pkt.channel !== undefined ? pkt.channel : '—'}</td>`;
+                    html += `<td><small>${flagsStr}</small></td>`;
                     
                     // Show packet ID with relay indicator
                     if (isRelay) {
@@ -1235,6 +1389,42 @@ class ReconApp {
         });
     }
 
+    // Action dispatch table - cleaner than giant switch statement
+    getActionHandlers() {
+        return {
+            'toggle-scan': () => this.actionToggleScan(),
+            'resume-recon': () => this.actionToggleScan(),
+            'stop-capture': () => this.actionStopCapture(),
+            'export-kml': () => this.actionExportKML(),
+            'clear-packets': () => this.actionClearPackets(),
+            'clear-devices': () => this.actionClearDevices(),
+            'show-activity': () => this.actionShowActivity(),
+            'show-security': () => this.actionShowSecurity(),
+            'export-pcap': () => this.actionExportPCAP(),
+            'diagnostics': () => this.actionDiagnostics(),
+            'reboot': () => this.actionReboot(),
+            'download-logs': () => showToast('Log download not implemented', 'info'),
+            'export-json': () => { window.open('/api/statistics', '_blank'); showToast('Exporting statistics...', 'info'); },
+            'center-map': () => {}, // Handled by network-map.js
+            'toggle-labels': () => {},
+            'zoom-in': () => {},
+            'zoom-out': () => {},
+            'target-device': (v) => this.actionTargetDevice(v),
+            'replay-packet': (v) => this.actionReplayPacket(v),
+            'target-frequency': (v) => this.actionTargetFrequency(v),
+            'retry-devices': () => this.showDevices(),
+            'retry-packets': () => this.showPackets(),
+            'retry-frequency': () => this.showFrequency(),
+            'retry-gps': () => this.showInfo(),
+            'retry-security': () => this.showInfo(),
+            'retry-freq-analysis': () => this.showInfo(),
+            'wifi-setup': () => this.showWiFiSetupModal(),
+            'dismiss-setup': () => this.actionDismissSetup(),
+            'wifi-clear': () => this.actionWifiClear(),
+            'close-modal': () => this.closeModal()
+        };
+    }
+
     async handleAction(action, value, event) {
         const btn = event ? event.target.closest('button') : null;
         const originalText = btn ? btn.innerHTML : '';
@@ -1247,300 +1437,16 @@ class ReconApp {
         }
         
         try {
-            switch(action) {
-                case 'toggle-scan':
-                case 'resume-recon':
-                    // Check current mode - if in targeting, confirm before exiting
-                    const status = await this.get('/api/status');
-                    const currentMode = (status?.mode || '').toLowerCase();
-                    if (currentMode.includes('target')) {
-                        if (!confirm('Exit frequency targeting and return to reconnaissance mode?')) {
-                            btn.disabled = originalDisabled;
-                            btn.classList.remove('btn-loading');
-                            return;
-                        }
-                    }
-                    const result = await this.post('/api/scan/start', {});
-                    showToast('Reconnaissance resumed', 'success');
-                    await this.updateStatus();
-                    break;
-                case 'stop-capture':
-                    await this.post('/api/capture/stop', {});
-                    showToast('Capture stopped', 'success');
-                    await this.updateStatus();
-                    break;
-                case 'export-kml':
-                    try {
-                        const gpsData = await this.get('/api/positions');
-                        if (gpsData && gpsData.positions && gpsData.positions.length > 0) {
-                            window.open('/api/export/kml', '_blank');
-                            showToast('Exporting ' + gpsData.positions.length + ' GPS location(s)...', 'success');
-                        } else {
-                            showToast('No GPS data to export. Capture packets with location data first.', 'warning');
-                        }
-                    } catch (error) {
-                        showToast('GPS export failed: ' + error.message, 'error');
-                    }
-                    break;
-                case 'clear-packets':
-                    await this.post('/api/replay/clear', {});
-                    showToast('Packets cleared', 'success');
-                    await this.showPackets();
-                    break;
-                case 'clear-devices':
-                    await this.post('/api/devices/clear', {});
-                    showToast('Devices cleared', 'success');
-                    await this.showDevices();
-                    await this.updateStatus();
-                    break;
-                case 'show-activity':
-                    // Show frequency analysis section in Info tab
-                    this.switchTab('info');
-                    this.closeMobileMenu();
-                    // Scroll to frequency analysis
-                    setTimeout(() => {
-                        const freqSection = document.getElementById('frequency-analysis-content');
-                        if (freqSection) {
-                            freqSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                        }
-                    }, 100);
-                    break;
-                case 'show-security':
-                    // Show security assessment modal
-                    await this.showSecurityAssessment();
-                    this.closeMobileMenu();
-                    break;
-                case 'export-pcap':
-                    try {
-                        // Check if there's an active session first
-                        const statusData = await this.get('/api/status');
-                        if (!statusData || statusData.mode === 'idle') {
-                            showToast('No active reconnaissance session. Start scanning first.', 'warning');
-                            break;
-                        }
-                        
-                        showToast('Downloading PCAP capture...', 'info');
-                        
-                        // Try to download PCAP
-                        const response = await fetch('/api/export/pcap');
-                        
-                        if (response.status === 404) {
-                            const error = await response.json();
-                            showToast(error.message || 'No PCAP file available', 'error');
-                        } else if (response.status === 501) {
-                            showToast('PCAP export is disabled on this device', 'error');
-                        } else if (response.ok) {
-                            // Download successful - trigger download
-                            const blob = await response.blob();
-                            const url = window.URL.createObjectURL(blob);
-                            const a = document.createElement('a');
-                            a.href = url;
-                            a.download = 'lora_capture_' + Date.now() + '.pcap';
-                            document.body.appendChild(a);
-                            a.click();
-                            window.URL.revokeObjectURL(url);
-                            a.remove();
-                            showToast('PCAP downloaded successfully', 'success');
-                        } else {
-                            showToast('PCAP export failed: HTTP ' + response.status, 'error');
-                        }
-                    } catch (error) {
-                        showToast('PCAP export failed: ' + error.message, 'error');
-                        console.error('PCAP export error:', error);
-                    }
-                    break;
-                case 'diagnostics':
-                    try {
-                        showToast('Running diagnostics...', 'info');
-                        const statusData = await this.get('/api/status');
-                        if (statusData && statusData.status === 'success') {
-                            const diag = statusData;
-                            
-                            // Radio is operational if we're receiving this response
-                            const radioOK = true;
-                            const wifiOK = (diag.clientCount !== undefined);
-                            
-                            // Create a nice HTML modal
-                            let html = '<div style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.8); z-index: 9999; display: flex; align-items: center; justify-content: center; padding: 1rem;" id="diag-modal">';
-                            html += '<div style="background: var(--background); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; max-width: 500px; width: 100%; max-height: 90vh; overflow-y: auto;">';
-                            html += '<div style="padding: 1.5rem; border-bottom: 1px solid rgba(255,255,255,0.1);">';
-                            html += '<h3 style="margin: 0; color: var(--primary);">🔧 System Diagnostics</h3></div>';
-                            html += '<div style="padding: 1.5rem;">';
-                            
-                            // Radio Status
-                            html += '<div style="margin-bottom: 1.5rem; padding: 1rem; background: rgba(255,255,255,0.03); border-radius: 8px; border-left: 3px solid ' + (radioOK ? 'var(--success)' : 'var(--danger)') + ';">';
-                            html += '<div style="display: flex; justify-content: space-between; align-items: center;">';
-                            html += '<strong>📡 Radio</strong>';
-                            html += '<span style="color: ' + (radioOK ? 'var(--success)' : 'var(--danger)') + '; font-weight: 600;">' + (radioOK ? '✓ Operational' : '✗ Failed') + '</span>';
-                            html += '</div></div>';
-                            
-                            // WiFi Status
-                            html += '<div style="margin-bottom: 1.5rem; padding: 1rem; background: rgba(255,255,255,0.03); border-radius: 8px; border-left: 3px solid ' + (wifiOK ? 'var(--success)' : 'var(--warning)') + ';">';
-                            html += '<div style="display: flex; justify-content: space-between; align-items: center;">';
-                            html += '<strong>📶 WiFi AP</strong>';
-                            html += '<span style="color: ' + (wifiOK ? 'var(--success)' : 'var(--warning)') + '; font-weight: 600;">' + (wifiOK ? '✓ Active (' + (diag.clientCount || 0) + ' clients)' : '✗ Inactive') + '</span>';
-                            html += '</div></div>';
-                            
-                            // Memory
-                            const heapFree = diag.freeHeap || 0;
-                            const heapTotal = diag.heapSize || 1;
-                            const heapPercent = ((heapFree / heapTotal) * 100).toFixed(1);
-                            const heapColor = heapPercent > 50 ? 'var(--success)' : heapPercent > 25 ? 'var(--warning)' : 'var(--danger)';
-                            html += '<div style="margin-bottom: 1.5rem; padding: 1rem; background: rgba(255,255,255,0.03); border-radius: 8px; border-left: 3px solid ' + heapColor + ';">';
-                            html += '<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">';
-                            html += '<strong>💾 Memory</strong>';
-                            html += '<span style="font-family: monospace; color: var(--text-secondary);">' + this.formatBytes(heapFree) + ' / ' + this.formatBytes(heapTotal) + '</span>';
-                            html += '</div>';
-                            html += '<div style="height: 6px; background: rgba(255,255,255,0.1); border-radius: 3px; overflow: hidden;">';
-                            html += '<div style="height: 100%; width: ' + heapPercent + '%; background: ' + heapColor + '; border-radius: 3px;"></div>';
-                            html += '</div></div>';
-                            
-                            // Battery
-                            if (diag.batteryVoltage !== undefined) {
-                                const batteryPercent = diag.batteryPercent || 0;
-                                const batteryVoltage = (diag.batteryVoltage || 0).toFixed(2);
-                                const batteryColor = batteryPercent > 50 ? 'var(--success)' : batteryPercent > 20 ? 'var(--warning)' : 'var(--danger)';
-                                html += '<div style="margin-bottom: 1.5rem; padding: 1rem; background: rgba(255,255,255,0.03); border-radius: 8px; border-left: 3px solid ' + batteryColor + ';">';
-                                html += '<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">';
-                                html += '<strong>🔋 Battery</strong>';
-                                html += '<span style="font-family: monospace; color: var(--text-secondary);">' + batteryVoltage + 'V (' + batteryPercent + '%)</span>';
-                                html += '</div>';
-                                html += '<div style="height: 6px; background: rgba(255,255,255,0.1); border-radius: 3px; overflow: hidden;">';
-                                html += '<div style="height: 100%; width: ' + batteryPercent + '%; background: ' + batteryColor + '; border-radius: 3px;"></div>';
-                                html += '</div></div>';
-                            }
-                            
-                            // Statistics
-                            html += '<div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem; margin-bottom: 1rem;">';
-                            html += '<div style="padding: 1rem; background: rgba(74, 144, 226, 0.1); border-radius: 8px; text-align: center;">';
-                            html += '<div style="font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 0.25rem;">Uptime</div>';
-                            html += '<div style="font-size: 1.25rem; font-weight: 700; color: var(--primary); font-family: monospace;">' + this.formatDuration(diag.uptime || 0) + '</div></div>';
-                            html += '<div style="padding: 1rem; background: rgba(80, 200, 120, 0.1); border-radius: 8px; text-align: center;">';
-                            html += '<div style="font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 0.25rem;">Total Packets</div>';
-                            html += '<div style="font-size: 1.25rem; font-weight: 700; color: var(--secondary); font-family: monospace;">' + (diag.totalPackets || 0) + '</div></div>';
-                            html += '<div style="padding: 1rem; background: rgba(155, 89, 182, 0.1); border-radius: 8px; text-align: center;">';
-                            html += '<div style="font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 0.25rem;">Devices</div>';
-                            html += '<div style="font-size: 1.25rem; font-weight: 700; color: var(--accent); font-family: monospace;">' + (diag.devices || 0) + '</div></div>';
-                            
-                            // Queue health metrics
-                            if (diag.droppedPackets !== undefined) {
-                                const totalReceived = (diag.totalPackets || 0) + (diag.droppedPackets || 0);
-                                const dropRate = totalReceived > 0 ? ((diag.droppedPackets / totalReceived) * 100).toFixed(1) : 0;
-                                const dropColor = dropRate > 10 ? 'var(--danger)' : dropRate > 5 ? 'var(--warning)' : 'var(--success)';
-                                html += '<div style="padding: 1rem; background: rgba(231, 76, 60, 0.1); border-radius: 8px; text-align: center;">';
-                                html += '<div style="font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 0.25rem;">Dropped</div>';
-                                html += '<div style="font-size: 1.25rem; font-weight: 700; color: ' + dropColor + '; font-family: monospace;">' + (diag.droppedPackets || 0) + '</div>';
-                                html += '<div style="font-size: 0.7rem; margin-top: 0.25rem; color: ' + dropColor + ';">' + dropRate + '%</div></div>';
-                                html += '<div style="padding: 1rem; background: rgba(52, 152, 219, 0.1); border-radius: 8px; text-align: center;">';
-                                html += '<div style="font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 0.25rem;">Peak Queue</div>';
-                                html += '<div style="font-size: 1.25rem; font-weight: 700; color: var(--info); font-family: monospace;">' + (diag.peakQueueSize || 0) + '</div>';
-                                html += '<div style="font-size: 0.7rem; margin-top: 0.25rem; color: var(--text-secondary);">of 100</div></div>';
-                            }
-                            html += '<div style="padding: 1rem; background: rgba(241, 196, 15, 0.1); border-radius: 8px; text-align: center;">';
-                            html += '<div style="font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 0.25rem;">Mode</div>';
-                            html += '<div style="font-size: 1rem; font-weight: 600; color: var(--warning);">' + (this.formatMode(diag.mode) || '—') + '</div></div>';
-                            html += '</div>';
-                            
-                            html += '</div>';
-                            html += '<div style="padding: 1rem 1.5rem; border-top: 1px solid rgba(255,255,255,0.1); display: flex; justify-content: flex-end;">';
-                            html += '<button onclick="document.getElementById(\'diag-modal\').remove()" class="btn btn-primary">Close</button>';
-                            html += '</div></div></div>';
-                            
-                            // Add to page
-                            const modal = document.createElement('div');
-                            modal.innerHTML = html;
-                            document.body.appendChild(modal.firstChild);
-                            
-                            // Close on background click
-                            document.getElementById('diag-modal').addEventListener('click', (e) => {
-                                if (e.target.id === 'diag-modal') {
-                                    e.target.remove();
-                                }
-                            });
-                            
-                            showToast('Diagnostics completed', 'success');
-                        } else {
-                            showToast('Diagnostics data unavailable', 'warning');
-                        }
-                    } catch (error) {
-                        showToast('Diagnostics failed: ' + error.message, 'error');
-                    }
-                    break;
-                case 'reboot':
-                    if (confirm('Reboot the device? This will disconnect temporarily.')) {
-                        await this.post('/api/command', { command: 'b' });
-                        showToast('Device rebooting...', 'warning');
-                    }
-                    break;
-                case 'download-logs':
-                    showToast('Log download not implemented', 'info');
-                    break;
-                case 'export-json':
-                    window.open('/api/statistics', '_blank');
-                    showToast('Exporting statistics...', 'info');
-                    break;
-                case 'center-map':
-                case 'toggle-labels':
-                case 'zoom-in':
-                case 'zoom-out':
-                    // These will be handled by network-map.js
-                    break;
-                case 'target-device':
-                    await this.post('/api/capture/start', { nodeId: value });
-                    showToast(`Targeting device 0x${value}`, 'success');
-                    await this.updateStatus();
-                    break;
-                case 'replay-packet':
-                    await this.post('/api/replay/transmit', { slotIndex: value, repeatCount: 1, delayMs: 1000 });
-                    showToast(`Replaying packet ${parseInt(value) + 1}`, 'success');
-                    break;
-                case 'target-frequency':
-                    await this.post('/api/frequency/target', { configIndex: value });
-                    showToast(`Targeting frequency config ${value}`, 'success');
-                    await this.updateStatus();
-                    break;
-                case 'retry-devices':
-                    await this.showDevices();
-                    break;
-                case 'retry-packets':
-                    await this.showPackets();
-                    break;
-                case 'retry-frequency':
-                    await this.showFrequency();
-                    break;
-                case 'retry-gps':
-                case 'retry-security':
-                case 'retry-freq-analysis':
-                    await this.showInfo();
-                    break;
-                case 'wifi-setup':
-                    this.showWiFiSetupModal();
-                    break;
-                case 'dismiss-setup':
-                    // User chose to keep using device AP
-                    const banner = document.getElementById('setup-banner');
-                    if (banner) {
-                        banner.style.display = 'none';
-                        document.body.classList.remove('setup-mode');
-                    }
-                    showToast('Continuing with device AP. Go to Settings to configure hotspot later.', 'info');
-                    break;
-                case 'wifi-clear':
-                    if (confirm('Clear stored hotspot credentials? The device will restart in setup mode.')) {
-                        try {
-                            await this.post('/api/wifi/clear', {});
-                            showToast('Credentials cleared. Device restarting...', 'success');
-                        } catch (error) {
-                            showToast('Failed to clear credentials: ' + error.message, 'error');
-                        }
-                    }
-                    break;
-                case 'close-modal':
-                    this.closeModal();
-                    break;
+            const handlers = this.getActionHandlers();
+            const handler = handlers[action];
+            
+            if (handler) {
+                await handler(value);
+            } else {
+                DEBUG.warn('Unknown action:', action);
             }
         } catch (error) {
-            console.error('Action failed:', error);
+            DEBUG.error('Action failed:', error);
             showToast('Action failed: ' + error.message, 'error');
         } finally {
             // Restore button state
@@ -1548,11 +1454,186 @@ class ReconApp {
                 btn.disabled = originalDisabled;
                 btn.classList.remove('btn-loading');
                 if (originalText && !action.startsWith('retry-')) {
-                    setTimeout(() => {
-                        btn.innerHTML = originalText;
-                    }, 300);
+                    setTimeout(() => { btn.innerHTML = originalText; }, 300);
                 }
             }
+        }
+    }
+
+    // ============ Action Implementations ============
+    
+    async actionToggleScan() {
+        const status = await this.get('/api/status');
+        const currentMode = (status?.mode || '').toLowerCase();
+        if (currentMode.includes('target')) {
+            if (!confirm('Exit frequency targeting and return to reconnaissance mode?')) return;
+        }
+        await this.post('/api/scan/start', {});
+        showToast('Reconnaissance resumed', 'success');
+        await this.updateStatus();
+    }
+    
+    async actionStopCapture() {
+        await this.post('/api/capture/stop', {});
+        showToast('Capture stopped', 'success');
+        await this.updateStatus();
+    }
+    
+    async actionExportKML() {
+        const gpsData = await this.get('/api/positions');
+        if (gpsData?.positions?.length > 0) {
+            window.open('/api/export/kml', '_blank');
+            showToast(`Exporting ${gpsData.positions.length} GPS location(s)...`, 'success');
+        } else {
+            showToast('No GPS data to export. Capture packets with location data first.', 'warning');
+        }
+    }
+    
+    async actionClearPackets() {
+        await this.post('/api/replay/clear', {});
+        showToast('Packets cleared', 'success');
+        await this.showPackets();
+    }
+    
+    async actionClearDevices() {
+        await this.post('/api/devices/clear', {});
+        showToast('Devices cleared', 'success');
+        await this.showDevices();
+        await this.updateStatus();
+    }
+    
+    actionShowActivity() {
+        this.switchTab('info');
+        this.closeMobileMenu();
+        setTimeout(() => {
+            const freqSection = document.getElementById('frequency-analysis-content');
+            if (freqSection) freqSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }, 100);
+    }
+    
+    async actionShowSecurity() {
+        await this.showSecurityAssessment();
+        this.closeMobileMenu();
+    }
+    
+    async actionExportPCAP() {
+        const statusData = await this.get('/api/status');
+        if (!statusData || statusData.mode === 'idle') {
+            showToast('No active reconnaissance session. Start scanning first.', 'warning');
+            return;
+        }
+        
+        showToast('Downloading PCAP capture...', 'info');
+        const response = await fetch('/api/export/pcap');
+        
+        if (response.status === 404) {
+            const error = await response.json();
+            showToast(error.message || 'No PCAP file available', 'error');
+        } else if (response.status === 501) {
+            showToast('PCAP export is disabled on this device', 'error');
+        } else if (response.ok) {
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'lora_capture_' + Date.now() + '.pcap';
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            a.remove();
+            showToast('PCAP downloaded successfully', 'success');
+        } else {
+            showToast('PCAP export failed: HTTP ' + response.status, 'error');
+        }
+    }
+    
+    async actionDiagnostics() {
+        showToast('Running diagnostics...', 'info');
+        const diag = await this.get('/api/status');
+        if (!diag || diag.status !== 'success') {
+            showToast('Diagnostics data unavailable', 'warning');
+            return;
+        }
+        
+        const radioOK = true;
+        const wifiOK = (diag.clientCount !== undefined);
+        const heapFree = diag.freeHeap || 0;
+        const heapTotal = diag.heapSize || 1;
+        const heapPercent = ((heapFree / heapTotal) * 100).toFixed(1);
+        const heapClass = getThresholdClass(heapPercent);
+        
+        let content = '';
+        
+        // Status indicators
+        content += CardRenderer.status('📡 Radio', radioOK ? '✓ Operational' : '✗ Failed', radioOK ? 'text-success' : 'text-danger');
+        content += CardRenderer.status('📶 WiFi AP', wifiOK ? `✓ Active (${diag.clientCount || 0} clients)` : '✗ Inactive', wifiOK ? 'text-success' : 'text-warning');
+        content += CardRenderer.status('💾 Memory', `${this.formatBytes(heapFree)} / ${this.formatBytes(heapTotal)}`, heapClass, true, heapPercent);
+        
+        // Battery if available
+        if (diag.batteryVoltage !== undefined) {
+            const battPercent = diag.batteryPercent || 0;
+            const battClass = getThresholdClass(battPercent, 50, 20);
+            content += CardRenderer.status('🔋 Battery', `${(diag.batteryVoltage || 0).toFixed(2)}V (${battPercent}%)`, battClass, true, battPercent);
+        }
+        
+        // Statistics grid
+        content += '<div class="metric-grid mt-md">';
+        content += CardRenderer.metric('Uptime', this.formatDuration(diag.uptime || 0), 'text-primary', 'card-primary');
+        content += CardRenderer.metric('Total Packets', diag.totalPackets || 0, 'text-success', 'card-success');
+        content += CardRenderer.metric('Devices', diag.devices || 0, 'text-accent', 'card-accent');
+        
+        if (diag.droppedPackets !== undefined) {
+            const totalReceived = (diag.totalPackets || 0) + (diag.droppedPackets || 0);
+            const dropRate = totalReceived > 0 ? ((diag.droppedPackets / totalReceived) * 100).toFixed(1) : 0;
+            const dropClass = getThresholdClass(100 - dropRate, 95, 90);
+            content += CardRenderer.metric('Dropped', `${diag.droppedPackets || 0} <span class="metric-unit">(${dropRate}%)</span>`, dropClass, 'card-danger');
+            content += CardRenderer.metric('Peak Queue', `${diag.peakQueueSize || 0} <span class="metric-unit">of 100</span>`, 'text-info', 'card-info');
+        }
+        content += CardRenderer.metric('Mode', this.formatMode(diag.mode) || '—', 'text-warning', 'card-warning');
+        content += '</div>';
+        
+        const modalHtml = ModalRenderer.create('diag-modal', '🔧 System Diagnostics', content);
+        ModalRenderer.show(modalHtml);
+        showToast('Diagnostics completed', 'success');
+    }
+    
+    async actionReboot() {
+        if (confirm('Reboot the device? This will disconnect temporarily.')) {
+            await this.post('/api/command', { command: 'b' });
+            showToast('Device rebooting...', 'warning');
+        }
+    }
+    
+    async actionTargetDevice(nodeId) {
+        await this.post('/api/capture/start', { nodeId });
+        showToast(`Targeting device 0x${nodeId}`, 'success');
+        await this.updateStatus();
+    }
+    
+    async actionReplayPacket(slotIndex) {
+        await this.post('/api/replay/transmit', { slotIndex, repeatCount: 1, delayMs: 1000 });
+        showToast(`Replaying packet ${parseInt(slotIndex) + 1}`, 'success');
+    }
+    
+    async actionTargetFrequency(configIndex) {
+        await this.post('/api/frequency/target', { configIndex });
+        showToast(`Targeting frequency config ${configIndex}`, 'success');
+        await this.updateStatus();
+    }
+    
+    actionDismissSetup() {
+        const banner = document.getElementById('setup-banner');
+        if (banner) {
+            banner.style.display = 'none';
+            document.body.classList.remove('setup-mode');
+        }
+        showToast('Continuing with device AP. Go to Settings to configure hotspot later.', 'info');
+    }
+    
+    async actionWifiClear() {
+        if (confirm('Clear stored hotspot credentials? The device will restart in setup mode.')) {
+            await this.post('/api/wifi/clear', {});
+            showToast('Credentials cleared. Device restarting...', 'success');
         }
     }
 
