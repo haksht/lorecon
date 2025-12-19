@@ -52,6 +52,30 @@ function renderErrorState(message, retryAction = null) {
     return html;
 }
 
+/**
+ * Standardized error handler for API/async operations
+ * Logs to DEBUG and optionally shows user-facing toast
+ * @param {Error} error - The caught error
+ * @param {string} context - Description of what operation failed (e.g., 'loading devices')
+ * @param {Object} [options={}] - Handler options
+ * @param {boolean} [options.silent=false] - If true, skip toast notification
+ * @param {boolean} [options.rethrow=false] - If true, rethrow after handling
+ * @returns {null} Returns null for easy chaining in catch blocks
+ */
+function handleError(error, context, options = {}) {
+    const { silent = false, rethrow = false } = options;
+    
+    DEBUG.error(`Error ${context}:`, error);
+    
+    if (!silent && typeof showToast === 'function') {
+        const userMessage = error.message || 'Unknown error';
+        showToast(`Failed ${context}: ${userMessage}`, 'error');
+    }
+    
+    if (rethrow) throw error;
+    return null;
+}
+
 // Loading state HTML helper
 function renderLoadingState(message = 'Loading...') {
     return `<div class="loading-container"><div class="loading-spinner"></div><p>${escapeHtml(message)}</p></div>`;
@@ -60,15 +84,30 @@ function renderLoadingState(message = 'Loading...') {
 // Placeholder state HTML helper
 function renderPlaceholder(emoji, title, subtitle = '') {
     return `<div class="placeholder">
-        <div class="text-muted" style="font-size: 3rem; margin-bottom: 1rem;">${emoji}</div>
+        <div class="emoji-large text-muted">${emoji}</div>
         <p>${escapeHtml(title)}</p>
         ${subtitle ? `<p class="text-sm mt-sm text-muted">${escapeHtml(subtitle)}</p>` : ''}
     </div>`;
 }
 
 // ===== Shared Table Rendering =====
+/**
+ * Table rendering utilities for consistent data tables
+ * @namespace TableRenderer
+ */
 const TableRenderer = {
-    // Render a complete table with headers and rows
+    /**
+     * Render a complete HTML table with headers and rows
+     * @param {string[]} columns - Array of column header names
+     * @param {Array} rows - Array of row data objects
+     * @param {Function} rowRenderer - Function(row, index) that returns HTML string for a table row
+     * @param {Object} [options={}] - Optional configuration
+     * @param {string} [options.tableClass='table'] - CSS class for table element
+     * @param {string} [options.wrapperClass='table-wrapper'] - CSS class for wrapper div
+     * @returns {string} Complete HTML table string
+     * @example
+     * TableRenderer.render(['Name', 'Value'], data, (row, i) => `<tr><td>${row.name}</td></tr>`);
+     */
     render(columns, rows, rowRenderer, options = {}) {
         const { tableClass = 'table', wrapperClass = 'table-wrapper' } = options;
         let html = `<div class="${wrapperClass}">`;
@@ -80,21 +119,77 @@ const TableRenderer = {
         return html;
     },
     
-    // Common row cell formatters
+    /**
+     * Common table cell formatters
+     * @namespace TableRenderer.cell
+     */
     cell: {
+        /**
+         * Render a code-formatted cell
+         * @param {string} value - Cell value
+         * @param {string} [prefix=''] - Optional prefix before value
+         * @returns {string} HTML td element
+         */
         code: (value, prefix = '') => `<td><code>${prefix}${escapeHtml(value)}</code></td>`,
+        
+        /**
+         * Render a text cell (HTML escaped)
+         * @param {string} value - Cell value
+         * @returns {string} HTML td element
+         */
         text: (value) => `<td>${escapeHtml(value)}</td>`,
+        
+        /**
+         * Render a raw HTML cell (use with caution - no escaping)
+         * @param {string} value - HTML content
+         * @returns {string} HTML td element
+         */
         html: (value) => `<td>${value}</td>`,
+        
+        /**
+         * Render an RSSI signal strength cell with color coding
+         * @param {number} value - RSSI value in dBm
+         * @returns {string} HTML td element with styled span
+         */
         rssi: (value) => `<td>${formatRSSI(value)}</td>`,
+        
+        /**
+         * Render a badge cell
+         * @param {string} text - Badge text
+         * @param {string} className - CSS class for styling
+         * @returns {string} HTML td element with span
+         */
         badge: (text, className) => `<td><span class="${className}">${text}</span></td>`,
+        
+        /**
+         * Render an action button cell
+         * @param {string} action - data-action attribute value
+         * @param {string} value - data-value attribute value
+         * @param {string} text - Button label text
+         * @param {string} [icon=''] - Optional emoji/icon prefix
+         * @returns {string} HTML td element with button
+         */
         button: (action, value, text, icon = '') => 
             `<td><button data-action="${action}" data-value="${escapeHtml(value)}" class="btn btn-primary btn-small">${icon} ${text}</button></td>`
     }
 };
 
 // ===== Shared Card Rendering =====
+/**
+ * Card rendering utilities for metrics, status, and info cards
+ * @namespace CardRenderer
+ */
 const CardRenderer = {
-    // Metric card for stats display
+    /**
+     * Render a metric display card
+     * @param {string} label - Metric label text
+     * @param {string|number} value - Display value (can include HTML)
+     * @param {string} [colorClass='text-primary'] - CSS color class for value
+     * @param {string} [bgClass='card-primary'] - CSS background class for card
+     * @returns {string} HTML card element
+     * @example
+     * CardRenderer.metric('Devices', 42, 'text-success', 'card-success');
+     */
     metric(label, value, colorClass = 'text-primary', bgClass = 'card-primary') {
         return `<div class="metric-card ${bgClass}">
             <div class="metric-label">${escapeHtml(label)}</div>
@@ -102,7 +197,17 @@ const CardRenderer = {
         </div>`;
     },
     
-    // Status indicator with optional progress bar
+    /**
+     * Render a status indicator card with optional progress bar
+     * @param {string} label - Status label
+     * @param {string} value - Status value text
+     * @param {string} colorClass - CSS color class (e.g., 'text-success')
+     * @param {boolean} [showProgress=false] - Whether to show progress bar
+     * @param {number} [percent=0] - Progress percentage (0-100)
+     * @returns {string} HTML status card element
+     * @example
+     * CardRenderer.status('Memory', '45%', 'text-warning', true, 45);
+     */
     status(label, value, colorClass, showProgress = false, percent = 0) {
         let html = `<div class="status-indicator card-base ${colorClass.replace('text-', 'card-')}">
             <div class="flex-between mb-sm">
@@ -118,25 +223,53 @@ const CardRenderer = {
         return html;
     },
     
-    // Item card with header and optional details
+    /**
+     * Render an item card with header badge and content
+     * @param {string} header - Header text/HTML
+     * @param {string} headerBadge - Badge text
+     * @param {string} badgeClass - CSS class for badge color (e.g., 'text-success')
+     * @param {string} content - Card body content HTML
+     * @returns {string} HTML item card element
+     */
     item(header, headerBadge, badgeClass, content) {
-        return `<div class="item-card" style="border-left: 3px solid var(--${badgeClass.replace('text-', '')})">
+        const colorName = badgeClass.replace('text-', '');
+        return `<div class="item-card item-card-${colorName}">
             <div class="item-card-header">
                 <div>${header}</div>
-                <div class="item-badge" style="background: var(--${badgeClass.replace('text-', '')}); color: #000">${headerBadge}</div>
+                <div class="item-badge item-badge-${colorName}">${headerBadge}</div>
             </div>
             ${content}
         </div>`;
     },
     
-    // Section with header
+    /**
+     * Render a section with header
+     * @param {string} title - Section title
+     * @param {string} content - Section content HTML
+     * @param {string} [headerClass='section-header'] - CSS class for header
+     * @returns {string} HTML section with h4 header
+     */
     section(title, content, headerClass = 'section-header') {
         return `<h4 class="${headerClass}">${title}</h4>${content}`;
     }
 };
 
 // ===== Modal Rendering =====
+/**
+ * Modal dialog rendering utilities
+ * @namespace ModalRenderer
+ */
 const ModalRenderer = {
+    /**
+     * Create modal HTML structure
+     * @param {string} id - Unique modal ID for targeting
+     * @param {string} title - Modal title text
+     * @param {string} content - Modal body HTML content
+     * @param {string} [titleColor='text-primary'] - CSS class for title color
+     * @returns {string} Complete modal HTML string
+     * @example
+     * const html = ModalRenderer.create('my-modal', 'Settings', '<p>Content</p>');
+     */
     create(id, title, content, titleColor = 'text-primary') {
         return `<div class="modal-backdrop" id="${id}">
             <div class="modal-box">
@@ -151,6 +284,11 @@ const ModalRenderer = {
         </div>`;
     },
     
+    /**
+     * Show a modal by injecting HTML into DOM
+     * Automatically sets up backdrop click to close
+     * @param {string} html - Modal HTML from create()
+     */
     show(html) {
         const container = document.createElement('div');
         container.innerHTML = html;
@@ -235,7 +373,7 @@ class ReconApp {
             // Load first tab (Info)
             this.loadTabContent('info');
         } catch (error) {
-            console.error('Init error:', error);
+            DEBUG.error('Init error:', error);
         }
     }
     
@@ -249,7 +387,7 @@ class ReconApp {
                 showToast('First run! Configure your phone hotspot to get started.', 'info');
             }
         } catch (error) {
-            console.log('WiFi status check failed (may be normal on first load)');
+            DEBUG.log('WiFi status check failed (may be normal on first load)');
         }
     }
 
@@ -270,7 +408,7 @@ class ReconApp {
                     this.handleStatusUpdate(data);
                 }
             } catch (error) {
-                console.error('WebSocket message error:', error);
+                DEBUG.error('WebSocket message error:', error);
             }
         };
         
@@ -342,7 +480,7 @@ class ReconApp {
             this.el.targetInfo.style.display = 'block';
             let html = `<strong>Frequency:</strong> ${data.target.frequency.toFixed(3)} MHz`;
             if (data.target.nodeId) {
-                html += `<br><strong>Node:</strong> 0x${data.target.nodeId}`;
+                html += `<br><strong>Node:</strong> 0x${escapeHtml(String(data.target.nodeId))}`;
             }
             this.el.targetDetails.innerHTML = html;
         } else {
@@ -362,9 +500,9 @@ class ReconApp {
             this.consecutiveErrors = (this.consecutiveErrors || 0) + 1;
             // Only log first 3 errors to avoid spam
             if (this.consecutiveErrors <= 3) {
-                console.error('Status update failed:', error);
+                DEBUG.error('Status update failed:', error);
                 if (this.consecutiveErrors === 3) {
-                    console.warn('[Status] Suppressing further connection errors...');
+                    DEBUG.warn('Suppressing further connection errors...');
                 }
             }
             this.setConnected(false);
@@ -440,7 +578,15 @@ class ReconApp {
     }
 
     // ============ Tab Content Loaders ============
+    // Each show* method handles loading and rendering for one tab.
+    // Tab handlers: showDevices (line ~581), showPackets (line ~693), 
+    //               showNetwork (line ~858), showStats (line ~958),
+    //               showInfo (line ~1059), showSettings (line ~1254)
     
+    /**
+     * Load and display the Devices tab
+     * Fetches /api/devices and renders device table with targeting options
+     */
     async showDevices() {
         // Show loading state
         this.el.devicesContent.innerHTML = renderLoadingState('Loading devices...');
@@ -456,8 +602,8 @@ class ReconApp {
             let securityData = null;
             try {
                 securityData = await this.get('/api/recon/security');
-            } catch (err) {
-                console.warn('Security data not available, sorting by discovery order');
+            } catch (error) {
+                DEBUG.warn('Security data not available, sorting by discovery order');
             }
             
             // Create a map of nodeId to vulnerability score
@@ -548,11 +694,15 @@ class ReconApp {
             html += '</tbody></table></div>';
             this.el.devicesContent.innerHTML = html;
         } catch (error) {
-            console.error('Failed to load devices:', error);
+            DEBUG.error('Failed to load devices:', error);
             this.el.devicesContent.innerHTML = renderErrorState('Failed to load devices', 'retry-devices');
         }
     }
 
+    /**
+     * Load and display the Packets tab
+     * Fetches /api/replay/slots and renders packet table with relay button
+     */
     async showPackets() {
         // Show loading state
         this.el.packetsContent.innerHTML = renderLoadingState('Loading packets...');
@@ -590,12 +740,12 @@ class ReconApp {
                     if (pkt.isBroadcast === true || pkt.isBroadcast === undefined) {
                         destDisplay = '<span class="broadcast-badge">📢</span>';
                     } else if (pkt.destId) {
-                        destDisplay = '<code>0x' + pkt.destId + '</code>';
+                        destDisplay = '<code>0x' + escapeHtml(String(pkt.destId)) + '</code>';
                     }
                     
                     html += `<tr class="${rowClass}">`;
-                    html += `<td><code>${pkt.protocol || 'Unknown'}</code></td>`;
-                    html += `<td>${pkt.nodeId ? '<code>0x' + pkt.nodeId + '</code>' : '—'}</td>`;
+                    html += `<td><code>${escapeHtml(pkt.protocol || 'Unknown')}</code></td>`;
+                    html += `<td>${pkt.nodeId ? '<code>0x' + escapeHtml(String(pkt.nodeId)) + '</code>' : '—'}</td>`;
                     html += `<td>${destDisplay}</td>`;
                     html += `<td>${pkt.hopCount !== undefined ? pkt.hopCount : '—'}</td>`;
                     html += `<td>${pkt.channel !== undefined ? pkt.channel : '—'}</td>`;
@@ -603,18 +753,18 @@ class ReconApp {
                     
                     // Show packet ID with relay indicator
                     if (isRelay) {
-                        html += `<td><code>0x${pkt.packetId || '—'}</code> <span class="relay-badge">↻ Relay</span></td>`;
+                        html += `<td><code>0x${escapeHtml(String(pkt.packetId || '—'))}</code> <span class="relay-badge">↻ Relay</span></td>`;
                     } else if (group.packets.length > 1) {
-                        html += `<td><code>0x${pkt.packetId || '—'}</code> <span class="origin-badge">⚡ +${group.packets.length - 1} relays</span></td>`;
+                        html += `<td><code>0x${escapeHtml(String(pkt.packetId || '—'))}</code> <span class="origin-badge">⚡ +${group.packets.length - 1} relays</span></td>`;
                     } else {
-                        html += `<td>${pkt.packetId ? '<code>0x' + pkt.packetId + '</code>' : '—'}</td>`;
+                        html += `<td>${pkt.packetId ? '<code>0x' + escapeHtml(String(pkt.packetId)) + '</code>' : '—'}</td>`;
                     }
                     
                     html += `<td>${pkt.length || 0} B</td>`;
                     html += `<td><span class="${rssiClass}">${pkt.rssi || '—'} dBm</span></td>`;
                     html += `<td>${(pkt.frequencyMHz || 0).toFixed(3)} MHz</td>`;
                     html += `<td>${this.formatDuration(pkt.capturedSecondsAgo || 0)} ago</td>`;
-                    html += `<td>${pkt.decryptedText || '—'}</td>`;
+                    html += `<td>${escapeHtml(pkt.decryptedText || '—')}</td>`;
                     html += `<td><button data-action="replay-packet" data-value="${pkt.originalIndex}" class="btn btn-primary btn-small">🔁 Replay</button></td>`;
                     html += '</tr>';
                 });
@@ -623,7 +773,7 @@ class ReconApp {
             html += '</tbody></table></div>';
             this.el.packetsContent.innerHTML = html;
         } catch (error) {
-            console.error('Failed to load packets:', error);
+            DEBUG.error('Failed to load packets:', error);
             this.el.packetsContent.innerHTML = renderErrorState('Failed to load packets', 'retry-packets');
         }
     }
@@ -713,40 +863,44 @@ class ReconApp {
             html += '</tbody></table></div>';
             this.el.frequencyContent.innerHTML = html;
         } catch (error) {
-            console.error('Failed to load frequency data:', error);
+            DEBUG.error('Failed to load frequency data:', error);
             this.el.frequencyContent.innerHTML = renderErrorState('Failed to load frequency data', 'retry-frequency');
         }
     }
 
+    /**
+     * Load and display the Network tab
+     * Initializes NetworkMap canvas and fetches /api/devices for visualization
+     */
     async showNetwork() {
-        console.log('[Network] Loading network map...');
-        console.log('[Network] NetworkMap available?', typeof NetworkMap !== 'undefined');
-        console.log('[Network] window.NetworkMap?', typeof window.NetworkMap !== 'undefined');
+        DEBUG.log('Loading network map...');
+        DEBUG.log('NetworkMap available?', typeof NetworkMap !== 'undefined');
+        DEBUG.log('window.NetworkMap?', typeof window.NetworkMap !== 'undefined');
         
         if (!this.networkMap) {
-            console.log('[Network] Initializing NetworkMap...');
+            DEBUG.log('Initializing NetworkMap...');
             // Check both direct and window scope
             const NetworkMapClass = window.NetworkMap || NetworkMap;
             if (typeof NetworkMapClass !== 'undefined') {
                 try {
                     // Use network-info as the details panel (it exists in HTML)
                     this.networkMap = new NetworkMapClass('network-canvas', 'network-info');
-                    console.log('[Network] NetworkMap initialized successfully');
+                    DEBUG.log('NetworkMap initialized successfully');
                 } catch (error) {
-                    console.error('[Network] Failed to initialize NetworkMap:', error);
+                    DEBUG.error('Failed to initialize NetworkMap:', error);
                     // Show error in network info panel
                     const infoEl = document.getElementById('network-info');
                     if (infoEl) {
-                        infoEl.innerHTML = '<div class="error-state"><p class="error">Network visualization unavailable: ' + error.message + '</p><p style="font-size: 0.9rem; margin-top: 0.5rem;">Check browser console for details.</p></div>';
+                        infoEl.innerHTML = '<div class="error-state"><p class="error">Network visualization unavailable: ' + escapeHtml(error.message) + '</p><p class="help-text">Check browser console for details.</p></div>';
                     }
                 }
             } else {
-                console.error('[Network] NetworkMap class not found! Scripts may not have loaded.');
-                console.error('[Network] Available globals:', Object.keys(window).filter(k => k.includes('Map') || k.includes('Network') || k.includes('War')));
+                DEBUG.error('NetworkMap class not found! Scripts may not have loaded.');
+                DEBUG.error('Available globals:', Object.keys(window).filter(k => k.includes('Map') || k.includes('Network') || k.includes('War')));
                 // Show error message
                 const infoEl = document.getElementById('network-info');
                 if (infoEl) {
-                    infoEl.innerHTML = '<div class="error-state"><p class="error">Network Map unavailable</p><p style="font-size: 0.9rem; margin-top: 0.5rem;">The network-map.js script failed to load. Try refreshing the page or check SD card/LittleFS.</p></div>';
+                    infoEl.innerHTML = '<div class="error-state"><p class="error">Network Map unavailable</p><p class="help-text">The network-map.js script failed to load. Try refreshing the page or check SD card/LittleFS.</p></div>';
                 }
             }
         }
@@ -760,15 +914,15 @@ class ReconApp {
         
         try {
             const data = await this.get('/api/devices');
-            console.log('[Network] Devices data:', data);
+            DEBUG.log('Network devices data:', data);
             
             if (data && data.devices) {
                 // Fetch security data to enrich devices with vulnerability info
                 let securityData = null;
                 try {
                     securityData = await this.get('/api/recon/security');
-                } catch (err) {
-                    console.warn('[Network] Security data not available for network map');
+                } catch (error) {
+                    DEBUG.warn('Security data not available for network map');
                 }
                 
                 // Create score map from security data
@@ -794,9 +948,9 @@ class ReconApp {
                 
                 if (this.networkMap) {
                     this.networkMap.updateDevices(enrichedDevices);
-                    console.log('[Network] Updated map with', enrichedDevices.length, 'enriched devices');
+                    DEBUG.log('Updated map with', enrichedDevices.length, 'enriched devices');
                 } else {
-                    console.warn('[Network] NetworkMap not initialized, cannot update');
+                    DEBUG.warn('NetworkMap not initialized, cannot update');
                 }
                 
                 // Update network info panel
@@ -805,33 +959,37 @@ class ReconApp {
                     if (data.devices.length === 0) {
                         infoEl.innerHTML = '<p class="placeholder">No devices discovered yet. Start reconnaissance to populate the network map.</p>';
                     } else {
-                        infoEl.innerHTML = `<p style="color: var(--text-secondary); font-size: 0.9rem;">Showing ${data.devices.length} device(s). Click a node for details.</p>`;
+                        infoEl.innerHTML = `<p class="text-secondary small-text">Showing ${data.devices.length} device(s). Click a node for details.</p>`;
                     }
                 }
             }
         } catch (error) {
-            console.error('[Network] Failed to load devices:', error);
+            DEBUG.error('Failed to load network devices:', error);
             const infoEl = document.getElementById('network-info');
             if (infoEl) {
-                infoEl.innerHTML = '<p class="error">Failed to load network data: ' + error.message + '</p>';
+                infoEl.innerHTML = '<p class="error">Failed to load network data: ' + escapeHtml(error.message) + '</p>';
             }
         }
     }
 
+    /**
+     * Load and display the Stats tab (War Room)
+     * Initializes WarRoom tactical dashboard with real-time metrics
+     */
     async showStats() {
-        console.log('[Stats] Loading war room...');
+        DEBUG.log('Loading war room...');
         
         if (!this.warRoom) {
-            console.log('[Stats] Initializing WarRoom...');
+            DEBUG.log('Initializing WarRoom...');
             if (typeof WarRoom !== 'undefined') {
                 try {
                     this.warRoom = new WarRoom('war-room-container');
-                    console.log('[Stats] WarRoom initialized successfully');
+                    DEBUG.log('WarRoom initialized successfully');
                 } catch (error) {
-                    console.error('[Stats] Failed to initialize WarRoom:', error);
+                    DEBUG.error('Failed to initialize WarRoom:', error);
                 }
             } else {
-                console.error('[Stats] WarRoom class not found!');
+                DEBUG.error('WarRoom class not found!');
             }
         }
         
@@ -839,18 +997,18 @@ class ReconApp {
             // Fallback if WarRoom class not available
             const container = document.getElementById('war-room-container');
             if (container) {
-                container.innerHTML = '<div class="placeholder"><div style="font-size: 3rem; margin-bottom: 1rem; opacity: 0.5;">📊</div><p>Statistics visualization unavailable.</p><p style="font-size: 0.9rem; margin-top: 0.5rem;">War Room script may not be loaded. Check browser console.</p></div>';
+                container.innerHTML = '<div class="placeholder"><div class="emoji-large-muted">📊</div><p>Statistics visualization unavailable.</p><p class="help-text">War Room script may not be loaded. Check browser console.</p></div>';
             }
             return;
         }
         
         try {
             const data = await this.get('/api/status');
-            console.log('[Stats] Status data:', data);
+            DEBUG.log('Stats status data:', data);
             
             if (data && this.warRoom) {
                 this.warRoom.update(data);
-                console.log('[Stats] War room updated');
+                DEBUG.log('War room updated');
             }
             
             // Load anomalies and temporal data
@@ -859,8 +1017,8 @@ class ReconApp {
                 if (anomalies && anomalies.anomalies && anomalies.anomalies.length > 0) {
                     this.showAnomalies(anomalies);
                 }
-            } catch (err) {
-                console.warn('[Stats] Failed to load anomalies:', err);
+            } catch (error) {
+                DEBUG.warn('Failed to load anomalies:', error);
             }
             
             try {
@@ -868,11 +1026,11 @@ class ReconApp {
                 if (temporal && temporal.beacons && temporal.beacons.length > 0) {
                     this.showBeacons(temporal);
                 }
-            } catch (err) {
-                console.warn('[Stats] Failed to load temporal data:', err);
+            } catch (error) {
+                DEBUG.warn('Failed to load temporal data:', error);
             }
         } catch (error) {
-            console.error('[Stats] Failed to update:', error);
+            DEBUG.error('Failed to update stats:', error);
             const container = document.getElementById('war-room-container');
             if (container) {
                 container.innerHTML = '<div class="error-state"><p class="error">Failed to load statistics: ' + error.message + '</p></div>';
@@ -881,15 +1039,16 @@ class ReconApp {
     }
     
     showAnomalies(data) {
-        let html = '<div style="background: rgba(255, 99, 71, 0.1); padding: 1rem; border-radius: 8px; border-left: 3px solid var(--danger); margin-bottom: 1rem;">';
-        html += '<h4 style="color: var(--danger); margin: 0 0 1rem 0;">🚨 Network Anomalies (' + data.unacknowledged + ' new)</h4>';
+        let html = '<div class="alert-box alert-box-danger">';
+        html += '<h4>🚨 Network Anomalies (' + data.unacknowledged + ' new)</h4>';
         
         data.anomalies.slice(0, 5).forEach(anom => {
             const typeEmoji = {'packet_size': '📦', 'relay_hops': '↻', 'rate_limit': '⚡', 'rssi_variance': '📡', 'replay': '🔁', 'timing': '⏱️'}[anom.type] || '⚠️';
-            html += '<div style="background: rgba(255,255,255,0.03); padding: 0.75rem; border-radius: 4px; margin-bottom: 0.5rem; font-size: 0.9rem;">';
-            html += `<div style="display: flex; justify-content: space-between;"><span>${typeEmoji} <strong>0x${anom.nodeId.toString(16)}</strong></span>`;
-            html += `<span style="color: var(--text-secondary); font-size: 0.85rem;">${new Date(anom.timestamp).toLocaleTimeString()}</span></div>`;
-            html += `<div style="color: var(--text-secondary); margin-top: 0.25rem;">${anom.description}</div></div>`;
+            const safeNodeId = escapeHtml(anom.nodeId.toString(16));
+            html += '<div class="alert-item">';
+            html += `<div class="alert-item-row"><span>${typeEmoji} <strong>0x${safeNodeId}</strong></span>`;
+            html += `<span class="alert-item-timestamp">${new Date(anom.timestamp).toLocaleTimeString()}</span></div>`;
+            html += `<div class="alert-item-detail">${escapeHtml(anom.description)}</div></div>`;
         });
         
         html += '</div>';
@@ -900,16 +1059,17 @@ class ReconApp {
     showBeacons(data) {
         if (!data.beacons || data.beacons.length === 0) return;
         
-        let html = '<div style="background: rgba(74, 144, 226, 0.1); padding: 1rem; border-radius: 8px; border-left: 3px solid var(--primary); margin-bottom: 1rem;">';
-        html += '<h4 style="color: var(--primary); margin: 0 0 1rem 0;">📡 Detected Beacons (' + data.beacons.length + ')</h4>';
-        html += '<p style="font-size: 0.85rem; color: var(--text-secondary); margin: 0 0 1rem 0;">Devices with \u226570% periodicity confidence</p>';
+        let html = '<div class="alert-box alert-box-primary">';
+        html += '<h4>📡 Detected Beacons (' + data.beacons.length + ')</h4>';
+        html += '<p class="smaller-text text-secondary mb-sm">Devices with \u226570% periodicity confidence</p>';
         
         data.beacons.slice(0, 5).forEach(beacon => {
             const intervalSec = (beacon.avgInterval / 1000).toFixed(1);
-            html += '<div style="background: rgba(255,255,255,0.03); padding: 0.75rem; border-radius: 4px; margin-bottom: 0.5rem; font-size: 0.9rem;">';
-            html += `<div style="display: flex; justify-content: space-between;"><span><strong>0x${beacon.nodeId.toString(16)}</strong></span>`;
-            html += `<span style="color: var(--success); font-weight: 600;">${beacon.periodicityScore}% confidence</span></div>`;
-            html += `<div style="color: var(--text-secondary); margin-top: 0.25rem;">Interval: ${intervalSec}s • Packets: ${beacon.packetCount}</div></div>`;
+            const safeNodeId = escapeHtml(beacon.nodeId.toString(16));
+            html += '<div class="alert-item">';
+            html += `<div class="alert-item-row"><span><strong>0x${safeNodeId}</strong></span>`;
+            html += `<span class="beacon-confidence">${beacon.periodicityScore}% confidence</span></div>`;
+            html += `<div class="alert-item-detail">Interval: ${intervalSec}s • Packets: ${beacon.packetCount}</div></div>`;
         });
         
         html += '</div>';
@@ -917,6 +1077,10 @@ class ReconApp {
         if (warRoom) warRoom.insertAdjacentHTML('afterbegin', html);
     }
 
+    /**
+     * Load and display the Info tab
+     * Loads GPS positions, security assessment, and frequency analysis
+     */
     async showInfo() {
         // Status already updated via handleStatusUpdate
         
@@ -930,7 +1094,7 @@ class ReconApp {
                 
                 gpsData.positions.forEach(pos => {
                     html += '<tr>';
-                    html += `<td><code>0x${pos.nodeId}</code></td>`;
+                    html += `<td><code>0x${escapeHtml(String(pos.nodeId))}</code></td>`;
                     html += `<td>${pos.lat.toFixed(6)}</td>`;
                     html += `<td>${pos.lon.toFixed(6)}</td>`;
                     html += `<td>${pos.alt || '—'} m</td>`;
@@ -943,7 +1107,7 @@ class ReconApp {
                 this.el.gpsContent.innerHTML = renderPlaceholder('📍', 'No GPS data captured yet.', 'Device positions will appear here once discovered during reconnaissance.');
             }
         } catch (error) {
-            console.error('Failed to load GPS:', error);
+            DEBUG.error('Failed to load GPS:', error);
             this.el.gpsContent.innerHTML = renderErrorState('Failed to load GPS data', 'retry-gps');
         }
         
@@ -954,7 +1118,7 @@ class ReconApp {
             if (secData && secData.status === 'success' && secData.devices) {
                 const devices = secData.devices;
                 const summary = secData.summary || {};
-                let html = '<div style="padding: 1rem;">';
+                let html = '<div class="p-md">';
                 
                 // Summary Card
                 const totalDevices = summary.totalDevices || 0;
@@ -963,50 +1127,52 @@ class ReconApp {
                 const secure = summary.secure || 0;
                 
                 if (totalDevices > 0) {
-                    html += '<div style="background: rgba(255, 255, 255, 0.05); padding: 1.5rem; border-radius: 8px; margin-bottom: 1.5rem; border-left: 3px solid var(--primary);">';
-                    html += '<h4 style="margin: 0 0 1rem 0; color: var(--primary);">🔐 Network Security Overview</h4>';
-                    html += '<div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem;">';
+                    html += '<div class="security-overview">';
+                    html += '<h4>🔐 Network Security Overview</h4>';
+                    html += '<div class="security-stats-grid">';
                     
-                    html += '<div><div style="font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 0.25rem;">Secure</div>';
-                    html += '<div style="font-size: 1.5rem; font-weight: 700; color: var(--success); font-family: monospace;">' + secure + '</div></div>';
+                    html += '<div><div class="security-stat-label">Secure</div>';
+                    html += '<div class="security-stat-value text-success">' + secure + '</div></div>';
                     
-                    html += '<div><div style="font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 0.25rem;">Moderate Risk</div>';
-                    html += '<div style="font-size: 1.5rem; font-weight: 700; color: var(--warning); font-family: monospace;">' + moderate + '</div></div>';
+                    html += '<div><div class="security-stat-label">Moderate Risk</div>';
+                    html += '<div class="security-stat-value text-warning">' + moderate + '</div></div>';
                     
-                    html += '<div><div style="font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 0.25rem;">Vulnerable</div>';
-                    html += '<div style="font-size: 1.5rem; font-weight: 700; color: var(--danger); font-family: monospace;">' + vulnerable + '</div></div>';
+                    html += '<div><div class="security-stat-label">Vulnerable</div>';
+                    html += '<div class="security-stat-value text-danger">' + vulnerable + '</div></div>';
                     
                     html += '</div></div>';
                     
                     // Device List - Sort by vulnerability score (lowest first = most vulnerable)
                     if (devices.length > 0) {
-                        html += '<h4 style="color: var(--primary); margin-bottom: 1rem;">📋 Device Security Assessment</h4>';
+                        html += '<h4 class="text-primary mb-md">📋 Device Security Assessment</h4>';
                         
                         // Sort devices by vulnerability score (ascending)
                         const sortedDevices = [...devices].sort((a, b) => a.score - b.score);
                         
                         sortedDevices.forEach(dev => {
-                            const riskColor = dev.riskLevel === 'secure' ? 'var(--success)' : 
-                                             dev.riskLevel === 'moderate' ? 'var(--warning)' : 'var(--danger)';
+                            const riskClass = dev.riskLevel === 'secure' ? 'secure' : 
+                                             dev.riskLevel === 'moderate' ? 'moderate' : 'vulnerable';
+                            const riskColor = dev.riskLevel === 'secure' ? 'text-success' : 
+                                             dev.riskLevel === 'moderate' ? 'text-warning' : 'text-danger';
                             
-                            html += '<div style="background: rgba(255, 255, 255, 0.03); padding: 1rem; border-radius: 8px; margin-bottom: 1rem; border-left: 3px solid ' + riskColor + ';">';
+                            html += '<div class="security-device-card security-device-card-' + riskClass + '">';
                             
-                            html += '<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">';
-                            html += '<div><strong style="color: var(--primary); font-family: monospace;">0x' + dev.nodeId + '</strong>';
-                            html += '<span style="margin-left: 0.5rem; color: var(--text-secondary); font-size: 0.9rem;">' + dev.protocol + '</span></div>';
-                            html += '<div style="background: ' + riskColor + '; color: #000; padding: 0.25rem 0.75rem; border-radius: 4px; font-size: 0.85rem; font-weight: 600; text-transform: uppercase;">' + dev.riskLevel + '</div>';
+                            html += '<div class="security-device-header">';
+                            html += '<div class="security-device-info"><code>0x' + escapeHtml(dev.nodeId) + '</code>';
+                            html += '<span class="security-device-protocol">' + escapeHtml(dev.protocol) + '</span></div>';
+                            html += '<div class="risk-badge risk-badge-' + riskClass + '">' + escapeHtml(dev.riskLevel) + '</div>';
                             html += '</div>';
                             
-                            html += '<div style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 0.5rem;">';
-                            html += 'Score: <strong style="color: ' + riskColor + ';">' + dev.score + '/100</strong> • ';
+                            html += '<div class="security-device-stats">';
+                            html += 'Score: <strong class="' + riskColor + '">' + dev.score + '/100</strong> • ';
                             html += 'RSSI: <strong>' + dev.bestRSSI + ' dBm</strong> • ';
                             html += 'Packets: <strong>' + dev.packetCount + '</strong>';
                             html += '</div>';
                             
                             if (dev.findings && dev.findings.length > 0) {
-                                html += '<ul style="margin: 0.5rem 0 0 1.5rem; padding: 0; color: var(--text-secondary); font-size: 0.9rem; line-height: 1.6;">';
+                                html += '<ul class="security-findings">';
                                 dev.findings.forEach(finding => {
-                                    html += '<li>' + finding + '</li>';
+                                    html += '<li>' + escapeHtml(finding) + '</li>';
                                 });
                                 html += '</ul>';
                             }
@@ -1015,9 +1181,9 @@ class ReconApp {
                         });
                     }
                 } else {
-                    html += '<div class="placeholder"><div style="font-size: 3rem; margin-bottom: 1rem; opacity: 0.5;">🔐</div>';
+                    html += '<div class="placeholder"><div class="emoji-large">🔐</div>';
                     html += '<p>No devices to analyze yet.</p>';
-                    html += '<p style="font-size: 0.9rem; margin-top: 0.5rem;">Security assessment will appear once devices are discovered.</p></div>';
+                    html += '<p class="text-sm mt-sm">Security assessment will appear once devices are discovered.</p></div>';
                 }
                 
                 html += '</div>';
@@ -1027,29 +1193,29 @@ class ReconApp {
                 const statsData = await this.get('/api/statistics');
                 if (statsData && statsData.statistics) {
                     const stats = statsData.statistics;
-                    let html = '<div style="padding: 1rem;">';
-                    html += '<p style="color: var(--text-secondary); margin-bottom: 1rem;">Basic packet statistics:</p>';
-                    html += '<div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem;">';
-                    html += '<div style="background: rgba(74, 144, 226, 0.1); padding: 1rem; border-radius: 8px; border-left: 3px solid var(--primary);">';
-                    html += '<div style="font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 0.5rem;">Total Packets</div>';
-                    html += '<div style="font-size: 1.8rem; font-weight: 700; color: var(--primary); font-family: monospace;">' + (stats.totalPackets || 0) + '</div></div>';
-                    html += '<div style="background: rgba(80, 200, 120, 0.1); padding: 1rem; border-radius: 8px; border-left: 3px solid var(--secondary);">';
-                    html += '<div style="font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 0.5rem;">Devices</div>';
-                    html += '<div style="font-size: 1.8rem; font-weight: 700; color: var(--secondary); font-family: monospace;">' + (stats.totalDevices || 0) + '</div></div>';
-                    html += '</div><p style="margin-top: 1.5rem; font-size: 0.9rem; color: var(--text-secondary); font-style: italic;">Detailed security analysis available after capturing encrypted packets.</p></div>';
+                    let html = '<div class="p-md">';
+                    html += '<p class="text-muted mb-md">Basic packet statistics:</p>';
+                    html += '<div class="security-stats-grid-4">';
+                    html += '<div class="security-stat-card security-stat-card-primary">';
+                    html += '<div class="security-stat-label">Total Packets</div>';
+                    html += '<div class="security-stat-value-lg text-primary">' + (stats.totalPackets || 0) + '</div></div>';
+                    html += '<div class="security-stat-card security-stat-card-success">';
+                    html += '<div class="security-stat-label">Devices</div>';
+                    html += '<div class="security-stat-value-lg text-secondary">' + (stats.totalDevices || 0) + '</div></div>';
+                    html += '</div><p class="mt-lg text-sm text-muted text-italic">Detailed security analysis available after capturing encrypted packets.</p></div>';
                     this.el.securityContent.innerHTML = html;
                 } else {
                     this.el.securityContent.innerHTML = `
                         <div class="placeholder">
-                            <div style="font-size: 3rem; margin-bottom: 1rem; opacity: 0.5;">🔐</div>
+                            <div class="emoji-large">🔐</div>
                             <p>No analysis available yet.</p>
-                            <p style="font-size: 0.9rem; margin-top: 0.5rem;">Statistics will appear as packets are captured.</p>
+                            <p class="text-sm mt-sm">Statistics will appear as packets are captured.</p>
                         </div>
                     `;
                 }
             }
         } catch (error) {
-            console.error('Failed to load security data:', error);
+            DEBUG.error('Failed to load security data:', error);
             this.el.securityContent.innerHTML = renderErrorState('Failed to load security data', 'retry-security');
         }
         
@@ -1057,7 +1223,7 @@ class ReconApp {
         try {
             const freqData = await this.get('/api/activity');
             if (freqData && freqData.activities && freqData.activities.length > 0) {
-                let html = '<div style="padding: 1rem;">';
+                let html = '<div class="p-md">';
                 
                 // Sort by packet count
                 const activeFreqs = freqData.activities
@@ -1066,32 +1232,32 @@ class ReconApp {
                     .slice(0, 10); // Top 10
                 
                 if (activeFreqs.length > 0) {
-                    html += '<p style="margin-bottom: 1rem; color: var(--text-secondary);">Top ' + activeFreqs.length + ' most active frequencies:</p>';
-                    html += '<div style="display: flex; flex-direction: column; gap: 1rem;">';
+                    html += '<p class="text-muted mb-md">Top ' + activeFreqs.length + ' most active frequencies:</p>';
+                    html += '<div class="flex-column-gap">';
                     
                     activeFreqs.forEach(freq => {
                         const maxPackets = Math.max(...activeFreqs.map(f => f.packets));
                         const barWidth = ((freq.packets / maxPackets) * 100).toFixed(1);
-                        html += '<div style="background: rgba(255,255,255,0.03); padding: 1rem; border-radius: 8px; border-left: 3px solid var(--primary);">';
-                        html += `<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">`;
-                        html += `<strong style="color: var(--primary);">${freq.protocol}</strong>`;
-                        html += `<span style="font-family: 'Courier New', monospace; color: var(--text-secondary);">${freq.frequencyMHz.toFixed(3)} MHz</span>`;
+                        html += '<div class="freq-card">';
+                        html += `<div class="freq-card-header">`;
+                        html += `<strong>${escapeHtml(freq.protocol)}</strong>`;
+                        html += `<span>${freq.frequencyMHz.toFixed(3)} MHz</span>`;
                         html += `</div>`;
-                        html += `<div style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 0.5rem;">`;
+                        html += `<div class="freq-card-config">`;
                         html += `SF${freq.spreadingFactor} • BW ${freq.bandwidthKHz}kHz • Config #${freq.configIndex}`;
                         html += `</div>`;
-                        html += `<div style="display: flex; justify-content: space-between; font-size: 0.9rem; margin-bottom: 0.25rem;">`;
+                        html += `<div class="freq-card-stats">`;
                         html += `<span>Packets: <strong>${freq.packets}</strong></span>`;
                         html += `<span>Avg RSSI: ${formatRSSI(freq.avgRSSI)}</span>`;
                         html += `</div>`;
-                        html += `<div style="height: 6px; background: rgba(255,255,255,0.05); border-radius: 3px; overflow: hidden;">`;
-                        html += `<div style="height: 100%; width: ${barWidth}%; background: var(--primary); border-radius: 3px; transition: width 0.3s;"></div>`;
+                        html += `<div class="progress-track">`;
+                        html += `<div class="progress-fill" style="width: ${barWidth}%; background: var(--primary);"></div>`;
                         html += `</div></div>`;
                     });
                     
                     html += '</div>';
                 } else {
-                    html += '<p style="text-align: center; color: var(--text-secondary); padding: 2rem;">No frequency activity detected yet. Start reconnaissance to see active frequencies.</p>';
+                    html += '<p class="text-center text-muted p-lg">No frequency activity detected yet. Start reconnaissance to see active frequencies.</p>';
                 }
                 
                 html += '</div>';
@@ -1104,7 +1270,7 @@ class ReconApp {
                 }
             }
         } catch (error) {
-            console.error('Failed to load frequency analysis:', error);
+            DEBUG.error('Failed to load frequency analysis:', error);
             const freqAnalysisEl = document.getElementById('frequency-analysis-content');
             if (freqAnalysisEl) {
                 freqAnalysisEl.innerHTML = renderErrorState('Failed to load frequency data', 'retry-freq-analysis');
@@ -1112,6 +1278,10 @@ class ReconApp {
         }
     }
 
+    /**
+     * Load and display the Settings tab
+     * Shows WiFi status, firmware version, OTA update controls
+     */
     async showSettings() {
         // Show loading state
         this.el.settingsContent.innerHTML = renderLoadingState('Loading configuration...');
@@ -1121,7 +1291,7 @@ class ReconApp {
         
         try {
             const response = await this.get('/api/config');
-            console.log('[Settings] API response:', response);
+            DEBUG.log('Settings API response:', response);
             
             if (!response || !response.config) {
                 this.el.settingsContent.innerHTML = '<p class="placeholder">Configuration unavailable.</p>';
@@ -1130,7 +1300,7 @@ class ReconApp {
             
             const config = response.config;
             
-            let html = '<div style="padding: 1rem;">';
+            let html = '<div class="p-md">';
             
             // System Configuration
             html += '<div class="info-section"><h3>⚙️ System Configuration</h3><div class="content-area">';
@@ -1144,7 +1314,7 @@ class ReconApp {
             html += '</div>';
             this.el.settingsContent.innerHTML = html;
         } catch (error) {
-            console.error('Failed to load settings:', error);
+            DEBUG.error('Failed to load settings:', error);
             this.el.settingsContent.innerHTML = renderErrorState('Failed to load configuration: ' + error.message);
         }
         
@@ -1155,7 +1325,7 @@ class ReconApp {
     async loadWiFiStatus() {
         try {
             const wifi = await this.get('/api/wifi/status');
-            console.log('[WiFi] Status:', wifi);
+            DEBUG.log('WiFi Status:', wifi);
             
             // Update WiFi status elements
             const deviceIdEl = document.getElementById('wifi-device-id');
@@ -1167,14 +1337,14 @@ class ReconApp {
             const apSsidEl = document.getElementById('wifi-ap-ssid');
             
             if (deviceIdEl) {
-                deviceIdEl.innerHTML = '<code style="background: var(--bg-secondary); padding: 2px 6px; border-radius: 4px;">' + 
-                    (wifi.deviceId || '—') + '</code>';
+                deviceIdEl.innerHTML = '<code class="code-inline">' + 
+                    escapeHtml(wifi.deviceId || '—') + '</code>';
             }
             if (modeEl) {
                 if (wifi.mode === 'setup') {
-                    modeEl.innerHTML = '<span style="color: var(--warning);">📱 Setup Mode (AP)</span>';
+                    modeEl.innerHTML = '<span class="text-warning">📱 Setup Mode (AP)</span>';
                 } else if (wifi.wifiMode === 'STA') {
-                    modeEl.innerHTML = '<span style="color: var(--success);">✓ Connected to Hotspot</span>';
+                    modeEl.innerHTML = '<span class="text-success">✓ Connected to Hotspot</span>';
                 } else {
                     modeEl.textContent = wifi.wifiMode || 'AP';
                 }
@@ -1184,8 +1354,8 @@ class ReconApp {
             if (rssiEl) {
                 if (wifi.wifiMode === 'STA' && wifi.rssi) {
                     const rssiVal = wifi.rssi;
-                    const rssiClass = rssiVal > -60 ? 'var(--success)' : rssiVal > -75 ? 'var(--warning)' : 'var(--danger)';
-                    rssiEl.innerHTML = '<span style="color: ' + rssiClass + ';">' + rssiVal + ' dBm</span>';
+                    const rssiClass = rssiVal > -60 ? 'text-success' : rssiVal > -75 ? 'text-warning' : 'text-danger';
+                    rssiEl.innerHTML = '<span class="' + rssiClass + '">' + rssiVal + ' dBm</span>';
                 } else {
                     rssiEl.textContent = 'N/A';
                 }
@@ -1194,15 +1364,15 @@ class ReconApp {
                 storedEl.textContent = wifi.hasStoredCredentials ? wifi.storedSSID : 'None';
             }
             if (apSsidEl) {
-                apSsidEl.innerHTML = '<code style="background: var(--bg-secondary); padding: 2px 6px; border-radius: 4px;">' + 
-                    (wifi.apSSID || 'LoRa-XXXXXX') + '</code>';
+                apSsidEl.innerHTML = '<code class="code-inline">' + 
+                    escapeHtml(wifi.apSSID || 'LoRa-XXXXXX') + '</code>';
             }
             
             // Show setup banner if in setup mode
             this.updateSetupBanner(wifi.mode === 'setup', wifi.apSSID);
             
         } catch (error) {
-            console.error('Failed to load WiFi status:', error);
+            DEBUG.error('Failed to load WiFi status:', error);
         }
     }
     
@@ -1446,8 +1616,7 @@ class ReconApp {
                 DEBUG.warn('Unknown action:', action);
             }
         } catch (error) {
-            DEBUG.error('Action failed:', error);
-            showToast('Action failed: ' + error.message, 'error');
+            handleError(error, `executing action '${action}'`);
         } finally {
             // Restore button state
             if (btn) {
@@ -1702,59 +1871,51 @@ class ReconApp {
             const moderate = summary.moderate || 0;
             const secure = summary.secure || 0;
             
-            // Create modal
-            let html = '<div style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.8); z-index: 9999; display: flex; align-items: center; justify-content: center; padding: 1rem;" id="security-modal">';
-            html += '<div style="background: var(--background); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; max-width: 500px; width: 100%; max-height: 90vh; overflow-y: auto;">';
-            html += '<div style="padding: 1.5rem; border-bottom: 1px solid rgba(255,255,255,0.1);">';
-            html += '<h3 style="margin: 0; color: var(--danger);">🔒 Security Assessment</h3></div>';
-            html += '<div style="padding: 1.5rem;">';
-            
-            // Summary
+            // Build modal content using CSS classes
             const vulnPercent = totalDevices > 0 ? ((vulnerable / totalDevices) * 100).toFixed(0) : 0;
-            const vulnColor = vulnPercent > 50 ? 'var(--danger)' : vulnPercent > 25 ? 'var(--warning)' : 'var(--success)';
+            const vulnClass = vulnPercent > 50 ? 'danger' : vulnPercent > 25 ? 'warning' : 'success';
             
-            html += '<div style="margin-bottom: 1.5rem; padding: 1rem; background: rgba(255,255,255,0.03); border-radius: 8px; border-left: 3px solid ' + vulnColor + ';">';
-            html += '<div style="font-size: 2rem; font-weight: 700; color: ' + vulnColor + '; text-align: center; margin-bottom: 0.5rem;">' + vulnPercent + '%</div>';
-            html += '<div style="text-align: center; color: var(--text-secondary);">High Risk Devices</div>';
-            html += '</div>';
+            let content = '';
             
-            // Details
-            html += '<div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem; margin-bottom: 1rem;">';
-            html += '<div style="padding: 1rem; background: rgba(74, 144, 226, 0.1); border-radius: 8px; text-align: center;">';
-            html += '<div style="font-size: 1.5rem; font-weight: 700; color: var(--primary);">' + totalDevices + '</div>';
-            html += '<div style="font-size: 0.75rem; color: var(--text-secondary);">Total Devices</div></div>';
+            // Summary stat
+            content += '<div class="security-modal-stat security-device-card-' + vulnClass + '">';
+            content += '<div class="security-modal-stat-value text-' + vulnClass + '">' + vulnPercent + '%</div>';
+            content += '<div class="security-modal-stat-label">High Risk Devices</div>';
+            content += '</div>';
             
-            html += '<div style="padding: 1rem; background: rgba(231, 76, 60, 0.1); border-radius: 8px; text-align: center;">';
-            html += '<div style="font-size: 1.5rem; font-weight: 700; color: var(--danger);">' + vulnerable + '</div>';
-            html += '<div style="font-size: 0.75rem; color: var(--text-secondary);">Vulnerable</div></div>';
+            // Details grid
+            content += '<div class="security-stats-grid-4">';
+            content += '<div class="security-stat-card security-stat-card-primary">';
+            content += '<div class="security-stat-value text-primary">' + totalDevices + '</div>';
+            content += '<div class="security-stat-label">Total Devices</div></div>';
             
-            html += '<div style="padding: 1rem; background: rgba(241, 196, 15, 0.1); border-radius: 8px; text-align: center;">';
-            html += '<div style="font-size: 1.5rem; font-weight: 700; color: var(--warning);">' + moderate + '</div>';
-            html += '<div style="font-size: 0.75rem; color: var(--text-secondary);">Moderate Risk</div></div>';
+            content += '<div class="security-stat-card security-stat-card-danger">';
+            content += '<div class="security-stat-value text-danger">' + vulnerable + '</div>';
+            content += '<div class="security-stat-label">Vulnerable</div></div>';
             
-            html += '<div style="padding: 1rem; background: rgba(46, 204, 113, 0.1); border-radius: 8px; text-align: center;">';
-            html += '<div style="font-size: 1.5rem; font-weight: 700; color: var(--success);">' + secure + '</div>';
-            html += '<div style="font-size: 0.75rem; color: var(--text-secondary);">Secure</div></div>';
-            html += '</div>';
+            content += '<div class="security-stat-card security-stat-card-warning">';
+            content += '<div class="security-stat-value text-warning">' + moderate + '</div>';
+            content += '<div class="security-stat-label">Moderate Risk</div></div>';
             
-            // Recommendations
+            content += '<div class="security-stat-card security-stat-card-success">';
+            content += '<div class="security-stat-value text-success">' + secure + '</div>';
+            content += '<div class="security-stat-label">Secure</div></div>';
+            content += '</div>';
+            
+            // Recommendations - with XSS escaping
             const recommendations = secData.recommendations || [];
             if (recommendations.length > 0) {
-                html += '<div style="padding: 1rem; background: rgba(241, 196, 15, 0.05); border-radius: 8px; border: 1px solid rgba(241, 196, 15, 0.3);">';
-                html += '<div style="font-weight: 600; margin-bottom: 0.5rem; color: var(--warning);">⚠️ Recommendations</div>';
-                html += '<ul style="margin: 0; padding-left: 1.5rem; font-size: 0.9rem;">';
+                content += '<div class="security-recommendations">';
+                content += '<div class="security-recommendations-header">⚠️ Recommendations</div>';
+                content += '<ul>';
                 recommendations.forEach(rec => {
-                    html += '<li>' + rec + '</li>';
+                    content += '<li>' + escapeHtml(rec) + '</li>';
                 });
-                html += '</ul></div>';
+                content += '</ul></div>';
             }
             
-            html += '</div>';
-            html += '<div style="padding: 1rem 1.5rem; border-top: 1px solid rgba(255,255,255,0.1); display: flex; justify-content: flex-end;">';
-            html += '<button onclick="document.getElementById(\'security-modal\').remove()" class="btn btn-primary">Close</button>';
-            html += '</div></div></div>';
-            
-            document.body.insertAdjacentHTML('beforeend', html);
+            const modalHtml = ModalRenderer.create('security-modal', '🔒 Security Assessment', content, 'text-danger');
+            ModalRenderer.show(modalHtml);
         } catch (error) {
             showToast('Security assessment failed: ' + error.message, 'error');
         }
@@ -1764,17 +1925,17 @@ class ReconApp {
     
     async get(endpoint) {
         try {
-            console.log('[GET]', endpoint);
+            DEBUG.log('[GET]', endpoint);
             const response = await fetch(endpoint);
-            console.log('[GET]', endpoint, 'status:', response.status);
+            DEBUG.log('[GET]', endpoint, 'status:', response.status);
             if (!response.ok) {
                 throw new Error(`HTTP ${response.status}: ${response.statusText}`);
             }
             const data = await response.json();
-            console.log('[GET]', endpoint, 'success');
+            DEBUG.log('[GET]', endpoint, 'success');
             return data;
         } catch (error) {
-            console.error('[GET]', endpoint, 'error:', error);
+            DEBUG.error('[GET]', endpoint, 'error:', error);
             throw error;
         }
     }
