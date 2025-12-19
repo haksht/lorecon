@@ -16,6 +16,10 @@
  * 
  * Uses function pointer table for O(1) command dispatch instead of
  * linear if/else chains. Improves maintainability and testability.
+ * 
+ * Serial Activation: To prevent phantom commands from USB noise, serial
+ * commands are ignored until the user sends a newline (Enter). This
+ * "activates" serial mode for the session.
  */
 class CommandHandler {
 public:
@@ -30,8 +34,12 @@ public:
     // Show available commands (for help menu)
     void showCommands();
     
+    // Check if serial is activated (user has pressed Enter)
+    bool isSerialActivated() const { return serialActivated; }
+    
 private:
     IReconTool* reconTool;
+    bool serialActivated = false;  // True after user presses Enter
     
     // Command implementations (static for use in table)
     static void cmdShowMenu(IReconTool* tool);

@@ -85,6 +85,8 @@ private:
     bool setupMode;  // True when in first-run AP setup mode
     uint32_t connectionTimeout;
     uint32_t lastConnectionAttempt;
+    uint8_t reconnectAttempts;  // Counter for logging
+    static const uint8_t RECONNECT_LOG_INTERVAL = 6;  // Log every 6 attempts (~30 sec)
     String staSsid;
     String staPassword;
     String deviceId;  // Last 3 bytes of MAC as hex (e.g., "A1B2C3")
@@ -92,6 +94,7 @@ private:
     // Internal helpers
     void handleDisconnect();
     void generateDeviceId();  // Called once to set deviceId from MAC
+    void startBackgroundAP(); // Start AP alongside STA for fallback access
 };
 
 #endif // WIFI_MANAGER_H

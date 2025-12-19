@@ -109,7 +109,15 @@ void setup() {
             reconTool.setWebServer(&webServer);
             
             LOG_INFO("✓ Web interface ready!");
-            LOG_INFO("  Open browser: http://%s", wifiManager.getIPAddress().toString().c_str());
+            
+            // Show connection info based on mode
+            if (wifiManager.getMode() == WiFiMode::AP_STA) {
+                // Dual mode - show both with clear labels
+                LOG_INFO("  📡 Hotspot IP: http://%s (use for Python tools)", wifiManager.getIPAddress().toString().c_str());
+                LOG_INFO("  📱 Fallback AP: http://192.168.4.1 (connect to %s)", wifiManager.getUniqueAPSSID().c_str());
+            } else {
+                LOG_INFO("  Open browser: http://%s", wifiManager.getIPAddress().toString().c_str());
+            }
             LOG_INFO("  Or use: http://%s.local", mdnsHost.c_str());
             
             // Display API token for authenticated access
@@ -120,7 +128,7 @@ void setup() {
                 LOG_INFO("  Protected endpoints require this token");
             }
             
-            // Update OLED with network info
+            // Update OLED with network info - show hotspot IP as primary
             OLEDDisplay* display = reconTool.getDisplay();
             if (display) {
                 display->setNetworkInfo(
