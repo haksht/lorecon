@@ -19,8 +19,7 @@ WiFiManager::WiFiManager()
     , autoReconnect(true)
     , setupMode(false)
     , connectionTimeout(Config::WiFi::STA_CONNECT_TIMEOUT_MS)
-    , lastConnectionAttempt(0)
-{
+    , lastConnectionAttempt(0)    , reconnectAttempts(0){
     // Device ID will be generated on first use (after WiFi is initialized)
     // Don't call generateDeviceId() here - WiFi hardware not ready yet
 }
@@ -274,6 +273,10 @@ bool WiFiManager::autoConnect() {
             if (startStation(staSsid.c_str(), staPassword.c_str())) {
                 setupMode = false;
                 LOG_INFO("✓ Connected to hotspot: %s", staSsid.c_str());
+                
+                // Also start AP so device is always reachable at 192.168.4.1
+                startBackgroundAP();
+                
                 return true;
             }
             
@@ -349,6 +352,31 @@ bool WiFiManager::startAP(const char* ssid, const char* password) {
     } else {
         LOG_ERROR("✗ Failed to start Access Point");
         return false;
+    }
+}
+
+/**
+ * Start AP alongside existing STA connection (AP_STA mode)
+ * 
+ * This allows the device to be reachable at 192.168.4.1 even when
+ * connected to a hotspot. Useful for field operations where you
+ * want a reliable fallback connection method.
+ */
+void WiFiManager::startBackgroundAP() {
+    String uniqueSSID = getUniqueAPSSID();
+    String uniquePassword = String(Config::WiFi::DEFAULT_AP_PASSWORD_PREFIX) + getDeviceId();
+    
+    LOG_INFO("Starting background AP for fallback access...");
+    
+    // Switch to AP+STA mode (keeps STA connection alive)
+    WiFi.mode(WIFI_AP_STA);
+    
+    if (WiFi.softAP(uniqueSSID.c_str(), uniquePassword.c_str())) {
+        currentMode = WiFiMode::AP_STA;
+        LOG_INFO("✓ Background AP started: %s", uniqueSSID.c_str());
+        LOG_INFO("  Fallback IP: %s", WiFi.softAPIP().toString().c_str());
+    } else {
+        LOG_WARN("Failed to start background AP - STA-only mode");
     }
 }
 
@@ -458,13 +486,18 @@ bool WiFiManager::isConnected() const {
 /**
  * Get IP address based on current mode
  * 
- * @return IP address (AP address or Station address)
+ * In AP_STA mode, returns the Station IP (hotspot) since that's
+ * the primary address for Python tools. The AP is always at 192.168.4.1.
+ * 
+ * @return IP address (Station IP preferred, AP IP as fallback)
  */
 IPAddress WiFiManager::getIPAddress() const {
     switch (currentMode) {
         case WiFiMode::AP:
-        case WiFiMode::AP_STA:
             return WiFi.softAPIP();
+        case WiFiMode::AP_STA:
+            // Prefer STA IP (hotspot) - AP is always 192.168.4.1
+            return WiFi.localIP();
         case WiFiMode::STA:
             return WiFi.localIP();
         default:
@@ -515,13 +548,19 @@ void WiFiManager::update() {
     // Check if disconnected
     if (WiFi.status() != WL_CONNECTED) {
         handleDisconnect();
+    } else if (reconnectAttempts > 0) {
+        // Connection restored - reset counter and log success
+        LOG_INFO("✓ WiFi reconnected successfully after %d attempts", reconnectAttempts);
+        reconnectAttempts = 0;
     }
 }
 
 /**
  * Handle WiFi disconnection in Station mode
  * 
- * Attempts automatic reconnection if enabled.
+ * Attempts automatic reconnection. Since we run AP_STA mode,
+ * the device is always reachable at 192.168.4.1 even when
+ * the hotspot connection drops.
  */
 void WiFiManager::handleDisconnect() {
     if (!autoReconnect) {
@@ -535,8 +574,15 @@ void WiFiManager::handleDisconnect() {
     }
     
     lastConnectionAttempt = now;
-    LOG_WARN("WiFi disconnected, attempting to reconnect...");
+    reconnectAttempts++;
     
+    // Only log periodically to avoid spam (every ~30 seconds)
+    if (reconnectAttempts % RECONNECT_LOG_INTERVAL == 1) {
+        LOG_WARN("WiFi disconnected, reconnecting... (attempt %d, device always reachable at 192.168.4.1)", 
+                 reconnectAttempts);
+    }
+    
+    // Keep trying - AP is always running as fallback
     WiFi.disconnect();
     WiFi.begin(staSsid.c_str(), staPassword.c_str());
 }

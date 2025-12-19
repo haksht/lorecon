@@ -430,16 +430,19 @@ void OLEDDisplay::renderTargeting() {
     display.setFont(u8g2_font_6x10_tf);
     
     // Target info (wrapped if needed)
-    display.drawStr(0, 28, info.targetInfo);
+    display.drawStr(0, 26, info.targetInfo);
     
     char buffer[32];
     
-    // Current stats (use global count from reconState)
-    snprintf(buffer, sizeof(buffer), "Packets: %u", reconState.scanState.totalPackets);
-    display.drawStr(0, 44, buffer);
+    // Current stats
+    snprintf(buffer, sizeof(buffer), "Pkts: %u  RSSI: %.0f", 
+             reconState.scanState.totalPackets, info.lastRSSI);
+    display.drawStr(0, 40, buffer);
     
-    snprintf(buffer, sizeof(buffer), "RSSI: %.1f dBm", info.lastRSSI);
-    display.drawStr(0, 56, buffer);
+    // Show IP address so user knows how to connect
+    if (info.ipAddress[0] != '\0') {
+        display.drawStr(0, 54, info.ipAddress);
+    }
 }
 
 void OLEDDisplay::renderShutdown() {

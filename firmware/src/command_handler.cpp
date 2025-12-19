@@ -35,29 +35,54 @@ CommandHandler::CommandHandler(IReconTool* tool)
 }
 
 bool CommandHandler::handleCommand(char cmd) {
-    // Filter out serial noise - only accept printable ASCII commands
-    // Ignore control characters, high bytes, and common noise patterns
+    // SERIAL ACTIVATION CHECK: Prevent phantom commands from USB noise
+    // Serial commands are ignored until user explicitly presses Enter
+    // This prevents random noise from triggering mode changes
+    if (!serialActivated) {
+        if (cmd == '\n' || cmd == '\r') {
+            serialActivated = true;
+            Serial.println("\n[SERIAL] Serial console activated. Press 'm' for menu.");
+            return true;
+        }
+        // Silently ignore all input until activated (likely noise)
+        return false;
+    }
+    
+    // Filter out newlines after activation (common after commands)
+    if (cmd == '\n' || cmd == '\r') {
+        return false;
+    }
+    
+    // Filter out non-printable characters
     if (cmd < 0x20 || cmd > 0x7E) {
-        // Log noise for debugging (but not newlines which are common)
-        if (cmd != '\n' && cmd != '\r') {
-            Serial.printf("[SERIAL-NOISE] Ignoring non-printable byte: 0x%02X\n", (uint8_t)cmd);
+        Serial.printf("[SERIAL-NOISE] Ignoring non-printable byte: 0x%02X\n", (uint8_t)cmd);
+        return false;
+    }
+    
+    // STRICT VALIDATION: Only accept known commands to prevent phantom serial noise
+    const CommandEntry* entry = findCommand(cmd);
+    bool isDeviceSelect = (cmd >= '1' && cmd <= '9');
+    
+    if (!entry && !isDeviceSelect) {
+        // Not a valid command - ignore silently (whitespace) or warn
+        if (cmd != ' ' && cmd != '\t') {
+            Serial.printf("[SERIAL] Unknown command: '%c'. Press 'm' for menu.\n", cmd);
         }
         return false;
     }
     
-    // Log ALL valid serial input to catch phantom commands
+    // Log valid serial input for debugging
     Serial.printf("[SERIAL-CMD] Received: '%c' (0x%02X) in mode %d\n", 
                   cmd, (uint8_t)cmd, reconState.scanState.mode);
     
-    // First check if it's a special command in the dispatch table
-    const CommandEntry* entry = findCommand(cmd);
+    // Execute command from dispatch table
     if (entry) {
         Serial.printf("[SERIAL-CMD] Executing: %s\n", entry->description);
         entry->handler(reconTool);
         return true;
     }
     
-    // Then handle device selection (1-9)
+    // Handle device selection (1-9)
     if (cmd >= '1' && cmd <= '9') {
         uint8_t deviceIndex = cmd - '1';
         if (deviceIndex < reconState.getNumTargetableDevices()) {
@@ -69,8 +94,6 @@ bool CommandHandler::handleCommand(char cmd) {
         }
     }
     
-    // Unknown command
-    Serial.printf("[ERROR] Unknown command '%c'. Press 'm' for menu.\\n", cmd);
     return false;
 }
 

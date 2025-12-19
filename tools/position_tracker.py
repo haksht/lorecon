@@ -63,6 +63,7 @@ class PositionTracker:
             'packet_count': 0,
         })
         self.all_positions = []
+        self.my_location = None  # (lat, lon) - sniffer device location
         self.bounds = {
             'min_lat': None, 'max_lat': None,
             'min_lon': None, 'max_lon': None,
@@ -285,7 +286,7 @@ class PositionTracker:
         print(f"Animated map saved to {output_path}")
         return True
     
-    def generate_interactive_map(self, output_path):
+    def generate_interactive_map(self, output_path, open_browser=True):
         """Generate interactive HTML map with Folium"""
         if not FOLIUM_AVAILABLE:
             print("Error: folium required. Install: pip install folium")
@@ -299,6 +300,24 @@ class PositionTracker:
         zoom = self.get_zoom()
         
         m = folium.Map(location=center, zoom_start=zoom, tiles='CartoDB dark_matter')
+        
+        # Add sniffer/observer location if set
+        if self.my_location:
+            folium.Marker(
+                location=self.my_location,
+                popup='<b>📡 Sniffer Location</b><br>Your device',
+                icon=folium.Icon(color='purple', icon='tower-broadcast', prefix='fa'),
+            ).add_to(m)
+            
+            # Add circle showing approximate range
+            folium.Circle(
+                location=self.my_location,
+                radius=500,  # 500m typical LoRa urban range
+                color='purple',
+                fill=True,
+                fill_opacity=0.1,
+                popup='~500m range estimate'
+            ).add_to(m)
         
         # Add each device
         for node_id, data in self.devices.items():
@@ -388,15 +407,77 @@ class PositionTracker:
         """
         m.get_root().html.add_child(folium.Element(title_html))
         
+        # Add "Locate Me" button with browser geolocation
+        locate_me_html = """
+        <button id="locateBtn" onclick="locateMe()" style="
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            padding: 12px 20px;
+            background: #9b59b6;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            cursor: pointer;
+            z-index: 9999;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+        ">📍 Locate Me</button>
+        <script>
+        var myMarker = null;
+        var myCircle = null;
+        function locateMe() {
+            var btn = document.getElementById('locateBtn');
+            btn.textContent = '⏳ Locating...';
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(function(pos) {
+                    var lat = pos.coords.latitude;
+                    var lon = pos.coords.longitude;
+                    var acc = pos.coords.accuracy;
+                    
+                    // Remove old marker if exists
+                    if (myMarker) { myMarker.remove(); }
+                    if (myCircle) { myCircle.remove(); }
+                    
+                    // Add marker at my location
+                    myMarker = L.marker([lat, lon], {
+                        icon: L.divIcon({
+                            html: '<div style="background:#9b59b6;color:white;padding:8px 12px;border-radius:50%;font-size:20px;border:3px solid white;box-shadow:0 2px 10px rgba(0,0,0,0.5);">📡</div>',
+                            iconSize: [40, 40],
+                            iconAnchor: [20, 20]
+                        })
+                    }).addTo(window.map || Object.values(window).find(v => v instanceof L.Map));
+                    myMarker.bindPopup('<b>📡 You are here</b><br>Accuracy: ' + Math.round(acc) + 'm');
+                    
+                    // Add accuracy circle
+                    var map = window.map || Object.values(window).find(v => v instanceof L.Map);
+                    myCircle = L.circle([lat, lon], {radius: acc, color: '#9b59b6', fillOpacity: 0.1}).addTo(map);
+                    
+                    map.setView([lat, lon], 16);
+                    btn.textContent = '📍 Located!';
+                    setTimeout(function() { btn.textContent = '📍 Locate Me'; }, 2000);
+                }, function(err) {
+                    btn.textContent = '❌ ' + err.message;
+                    setTimeout(function() { btn.textContent = '📍 Locate Me'; }, 3000);
+                }, {enableHighAccuracy: true, timeout: 10000});
+            } else {
+                btn.textContent = '❌ Not supported';
+            }
+        }
+        </script>
+        """
+        m.get_root().html.add_child(folium.Element(locate_me_html))
+        
         m.save(output_path)
         print(f"Interactive map saved to {output_path}")
         
-        # Try to open in browser
-        try:
-            import webbrowser
-            webbrowser.open(f'file://{Path(output_path).absolute()}')
-        except Exception:
-            pass
+        # Try to open in browser (only if requested)
+        if open_browser:
+            try:
+                import webbrowser
+                webbrowser.open(f'file://{Path(output_path).absolute()}')
+            except Exception:
+                pass
         
         return True
     
@@ -456,6 +537,7 @@ def monitor_live(host, tracker, output_path, update_interval=5):
     print("Press Ctrl+C to stop\n")
     
     import time
+    browser_opened = False
     
     try:
         while True:
@@ -463,7 +545,10 @@ def monitor_live(host, tracker, output_path, update_interval=5):
                 tracker.load_api(host)
                 
                 if tracker.all_positions:
-                    tracker.generate_interactive_map(output_path)
+                    # Only open browser on first successful update
+                    tracker.generate_interactive_map(output_path, open_browser=not browser_opened)
+                    if not browser_opened:
+                        browser_opened = True
                     print(f"[{datetime.now().strftime('%H:%M:%S')}] "
                           f"Map updated: {len(tracker.devices)} devices, "
                           f"{len(tracker.all_positions)} positions")
@@ -503,6 +588,8 @@ def main():
                        help='Animation FPS (default: 2)')
     parser.add_argument('--update-interval', type=int, default=5,
                        help='Live monitoring update interval in seconds')
+    parser.add_argument('--my-location', metavar='LAT,LON',
+                       help='Your sniffer location (e.g., "35.7796,-78.6382")')
     
     args = parser.parse_args()
     
@@ -511,6 +598,15 @@ def main():
         return 1
     
     tracker = PositionTracker()
+    
+    # Parse and set sniffer location if provided
+    if args.my_location:
+        try:
+            lat, lon = map(float, args.my_location.split(','))
+            tracker.my_location = (lat, lon)
+            print(f"📡 Sniffer location set: {lat:.6f}, {lon:.6f}")
+        except ValueError:
+            print(f"Warning: Invalid --my-location format. Use: LAT,LON (e.g., 35.7796,-78.6382)")
     
     if args.live:
         output = args.map or 'live_tracking.html'

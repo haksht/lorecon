@@ -1371,7 +1371,9 @@ class ReconApp {
             // Update button text based on connection state
             const btnText = document.getElementById('wifi-setup-btn-text');
             if (btnText) {
-                btnText.textContent = wifi.wifiMode === 'STA' ? 'Change Hotspot' : 'Configure Hotspot';
+                // STA or AP_STA means we're connected to a hotspot
+                const connectedToHotspot = wifi.wifiMode === 'STA' || wifi.wifiMode === 'AP_STA';
+                btnText.textContent = connectedToHotspot ? 'Change Hotspot' : 'Configure Hotspot';
             }
             
             // Show setup banner if in setup mode
