@@ -78,7 +78,7 @@ class WarRoom {
             this.updateCurrentFrequency(`Targeting: ${freq}`);
             
             if (this.recentEvents.length === 0) {
-                this.addEvent('mode', `Targeting device ${data.target.nodeId || 'Unknown'}`);
+                this.addEvent('mode', `Targeting device 0x${data.target.nodeId || 'Unknown'}`);
             }
         } else {
             // In reconnaissance mode - show scan progress

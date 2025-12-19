@@ -41,6 +41,13 @@ python recon_report.py capture.csv --html report.html
 
 # GPS tracking with animated trails
 python position_tracker.py capture.csv --map tracking.html
+
+# Network topology visualization (opens in browser)
+start network_topology.html    # Windows
+open network_topology.html     # macOS
+
+# Timeline replay (DVR mode) at 10x speed
+python timeline_replay.py capture.csv --speed 10 --interactive
 ```
 
 ---
@@ -49,6 +56,9 @@ python position_tracker.py capture.csv --map tracking.html
 
 | Tool | Purpose | Live/Offline | Output |
 |------|---------|--------------|--------|
+| `attack_dashboard.html` | Full attack surface dashboard | Live (WiFi) | Browser UI |
+| `network_topology.html` | D3.js force-directed graph | Both | Browser UI, SVG |
+| `timeline_replay.py` | DVR-style session replay | Offline | Terminal UI |
 | `enhanced_live_visualizer.py` | 5-panel real-time dashboard | Live (Serial) | PNG, HTML map |
 | `psk_auditor.py` | PSK vulnerability scanner | Both | Console, JSON |
 | `recon_report.py` | Security assessment reports | Offline | Markdown, HTML, JSON |
@@ -58,6 +68,57 @@ python position_tracker.py capture.csv --map tracking.html
 | `api_client.py` | REST API command-line client | Live (WiFi) | Console |
 | `session_analyzer.py` | SD card log analysis | Offline | Dashboard, HTML map |
 | `pcap_analyzer.py` | PCAP file analysis | Offline | CSV, JSON |
+
+---
+
+## 🕸️ Network Topology Visualizer ⭐ NEW
+
+**D3.js force-directed graph** showing device relationships and network structure.
+
+### Features
+
+- **Interactive Graph** - Drag nodes, zoom, pan
+- **Live Updates** - Connects via WebSocket for real-time node discovery
+- **Risk Coloring** - Nodes colored by vulnerability assessment
+- **CSV Import** - Load offline captures for analysis
+- **SVG Export** - Save high-quality graphics for presentations
+
+### Usage
+
+```bash
+# Just open in browser
+start network_topology.html   # Windows
+open network_topology.html    # macOS
+
+# Connect to ESP32 IP and watch the network build!
+```
+
+---
+
+## 🎬 Timeline Replay (DVR Mode) ⭐ NEW
+
+**Replay captured sessions** at configurable speeds for demos without live hardware.
+
+### Features
+
+- **Speed Control** - 1x, 2x, 5x, 10x, 50x playback
+- **Rich Terminal UI** - Beautiful progress bars, tables, live stats
+- **Auto-Pause** - Stops on significant events (PSK cracks, GPS)
+- **WebSocket Broadcast** - Sync with visualizers for coordinated demos
+- **Event Markers** - Highlights interesting moments
+
+### Usage
+
+```bash
+# Simple playback at 10x speed
+python timeline_replay.py capture.csv --speed 10
+
+# Interactive mode with rich UI
+python timeline_replay.py capture.csv -i --speed 5
+
+# Broadcast to network topology visualizer
+python timeline_replay.py capture.csv --broadcast 192.168.4.1 --speed 10
+```
 
 ---
 
