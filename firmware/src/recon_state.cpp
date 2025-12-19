@@ -164,14 +164,14 @@ void ReconState::clearRFActivity() {
 // Device management - delegates storage to DeviceRepository, identification stays here
 void ReconState::addTargetableDevice(uint32_t nodeId, uint8_t configIndex, float rssi, 
                                     const char* protocol, const uint8_t* packetData, 
-                                    size_t packetLength) {
+                                    size_t packetLength, uint8_t hopCount) {
     if (nodeId == 0 || configIndex >= NUM_CONFIGS) return;
     
     // Check if device already exists
     TargetableDevice* existing = deviceRepo_.findByNodeId(nodeId);
     if (existing) {
-        // Delegate update to repository
-        deviceRepo_.addOrUpdate(nodeId, configIndex, rssi, protocol, nullptr, 0);
+        // Delegate update to repository with hop count for originated/relayed tracking
+        deviceRepo_.addOrUpdate(nodeId, configIndex, rssi, protocol, nullptr, 0, hopCount);
         return;
     }
     
@@ -197,7 +197,7 @@ void ReconState::addTargetableDevice(uint32_t nodeId, uint8_t configIndex, float
     });
     
     TargetableDevice* device = deviceRepo_.addOrUpdate(nodeId, configIndex, rssi, protocol, 
-                                                        packetData, packetLength);
+                                                        packetData, packetLength, hopCount);
     
     if (device) {
         // Increment total detections counter when new device is added
@@ -373,10 +373,14 @@ void ReconState::printStateSummary() const {
 // Packet replay management - delegates to PacketStore
 bool ReconState::capturePacketForReplay(const uint8_t* data, size_t length, uint8_t configIndex,
                                         float rssi, const char* protocol, const char* decryptedText,
-                                        uint32_t nodeId, uint32_t packetId) {
+                                        uint32_t nodeId, uint32_t packetId, uint8_t hopCount,
+                                        uint32_t destId, uint8_t channel, bool wantAck,
+                                        bool viaMqtt, uint8_t priority) {
     return packetStore_.capturePacket(data, length, configIndex, 
                                        static_cast<int16_t>(rssi),
-                                       nodeId, packetId, protocol, decryptedText);
+                                       nodeId, packetId, hopCount,
+                                       destId, channel, wantAck, viaMqtt, priority,
+                                       protocol, decryptedText);
 }
 
 const CapturedPacket& ReconState::getReplayPacket(uint8_t index) const {

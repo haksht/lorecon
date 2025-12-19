@@ -5,23 +5,31 @@
  * Positions nodes based on RSSI (signal strength = estimated distance).
  */
 
+// Debug configuration - shared pattern with app.js
+const MAP_DEBUG = {
+    enabled: false,  // Set to true for verbose canvas logging
+    log: (...args) => MAP_DEBUG.enabled && console.log('[NetworkMap]', ...args),
+    warn: (...args) => console.warn('[NetworkMap]', ...args),
+    error: (...args) => console.error('[NetworkMap]', ...args)
+};
+
 class NetworkMap {
     constructor(canvasId, detailsPanelId) {
         this.canvas = document.getElementById(canvasId);
         this.detailsPanel = document.getElementById(detailsPanelId);
         
         if (!this.canvas) {
-            console.error(`[NetworkMap] Canvas element '${canvasId}' not found!`);
+            MAP_DEBUG.error(`Canvas element '${canvasId}' not found!`);
             throw new Error(`Canvas element '${canvasId}' not found`);
         }
         
         this.ctx = this.canvas.getContext('2d');
         if (!this.ctx) {
-            console.error('[NetworkMap] Failed to get 2D context');
+            MAP_DEBUG.error('Failed to get 2D context');
             throw new Error('Failed to get 2D context');
         }
         
-        console.log('[NetworkMap] Canvas initialized:', this.canvas.width, 'x', this.canvas.height);
+        MAP_DEBUG.log('Canvas initialized:', this.canvas.width, 'x', this.canvas.height);
         
         // State
         this.devices = [];
@@ -86,9 +94,9 @@ class NetworkMap {
             this.centerX = this.canvas.width / 2;
             this.centerY = this.canvas.height / 2;
             
-            console.log(`[NetworkMap] Canvas resized from ${oldWidth}x${oldHeight} to ${this.canvas.width}x${this.canvas.height}`);
-            console.log(`[NetworkMap] Canvas offset dimensions: ${this.canvas.offsetWidth}x${this.canvas.offsetHeight}`);
-            console.log(`[NetworkMap] New center point: (${this.centerX}, ${this.centerY})`);
+            MAP_DEBUG.log(`Canvas resized from ${oldWidth}x${oldHeight} to ${this.canvas.width}x${this.canvas.height}`);
+            MAP_DEBUG.log(`Canvas offset dimensions: ${this.canvas.offsetWidth}x${this.canvas.offsetHeight}`);
+            MAP_DEBUG.log(`New center point: (${this.centerX}, ${this.centerY})`);
             
             this.redraw();
         };
@@ -98,16 +106,16 @@ class NetworkMap {
         setTimeout(resizeCanvas, 100);
         resizeCanvas();
         
-        console.log('[NetworkMap] Canvas setup complete:', this.canvas.width, 'x', this.canvas.height);
-        console.log('[NetworkMap] Center point:', this.centerX, ',', this.centerY);
+        MAP_DEBUG.log('Canvas setup complete:', this.canvas.width, 'x', this.canvas.height);
+        MAP_DEBUG.log('Center point:', this.centerX, ',', this.centerY);
     }
     
     setupEventListeners() {
-        console.log('[NetworkMap] Setting up event listeners on canvas:', this.canvas);
-        console.log('[NetworkMap] Canvas element:', this.canvas.tagName, this.canvas.id);
-        console.log('[NetworkMap] Canvas dimensions:', this.canvas.width, 'x', this.canvas.height);
-        console.log('[NetworkMap] Canvas style.pointerEvents:', window.getComputedStyle(this.canvas).pointerEvents);
-        console.log('[NetworkMap] Canvas style.cursor:', window.getComputedStyle(this.canvas).cursor);
+        MAP_DEBUG.log('Setting up event listeners on canvas:', this.canvas);
+        MAP_DEBUG.log('Canvas element:', this.canvas.tagName, this.canvas.id);
+        MAP_DEBUG.log('Canvas dimensions:', this.canvas.width, 'x', this.canvas.height);
+        MAP_DEBUG.log('Canvas style.pointerEvents:', window.getComputedStyle(this.canvas).pointerEvents);
+        MAP_DEBUG.log('Canvas style.cursor:', window.getComputedStyle(this.canvas).cursor);
         
         // Mouse events for desktop
         this.canvas.addEventListener('mousemove', (e) => {
@@ -117,8 +125,8 @@ class NetworkMap {
         this.canvas.addEventListener('click', (e) => {
             e.preventDefault();
             e.stopPropagation();
-            console.log('[NetworkMap] CLICK EVENT RECEIVED at client:', e.clientX, e.clientY);
-            console.log('[NetworkMap] Canvas bounding rect:', this.canvas.getBoundingClientRect());
+            MAP_DEBUG.log('CLICK EVENT RECEIVED at client:', e.clientX, e.clientY);
+            MAP_DEBUG.log('Canvas bounding rect:', this.canvas.getBoundingClientRect());
             this.handleClick(e);
         }, false);
         
@@ -135,8 +143,7 @@ class NetworkMap {
             this.hoveredNode = null;
         }, { passive: true });
         
-        // Test click
-        console.log('[NetworkMap] Event listeners installed. Click the canvas to test.');
+        MAP_DEBUG.log('Event listeners installed. Click the canvas to test.');
     }
     
     handleTouch(e) {
@@ -177,7 +184,7 @@ class NetworkMap {
         
         if (node !== this.hoveredNode) {
             this.hoveredNode = node;
-            console.log('[NetworkMap] Hover state changed:', node ? `Device ${node.nodeId || node.source}` : 'none');
+            MAP_DEBUG.log('Hover state changed:', node ? `Device ${node.nodeId || node.source}` : 'none');
             
             // Trigger redraw to show hover state
             requestAnimationFrame(() => this.redraw());
@@ -189,21 +196,21 @@ class NetworkMap {
         const x = e.clientX - rect.left;
         const y = e.clientY - rect.top;
         
-        console.log('[NetworkMap] ===== CLICK DEBUG =====');
-        console.log('[NetworkMap] Client click:', e.clientX, e.clientY);
-        console.log('[NetworkMap] Canvas rect:', rect);
-        console.log('[NetworkMap] Canvas position - left:', rect.left, 'top:', rect.top);
-        console.log('[NetworkMap] Canvas size:', this.canvas.width, 'x', this.canvas.height);
-        console.log('[NetworkMap] Calculated canvas coords:', x.toFixed(0), y.toFixed(0));
-        console.log('[NetworkMap] Canvas center:', this.centerX, this.centerY);
+        MAP_DEBUG.log('===== CLICK DEBUG =====');
+        MAP_DEBUG.log('Client click:', e.clientX, e.clientY);
+        MAP_DEBUG.log('Canvas rect:', rect);
+        MAP_DEBUG.log('Canvas position - left:', rect.left, 'top:', rect.top);
+        MAP_DEBUG.log('Canvas size:', this.canvas.width, 'x', this.canvas.height);
+        MAP_DEBUG.log('Calculated canvas coords:', x.toFixed(0), y.toFixed(0));
+        MAP_DEBUG.log('Canvas center:', this.centerX, this.centerY);
         
         const node = this.findNodeAtPosition(x, y);
         if (node) {
-            console.log('[NetworkMap] Device selected:', node.nodeId || node.source);
+            MAP_DEBUG.log('Device selected:', node.nodeId || node.source);
             this.selectedNode = node;
             this.showNodeDetails(node);
         } else {
-            console.log('[NetworkMap] Clicked on empty area');
+            MAP_DEBUG.log('Clicked on empty area');
             this.selectedNode = null;
             this.hideNodeDetails();
         }
@@ -216,19 +223,19 @@ class NetworkMap {
         // Use larger click radius for easier clicking
         const clickRadius = this.clickRadius || 50;
         
-        console.log(`[NetworkMap] Finding node at (${x.toFixed(0)}, ${y.toFixed(0)})`);
-        console.log(`[NetworkMap] Total devices in array: ${this.devices.length}`);
-        console.log(`[NetworkMap] Click radius: ${clickRadius}px, Node radius: ${this.nodeRadius}px`);
-        console.log(`[NetworkMap] Canvas center: (${this.centerX}, ${this.centerY})`);
+        MAP_DEBUG.log(`Finding node at (${x.toFixed(0)}, ${y.toFixed(0)})`);
+        MAP_DEBUG.log(`Total devices in array: ${this.devices.length}`);
+        MAP_DEBUG.log(`Click radius: ${clickRadius}px, Node radius: ${this.nodeRadius}px`);
+        MAP_DEBUG.log(`Canvas center: (${this.centerX}, ${this.centerY})`);
         
         if (!this.devices || this.devices.length === 0) {
-            console.log('[NetworkMap] No devices to check');
+            MAP_DEBUG.log('No devices to check');
             return null;
         }
         
         for (const device of this.devices) {
             if (!device.position) {
-                console.log('[NetworkMap] Device has no position:', device.nodeId || device.source);
+                MAP_DEBUG.log('Device has no position:', device.nodeId || device.source);
                 continue;
             }
             
@@ -236,24 +243,24 @@ class NetworkMap {
             const dy = y - device.position.y;
             const distance = Math.sqrt(dx * dx + dy * dy);
             
-            console.log(`[NetworkMap] Device ${device.nodeId || device.source} at (${device.position.x.toFixed(0)}, ${device.position.y.toFixed(0)}), distance=${distance.toFixed(1)}px`);
+            MAP_DEBUG.log(`Device ${device.nodeId || device.source} at (${device.position.x.toFixed(0)}, ${device.position.y.toFixed(0)}), distance=${distance.toFixed(1)}px`);
             
             if (distance <= clickRadius) {
-                console.log(`[NetworkMap] ✓ DEVICE FOUND! ${device.nodeId || device.source}, distance=${distance.toFixed(1)}px (threshold: ${clickRadius}px)`);
+                MAP_DEBUG.log(`✓ DEVICE FOUND! ${device.nodeId || device.source}, distance=${distance.toFixed(1)}px (threshold: ${clickRadius}px)`);
                 return device;
             }
         }
         
-        console.log('[NetworkMap] No device found within click radius');
+        MAP_DEBUG.log('No device found within click radius');
         return null;
     }
     
     updateDevices(devices) {
-        console.log('[NetworkMap] Updating with', devices.length, 'devices');
+        MAP_DEBUG.log('Updating with', devices.length, 'devices');
         
         if (!devices || devices.length === 0) {
             this.devices = [];
-            console.log('[NetworkMap] No devices to display');
+            MAP_DEBUG.log('No devices to display');
             return;
         }
         
@@ -277,8 +284,8 @@ class NetworkMap {
             const x = this.centerX + Math.cos(angle) * distance;
             const y = this.centerY + Math.sin(angle) * distance;
             
-            console.log(`[NetworkMap] Device ${index}: nodeId=${device.nodeId}, rssi=${rssi}, pos=(${x.toFixed(0)},${y.toFixed(0)}), distance=${distance.toFixed(0)}, center=(${this.centerX},${this.centerY})`);
-            console.log('[NetworkMap] Canvas dimensions at positioning:', this.canvas.width, 'x', this.canvas.height);
+            MAP_DEBUG.log(`Device ${index}: nodeId=${device.nodeId}, rssi=${rssi}, pos=(${x.toFixed(0)},${y.toFixed(0)}), distance=${distance.toFixed(0)}, center=(${this.centerX},${this.centerY})`);
+            MAP_DEBUG.log('Canvas dimensions at positioning:', this.canvas.width, 'x', this.canvas.height);
             
             return {
                 ...device,
@@ -288,7 +295,7 @@ class NetworkMap {
             };
         });
         
-        console.log('[NetworkMap] Positioned', this.devices.length, 'devices');
+        MAP_DEBUG.log('Positioned', this.devices.length, 'devices');
     }
     
     calculateVulnerabilityScore(device) {
@@ -641,15 +648,15 @@ class NetworkMap {
     
     showNodeDetails(device) {
         if (!this.detailsPanel) {
-            console.error('[NetworkMap] Details panel element not found - ID:', this.detailsPanelId || 'unknown');
-            console.error('[NetworkMap] Available elements:', document.querySelectorAll('[id*="network"]'));
+            MAP_DEBUG.error('Details panel element not found - ID:', this.detailsPanelId || 'unknown');
+            MAP_DEBUG.error('Available elements:', document.querySelectorAll('[id*="network"]'));
             return;
         }
         
-        console.log('[NetworkMap] ===== SHOWING DEVICE DETAILS =====');
-        console.log('[NetworkMap] Device:', device);
-        console.log('[NetworkMap] Panel element:', this.detailsPanel);
-        console.log('[NetworkMap] Panel display before:', this.detailsPanel.style.display);
+        MAP_DEBUG.log('===== SHOWING DEVICE DETAILS =====');
+        MAP_DEBUG.log('Device:', device);
+        MAP_DEBUG.log('Panel element:', this.detailsPanel);
+        MAP_DEBUG.log('Panel display before:', this.detailsPanel.style.display);
         
         const rssi = device.rssi || device.avgRSSI || 0;
         const lastSeen = this.formatLastSeen(device.lastSeenSecondsAgo);
@@ -718,14 +725,14 @@ class NetworkMap {
         this.detailsPanel.style.visibility = 'visible';
         this.detailsPanel.style.opacity = '1';
         
-        console.log('[NetworkMap] Panel innerHTML set, length:', html.length);
-        console.log('[NetworkMap] Panel display after:', this.detailsPanel.style.display);
-        console.log('[NetworkMap] Panel visibility:', this.detailsPanel.style.visibility);
+        MAP_DEBUG.log('Panel innerHTML set, length:', html.length);
+        MAP_DEBUG.log('Panel display after:', this.detailsPanel.style.display);
+        MAP_DEBUG.log('Panel visibility:', this.detailsPanel.style.visibility);
         
         // Scroll the details panel into view
         setTimeout(() => {
             this.detailsPanel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-            console.log('[NetworkMap] Scrolled panel into view');
+            MAP_DEBUG.log('Scrolled panel into view');
         }, 100);
     }
     

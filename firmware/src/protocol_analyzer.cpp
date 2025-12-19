@@ -9,11 +9,21 @@ PacketInfo ProtocolAnalyzer::analyze(const uint8_t* data, size_t length, float r
     // Step 1: Identify protocol
     info.protocol = identifyProtocol(data, length);
     
-    // Step 2: Extract node ID (protocol-specific)
+    // Step 2: Extract node IDs (source and destination)
     info.nodeId = extractNodeId(data, length, info.protocol);
+    info.destId = extractDestId(data, length, info.protocol);
     
     // Step 2b: Extract packet ID (protocol-specific)
     info.packetId = extractPacketId(data, length, info.protocol);
+    
+    // Step 2c: Extract hop count from flags (lower 3 bits of byte 12)
+    info.hopCount = extractHopCount(data, length, info.protocol);
+    
+    // Step 2d: Extract channel index
+    info.channel = extractChannel(data, length, info.protocol);
+    
+    // Step 2e: Extract flag bits (wantAck, viaMqtt, priority)
+    extractFlags(data, length, info.protocol, info.wantAck, info.viaMqtt, info.priority);
     
     // Step 3: Classify device type
     info.deviceType = identifyDeviceType(data, length, info.protocol, rssi);
@@ -87,6 +97,48 @@ uint32_t ProtocolAnalyzer::extractPacketId(const uint8_t* data, size_t length, c
     return 0;
 }
 
+// Extract hop count from flags (Meshtastic byte 12, lower 3 bits)
+uint8_t ProtocolAnalyzer::extractHopCount(const uint8_t* data, size_t length, const char* protocol) {
+    if (strcmp(protocol, "Meshtastic") == 0 && length >= 13) {
+        // Hop count is lower 3 bits of flags byte (byte 12)
+        return data[12] & 0x07;
+    }
+    return 0;
+}
+
+// Extract destination node ID (Meshtastic bytes 0-3, little-endian)
+uint32_t ProtocolAnalyzer::extractDestId(const uint8_t* data, size_t length, const char* protocol) {
+    if (strcmp(protocol, "Meshtastic") == 0 && length >= 4) {
+        return ((uint32_t)data[0]) | ((uint32_t)data[1] << 8) | 
+               ((uint32_t)data[2] << 16) | ((uint32_t)data[3] << 24);
+    }
+    return 0;
+}
+
+// Extract channel index (Meshtastic byte 13)
+uint8_t ProtocolAnalyzer::extractChannel(const uint8_t* data, size_t length, const char* protocol) {
+    if (strcmp(protocol, "Meshtastic") == 0 && length >= 14) {
+        return data[13];
+    }
+    return 0;
+}
+
+// Extract flag bits from Meshtastic header
+// Byte 12 structure: bits 0-2 = hop limit, bit 3 = want_ack, bit 4 = via_mqtt, bits 5-6 = priority
+void ProtocolAnalyzer::extractFlags(const uint8_t* data, size_t length, const char* protocol,
+                                     bool& wantAck, bool& viaMqtt, uint8_t& priority) {
+    wantAck = false;
+    viaMqtt = false;
+    priority = 0;
+    
+    if (strcmp(protocol, "Meshtastic") == 0 && length >= 13) {
+        uint8_t flags = data[12];
+        wantAck = (flags >> 3) & 0x01;   // Bit 3
+        viaMqtt = (flags >> 4) & 0x01;   // Bit 4
+        priority = (flags >> 5) & 0x03;  // Bits 5-6 (0-3)
+    }
+}
+
 // Device type identification based on packet patterns and RSSI characteristics
 const char* ProtocolAnalyzer::identifyDeviceType(const uint8_t* data, size_t length, const char* protocol, float rssi) {
     // Meshtastic device type detection
@@ -135,10 +187,13 @@ const char* ProtocolAnalyzer::identifyDeviceType(const uint8_t* data, size_t len
 
 // Check if device appears to be routing traffic (forwarding packets)
 bool ProtocolAnalyzer::isRoutingDevice(const uint8_t* data, size_t length, const char* protocol) {
-    if (strcmp(protocol, "Meshtastic") == 0 && length >= 12) {
-        uint8_t hopCount = data[8] & 0x07;
-        uint8_t routingFlags = data[9];
-        return (hopCount > 0 || (routingFlags & 0x01)); // Has hops or routing flag set
+    if (strcmp(protocol, "Meshtastic") == 0 && length >= 13) {
+        // Hop count is in byte 12, lower 3 bits
+        uint8_t hopCount = data[12] & 0x07;
+        // A device is likely routing if we see packets with decremented hop count
+        // Original packets typically start with hop limit 3, routers decrement it
+        // If hop count < 3, this packet has been relayed
+        return (hopCount > 0 && hopCount < 3);
     }
     return false;
 }
