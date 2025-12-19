@@ -1368,6 +1368,12 @@ class ReconApp {
                     escapeHtml(wifi.apSSID || 'LoRa-XXXXXX') + '</code>';
             }
             
+            // Update button text based on connection state
+            const btnText = document.getElementById('wifi-setup-btn-text');
+            if (btnText) {
+                btnText.textContent = wifi.wifiMode === 'STA' ? 'Change Hotspot' : 'Configure Hotspot';
+            }
+            
             // Show setup banner if in setup mode
             this.updateSetupBanner(wifi.mode === 'setup', wifi.apSSID);
             
@@ -1643,6 +1649,8 @@ class ReconApp {
     }
     
     async actionStopCapture() {
+        // Confirm before stopping to prevent accidental taps
+        if (!confirm('Stop capture and return to reconnaissance mode?')) return;
         await this.post('/api/capture/stop', {});
         showToast('Capture stopped', 'success');
         await this.updateStatus();

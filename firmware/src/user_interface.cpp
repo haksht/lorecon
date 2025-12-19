@@ -466,12 +466,7 @@ void displayWelcomeMessage() {
   Serial.println("==============================");
   Serial.println("Hardware: ESP32-S3 + SX1262 LoRa");
   Serial.printf("Scanning %d configurations\n", reconState.getNumConfigs());
-  
-  #ifdef ENABLE_PSK_TESTING
-  Serial.printf("PSK testing: ENABLED (%d default keys)\n", PSKDecryption::getDefaultPSKCount());
-  #else
-  Serial.println("PSK testing: DISABLED");
-  #endif
+  Serial.printf("PSK testing: ENABLED (%d keys)\n", PSKDecryption::getDefaultPSKCount());
   
   Serial.println();
 }
