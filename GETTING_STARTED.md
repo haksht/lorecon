@@ -11,10 +11,21 @@
 ### Prerequisites
 - **Heltec WiFi LoRa 32 V3** (ESP32-S3 + SX1262 + OLED)
 - USB cable
-- PlatformIO installed
 - 902-928 MHz antenna (US ISM band)
 
-### 1. Build and Upload
+### Option A: Pre-compiled Binary (Easiest)
+
+**No PlatformIO required!**
+
+1. Download from [Releases](https://github.com/tiarno/esp32-sniffer/releases/latest)
+2. Extract `esp32-lora-sniffer-v2.2.0-binaries.zip`
+3. Install esptool: `pip install esptool`
+4. Run `flash.bat` (Windows) or `./flash.sh` (Linux/Mac)
+5. Done! Skip to "First Run - WiFi Setup" below.
+
+### Option B: Build from Source
+
+Requires PlatformIO installed.
 
 ```powershell
 # Clone repository

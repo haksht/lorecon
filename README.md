@@ -32,7 +32,18 @@ Passive LoRa reconnaissance firmware for ESP32-S3 + SX1262 hardware. The ESP32 h
 | Storage / Export | Optional SD logging (`packet_logger` with CSV + PCAP), KML/GeoJSON exports, Wireshark-compatible PCAP with LoRa metadata, security assessment reports, JSON APIs for scripting. |
 | Security | Token-based API authentication for sensitive endpoints, device-unique AP passwords, NVS credential storage, XSS prevention, input validation with bounds checking. |
 
-## Build & Flash
+## Quick Start (Pre-compiled Binary)
+
+**Don't want to compile?** Download the pre-built firmware:
+
+1. Go to [Releases](https://github.com/tiarno/esp32-sniffer/releases/latest)
+2. Download `esp32-lora-sniffer-v2.2.0-binaries.zip`
+3. Extract and run `flash.bat` (Windows) or `flash.sh` (Linux/Mac)
+4. Requires: `pip install esptool`
+
+See `FLASH_INSTRUCTIONS.md` in the zip for detailed steps.
+
+## Build & Flash (From Source)
 
 ```powershell
 # from repo root
