@@ -13,16 +13,17 @@
 1. [Overview](#overview)
 2. [Authentication](#authentication)
 3. [Response Format](#response-format)
-4. [Device Endpoints](#device-endpoints)
-5. [Capture Control](#capture-control)
-6. [Geographic Data](#geographic-data)
-7. [Status & Statistics](#status--statistics)
-8. [Scan Control](#scan-control)
-9. [WiFi Configuration](#wifi-configuration)
-10. [WebSocket API](#websocket-api)
-11. [Error Codes](#error-codes)
-12. [Rate Limiting](#rate-limiting)
-13. [Examples](#examples)
+4. [Quick Reference - All Endpoints](#quick-reference---all-endpoints)
+5. [Device Endpoints](#device-endpoints)
+6. [Capture Control](#capture-control)
+7. [Geographic Data](#geographic-data)
+8. [Status & Statistics](#status--statistics)
+9. [Scan Control](#scan-control)
+10. [WiFi Configuration](#wifi-configuration)
+11. [WebSocket API](#websocket-api)
+12. [Error Codes](#error-codes)
+13. [Rate Limiting](#rate-limiting)
+14. [Examples](#examples)
 
 ---
 
@@ -173,7 +174,51 @@ All successful responses follow this structure:
 
 ---
 
-## 📱 Device Endpoints
+## � Quick Reference - All Endpoints
+
+| Endpoint | Method | Auth | Description |
+|----------|--------|------|-------------|
+| `/api/status` | GET | No | System status and mode |
+| `/api/dashboard` | GET | No | Combined data for UI (status + devices + activity) |
+| `/api/devices` | GET | No | List discovered devices |
+| `/api/device?nodeId=XXX` | GET | No | Get specific device details |
+| `/api/devices/clear` | POST | **Yes** | Clear all discovered devices |
+| `/api/capture/start` | POST | No | Start targeted capture on device |
+| `/api/capture/stop` | POST | No | Stop capture, resume reconnaissance |
+| `/api/positions` | GET | No | GPS positions from packets |
+| `/api/export/geojson` | GET | No | Export positions as GeoJSON |
+| `/api/export/kml` | GET | No | Export positions as KML |
+| `/api/export/pcap` | GET | No | Export packets as PCAP |
+| `/api/statistics` | GET | No | Detailed packet statistics |
+| `/api/activity` | GET | No | RF activity summary |
+| `/api/config` | GET | No | Frequency configurations |
+| `/api/config/system` | GET | No | System configuration constants |
+| `/api/recon/summary` | GET | No | Reconnaissance summary |
+| `/api/recon/device-types` | GET | No | Device type breakdown |
+| `/api/recon/security` | GET | No | Security vulnerability assessment |
+| `/api/replay/slots` | GET | No | List captured packets for replay |
+| `/api/replay/transmit` | POST | **Yes** | Transmit captured packet |
+| `/api/replay/clear` | POST | **Yes** | Clear replay slots |
+| `/api/frequency/target` | POST | No | Start frequency targeting |
+| `/api/scan/start` | POST | No | Resume reconnaissance scan |
+| `/api/scan/stop` | POST | No | Stop scanning, enter menu mode |
+| `/api/diagnostics` | GET | No | Text packet diagnostics |
+| `/api/diagnostics/verbose` | POST | No | Toggle verbose logging |
+| `/api/anomalies` | GET | No | Protocol anomalies detected |
+| `/api/anomaly/acknowledge` | POST | No | Acknowledge an anomaly |
+| `/api/temporal` | GET | No | Temporal activity patterns |
+| `/api/psk/stats` | GET | No | PSK decryption statistics |
+| `/api/wifi/status` | GET | No | WiFi connection status |
+| `/api/wifi/configure` | POST | **Yes** | Set WiFi credentials |
+| `/api/wifi/clear` | POST | **Yes** | Clear credentials, reboot |
+| `/api/command` | POST | **Yes** | Execute system command |
+| `/api/firmware/upload` | POST | **Yes** | OTA firmware update |
+| `/api/health` | GET | No | Simple health check |
+| `/api/auth/info` | GET | No | Authentication info |
+
+---
+
+## �📱 Device Endpoints
 
 ### **GET /api/devices**
 
@@ -790,7 +835,7 @@ Host: 192.168.4.1
   "clientCount": 2,
   "scan": {
     "currentConfig": 3,
-    "totalConfigs": 16,
+    "totalConfigs": 26,
     "cyclesCompleted": 2
   },
   "target": {
@@ -911,8 +956,7 @@ Host: 192.168.4.1
     "metricCacheMs": 100
   },
   "tracking": {
-    "maxDevices": 20,
-    "maxNodes": 30,
+    "maxDevices": 50,
     "maxGeoPoints": 50
   },
   "usage": {
@@ -926,7 +970,7 @@ Host: 192.168.4.1
     "maxSlots": 10
   },
   "psk": {
-    "numDefaultKeys": 14,
+    "numDefaultKeys": 23,
     "keySize": 16
   },
   "ui": {
