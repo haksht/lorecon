@@ -120,9 +120,9 @@ Device will auto-connect on boot. See [API_REFERENCE.md](API_REFERENCE.md#pre-pr
 2. Click **Clear Credentials**
 3. Device restarts in AP mode for reconfiguration
 
-**Or via serial command:**
-```
-Press 'w' for WiFi menu (if implemented)
+**Or via API:**
+```bash
+curl -X POST http://192.168.4.1/api/wifi/clear -H "X-API-Token: YOUR_TOKEN"
 ```
 
 ---
@@ -143,6 +143,14 @@ Press 'q' - Toggle quiet mode
 Press 'r' - Resume reconnaissance
 Press 'x' - Text packet diagnostics
 Press 'g' - GPS positions
+Press 's' - Show summary
+Press 'v' - Security assessment
+Press 'l' - Clear captured packets
+Press 'n' - Clear discovered devices
+Press 'd' - Device type analysis
+Press 'k' - Export KML
+Press 'j' - Export GeoJSON
+Press 'b' - Reboot device
 Press 'k' - Export KML
 Press 'j' - Export GeoJSON
 ```
@@ -328,7 +336,7 @@ WiFi credentials are stored automatically in device flash memory. No code change
 
 **Configuration files:**
 - Credentials stored in: `/wifi_config.json` (LittleFS)
-- Default AP password: `recon123`
+- Default AP password: `recon-XXYYZZ` (device-unique, matches SSID suffix)
 - Unique device ID derived from: Last 3 bytes of MAC address
 
 **To change stored credentials:**
@@ -338,9 +346,9 @@ WiFi credentials are stored automatically in device flash memory. No code change
 **Build-time defaults** in `firmware/src/config.h`:
 ```cpp
 namespace Config::WiFi {
-    constexpr const char* AP_SSID_PREFIX = "LoRa-";      // + MAC suffix
-    constexpr const char* DEFAULT_AP_PASSWORD = "recon123";
-    constexpr const char* MDNS_PREFIX = "lora-";         // + MAC suffix
+    constexpr const char* AP_SSID_PREFIX = "LoRa-";              // + MAC suffix
+    constexpr const char* DEFAULT_AP_PASSWORD_PREFIX = "recon-"; // + MAC suffix (device-unique)
+    constexpr const char* MDNS_PREFIX = "lora-";                 // + MAC suffix
 }
 ```
 

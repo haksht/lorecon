@@ -444,9 +444,9 @@ or
 ### Problem: Can't Connect to WiFi AP
 
 **Symptoms:**
-- Password `recon123` doesn't work
+- Generic password doesn't work
 
-**Solution (v2.2.0+):** Each device now has a unique password based on its MAC address:
+**Solution:** Each device has a unique password based on its MAC address:
 - SSID: `LoRa-XXYYZZ`
 - Password: `recon-XXYYZZ` (same suffix as SSID)
 - Check serial output at boot for exact credentials
