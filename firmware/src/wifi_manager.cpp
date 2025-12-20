@@ -205,8 +205,10 @@ bool WiFiManager::saveCredentials(const char* ssid, const char* password) {
     wifiPrefs.begin(Config::WiFi::NVS_NAMESPACE, false);  // Read-write
     
     bool success = true;
-    success &= wifiPrefs.putString(Config::WiFi::NVS_KEY_SSID, ssid) > 0;
-    success &= wifiPrefs.putString(Config::WiFi::NVS_KEY_PASSWORD, password ? password : "") >= 0;
+    // putString returns bytes written (size_t). For SSID, must write > 0.
+    // For password, empty string is valid so we just check the SSID write succeeded.
+    success = wifiPrefs.putString(Config::WiFi::NVS_KEY_SSID, ssid) > 0;
+    wifiPrefs.putString(Config::WiFi::NVS_KEY_PASSWORD, password ? password : "");
     
     wifiPrefs.end();
     
