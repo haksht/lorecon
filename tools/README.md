@@ -2,6 +2,43 @@
 
 Professional-grade visualization and analysis tools for ESP32 LoRa reconnaissance data.
 
+## 📁 Directory Structure
+
+```
+tools/
+├── compliance/                    # Regulatory compliance analysis
+│   └── duty_cycle_monitor.py     # Duty cycle violation detection
+├── export/                        # Format conversion tools
+│   └── wireshark_exporter.py     # LoRaTap format for Wireshark
+├── lorawan/                       # LoRaWAN-specific analysis
+│   ├── abp_detector.py           # ABP vs OTAA device detection
+│   └── lorawan_join_analyzer.py  # Join sequence security analysis
+├── meshtastic/                    # Meshtastic-specific analysis
+│   ├── meshtastic_decoder.py     # Offline packet decryption
+│   ├── mesh_topology_analyzer.py # Network structure mapping
+│   ├── psk_auditor.py            # PSK vulnerability scanning
+│   └── psk_decrypt.py            # PSK decryption library (23 keys)
+├── visualization/                 # Dashboards and visualization
+│   ├── attack_dashboard.html     # Live attack surface dashboard
+│   ├── live_map.html             # Real-time GPS mapping
+│   ├── network_topology.html     # D3.js force-directed graph
+│   ├── MAP_GUIDE.md              # Map customization guide
+│   └── VISUALIZATION_GUIDE.md    # Visualization tips
+├── api_client.py                  # REST API CLI client
+├── enhanced_live_visualizer.py    # 5-panel conference demo
+├── packet_differ.py               # Side-by-side packet diff
+├── pcap_analyzer.py               # PCAP file analysis
+├── position_tracker.py            # GPS tracking & mapping
+├── recon_report.py                # Security assessment reports
+├── session_analyzer.py            # SD card log analysis
+├── timeline_replay.py             # DVR-style session replay
+├── ws_monitor.py                  # Headless WebSocket monitor
+├── README.md                      # This file
+└── requirements.txt               # Python dependencies
+```
+
+---
+
 ## 🎯 Quick Start for Conference Demos
 
 ### Attack Dashboard (Standalone HTML) 🔥
@@ -9,8 +46,8 @@ Professional-grade visualization and analysis tools for ESP32 LoRa reconnaissanc
 **Zero-dependency dashboard for live presentations:**
 ```bash
 # Just open in your browser - no Python needed!
-start attack_dashboard.html   # Windows
-open attack_dashboard.html    # macOS
+start visualization/attack_dashboard.html   # Windows
+open visualization/attack_dashboard.html    # macOS
 ```
 
 Features:
@@ -24,6 +61,31 @@ Enter your ESP32's IP (e.g., `172.20.10.3`) and click Connect.
 
 ---
 
+### 🎮 Demo Mode Quick Reference (No Hardware Needed!)
+
+**Perfect for conference presentations without live ESP32:**
+
+```bash
+# 5-panel live dashboard with simulated traffic
+python enhanced_live_visualizer.py --demo
+
+# GPS tracking map with simulated devices
+python position_tracker.py --demo
+python position_tracker.py --demo --my-location 36.13,-115.15  # Custom location (Vegas)
+
+# Mesh network topology visualization
+python meshtastic/mesh_topology_analyzer.py --demo
+python meshtastic/mesh_topology_analyzer.py --demo --format graphviz -o mesh.dot
+
+# PSK vulnerability audit with simulated networks
+python meshtastic/psk_auditor.py --demo
+
+# List all 23 known Meshtastic PSKs
+python meshtastic/psk_decrypt.py --list-keys
+```
+
+---
+
 ### Python-Based Tools
 
 ```bash
@@ -34,7 +96,7 @@ pip install -r requirements.txt
 python enhanced_live_visualizer.py --auto-detect --web --audio
 
 # Offline PSK vulnerability audit
-python psk_auditor.py capture.csv --verbose
+python meshtastic/psk_auditor.py capture.csv --verbose
 
 # Generate security assessment report
 python recon_report.py capture.csv --html report.html
@@ -43,8 +105,17 @@ python recon_report.py capture.csv --html report.html
 python position_tracker.py capture.csv --map tracking.html
 
 # Network topology visualization (opens in browser)
-start network_topology.html    # Windows
-open network_topology.html     # macOS
+start visualization/network_topology.html    # Windows
+open visualization/network_topology.html     # macOS
+
+# Mesh topology analysis
+python meshtastic/mesh_topology_analyzer.py capture.csv --ascii
+
+# LoRaWAN join sequence analysis  
+python lorawan/lorawan_join_analyzer.py capture.csv
+
+# Side-by-side packet diff
+python packet_differ.py --hex "AABBCC" "AABBDD"
 
 # Timeline replay (DVR mode) at 10x speed
 python timeline_replay.py capture.csv --speed 10 --interactive
@@ -54,16 +125,24 @@ python timeline_replay.py capture.csv --speed 10 --interactive
 
 ## 📊 Tool Overview
 
-| Tool | Purpose | Live/Offline | Output |
-|------|---------|--------------|--------|
-| `attack_dashboard.html` | Full attack surface dashboard | Live (WiFi) | Browser UI |
-| `network_topology.html` | D3.js force-directed graph | Both | Browser UI, SVG |
-| `timeline_replay.py` | DVR-style session replay | Offline | Terminal UI |
-| `enhanced_live_visualizer.py` | 5-panel real-time dashboard | Live (Serial) | PNG, HTML map |
-| `psk_auditor.py` | PSK vulnerability scanner | Both | Console, JSON |
+| Tool | Purpose | Live/Offline | Demo Mode | Output |
+|------|---------|--------------|-----------|--------|
+| `visualization/attack_dashboard.html` | Full attack surface dashboard | Live (WiFi) | N/A | Browser UI |
+| `visualization/network_topology.html` | D3.js force-directed graph | Both | N/A | Browser UI, SVG |
+| `timeline_replay.py` | DVR-style session replay | Offline | ❌ | Terminal UI |
+| `enhanced_live_visualizer.py` | 5-panel real-time dashboard | Both | ✅ `--demo` | PNG, HTML map |
+| `position_tracker.py` | GPS tracking & mapping | Both | ✅ `--demo` | HTML, PNG, GIF |
+| `meshtastic/psk_auditor.py` | PSK vulnerability scanner | Both | ✅ `--demo` | Console, JSON |
+| `meshtastic/mesh_topology_analyzer.py` | Mesh structure analysis | Both | ✅ `--demo` | ASCII, JSON, DOT |
+| `meshtastic/psk_decrypt.py` | PSK decryption library | Offline | N/A | Console |
+| `meshtastic/meshtastic_decoder.py` | Offline packet decryption | Offline | `--test` | Console, CSV |
+| `lorawan/abp_detector.py` | ABP vs OTAA detection | Both | Console, JSON |
+| `lorawan/lorawan_join_analyzer.py` | Join sequence analysis | Both | Console, JSON |
+| `compliance/duty_cycle_monitor.py` | Regulatory compliance | Offline | Console, JSON |
+| `export/wireshark_exporter.py` | LoRaTap conversion | Offline | PCAP |
+| `packet_differ.py` | Side-by-side packet diff | Offline | Console |
 | `recon_report.py` | Security assessment reports | Offline | Markdown, HTML, JSON |
 | `position_tracker.py` | GPS tracking & mapping | Both | HTML, PNG, GIF |
-| `meshtastic_decoder.py` | Offline packet decryption | Offline | Console, CSV |
 | `ws_monitor.py` | Headless WebSocket monitor | Live (WiFi) | Console, JSON |
 | `api_client.py` | REST API command-line client | Live (WiFi) | Console |
 | `session_analyzer.py` | SD card log analysis | Offline | Dashboard, HTML map |
@@ -87,10 +166,156 @@ python timeline_replay.py capture.csv --speed 10 --interactive
 
 ```bash
 # Just open in browser
-start network_topology.html   # Windows
-open network_topology.html    # macOS
+start visualization/network_topology.html   # Windows
+open visualization/network_topology.html    # macOS
 
 # Connect to ESP32 IP and watch the network build!
+```
+
+---
+
+## 🗺️ Mesh Topology Analyzer ⭐ NEW
+
+**Parse traceroute and neighborinfo packets** to build mesh network structure.
+
+### Features
+
+- **Network Graph** - Nodes and edges with hop counts
+- **Node Classification** - Gateway, relay, and edge node detection  
+- **Mesh Metrics** - Density, average neighbors, path analysis
+- **Multiple Output Formats** - ASCII, JSON, Graphviz DOT, NetworkX
+
+### Usage
+
+```bash
+# Demo mode - no input needed
+python meshtastic/mesh_topology_analyzer.py --demo
+
+# ASCII visualization
+python meshtastic/mesh_topology_analyzer.py capture.csv --ascii
+
+# JSON export for web apps
+python meshtastic/mesh_topology_analyzer.py capture.csv --format json -o topology.json
+
+# Graphviz DOT for diagrams
+python meshtastic/mesh_topology_analyzer.py capture.csv --format graphviz -o mesh.dot
+dot -Tpng -o mesh.png mesh.dot
+
+# Live monitoring
+python meshtastic/mesh_topology_analyzer.py --live 192.168.4.1 --watch
+```
+
+**Example ASCII Output:**
+```
+MESH TOPOLOGY ANALYSIS
+============================================================
+Total Nodes: 12
+Total Links: 18
+Mesh Density: 27.27%
+Avg Neighbors: 3.0
+
+NODE CLASSIFICATION:
+  Gateway Nodes:  2
+  Relay Nodes:    7
+  Edge Nodes:     3
+
+TRACEROUTE PATHS:
+  !abc123 → !def456 → !789abc (2 hops)
+```
+
+---
+
+## 🔐 LoRaWAN Join Analyzer ⭐ NEW
+
+**Analyze LoRaWAN join sequences** for security vulnerabilities.
+
+### Security Issues Detected
+
+| Issue | Severity | Description |
+|-------|----------|-------------|
+| DevNonce Reuse | 🔴 Critical | Enables replay attacks |
+| Sequential Nonces | 🟠 High | Predictable values |
+| Join Storms | 🟡 Medium | Possible attack or misconfiguration |
+| Counter Resets | 🟡 Medium | Device instability |
+
+### Usage
+
+```bash
+# Analyze capture file
+python lorawan/lorawan_join_analyzer.py capture.csv
+
+# Verbose output showing each packet
+python lorawan/lorawan_join_analyzer.py capture.pcap --verbose
+
+# JSON export
+python lorawan/lorawan_join_analyzer.py capture.csv --json -o report.json
+
+# Live monitoring
+python lorawan/lorawan_join_analyzer.py --live 192.168.4.1
+```
+
+**Example Output:**
+```
+LORAWAN JOIN SEQUENCE ANALYSIS
+======================================================================
+SUMMARY:
+  Join Requests:             47
+  Join Accepts:              42
+  Join Success Rate:         89.4%
+
+SECURITY ASSESSMENT:
+  🔴 HIGH RISK Devices:      1
+  🟢 LOW RISK Devices:       5
+
+  ⚠️  CRITICAL: 3 DevNonce reuse event(s) detected!
+```
+
+---
+
+## 🔍 Packet Differ ⭐ NEW
+
+**Side-by-side hex diff** for reverse engineering and protocol analysis.
+
+### Features
+
+- **Byte-level Comparison** - Highlights exact differences
+- **Color Coding** - Red for packet A, green for packet B
+- **Multiple Input Formats** - Files, hex strings, stdin, CSV
+- **ASCII View** - Parallel hex and ASCII display
+
+### Usage
+
+```bash
+# Compare two hex strings
+python packet_differ.py --hex "AABBCC" "AABBDD"
+
+# Compare binary files  
+python packet_differ.py packet1.bin packet2.bin
+
+# Compare packets from CSV by index
+python packet_differ.py capture.csv --packets 0,5
+
+# Pipe from stdin
+echo "AABBCC" | python packet_differ.py --stdin --hex "AABBDD"
+
+# Compact inline format
+python packet_differ.py --hex "AABBCC" "AABBDD" --compact
+```
+
+**Example Output:**
+```
+======================================================================
+PACKET DIFF ANALYSIS
+======================================================================
+Packet A: 3 bytes
+Packet B: 3 bytes
+
+0000  A: AA BB CC  |...| 
+      B: AA BB DD  |...|
+
+⚠ 1 byte(s) differ (66.7% match)
+Diff positions: 0x02
+======================================================================
 ```
 
 ---
@@ -144,6 +369,9 @@ python timeline_replay.py capture.csv --broadcast 192.168.4.1 --speed 10
 ### Usage
 
 ```bash
+# Demo mode - no hardware needed!
+python enhanced_live_visualizer.py --demo
+
 # Full demo mode with all features
 python enhanced_live_visualizer.py COM3 --audio --record --web
 
@@ -167,7 +395,7 @@ python enhanced_live_visualizer.py COM3 --web --web-ip 192.168.4.1
 
 ---
 
-## 🔓 PSK Auditor ⭐ NEW
+## 🔓 PSK Auditor ⭐
 
 **Vulnerability scanner with risk classification** - Tests captured packets against 23 known Meshtastic PSKs.
 
@@ -184,19 +412,19 @@ python enhanced_live_visualizer.py COM3 --web --web-ip 192.168.4.1
 
 ```bash
 # Audit CSV capture file
-python psk_auditor.py capture.csv
+python meshtastic/psk_auditor.py capture.csv
 
 # Verbose mode with decrypted content
-python psk_auditor.py capture.csv --verbose
+python meshtastic/psk_auditor.py capture.csv --verbose
 
 # Live monitoring via WebSocket
-python psk_auditor.py --live 192.168.4.1
+python meshtastic/psk_auditor.py --live 192.168.4.1
 
 # Live monitoring via REST API
-python psk_auditor.py --api 192.168.4.1
+python meshtastic/psk_auditor.py --api 192.168.4.1
 
 # Export results to JSON
-python psk_auditor.py capture.csv --output audit_results.json
+python meshtastic/psk_auditor.py capture.csv --output audit_results.json
 ```
 
 **Example Output:**
@@ -209,7 +437,46 @@ python psk_auditor.py capture.csv --output audit_results.json
 
 ---
 
-## 📋 Security Report Generator ⭐ NEW
+## � PSK Decryption Library ⭐ NEW
+
+**Standalone PSK decryption module** - Tests Meshtastic packets against 23 known keys.
+
+### Features
+
+- **23 Known Keys** - Includes 2023 leaked admin/debug keys
+- **AES-CTR Decryption** - Proper nonce construction from packet metadata
+- **Key Expansion** - Handles 1-byte, 8-byte, and 16-byte keys
+- **Validation** - UTF-8 and protobuf structure validation
+- **Library + CLI** - Use as import or standalone tool
+
+### Usage
+
+```bash
+# List all known PSKs with risk levels
+python meshtastic/psk_decrypt.py --list-keys
+
+# Decrypt a hex packet (requires packet_id and source node)
+python meshtastic/psk_decrypt.py --hex "encrypted_payload_hex"
+
+# Use in Python code
+from psk_decrypt import MeshtasticDecryptor
+decryptor = MeshtasticDecryptor()
+result = decryptor.try_decrypt(payload, packet_id, source_node_id)
+if result:
+    key_name, plaintext = result
+```
+
+**Known Keys (23 total):**
+```
+🔴 CRITICAL: admin_key, debug_key_2023, leaked_master
+🟠 HIGH:     default, longfast, shortfast, mediumfast
+🟡 MEDIUM:   eu868_default, us915_default, cn470_default
+🟢 LOW:      test, development, demo
+```
+
+---
+
+## �📋 Security Report Generator ⭐ NEW
 
 **Generates professional security assessment reports** from capture data.
 
@@ -264,6 +531,10 @@ python recon_report.py capture.csv --title "DEF CON Site Survey"
 ### Usage
 
 ```bash
+# Demo mode - simulated GPS tracks (no input needed)
+python position_tracker.py --demo
+python position_tracker.py --demo --my-location 36.13,-115.15  # Center on Vegas
+
 # Generate interactive HTML map from CSV
 python position_tracker.py capture.csv --map tracking.html
 
@@ -288,7 +559,7 @@ python position_tracker.py --live 192.168.4.1 --update-interval 10
 
 ---
 
-## 🔐 Meshtastic Decoder ⭐ NEW
+## 🔐 Meshtastic Decoder
 
 **Offline packet decryption and protocol analysis** - Process captures without live ESP32.
 
@@ -303,19 +574,19 @@ python position_tracker.py --live 192.168.4.1 --update-interval 10
 
 ```bash
 # Decode CSV capture
-python meshtastic_decoder.py capture.csv
+python meshtastic/meshtastic_decoder.py capture.csv
 
 # Decode PCAP file
-python meshtastic_decoder.py capture.pcap
+python meshtastic/meshtastic_decoder.py capture.pcap
 
 # Verbose output with hex dumps
-python meshtastic_decoder.py capture.csv --verbose
+python meshtastic/meshtastic_decoder.py capture.csv --verbose
 
 # Run self-test with known data
-python meshtastic_decoder.py --test
+python meshtastic/meshtastic_decoder.py --test
 
 # Only show messages containing keyword
-python meshtastic_decoder.py capture.csv | grep -i "password"
+python meshtastic/meshtastic_decoder.py capture.csv | grep -i "password"
 ```
 
 **Decrypted Output:**
@@ -509,8 +780,7 @@ python meshtastic_decoder.py captured_data.csv
 
 ## 🔗 Related Documentation
 
-- [VISUALIZATION_GUIDE.md](VISUALIZATION_GUIDE.md) - Detailed visualization tips
-- [MAP_GUIDE.md](MAP_GUIDE.md) - Interactive map customization
+- [visualization/VISUALIZATION_GUIDE.md](visualization/VISUALIZATION_GUIDE.md) - Detailed visualization tips
+- [visualization/MAP_GUIDE.md](visualization/MAP_GUIDE.md) - Interactive map customization
 - [API_REFERENCE.md](../API_REFERENCE.md) - Complete REST API documentation
 - [FEATURES.md](../docs/user-guides/FEATURES.md) - Firmware feature guide
-

@@ -570,6 +570,132 @@ def monitor_live(host, tracker, output_path, update_interval=5):
         tracker.print_summary()
 
 
+def generate_demo_data(tracker, center=None):
+    """Generate simulated GPS tracks for demo presentations
+    
+    Creates realistic movement patterns around a center point
+    with multiple devices showing different behaviors.
+    
+    Args:
+        tracker: PositionTracker instance
+        center: (lat, lon) tuple, defaults to Raleigh NC if not provided
+    """
+    import random
+    import math
+    
+    # Default to Raleigh NC (user's area) if no center provided
+    if center:
+        CENTER_LAT, CENTER_LON = center
+        print(f"  📍 Centering demo around: {CENTER_LAT:.4f}, {CENTER_LON:.4f}")
+    else:
+        CENTER_LAT = 35.7796
+        CENTER_LON = -78.6382
+        print(f"  📍 Using default location: Raleigh, NC")
+    
+    # Simulated devices with different behaviors
+    # Node IDs are formatted like actual Meshtastic IDs for realism
+    devices = [
+        # (node_id, behavior, protocol)
+        ("!a1b2c3d4", "wander", "Meshtastic"),     # Attendee wandering exhibit hall
+        ("!f5e6d7c8", "patrol", "Meshtastic"),     # Security patrolling perimeter
+        ("!9a8b7c6d", "stationary", "Meshtastic"), # Fixed booth transmitter
+        ("!1234abcd", "fast_move", "Meshtastic"),  # Vehicle in parking area
+        ("!deadbeef", "scheduled", "Meshtastic"),  # Speaker moving between talks
+    ]
+    
+    base_time = datetime.now()
+    behavior_desc = {
+        "wander": "Attendee wandering exhibit hall",
+        "patrol": "Security patrolling perimeter",
+        "stationary": "Fixed booth transmitter",
+        "fast_move": "Vehicle in parking area",
+        "scheduled": "Speaker moving between talks",
+    }
+    
+    for node_id, behavior, protocol in devices:
+        print(f"  📍 {node_id}: {behavior_desc[behavior]}")
+        
+        # Generate 30-60 positions per device over "2 hours"
+        num_positions = random.randint(30, 60)
+        
+        if behavior == "stationary":
+            # Fixed position with GPS jitter
+            base_lat = CENTER_LAT + random.uniform(-0.002, 0.002)
+            base_lon = CENTER_LON + random.uniform(-0.002, 0.002)
+            
+            for i in range(num_positions):
+                lat = base_lat + random.gauss(0, 0.00002)
+                lon = base_lon + random.gauss(0, 0.00002)
+                ts = base_time + timedelta(minutes=i*4)
+                tracker.add_position(node_id, lat, lon, ts, protocol=protocol)
+                
+        elif behavior == "wander":
+            # Random walk through venue
+            lat = CENTER_LAT + random.uniform(-0.001, 0.001)
+            lon = CENTER_LON + random.uniform(-0.001, 0.001)
+            
+            for i in range(num_positions):
+                lat += random.gauss(0, 0.0003)
+                lon += random.gauss(0, 0.0003)
+                # Keep within venue bounds
+                lat = max(CENTER_LAT - 0.004, min(CENTER_LAT + 0.004, lat))
+                lon = max(CENTER_LON - 0.004, min(CENTER_LON + 0.004, lon))
+                ts = base_time + timedelta(minutes=i*2 + random.randint(0, 30))
+                tracker.add_position(node_id, lat, lon, ts, protocol=protocol)
+                
+        elif behavior == "patrol":
+            # Circular patrol pattern
+            radius = 0.003
+            for i in range(num_positions):
+                angle = (i / num_positions) * 2 * math.pi * 3  # 3 loops
+                lat = CENTER_LAT + radius * math.sin(angle) + random.gauss(0, 0.0001)
+                lon = CENTER_LON + radius * math.cos(angle) + random.gauss(0, 0.0001)
+                ts = base_time + timedelta(minutes=i*3)
+                tracker.add_position(node_id, lat, lon, ts, protocol=protocol)
+                
+        elif behavior == "fast_move":
+            # Vehicle moving in parking lot / nearby streets
+            lat = CENTER_LAT + 0.005  # Start offset
+            lon = CENTER_LON - 0.003
+            direction = random.uniform(0, 2 * math.pi)
+            
+            for i in range(num_positions):
+                # Occasionally change direction
+                if random.random() < 0.15:
+                    direction += random.uniform(-0.5, 0.5)
+                lat += 0.0008 * math.sin(direction) + random.gauss(0, 0.0001)
+                lon += 0.0008 * math.cos(direction) + random.gauss(0, 0.0001)
+                ts = base_time + timedelta(minutes=i*1)
+                tracker.add_position(node_id, lat, lon, ts, protocol=protocol)
+                
+        elif behavior == "scheduled":
+            # Moves between fixed "talk locations" then stays
+            talk_locations = [
+                (CENTER_LAT + 0.001, CENTER_LON - 0.001),  # Hall A
+                (CENTER_LAT - 0.001, CENTER_LON + 0.001),  # Hall B
+                (CENTER_LAT + 0.002, CENTER_LON + 0.002),  # Main stage
+            ]
+            
+            current_loc = 0
+            positions_per_loc = num_positions // len(talk_locations)
+            
+            for i in range(num_positions):
+                loc_idx = min(i // positions_per_loc, len(talk_locations) - 1)
+                target_lat, target_lon = talk_locations[loc_idx]
+                
+                # Add some movement noise
+                lat = target_lat + random.gauss(0, 0.00015)
+                lon = target_lon + random.gauss(0, 0.00015)
+                ts = base_time + timedelta(minutes=i*2)
+                tracker.add_position(node_id, lat, lon, ts, protocol=protocol)
+    
+    # Set "our" location at the demo booth (if not already set by user)
+    if not tracker.my_location:
+        tracker.my_location = (CENTER_LAT - 0.001, CENTER_LON)
+    
+    print(f"\n✅ Generated {len(tracker.all_positions)} positions for {len(tracker.devices)} devices")
+
+
 def main():
     parser = argparse.ArgumentParser(
         description='GPS Position Tracker for LoRa Device Movements',
@@ -590,12 +716,10 @@ def main():
                        help='Live monitoring update interval in seconds')
     parser.add_argument('--my-location', metavar='LAT,LON',
                        help='Your sniffer location (e.g., "35.7796,-78.6382")')
+    parser.add_argument('--demo', action='store_true',
+                       help='Demo mode with simulated GPS tracks (no input needed)')
     
     args = parser.parse_args()
-    
-    if not args.input and not args.live:
-        parser.print_help()
-        return 1
     
     tracker = PositionTracker()
     
@@ -607,6 +731,21 @@ def main():
             print(f"📡 Sniffer location set: {lat:.6f}, {lon:.6f}")
         except ValueError:
             print(f"Warning: Invalid --my-location format. Use: LAT,LON (e.g., 35.7796,-78.6382)")
+    
+    # Demo mode - generate synthetic tracks
+    if args.demo:
+        print("\n🎮 DEMO MODE: Generating simulated GPS tracks...\n")
+        # Use user's location if provided, otherwise default to Raleigh NC
+        center = tracker.my_location if tracker.my_location else (35.7796, -78.6382)
+        generate_demo_data(tracker, center)
+        
+        output = args.map or 'demo_tracking.html'
+        tracker.generate_interactive_map(output)
+        return 0
+    
+    if not args.input and not args.live:
+        parser.print_help()
+        return 1
     
     if args.live:
         output = args.map or 'live_tracking.html'

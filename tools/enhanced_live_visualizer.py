@@ -9,10 +9,13 @@ NEW FEATURES FOR CONFERENCE DEMOS:
 - Protocol-specific colors matching web UI
 - Screen recording capability
 - Auto-screenshot on interesting events
+- DEMO MODE: Simulated traffic for offline presentations
 
 Usage:
     python enhanced_live_visualizer.py COM3
     python enhanced_live_visualizer.py COM3 --json --audio --record
+    python enhanced_live_visualizer.py --demo         # Simulated traffic for presentations
+    python enhanced_live_visualizer.py --demo --audio # Demo with sound effects
 
 Requirements:
     pip install pyserial matplotlib folium sounddevice numpy
@@ -98,13 +101,111 @@ class AudioFeedback:
         except Exception:
             pass  # Silently fail if audio not available
 
+
+class DemoDataGenerator:
+    """Generate realistic simulated LoRa traffic for conference demos"""
+    
+    # Realistic node IDs (Meshtastic style)
+    DEMO_NODES = [
+        '401ACD4E',  # DEF CON presenter
+        '598B29CE',  # Nearby attendee
+        'B3F42A10',  # Mobile node (moving)
+        '7C891DEF',  # Hidden node
+        'A42B8C56',  # Router node
+    ]
+    
+    # Demo GPS positions (Las Vegas Convention Center area for DEF CON)
+    DEMO_POSITIONS = {
+        '401ACD4E': (36.1290, -115.1540, 'stationary'),
+        '598B29CE': (36.1285, -115.1530, 'stationary'),
+        'B3F42A10': (36.1295, -115.1545, 'mobile'),  # Moves around
+        '7C891DEF': (36.1275, -115.1535, 'stationary'),
+        'A42B8C56': (36.1288, -115.1550, 'stationary'),
+    }
+    
+    def __init__(self, seed=42):
+        import random
+        self.rng = random.Random(seed)
+        self.start_time = time.time()
+        self.packet_count = 0
+        self.last_packet_time = 0
+        self.mobile_offset = 0
+        
+    def get_next_event(self):
+        """Generate a realistic packet event with variable timing"""
+        import random
+        
+        current_time = time.time()
+        # Packets arrive every 0.3-2.0 seconds (realistic for LoRa mesh)
+        if current_time - self.last_packet_time < self.rng.uniform(0.3, 2.0):
+            return None
+        
+        self.last_packet_time = current_time
+        self.packet_count += 1
+        
+        # Pick node (weighted toward active ones)
+        weights = [3, 2, 2, 1, 1]  # First node most active
+        node_id = self.rng.choices(self.DEMO_NODES, weights=weights)[0]
+        
+        # Protocol distribution: 70% Meshtastic, 20% LoRaWAN, 10% Other
+        protocol = self.rng.choices(
+            ['Meshtastic', 'LoRaWAN', 'Helium', 'Unknown'],
+            weights=[70, 20, 5, 5]
+        )[0]
+        
+        # Realistic RSSI values (-40 to -120 dBm)
+        base_rssi = {
+            '401ACD4E': -55,  # Closest
+            '598B29CE': -68,
+            'B3F42A10': -75,
+            '7C891DEF': -95,  # Farthest
+            'A42B8C56': -62,
+        }
+        rssi = base_rssi.get(node_id, -80) + self.rng.uniform(-8, 8)
+        snr = 5 + (rssi + 80) / 10 + self.rng.uniform(-2, 2)  # SNR correlates with RSSI
+        
+        event = {
+            'type': 'packet',
+            'node_id': node_id,
+            'rssi': round(rssi, 1),
+            'snr': round(snr, 1),
+            'protocol': protocol,
+            'length': self.rng.randint(24, 256),
+            'timestamp': current_time
+        }
+        
+        # 15% chance to include GPS data
+        if self.rng.random() < 0.15 and node_id in self.DEMO_POSITIONS:
+            base_lat, base_lon, mobility = self.DEMO_POSITIONS[node_id]
+            if mobility == 'mobile':
+                # Mobile node moves around
+                self.mobile_offset += 0.0001 * self.rng.uniform(-1, 1)
+                lat = base_lat + self.mobile_offset + self.rng.uniform(-0.0002, 0.0002)
+                lon = base_lon + self.mobile_offset * 0.5 + self.rng.uniform(-0.0002, 0.0002)
+            else:
+                lat = base_lat + self.rng.uniform(-0.0001, 0.0001)
+                lon = base_lon + self.rng.uniform(-0.0001, 0.0001)
+            
+            return [event, {
+                'type': 'gps',
+                'node_id': node_id,
+                'lat': round(lat, 6),
+                'lon': round(lon, 6),
+                'timestamp': current_time
+            }]
+        
+        return [event]
+
+
 class EnhancedLoRaVisualizer:
-    def __init__(self, port, json_mode=False, audio=False, record=False):
+    def __init__(self, port, json_mode=False, audio=False, record=False, demo_mode=False):
         self.port = port
         self.json_mode = json_mode
         self.ser = None
         self.audio = AudioFeedback(enabled=audio)
         self.record = record
+        self.demo_mode = demo_mode
+        self.demo_generator = DemoDataGenerator() if demo_mode else None
         self.screenshot_dir = Path('screenshots')
         if record:
             self.screenshot_dir.mkdir(exist_ok=True)
@@ -142,11 +243,18 @@ class EnhancedLoRaVisualizer:
         self.fig.suptitle('ESP32 LoRa Sniffer - Conference Demo Mode', 
                          fontsize=16, fontweight='bold')
         
-        # Connect to serial port
-        self.connect()
+        # Connect to serial port (unless in demo mode)
+        if not self.demo_mode:
+            self.connect()
+        else:
+            print("[*] DEMO MODE: Using simulated LoRa traffic")
+            print("[*] Starting visualization with realistic packet generation...")
+            print()
         
     def connect(self):
         """Connect to ESP32 via serial port"""
+        if self.demo_mode:
+            return  # Skip connection in demo mode
         try:
             print(f"[*] Connecting to {self.port} at {SERIAL_BAUDRATE} baud...")
             # Use explicit port configuration to prevent DTR reset
@@ -347,16 +455,23 @@ class EnhancedLoRaVisualizer:
     
     def update_plots(self, frame):
         """Update all 5 panels"""
-        # Read serial data
-        while self.ser and self.ser.in_waiting:
-            try:
-                line = self.ser.readline().decode('utf-8', errors='ignore').strip()
-                if line:
-                    event = self.parse_serial_line(line)
-                    if event:
-                        self.update_data(event)
-            except Exception:
-                pass
+        # Get data from demo generator OR serial port
+        if self.demo_mode and self.demo_generator:
+            events = self.demo_generator.get_next_event()
+            if events:
+                for event in events:
+                    self.update_data(event)
+        else:
+            # Read serial data
+            while self.ser and self.ser.in_waiting:
+                try:
+                    line = self.ser.readline().decode('utf-8', errors='ignore').strip()
+                    if line:
+                        event = self.parse_serial_line(line)
+                        if event:
+                            self.update_data(event)
+                except Exception:
+                    pass
         
         # Clear all axes
         self.ax_rssi.clear()
@@ -695,6 +810,8 @@ def main():
                        help='Enable audio feedback (Geiger counter effect)')
     parser.add_argument('--record', action='store_true',
                        help='Auto-save screenshots at milestones')
+    parser.add_argument('--demo', action='store_true',
+                       help='Demo mode: generate simulated traffic (no hardware needed)')
     parser.add_argument('--web', action='store_true',
                        help='Open web UI in browser')
     parser.add_argument('--web-ip', default='192.168.4.1',
@@ -714,10 +831,15 @@ def main():
         list_serial_ports()
         return 0
     
-    # Determine port
+    # Determine port (not required in demo mode)
     port = args.port
     
-    if args.auto_detect:
+    # Demo mode doesn't need hardware
+    if args.demo:
+        print("[*] 🎮 DEMO MODE ACTIVATED")
+        print("[*] Simulating realistic LoRa traffic for conference presentation")
+        print()
+    elif args.auto_detect:
         print("[*] Auto-detecting ESP32...")
         detected = detect_esp32()
         if detected:
@@ -729,21 +851,18 @@ def main():
                 list_serial_ports()
                 return 1
     
-    if not port:
+    if not port and not args.demo:
         print("[!] No port specified. Use --list-ports to see available ports.")
         print()
         print("Usage examples:")
         print("  python enhanced_live_visualizer.py COM3")
         print("  python enhanced_live_visualizer.py /dev/ttyUSB0 --audio --record")
         print("  python enhanced_live_visualizer.py --auto-detect --web")
+        print("  python enhanced_live_visualizer.py --demo              # No hardware needed!")
         return 1
     
-    # Open web UI if requested
-    if args.web:
-        open_web_ui(args.web_ip)
-    
-    # Open web UI if requested
-    if args.web:
+    # Open web UI if requested (only if hardware is connected)
+    if args.web and not args.demo:
         open_web_ui(args.web_ip)
     
     if args.audio and not AUDIO_AVAILABLE:
@@ -752,11 +871,13 @@ def main():
         print()
     
     print(f"[*] Features enabled:")
+    if args.demo:
+        print("    🎮 Demo mode (simulated traffic)")
     if args.audio and AUDIO_AVAILABLE:
         print("    🔊 Audio feedback")
     if args.record:
         print("    📸 Screenshot recording")
-    if args.web:
+    if args.web and not args.demo:
         print(f"    🌐 Web UI at http://{args.web_ip}")
     if args.duration:
         print(f"    ⏱️  Auto-exit after {args.duration}s")
@@ -766,7 +887,8 @@ def main():
         port, 
         json_mode=args.json,
         audio=args.audio,
-        record=args.record
+        record=args.record,
+        demo_mode=args.demo
     )
     
     if args.duration:
