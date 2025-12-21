@@ -44,6 +44,21 @@ Passive LoRa reconnaissance firmware for ESP32-S3 + SX1262 hardware. The ESP32 h
 
 **vs. SDR**: SDR requires a laptop and GNU Radio expertise. This is pocket-sized, flash-and-go, with built-in replay and phone-accessible results.
 
+## Bill of Materials (~$35-50 USD)
+
+| Component | Price | Notes | Link |
+|-----------|-------|-------|------|
+| **Heltec WiFi LoRa 32 V3** | $22-28 | ESP32-S3 + SX1262 + OLED | [Amazon](https://www.amazon.com/dp/B0B697NLJ5) / [AliExpress](https://www.aliexpress.com/item/1005005967763162.html) |
+| 915MHz Antenna (RP-SMA) | $0-8 | Often included with board | [Amazon](https://www.amazon.com/dp/B09K3WMCVN) |
+| USB-C Cable | $0 | You have one | — |
+| **Optional:** 3D Printed Case | $5-10 | Search "Heltec V3 case" | [Printables](https://www.printables.com/search/models?q=heltec%20v3) |
+| **Optional:** 18650 Battery | $8-12 | For portable operation | [Amazon](https://www.amazon.com/dp/B0BG8XJMQX) |
+| **Optional:** SD Card | $5-8 | For PCAP logging | Any microSD |
+
+**Total**: ~$30 basic / ~$50 with case + battery
+
+**Time to first packet**: Under 5 minutes (flash → power → scanning)
+
 ## Quick Start (Pre-compiled Binary)
 
 **Don't want to compile?** Download the pre-built firmware:
