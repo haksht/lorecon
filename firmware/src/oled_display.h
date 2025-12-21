@@ -49,6 +49,7 @@ public:
     void showDeviceCount(uint8_t rfActivity, uint8_t trackedNodes, uint8_t targetableDevices);
     void showTargetingMode(const char* targetInfo);
     void showShutdown();
+    void showApiToken(const char* token);  // Display API token for mobile users
     
     // Network info display
     void setNetworkInfo(const char* ipAddr, const char* mdnsName);

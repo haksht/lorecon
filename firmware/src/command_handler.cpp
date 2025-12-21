@@ -16,6 +16,8 @@
 #include "irecon_tool.h"  // Interface only
 #include "lora_recon_tool.h"  // For g_reconTool global
 #include "radio_controller.h"  // Need full definition for method calls
+#include "api_security.h"  // For token display
+#include "oled_display.h"  // For OLED token display
 #include "user_interface.h"
 #include "recon_state.h"
 #include "protocol_analyzer.h"
@@ -373,5 +375,26 @@ void CommandHandler::cmdClearDevices(IReconTool* tool) {
     uint8_t deviceCount = reconState.getNumTargetableDevices();
     reconState.clearTargetableDevices();
     Serial.printf("\n✅ Cleared %d device(s).\n\n", deviceCount);
+}
+
+void CommandHandler::cmdShowToken(IReconTool* tool) {
+    String token = APISecurity::getToken();
+    
+    Serial.println("\n🔑 API TOKEN (for protected endpoints)");
+    Serial.println("======================================");
+    Serial.printf("Token: %s\n", token.c_str());
+    Serial.println("======================================");
+    Serial.println("Enter this in Settings > API Authentication on the web UI");
+    Serial.println("Or use header: X-API-Token: <token>\n");
+    
+    // Show on OLED for mobile users
+    #ifdef BOARD_HELTEC_V3
+    OLEDDisplay* display = tool->getDisplay();
+    if (display) {
+        display->showApiToken(token.c_str());
+        Serial.println("📱 TOKEN DISPLAYED ON OLED");
+        Serial.println("   (Look at device screen)\n");
+    }
+    #endif
 }
 

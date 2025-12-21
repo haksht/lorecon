@@ -60,6 +60,7 @@ private:
     static void cmdToggleQuietMode(IReconTool* tool);
     static void cmdClearPackets(IReconTool* tool);
     static void cmdClearDevices(IReconTool* tool);
+    static void cmdShowToken(IReconTool* tool);
     
     // Command table entry
     struct CommandEntry {
@@ -104,6 +105,8 @@ private:
         {'L', cmdClearPackets,        "Clear captured packets",        false},
         {'n', cmdClearDevices,        "Clear discovered devices",      false},
         {'N', cmdClearDevices,        "Clear discovered devices",      false},
+        {'t', cmdShowToken,           "Show API token (for mobile)",   false},
+        {'T', cmdShowToken,           "Show API token (for mobile)",   false},
     };
     
     static constexpr uint8_t numCommands = sizeof(commands) / sizeof(CommandEntry);
