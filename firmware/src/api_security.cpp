@@ -55,6 +55,24 @@ bool APISecurity::isAuthenticated(AsyncWebServerRequest* request) {
     
     if (!initialized) begin();
     
+    // Auto-trust clients on private networks (RFC 1918)
+    // Rationale: Private IP = already authenticated to local network (WiFi password)
+    // Threat model: prevent random internet access, not LAN neighbors
+    IPAddress clientIP = request->client()->remoteIP();
+    
+    // 10.0.0.0/8 - Class A private
+    if (clientIP[0] == 10) {
+        return true;
+    }
+    // 172.16.0.0/12 - Class B private (172.16.x.x - 172.31.x.x)
+    if (clientIP[0] == 172 && clientIP[1] >= 16 && clientIP[1] <= 31) {
+        return true;
+    }
+    // 192.168.0.0/16 - Class C private
+    if (clientIP[0] == 192 && clientIP[1] == 168) {
+        return true;
+    }
+    
     // Check for token in header
     if (request->hasHeader(Config::Security::AUTH_HEADER)) {
         String providedToken = request->header(Config::Security::AUTH_HEADER);
