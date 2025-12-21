@@ -103,7 +103,7 @@ No exceptions (embedded C++). Return `bool` for success/failure. Use `LOG_ERROR(
 14. **Shared Utilities**: Use `utils/format_utils.h` for node ID formatting, `utils/security_scorer.h` for security assessment, `utils/json_utils.h` for API responses. Don't duplicate this logic in new code.
 15. **API Response Format**: Use `JsonUtils::success()`, `JsonUtils::error()`, `JsonUtils::successWithData()` for consistent JSON responses. Don't manually build `{"status":"success"}` patterns.
 16. **Arduino String with printf**: When passing Arduino `String` to `LOG_INFO`/`Serial.printf` with `%s`, always use `.c_str()`. The temporary String is destroyed before printf executes otherwise, causing garbage output.
-17. **Serial Activation**: Serial commands are ignored until user presses Enter. This prevents phantom commands from USB electrical noise. Press Enter to activate serial console, then commands work normally.
+17. **Serial Activation**: Serial commands are ignored until user presses Enter TWICE within 1.5 seconds. This prevents phantom commands from USB electrical noise. Press Enter twice quickly to activate serial console, then commands work normally.
 18. **AP_STA Mode**: Device runs both AP (192.168.4.1) and STA (hotspot) simultaneously. Always reachable via AP even if hotspot connection drops.
 
 ## Testing Approach

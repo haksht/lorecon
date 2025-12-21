@@ -37,18 +37,51 @@ CommandHandler::CommandHandler(IReconTool* tool)
 }
 
 bool CommandHandler::handleCommand(char cmd) {
+    uint32_t now = millis();
+    
+    // Auto-deactivate serial after 5 minutes of inactivity (prevents overnight noise issues)
+    if (serialActivated && lastCommandTime > 0 && (now - lastCommandTime) > INACTIVITY_TIMEOUT_MS) {
+        serialActivated = false;
+        firstEnterTime = 0;
+        Serial.println("\n[SERIAL] Auto-deactivated due to inactivity. Press Enter twice to reactivate.");
+    }
+    
     // SERIAL ACTIVATION CHECK: Prevent phantom commands from USB noise
-    // Serial commands are ignored until user explicitly presses Enter
-    // This prevents random noise from triggering mode changes
+    // Requires DOUBLE-ENTER within 1.5 seconds to activate
+    // Single Enter or random noise will NOT trigger activation
     if (!serialActivated) {
         if (cmd == '\n' || cmd == '\r') {
-            serialActivated = true;
-            Serial.println("\n[SERIAL] Serial console activated. Press 'm' for menu.");
-            return true;
+            // Debounce: Ignore \r\n arriving as single keypress (within 100ms)
+            if (lastEnterTime > 0 && (now - lastEnterTime) < ENTER_DEBOUNCE_MS) {
+                return false;  // Silently ignore, same keypress
+            }
+            lastEnterTime = now;
+            
+            if (firstEnterTime == 0) {
+                // First Enter - start the window
+                firstEnterTime = now;
+                Serial.println("\n[SERIAL] Press Enter again within 1.5s to activate console...");
+                return true;
+            } else if ((now - firstEnterTime) <= DOUBLE_ENTER_WINDOW_MS) {
+                // Second Enter within window - activate!
+                serialActivated = true;
+                firstEnterTime = 0;
+                lastCommandTime = now;
+                Serial.println("[SERIAL] ✓ Serial console activated. Press 'm' for menu.");
+                return true;
+            } else {
+                // Too slow - reset and start over
+                firstEnterTime = now;
+                Serial.println("\n[SERIAL] Timeout. Press Enter again within 1.5s to activate...");
+                return true;
+            }
         }
-        // Silently ignore all input until activated (likely noise)
+        // Silently ignore all non-Enter input until activated (likely noise)
         return false;
     }
+    
+    // Track last command time for auto-deactivation
+    lastCommandTime = now;
     
     // Filter out newlines after activation (common after commands)
     if (cmd == '\n' || cmd == '\r') {
