@@ -149,7 +149,24 @@ meshtastic --set lora.region US
 - Stuck in boot loop?
 - Error messages on screen?
 
-### Issue 4: Queue Overflow / Packet Drops
+### Issue 4: Replayed Packet Not Recaptured
+**Symptom**: You replay a packet but don't see it appear in the captured packets list
+
+**This is expected behavior**, not a bug. The SX1262 radio is **half-duplex** — it can either transmit OR receive, never both simultaneously:
+
+- When you replay, the radio switches to TX mode
+- After transmission completes, it returns to RX mode
+- By then, your own transmission is already over the air and gone
+
+**You cannot capture your own transmission.**
+
+**To verify replay is working:**
+1. **Second Meshtastic device**: Another node in range will receive and display the message
+2. **SDR receiver**: Use RTL-SDR + SDR++ to observe the RF transmission
+3. **Serial output**: Watch for "TX complete" confirmation
+4. **Relayed capture**: If another mesh node relays your packet, you may capture that *relayed* copy (from the other node, not your own TX)
+
+### Issue 5: Queue Overflow / Packet Drops
 **Symptom**: 
 - Serial shows: `[QUEUE] Full (100 packets) - dropping packet! Total drops: X`
 - Web UI toast: `⚠️ Queue overload: X packets dropped (Y%)`

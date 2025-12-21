@@ -1117,11 +1117,18 @@ class ReconApp {
         try {
             const gpsData = await this.get('/api/positions');
             if (gpsData && gpsData.positions && gpsData.positions.length > 0) {
+                // Sort by node ID for consistent display
+                const sortedPositions = [...gpsData.positions].sort((a, b) => {
+                    const aId = parseInt(a.nodeId, 16) || 0;
+                    const bId = parseInt(b.nodeId, 16) || 0;
+                    return aId - bId;
+                });
+                
                 let html = '<div class="table-wrapper"><table class="table"><thead><tr>';
                 html += '<th>Node ID</th><th>Latitude</th><th>Longitude</th><th>Altitude</th>';
                 html += '</tr></thead><tbody>';
                 
-                gpsData.positions.forEach(pos => {
+                sortedPositions.forEach(pos => {
                     html += '<tr>';
                     html += `<td><code>0x${escapeHtml(String(pos.nodeId))}</code></td>`;
                     html += `<td>${pos.lat.toFixed(6)}</td>`;
