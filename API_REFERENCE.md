@@ -1,7 +1,7 @@
 # 🔌 ESP32 LoRa Sniffer - REST API Reference
 
-**Version:** 2.2.0  
-**Base URL:** `http://192.168.4.1` or `http://esp32-lora.local`  
+**Version:** 2.2.1  
+**Base URL:** `http://192.168.4.1` or `http://lora-XXXXXX.local`  
 **Protocol:** HTTP/1.1  
 **Format:** JSON  
 **Authentication:** Token-based for protected endpoints (see [Authentication](#-authentication))  

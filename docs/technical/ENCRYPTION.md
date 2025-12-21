@@ -1,6 +1,6 @@
 # Meshtastic Encryption Reality Guide
 
-**Last Updated:** October 15, 2025  
+**Last Updated:** December 2025  
 **Firmware Version:** 2.5.0+ (June 2024 and later)  
 **Status:** Accurate for current Meshtastic implementations
 
