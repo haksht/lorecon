@@ -32,6 +32,18 @@ Passive LoRa reconnaissance firmware for ESP32-S3 + SX1262 hardware. The ESP32 h
 | Storage / Export | Optional SD logging (`packet_logger` with CSV + PCAP), KML/GeoJSON exports, Wireshark-compatible PCAP with LoRa metadata, security assessment reports, JSON APIs for scripting. |
 | Security | Token-based API authentication for sensitive endpoints, device-unique AP passwords, NVS credential storage, XSS prevention, input validation with bounds checking. |
 
+## Why This Over Alternatives?
+
+| Tool | Cost | LoRa Decode | PSK Decrypt | Standalone | Web UI |
+|------|------|-------------|-------------|------------|--------|
+| **This project** | **$30** | ✅ Full | ✅ 23 keys | ✅ | ✅ |
+| Flipper Zero + LoRa | $190-210 | Basic | ❌ | ✅ | ❌ |
+| HackRF + GNU Radio | $300+ | ✅ | Manual | ❌ (laptop) | ❌ |
+
+**vs. Flipper**: Flipper is a multi-tool; this is a specialist. 1/7th the cost, deeper Meshtastic analysis, includes leaked 2023 admin keys, mobile-friendly web UI.
+
+**vs. SDR**: SDR requires a laptop and GNU Radio expertise. This is pocket-sized, flash-and-go, with built-in replay and phone-accessible results.
+
 ## Quick Start (Pre-compiled Binary)
 
 **Don't want to compile?** Download the pre-built firmware:
