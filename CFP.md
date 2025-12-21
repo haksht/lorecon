@@ -124,6 +124,49 @@ Security researcher focused on wireless protocols and embedded systems. Backgrou
 
 ---
 
+## Competitive Differentiation (Anticipated Q&A)
+
+### vs. Flipper Zero + LoRa Backpack
+
+| Aspect | Flipper + LoRa Module | This Project |
+|--------|----------------------|---------------|
+| **Total Cost** | ~$170 (Flipper) + $20-40 (module) = **$190-210** | **~$30** |
+| **Form Factor** | Flipper + dangling GPIO board | **Single integrated unit** (radio + display + antenna) |
+| **LoRa Chip** | Usually SX1276/1278 (older) | **SX1262** (newer, better sensitivity) |
+| **Meshtastic Decode** | Basic packet display (Mayhem firmware) | **Full protocol parsing** + 23 PSK decryption |
+| **Web UI** | ❌ None | ✅ Mobile-friendly network map |
+| **Multi-protocol scan** | Manual frequency changes | **26 configs auto-cycle** (5 min) |
+| **GPS extraction** | ❌ | ✅ + KML/GeoJSON export |
+| **Packet replay** | Limited | **10-slot capture + configurable replay** |
+| **Leaked PSK testing** | ❌ | ✅ Including 2023 admin keys |
+| **Long-duration operation** | Battery drain, no watchdog | **Week+ unattended** (hardened firmware) |
+
+**Elevator pitch**: "Flipper is a Swiss Army knife — great if you need RFID, IR, NFC, and Sub-GHz too. This is the specialist scalpel for LoRa recon at 1/7th the cost."
+
+### vs. SDR Approaches (LoraCraft, HackRF, etc.)
+
+| Aspect | SDR-based Tools | This Project |
+|--------|----------------|---------------|
+| **Hardware Cost** | $100-300 (HackRF/LimeSDR) | **~$30** |
+| **Portability** | Laptop required | **Standalone** (battery + OLED) |
+| **Setup Complexity** | GNU Radio flowgraphs, drivers | **Flash and go** |
+| **Real-time latency** | Processing lag | **<50ms** interrupt-driven |
+| **Replay capability** | Complex TX path required | **Built-in** 10-slot replay |
+| **Web UI** | None (terminal only) | **Mobile-friendly** |
+
+**Elevator pitch**: "SDR gives you flexibility but requires a laptop, GNU Radio expertise, and custom flowgraphs. This is field-deployable — flash it, pocket it, check results on your phone."
+
+### Unique Capabilities
+
+- **23 PSKs including leaked 2023 admin keys** — not just "AQ=="
+- **26 frequency configs** — Meshtastic + LoRaWAN + Helium + ISM in one 5-min cycle
+- **Threat-scored network visualization** — color-coded vulnerability assessment
+- **GPS extraction + geographic export** — KML/GeoJSON for mapping
+- **Production firmware** — watchdog, auto-recovery, runs unattended for weeks
+- **$30 BOM** — conference attendees can build one tonight
+
+---
+
 ## Why CackalackyCon?
 
 This talk is a perfect fit for CackalackyCon because:
