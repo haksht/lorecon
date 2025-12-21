@@ -1,8 +1,27 @@
 # Meshtastic Detection & PSK Decryption Troubleshooting
 
 **Last Updated:** December 2025  
-**Version:** 2.0 Production  
+**Version:** 2.2.1 Production  
 **Status:** Packet capture ✅ | PSK decryption ✅ (23 keys including leaked admin keys)
+
+---
+
+## 🔒 Serial Console Activation (Noise Protection)
+
+To prevent USB electrical noise from triggering phantom commands during unattended operation, serial commands are **disabled by default**.
+
+### Activating Serial Console
+1. Press **Enter** once → See "Press Enter again within 1.5s to activate..."
+2. Press **Enter** again within 1.5 seconds → Console activated ✓
+3. Now commands like `m`, `f`, `r` will work
+
+### Auto-Deactivation
+- Console automatically deactivates after **5 minutes of inactivity**
+- Re-authenticate by pressing Enter twice again
+- Protects against overnight/week-long USB noise issues
+
+### Why This Matters
+USB cables can pick up electrical interference that appears as random characters. Without this protection, noise bytes like `0x6D` (ASCII 'm') could switch the device to menu mode unexpectedly.
 
 ---
 

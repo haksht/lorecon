@@ -34,12 +34,18 @@ public:
     // Show available commands (for help menu)
     void showCommands();
     
-    // Check if serial is activated (user has pressed Enter)
+    // Check if serial is activated (user has pressed Enter twice)
     bool isSerialActivated() const { return serialActivated; }
     
 private:
     IReconTool* reconTool;
-    bool serialActivated = false;  // True after user presses Enter
+    bool serialActivated = false;      // True after user presses Enter twice
+    uint32_t firstEnterTime = 0;       // Timestamp of first Enter for double-Enter detection
+    uint32_t lastEnterTime = 0;        // Debounce: ignore \r\n arriving as single keypress
+    uint32_t lastCommandTime = 0;      // Auto-deactivate after inactivity
+    static constexpr uint32_t DOUBLE_ENTER_WINDOW_MS = 1500;  // Time window for second Enter
+    static constexpr uint32_t ENTER_DEBOUNCE_MS = 100;        // Ignore \r\n as separate keypresses
+    static constexpr uint32_t INACTIVITY_TIMEOUT_MS = 300000; // 5 min auto-deactivate
     
     // Command implementations (static for use in table)
     static void cmdShowMenu(IReconTool* tool);
