@@ -261,6 +261,11 @@ namespace Security {
     
     // Maximum replay delay (prevents long blocking)
     constexpr uint16_t MAX_REPLAY_DELAY_MS = 5000;
+    
+    // Rate limiting configuration
+    constexpr uint16_t RATE_LIMIT_REQUESTS = 10;      // Max requests per window
+    constexpr uint16_t RATE_LIMIT_WINDOW_MS = 1000;   // Window size (1 second)
+    constexpr uint8_t RATE_LIMIT_BUCKETS = 8;         // IP tracking buckets
 }
 
 // ============================================================================
