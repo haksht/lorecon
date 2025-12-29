@@ -172,6 +172,8 @@ void CommandHandler::showCommands() {
 // ============================================================================
 
 void CommandHandler::cmdShowMenu(IReconTool* tool) {
+    ModeManager modeManager;
+    modeManager.logModeTransition(reconState.scanState.mode, MODE_INTERACTIVE_MENU, "Serial:showMenu");
     reconState.scanState.mode = MODE_INTERACTIVE_MENU;
     // Track when menu mode was entered for auto-timeout
     if (g_reconTool) {
@@ -207,8 +209,11 @@ void CommandHandler::cmdResumeRecon(IReconTool* tool) {
     
     // Clear persisted targeting mode from NVS
     ModeManager modeManager;
-    modeManager.clearPersistedMode();
+    modeManager.clearPersistedMode("Serial:resumeRecon");
     Serial.println("[MODE] Cleared persisted targeting mode");
+    
+    // Log the mode transition
+    modeManager.logModeTransition(reconState.scanState.mode, MODE_RECONNAISSANCE, "Serial:resumeRecon");
     
     // Reset only the scan state to restart the cycle
     reconState.scanState.mode = MODE_RECONNAISSANCE;
@@ -270,6 +275,8 @@ void CommandHandler::cmdShowSummary(IReconTool* tool) {
 
 void CommandHandler::cmdSecurityAssessment(IReconTool* tool) {
     showSecurityAssessment();
+    ModeManager modeManager;
+    modeManager.logModeTransition(reconState.scanState.mode, MODE_INTERACTIVE_MENU, "Serial:securityAssess");
     reconState.scanState.mode = MODE_INTERACTIVE_MENU;
     if (g_reconTool) {
         g_reconTool->setMenuModeEntered();

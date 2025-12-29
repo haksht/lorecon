@@ -154,12 +154,13 @@ String APIController::startScan() {
     
     // Clear persisted targeting mode from NVS
     ModeManager modeManager;
-    modeManager.clearPersistedMode();
+    modeManager.clearPersistedMode("API:startScan");
     
     // Resume reconnaissance WITHOUT clearing discovered devices/data
     LOG_INFO("API: Resuming reconnaissance scan");
     
-    // Reset scan state to restart the cycle
+    // Log mode transition and reset scan state
+    modeManager.logModeTransition(reconState.scanState.mode, MODE_RECONNAISSANCE, "API:startScan");
     reconState.scanState.mode = MODE_RECONNAISSANCE;
     reconState.scanState.currentConfig = 0;
     reconState.scanState.lastScanSwitch = millis();
@@ -196,6 +197,8 @@ String APIController::stopScan() {
                            (reconState.scanState.mode == MODE_PACKET_REPLAY) ? "replay" : "reconnaissance";
     LOG_INFO("API: stopScan called (previous mode: %s)", prevMode);
     
+    ModeManager modeManager;
+    modeManager.logModeTransition(reconState.scanState.mode, MODE_INTERACTIVE_MENU, "API:stopScan");
     reconState.scanState.mode = MODE_INTERACTIVE_MENU;
     if (g_reconTool) {
         g_reconTool->setMenuModeEntered();

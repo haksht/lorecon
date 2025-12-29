@@ -72,7 +72,7 @@ bool ReconService::stopCapture(String& outMessage) {
     
     // Clear persisted targeting mode from NVS
     ModeManager modeManager;
-    modeManager.clearPersistedMode();
+    modeManager.clearPersistedMode("API:stopCapture");
     
     reconState.scanState.mode = MODE_RECONNAISSANCE;
     outMessage = "Capture stopped, resumed reconnaissance";

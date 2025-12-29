@@ -174,8 +174,22 @@ bool LoRaReconTool::initialize() {
 void LoRaReconTool::update() {
     uint32_t now = millis();
     
+    // MODE WATCHDOG: Check every loop iteration for mode changes
+    static OperationMode lastKnownMode = reconState.scanState.mode;
+    if (reconState.scanState.mode != lastKnownMode) {
+        // Mode changed - log immediately with timestamp
+        LOG_WARN("🔀 MODE CHANGED: %d→%d at uptime %lu ms (%.1f hours)", 
+                 lastKnownMode, reconState.scanState.mode, now, now / 3600000.0f);
+        
+        // Log the mode transition to NVS for persistence
+        modeManager.logModeTransition(lastKnownMode, reconState.scanState.mode, "runtime");
+        
+        lastKnownMode = reconState.scanState.mode;
+    }
+    
     // Periodic health check and device archival (every 5 minutes)
     static uint32_t lastHealthCheck = 0;
+    
     if (now - lastHealthCheck >= 300000) {  // 5 minutes
         // Update network intelligence statistics
         reconState.updateNetworkIntel();
@@ -229,6 +243,7 @@ void LoRaReconTool::update() {
             // Auto-resume after timeout to prevent "left in menu mode" issue
             if (menuModeEnteredAt > 0 && (now - menuModeEnteredAt) >= Config::UI::MENU_TIMEOUT_MS) {
                 LOG_INFO("Menu timeout after %d ms - auto-resuming reconnaissance mode", Config::UI::MENU_TIMEOUT_MS);
+                modeManager.logModeTransition(MODE_INTERACTIVE_MENU, MODE_RECONNAISSANCE, "MenuTimeout");
                 reconState.scanState.mode = MODE_RECONNAISSANCE;
                 menuModeEnteredAt = 0;
             }
@@ -326,7 +341,12 @@ void LoRaReconTool::startTargetedCapture(uint8_t deviceIndex) {
     const TargetableDevice& target = reconState.getTargetableDevice(deviceIndex);
     
     LOG_INFO("Starting targeted capture on device 0x%08X (device targeting)", target.nodeId);
+    
+    // Log the mode transition with source
+    OperationMode previousMode = reconState.scanState.mode;
     reconState.scanState.mode = MODE_TARGETED_CAPTURE;
+    modeManager.logModeTransition(previousMode, MODE_TARGETED_CAPTURE, "Serial:targetDevice");
+    
     reconState.scanState.targetConfig = target.configIndex;
     reconState.scanState.targetedByDevice = true;  // Device targeting
     reconState.scanState.currentConfig = target.configIndex;
@@ -401,7 +421,12 @@ void LoRaReconTool::startFrequencyTargeting(uint8_t configIndex) {
     // Set up targeting mode
     LOG_INFO("Starting frequency targeting on config %d: %s @ %.3f MHz", 
              configIndex, cfg.protocol, cfg.frequency);
+    
+    // Log the mode transition with source
+    OperationMode previousMode = reconState.scanState.mode;
     reconState.scanState.mode = MODE_TARGETED_CAPTURE;
+    modeManager.logModeTransition(previousMode, MODE_TARGETED_CAPTURE, "Serial:freqTarget");
+    
     reconState.scanState.targetConfig = configIndex;
     reconState.scanState.targetedByDevice = false;  // Frequency targeting
     reconState.scanState.currentConfig = configIndex;
@@ -431,6 +456,9 @@ void LoRaReconTool::startFrequencyTargeting(uint8_t configIndex) {
 
 // Packet Replay Functions
 void LoRaReconTool::showReplayMenu() {
+    // Remember what mode we came from so we can return to it
+    OperationMode previousMode = reconState.scanState.mode;
+    
     Serial.println("\n📡 PACKET REPLAY MENU");
     Serial.println("====================");
     
@@ -452,9 +480,15 @@ void LoRaReconTool::showReplayMenu() {
           delay(10);
         }
         if (Serial.available()) Serial.read();
-        reconState.scanState.mode = MODE_INTERACTIVE_MENU;
-        setMenuModeEntered();
-        showReconResults();
+        // Restore previous mode instead of forcing menu mode
+        reconState.scanState.mode = previousMode;
+        if (previousMode == MODE_INTERACTIVE_MENU) {
+            setMenuModeEntered();
+            showReconResults();
+        } else {
+            Serial.printf("Returning to %s mode...\n", 
+                previousMode == MODE_TARGETED_CAPTURE ? "targeting" : "reconnaissance");
+        }
         return;
     }
     
@@ -484,10 +518,14 @@ void LoRaReconTool::showReplayMenu() {
   uint32_t startTime = millis();
   while (!Serial.available()) {
     if (millis() - startTime > 30000) {  // 30 second timeout
-      Serial.println("\n[TIMEOUT] Returning to main menu...");
-      reconState.scanState.mode = MODE_INTERACTIVE_MENU;
-      setMenuModeEntered();
-      showReconResults();
+      Serial.printf("\n[TIMEOUT] Returning to %s mode...\n",
+          previousMode == MODE_TARGETED_CAPTURE ? "targeting" :
+          previousMode == MODE_INTERACTIVE_MENU ? "menu" : "reconnaissance");
+      reconState.scanState.mode = previousMode;
+      if (previousMode == MODE_INTERACTIVE_MENU) {
+          setMenuModeEntered();
+          showReconResults();
+      }
       return;
     }
     esp_task_wdt_reset();  // Feed watchdog while waiting
@@ -526,9 +564,15 @@ void LoRaReconTool::showReplayMenu() {
         }
         showReplayMenu();
     } else if (cmd == 'm' || cmd == 'M') {
-        reconState.scanState.mode = MODE_INTERACTIVE_MENU;
-        setMenuModeEntered();
-        showReconResults();
+        // Restore previous mode instead of forcing menu mode
+        reconState.scanState.mode = previousMode;
+        if (previousMode == MODE_INTERACTIVE_MENU) {
+            setMenuModeEntered();
+            showReconResults();
+        } else {
+            Serial.printf("Returning to %s mode...\n",
+                previousMode == MODE_TARGETED_CAPTURE ? "targeting" : "reconnaissance");
+        }
     } else {
         Serial.println("❌ Invalid option");
         delay(1000);
