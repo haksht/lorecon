@@ -28,11 +28,46 @@
 #include "psk_tests.h"
 #include "oled_display.h"
 #include "api_security.h"
+#include "recon_state.h"
 #include <LittleFS.h>
 #include <Preferences.h>
 #include <esp_system.h>
 #include "soc/rtc_cntl_reg.h"
 #include "soc/soc.h"
+
+// Crash context tracking - saved to NVS for post-mortem analysis
+namespace CrashContext {
+    static Preferences prefs;
+    static constexpr const char* NVS_NAMESPACE = "crash";
+    
+    void saveState(uint8_t mode, uint32_t uptimeSec, uint32_t freeHeap) {
+        if (!prefs.begin(NVS_NAMESPACE, false)) return;
+        prefs.putUChar("lastMode", mode);
+        prefs.putULong("lastUptime", uptimeSec);
+        prefs.putULong("lastHeap", freeHeap);
+        prefs.putULong("saveCount", prefs.getULong("saveCount", 0) + 1);
+        prefs.end();
+    }
+    
+    void loadAndReport() {
+        if (!prefs.begin(NVS_NAMESPACE, true)) return;
+        uint8_t lastMode = prefs.getUChar("lastMode", 255);
+        uint32_t lastUptime = prefs.getULong("lastUptime", 0);
+        uint32_t lastHeap = prefs.getULong("lastHeap", 0);
+        uint32_t saveCount = prefs.getULong("saveCount", 0);
+        prefs.end();
+        
+        if (lastMode != 255 && lastUptime > 0) {
+            const char* modeStr = (lastMode == 0) ? "RECON" : 
+                                  (lastMode == 1) ? "TARGETED" :
+                                  (lastMode == 2) ? "MENU" :
+                                  (lastMode == 3) ? "REPLAY" : "UNKNOWN";
+            LOG_INFO("📊 Pre-crash context: mode=%s, uptime=%lu sec, heap=%lu bytes", 
+                     modeStr, lastUptime, lastHeap);
+            LOG_INFO("   (crash context saved %lu times since flash)", saveCount);
+        }
+    }
+}
 
 // Global instances
 LoRaReconTool reconTool;
@@ -75,6 +110,11 @@ void setup() {
     if (resetReason == ESP_RST_PANIC || resetReason == ESP_RST_TASK_WDT || 
         resetReason == ESP_RST_INT_WDT || resetReason == ESP_RST_WDT) {
         LOG_WARN("⚠️  ABNORMAL RESTART - check for bugs or blocking code");
+        // Show what state device was in before crash
+        CrashContext::loadAndReport();
+    } else if (resetReason != ESP_RST_POWERON) {
+        // Also show context for software resets (useful for debugging)
+        CrashContext::loadAndReport();
     }
     
     // Initialize LittleFS for web app files
@@ -164,6 +204,19 @@ void loop() {
 
     // Update WiFi connection monitoring
     wifiManager.update();
+    
+    // Periodically save crash context (every 60 seconds)
+    // If device crashes, we'll know what mode it was in
+    static uint32_t lastCrashContextSave = 0;
+    uint32_t now = millis();
+    if (now - lastCrashContextSave >= 60000) {
+        CrashContext::saveState(
+            reconState.scanState.mode,
+            now / 1000,
+            ESP.getFreeHeap()
+        );
+        lastCrashContextSave = now;
+    }
     
     // Small delay to prevent watchdog triggers
     delay(10);

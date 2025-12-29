@@ -1,12 +1,12 @@
-# Complete Understanding Guide - ESP32 LoRa Reconnaissance Tool v2.0
+# Complete Understanding Guide - ESP32 LoRa Reconnaissance Tool v2.2
 
-**A Personal Teacher for the v2.0 Architecture**
+**A Personal Teacher for the v2.0+ Architecture**
 
 This document explains everything needed to deeply understand the v2.0 refactored codebase - from hardware fundamentals to the clean component architecture. Study at your own pace, revisit sections as needed, and use this as a reference guide.
 
-**Version:** 2.0 (November 2025)  
+**Version:** 2.2.1 (December 2025)  
 **Architecture:** RadioController, PacketProcessor, IReconTool interface pattern  
-**Goal:** Master the v2.0 codebase completely
+**Goal:** Master the codebase completely
 
 ---
 

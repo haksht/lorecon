@@ -450,6 +450,8 @@ def main():
                        help='Disable colored output')
     parser.add_argument('--list-psks', action='store_true',
                        help='List all known PSKs in database')
+    parser.add_argument('--demo', action='store_true',
+                       help='Demo mode: simulated audit results (no input needed)')
     
     args = parser.parse_args()
     
@@ -459,6 +461,53 @@ def main():
         print("─"*70)
         for psk_b64, name, risk, desc in PSK_DATABASE:
             print(f"{risk:<10} {name:<25} {desc}")
+        return 0
+    
+    # Demo mode - generate simulated audit results
+    if args.demo:
+        import random
+        print("\n🎮 DEMO MODE: PSK Vulnerability Audit\n")
+        print("Simulating audit of captured Meshtastic traffic...\n")
+        
+        auditor = PSKAuditor(verbose=args.verbose, no_color=args.no_color)
+        
+        # Simulate findings across different risk levels
+        demo_findings = [
+            ("Default 0x01 (classic)", "CRITICAL", "Factory default - 60% of devices", 
+             ["!a1b2c3d4", "!9a8b7c6d"], 17),
+            ("LongFast public channel", "HIGH", "Public preset - unencrypted", 
+             ["!f5e6d7c8"], 8),
+            ("ShortFast preset", "HIGH", "Common preset", 
+             ["!1234abcd"], 3),
+        ]
+        
+        # Populate auditor with simulated data
+        total_packets = 43
+        vuln_packets = 28
+        
+        for psk_name, risk, desc, devices, count in demo_findings:
+            auditor.vulnerable_networks[psk_name] = {
+                'psk_name': psk_name,
+                'psk_risk': risk,
+                'psk_description': desc,
+                'packet_count': count,
+                'devices': set(devices),
+                'first_seen': f"2024-12-20 10:{random.randint(10,59):02d}:00",
+                'last_seen': f"2024-12-20 11:{random.randint(10,59):02d}:00",
+                'sample_data': [f"Decrypted content from {devices[0]}..."],
+            }
+        
+        auditor.total_tested = total_packets
+        auditor.total_vulnerable = vuln_packets
+        auditor.unencrypted = 0
+        auditor.failed = total_packets - vuln_packets
+        
+        print(f"✅ Analyzed {total_packets} encrypted packets\n")
+        
+        if args.json:
+            print(auditor.export_json())
+        else:
+            auditor.print_results()
         return 0
     
     if not args.input and not args.live:

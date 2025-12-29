@@ -2,6 +2,19 @@
 
 All notable changes to the ESP32 LoRa Sniffer project.
 
+## [2.2.1] - 2024-12-21
+
+### Fixed
+- **Serial noise hardening**: Phantom mode switches caused by USB electrical noise
+  - Double-Enter activation required (2 keypresses within 1.5s)
+  - `\r\n` debounce prevents single keypress from double-triggering (100ms window)
+  - Auto-deactivation after 5 minutes of inactivity
+  - Protects week-long unattended operation
+
+### Added
+- Debug logging for packet replay API (`[API] buildReplaySlotsJson`)
+- `INACTIVITY_TIMEOUT_MS` constant for configurable auto-deactivation
+
 ## [2.2.0] - 2024-12-20
 
 ### Security

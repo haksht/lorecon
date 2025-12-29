@@ -13,7 +13,7 @@ Passive LoRa reconnaissance firmware for ESP32-S3 + SX1262 hardware. The ESP32 h
 ## Current Status
 
 - **Branch:** `main`
-- **Version:** 2.2.0 (Security Hardening + API Authentication)
+- **Version:** 2.2.1 (Serial Noise Hardening + Long-Duration Operation)
 - **Hardware:** **Heltec WiFi LoRa 32 V3** (ESP32-S3 + SX1262 + OLED). Optional SD card.
   - ✅ **Fully Supported:** Heltec WiFi LoRa 32 V3 (tested, production-ready)
   - ⚠️ **Not Supported:** T-Deck variants (hardware incompatibilities - see `docs/hardware/TDECK_PLUS_INVESTIGATION.md` for details)
@@ -31,6 +31,33 @@ Passive LoRa reconnaissance firmware for ESP32-S3 + SX1262 hardware. The ESP32 h
 | UI Surfaces | 1) Serial menu (command handler with dispatch table). 2) OLED quick-look cards. 3) **WiFi Web UI** with threat-colored network map, signal heatmaps, vulnerability assessment, and live packet visualization. |
 | Storage / Export | Optional SD logging (`packet_logger` with CSV + PCAP), KML/GeoJSON exports, Wireshark-compatible PCAP with LoRa metadata, security assessment reports, JSON APIs for scripting. |
 | Security | Token-based API authentication for sensitive endpoints, device-unique AP passwords, NVS credential storage, XSS prevention, input validation with bounds checking. |
+
+## Why This Over Alternatives?
+
+| Tool | Cost | LoRa Decode | PSK Decrypt | Standalone | Web UI |
+|------|------|-------------|-------------|------------|--------|
+| **This project** | **$30** | ✅ Full | ✅ 23 keys | ✅ | ✅ |
+| Flipper Zero + LoRa | $190-210 | Basic | ❌ | ✅ | ❌ |
+| HackRF + GNU Radio | $300+ | ✅ | Manual | ❌ (laptop) | ❌ |
+
+**vs. Flipper**: Flipper is a multi-tool; this is a specialist. 1/7th the cost, deeper Meshtastic analysis, includes leaked 2023 admin keys, mobile-friendly web UI.
+
+**vs. SDR**: SDR requires a laptop and GNU Radio expertise. This is pocket-sized, flash-and-go, with built-in replay and phone-accessible results.
+
+## Bill of Materials (~$35-50 USD)
+
+| Component | Price | Notes | Link |
+|-----------|-------|-------|------|
+| **Heltec WiFi LoRa 32 V3** | $22-28 | ESP32-S3 + SX1262 + OLED | [Amazon](https://www.amazon.com/dp/B0B697NLJ5) / [AliExpress](https://www.aliexpress.com/item/1005005967763162.html) |
+| 915MHz Antenna (RP-SMA) | $0-8 | Often included with board | [Amazon](https://www.amazon.com/dp/B09K3WMCVN) |
+| USB-C Cable | $0 | You have one | — |
+| **Optional:** 3D Printed Case | $5-10 | Search "Heltec V3 case" | [Printables](https://www.printables.com/search/models?q=heltec%20v3) |
+| **Optional:** 18650 Battery | $8-12 | For portable operation | [Amazon](https://www.amazon.com/dp/B0BG8XJMQX) |
+| **Optional:** SD Card | $5-8 | For PCAP logging | Any microSD |
+
+**Total**: ~$30 basic / ~$50 with case + battery
+
+**Time to first packet**: Under 5 minutes (flash → power → scanning)
 
 ## Quick Start (Pre-compiled Binary)
 

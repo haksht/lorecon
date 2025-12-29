@@ -11,6 +11,7 @@
 #include "geo_intelligence.h"
 #include "data_structures.h"
 #include "text_packet_diagnostic.h"
+#include "mode_manager.h"
 #include "utils/format_utils.h"
 #include "utils/security_scorer.h"
 #include "config.h"
@@ -127,6 +128,10 @@ String buildStatusJson(ReconState& reconState) {
     doc["capturedPackets"] = reconState.getNumCapturedPackets();
     doc["freeHeap"] = ESP.getFreeHeap();
     doc["heapSize"] = ESP.getHeapSize();
+    
+    // Mode change counter for debugging long-duration tests
+    ModeManager modeManager;
+    doc["modeChangeCount"] = modeManager.getModeChangeCount();
 
     // Battery voltage reading (Heltec V3: GPIO 37 control, GPIO 1 ADC)
     pinMode(Config::Hardware::VBAT_CTRL_PIN, OUTPUT);
@@ -615,15 +620,23 @@ String buildReplaySlotsJson(ReconState& reconState) {
     JsonDocument doc;
     doc["status"] = "success";
     doc["capacity"] = Config::Replay::MAX_SLOTS;
-    doc["count"] = reconState.getNumCapturedPackets();
-    doc["available"] = Config::Replay::MAX_SLOTS - reconState.getNumCapturedPackets();
+    
+    uint8_t numCaptured = reconState.getNumCapturedPackets();
+    doc["count"] = numCaptured;
+    doc["available"] = Config::Replay::MAX_SLOTS - numCaptured;
+    
+    // Debug: Log what we're building
+    Serial.printf("[API] buildReplaySlotsJson: numCaptured=%d\n", numCaptured);
 
     JsonArray slots = doc["slots"].to<JsonArray>();
-    for (uint8_t i = 0; i < reconState.getNumCapturedPackets(); i++) {
+    uint8_t validCount = 0;
+    for (uint8_t i = 0; i < numCaptured; i++) {
         const CapturedPacket& packet = reconState.getReplayPacket(i);
         if (!packet.valid) {
+            Serial.printf("[API] Slot %d: invalid (skipped)\n", i);
             continue;
         }
+        validCount++;
 
         JsonObject slot = slots.add<JsonObject>();
         slot["index"] = i + 1;
@@ -671,6 +684,8 @@ String buildReplaySlotsJson(ReconState& reconState) {
             slot["decryptedText"] = packet.decryptedText;
         }
     }
+    
+    Serial.printf("[API] buildReplaySlotsJson: returned %d valid slots\n", validCount);
 
     String response;
     serializeJson(doc, response);

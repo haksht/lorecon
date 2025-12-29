@@ -144,7 +144,7 @@ class WarRoom {
                         <div class="war-metric-value">${this.metrics.activeDevices}</div>
                     </div>
                     <div class="war-metric-card">
-                        <div class="war-metric-label">Packet Rate</div>
+                        <div class="war-metric-label">Pkt Rate</div>
                         <div class="war-metric-value">${this.metrics.packetRate}<span class="war-metric-unit">/min</span></div>
                     </div>
                     <div class="war-metric-card">

@@ -455,4 +455,44 @@ void OLEDDisplay::renderShutdown() {
     display.drawStr(25, 60, "power now");
 }
 
+void OLEDDisplay::showApiToken(const char* token) {
+    if (!displayOn) turnOn();
+    
+    display.clearBuffer();
+    
+    // Header
+    display.setFont(u8g2_font_8x13_tf);
+    display.drawStr(0, 12, "API TOKEN");
+    
+    // Draw separator line
+    display.drawHLine(0, 15, 128);
+    
+    // Token display - split into two lines (32 chars total)
+    display.setFont(u8g2_font_6x10_tf);
+    
+    if (token != nullptr && strlen(token) > 0) {
+        // First 16 characters
+        char line1[17] = {0};
+        strncpy(line1, token, 16);
+        display.drawStr(0, 30, line1);
+        
+        // Second 16 characters
+        if (strlen(token) > 16) {
+            char line2[17] = {0};
+            strncpy(line2, token + 16, 16);
+            display.drawStr(0, 42, line2);
+        }
+    }
+    
+    // Instructions
+    display.setFont(u8g2_font_5x7_tf);
+    display.drawStr(0, 54, "Enter in Settings >");
+    display.drawStr(0, 63, "API Authentication");
+    
+    display.sendBuffer();
+    resetAutoOffTimer();
+    
+    Serial.println("[DISPLAY] API token displayed on OLED");
+}
+
 #endif // BOARD_HELTEC_V3
