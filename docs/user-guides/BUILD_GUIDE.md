@@ -13,6 +13,35 @@ This project is a **production-ready LoRa reconnaissance platform** using Platfo
 
 ---
 
+## 🛒 **Bill of Materials (~$35-50 USD)**
+
+### Essential Hardware
+
+| Component | Price | Notes | Where to Buy |
+|-----------|-------|-------|-------------|
+| **Heltec WiFi LoRa 32 V3** | $22-28 | ESP32-S3 + SX1262 + 0.96" OLED | [Amazon](https://www.amazon.com/dp/B0B697NLJ5) / [AliExpress](https://www.aliexpress.com/item/1005005967763162.html) / [Heltec Store](https://heltec.org/project/wifi-lora-32-v3/) |
+| 915MHz LoRa Antenna | $0-8 | Usually included with board; RP-SMA connector | [Amazon](https://www.amazon.com/dp/B09K3WMCVN) |
+| USB-C Data Cable | $0 | For programming and power | Any data-capable USB-C cable |
+
+### Recommended Additions
+
+| Component | Price | Why You Want It | Where to Buy |
+|-----------|-------|-----------------|-------------|
+| 3D Printed Enclosure | $5-15 | Protection, professional look, belt clip | [Printables](https://www.printables.com/search/models?q=heltec%20v3) / [Thingiverse](https://www.thingiverse.com/search?q=heltec+v3) |
+| 18650 Li-Ion Battery | $8-12 | 4-8 hours portable operation | [Amazon](https://www.amazon.com/dp/B0BG8XJMQX) |
+| External 915MHz Antenna | $10-20 | Better range (6dBi vs 2dBi stock) | [Amazon](https://www.amazon.com/dp/B086ZG5WMR) |
+| MicroSD Card (8-32GB) | $5-8 | PCAP logging, CSV export | Any Class 10 card |
+
+### Total Cost
+
+- **Minimal build**: ~$25-30 (board + included antenna)
+- **Recommended build**: ~$40-50 (+ case + battery)
+- **Full build**: ~$60-70 (+ better antenna + SD card)
+
+**Time to first packet**: Under 5 minutes (flash firmware → power on → start scanning)
+
+---
+
 ## 🚀 **Quick Build Commands**
 
 ```bash

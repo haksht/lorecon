@@ -24,6 +24,35 @@ function escapeHtml(text) {
     return div.innerHTML;
 }
 
+// ===== API Token Management =====
+const AUTH_TOKEN_KEY = 'esp32_lora_api_token';
+
+function getStoredToken() {
+    return localStorage.getItem(AUTH_TOKEN_KEY) || '';
+}
+
+function setStoredToken(token) {
+    if (token) {
+        localStorage.setItem(AUTH_TOKEN_KEY, token.trim());
+    } else {
+        localStorage.removeItem(AUTH_TOKEN_KEY);
+    }
+}
+
+function promptForToken() {
+    const token = prompt(
+        'API Token Required\n\n' +
+        'Protected actions (replay, targeting, etc.) require authentication.\n' +
+        'Find your token in the serial output at device boot.\n\n' +
+        'Enter API Token:'
+    );
+    if (token) {
+        setStoredToken(token);
+        showToast('API token saved', 'success');
+    }
+    return token;
+}
+
 // ===== UI Helper Utilities =====
 // RSSI classification helper - eliminates 4+ duplicates across codebase
 function formatRSSI(rssi, includeValue = true) {
@@ -1088,11 +1117,18 @@ class ReconApp {
         try {
             const gpsData = await this.get('/api/positions');
             if (gpsData && gpsData.positions && gpsData.positions.length > 0) {
+                // Sort by node ID for consistent display
+                const sortedPositions = [...gpsData.positions].sort((a, b) => {
+                    const aId = parseInt(a.nodeId, 16) || 0;
+                    const bId = parseInt(b.nodeId, 16) || 0;
+                    return aId - bId;
+                });
+                
                 let html = '<div class="table-wrapper"><table class="table"><thead><tr>';
                 html += '<th>Node ID</th><th>Latitude</th><th>Longitude</th><th>Altitude</th>';
                 html += '</tr></thead><tbody>';
                 
-                gpsData.positions.forEach(pos => {
+                sortedPositions.forEach(pos => {
                     html += '<tr>';
                     html += `<td><code>0x${escapeHtml(String(pos.nodeId))}</code></td>`;
                     html += `<td>${pos.lat.toFixed(6)}</td>`;
@@ -1950,17 +1986,32 @@ class ReconApp {
         }
     }
 
-    async post(endpoint, body = {}) {
+    async post(endpoint, body = {}, retry = true) {
         const formData = new URLSearchParams();
         Object.entries(body).forEach(([key, value]) => {
             formData.append(key, value);
         });
 
+        const headers = { 'Content-Type': 'application/x-www-form-urlencoded' };
+        const token = getStoredToken();
+        if (token) {
+            headers['X-API-Token'] = token;
+        }
+
         const response = await fetch(endpoint, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            headers,
             body: formData.toString()
         });
+
+        // Handle 401 Unauthorized - prompt for token and retry once
+        if (response.status === 401 && retry) {
+            const newToken = promptForToken();
+            if (newToken) {
+                return this.post(endpoint, body, false); // Retry with new token
+            }
+            throw new Error('Authentication required. Set your API token in Settings.');
+        }
 
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         return await response.json();

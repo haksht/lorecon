@@ -4,6 +4,32 @@
  * Provides consistent security scoring across UI and API.
  * Eliminates duplicate implementations and ensures identical
  * scoring logic everywhere.
+ * 
+ * SCORING METHODOLOGY:
+ * ====================
+ * Devices start at 100 points (fully secure) and lose points for risk factors:
+ * 
+ * Risk Factor              | Points Lost | Rationale
+ * -------------------------|-------------|------------------------------------------
+ * Physical proximity       | -15         | RSSI > -50 dBm means device is very close
+ *                          |             | (within ~5m), easier to intercept/attack
+ * Router device            | -10         | Routers forward messages, larger attack
+ *                          |             | surface, can be used to inject traffic
+ * High packet count (>100) | -15         | Chatty devices leak more metadata,
+ *                          |             | easier to fingerprint and track
+ * Low packet count (<5)    | -5          | May indicate battery issues, unreliable
+ * Outdated firmware        | -20         | Old firmware (v1.x, v2.0) has known vulns
+ * 
+ * RATING THRESHOLDS:
+ * - Score >= 80: "secure" (green)
+ * - Score >= 60: "moderate" (yellow)
+ * - Score < 60:  "vulnerable" (red)
+ * 
+ * ROUTER DETECTION:
+ * =================
+ * A device is marked as a router when it has relayed >= 2 packets.
+ * Relay detection uses Meshtastic hop count: if hop_count < 3 (default hop limit),
+ * the packet was forwarded by an intermediate node. See device_repository.cpp.
  */
 
 #ifndef SECURITY_SCORER_H

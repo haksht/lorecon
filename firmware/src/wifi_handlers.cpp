@@ -49,7 +49,11 @@ void handleGetWiFiStatus(AsyncWebServerRequest* request) {
 }
 
 void handleSetWiFiCredentials(AsyncWebServerRequest* request) {
-    // Authentication required - credentials are sensitive
+    // Authentication and rate limiting required - credentials are sensitive
+    if (!APISecurity::checkRateLimit(request)) {
+        APISecurity::sendRateLimited(request);
+        return;
+    }
     if (!APISecurity::isAuthenticated(request)) {
         APISecurity::sendUnauthorized(request);
         return;
@@ -98,7 +102,11 @@ void handleSetWiFiCredentials(AsyncWebServerRequest* request) {
 }
 
 void handleClearWiFiCredentials(AsyncWebServerRequest* request) {
-    // Authentication required - clears credentials and reboots
+    // Authentication and rate limiting required - clears credentials and reboots
+    if (!APISecurity::checkRateLimit(request)) {
+        APISecurity::sendRateLimited(request);
+        return;
+    }
     if (!APISecurity::isAuthenticated(request)) {
         APISecurity::sendUnauthorized(request);
         return;

@@ -10,6 +10,7 @@
 // Static member initialization
 String APISecurity::apiToken = "";
 bool APISecurity::initialized = false;
+RateLimitBucket APISecurity::rateLimitBuckets[Config::Security::RATE_LIMIT_BUCKETS] = {};
 
 void APISecurity::begin() {
     if (initialized) return;
@@ -54,6 +55,24 @@ bool APISecurity::isAuthenticated(AsyncWebServerRequest* request) {
     }
     
     if (!initialized) begin();
+    
+    // Auto-trust clients on private networks (RFC 1918)
+    // Rationale: Private IP = already authenticated to local network (WiFi password)
+    // Threat model: prevent random internet access, not LAN neighbors
+    IPAddress clientIP = request->client()->remoteIP();
+    
+    // 10.0.0.0/8 - Class A private
+    if (clientIP[0] == 10) {
+        return true;
+    }
+    // 172.16.0.0/12 - Class B private (172.16.x.x - 172.31.x.x)
+    if (clientIP[0] == 172 && clientIP[1] >= 16 && clientIP[1] <= 31) {
+        return true;
+    }
+    // 192.168.0.0/16 - Class C private
+    if (clientIP[0] == 192 && clientIP[1] == 168) {
+        return true;
+    }
     
     // Check for token in header
     if (request->hasHeader(Config::Security::AUTH_HEADER)) {
@@ -146,4 +165,66 @@ String APISecurity::generateToken() {
     token[Config::Security::TOKEN_LENGTH] = '\0';
     
     return String(token);
+}
+
+uint32_t APISecurity::hashIP(IPAddress ip) {
+    // Simple hash for IP address
+    return (ip[0] << 24) | (ip[1] << 16) | (ip[2] << 8) | ip[3];
+}
+
+bool APISecurity::checkRateLimit(AsyncWebServerRequest* request) {
+    uint32_t now = millis();
+    IPAddress clientIP = request->client()->remoteIP();
+    uint32_t ipHash = hashIP(clientIP);
+    
+    // Find existing bucket or oldest bucket to reuse
+    int bucketIdx = -1;
+    uint32_t oldestTime = UINT32_MAX;
+    int oldestIdx = 0;
+    
+    for (int i = 0; i < Config::Security::RATE_LIMIT_BUCKETS; i++) {
+        if (rateLimitBuckets[i].ipHash == ipHash) {
+            bucketIdx = i;
+            break;
+        }
+        if (rateLimitBuckets[i].windowStart < oldestTime) {
+            oldestTime = rateLimitBuckets[i].windowStart;
+            oldestIdx = i;
+        }
+    }
+    
+    // Use existing bucket or allocate oldest one
+    if (bucketIdx < 0) {
+        bucketIdx = oldestIdx;
+        rateLimitBuckets[bucketIdx].ipHash = ipHash;
+        rateLimitBuckets[bucketIdx].requestCount = 0;
+        rateLimitBuckets[bucketIdx].windowStart = now;
+    }
+    
+    RateLimitBucket& bucket = rateLimitBuckets[bucketIdx];
+    
+    // Check if window has expired
+    if (now - bucket.windowStart > Config::Security::RATE_LIMIT_WINDOW_MS) {
+        bucket.requestCount = 0;
+        bucket.windowStart = now;
+    }
+    
+    // Check rate limit
+    if (bucket.requestCount >= Config::Security::RATE_LIMIT_REQUESTS) {
+        LOG_WARN("Rate limit exceeded for %d.%d.%d.%d", 
+                 clientIP[0], clientIP[1], clientIP[2], clientIP[3]);
+        return false;
+    }
+    
+    bucket.requestCount++;
+    return true;
+}
+
+void APISecurity::sendRateLimited(AsyncWebServerRequest* request) {
+    String response = "{\"status\":\"error\",\"error\":\"Too Many Requests\",";
+    response += "\"message\":\"Rate limit exceeded. Max ";
+    response += String(Config::Security::RATE_LIMIT_REQUESTS);
+    response += " requests per second.\"}";
+    
+    request->send(429, "application/json", response);
 }

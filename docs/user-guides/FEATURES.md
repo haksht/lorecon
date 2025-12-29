@@ -1,6 +1,6 @@
 # Feature Documentation
 
-**ESP32 LoRa Reconnaissance Tool v2.2.0**
+**ESP32 LoRa Reconnaissance Tool v2.2.1**
 
 ## 🎯 Tool Identity
 
@@ -335,12 +335,11 @@ Reduces serial output by 95% to minimize packet processing time and capture gaps
 - ✅ KML/GeoJSON export
 - ✅ Security assessment scoring
 - ✅ Device type analysis
-- ⏳ Live visualization (Python tool in development)
+- ✅ Live visualization (Python tools in `tools/`)
 
 ### OUT OF SCOPE
 - ❌ Persistent session storage
 - ❌ Network topology graphs
-- ❌ Web interface (deferred)
 - ❌ Attack/stress testing framework (removed v2.0)
 
 ---
@@ -363,9 +362,8 @@ Reduces serial output by 95% to minimize packet processing time and capture gaps
 
 ### What We Won't Demonstrate
 - Session management (not implemented)
-- Network topology graphs (removed)
-- Web interface (deferred)
-- Attack testing (removed in v2.0)
+- Network topology graphs (not needed)
+- Cryptographic attacks (out of scope - this is reconnaissance)
 
 ---
 
@@ -386,35 +384,7 @@ Reduces serial output by 95% to minimize packet processing time and capture gaps
 
 ---
 
-## 🚀 Roadmap (DefCon Timeline)
-
-### Week 1-2: PSK Validation ⏳
-- [ ] Get multi-node mesh operational
-- [ ] Capture encrypted user messages
-- [ ] Validate PSK decryption with live traffic
-- [ ] Document successful decryption for demo
-
-### Week 3-4: Demo Polish ✅
-- [ ] Create Python live visualizer
-- [ ] Write demo script with backup plans
-- [ ] Test full demo flow 10+ times
-- [ ] Record backup video
-
-### Week 5-6: Documentation 📚
-- [ ] Write security assessment methodology
-- [ ] Create defensive hardening guide
-- [ ] Document vulnerabilities found
-- [ ] Prepare slide deck
-
-### Week 7-8: Conference Prep 🎤
-- [ ] Submit abstract/proposal
-- [ ] Build demo hardware (2x setups)
-- [ ] Print handouts
-- [ ] Final rehearsals
-
----
-
-## 🔧 Hardware Capabilities & Limitations
+## � Hardware Capabilities & Limitations
 
 ### ✅ What This ESP32 Platform Excels At:
 
@@ -443,6 +413,6 @@ Reduces serial output by 95% to minimize packet processing time and capture gaps
 
 ---
 
-**Last Updated**: November 19, 2025  
-**Version**: 2.2.0 Production  
+**Last Updated**: December 21, 2025  
+**Version**: 2.2.1 Production  
 **Status**: Ready for security research and RF experimentation

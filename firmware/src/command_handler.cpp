@@ -16,6 +16,8 @@
 #include "irecon_tool.h"  // Interface only
 #include "lora_recon_tool.h"  // For g_reconTool global
 #include "radio_controller.h"  // Need full definition for method calls
+#include "api_security.h"  // For token display
+#include "oled_display.h"  // For OLED token display
 #include "user_interface.h"
 #include "recon_state.h"
 #include "protocol_analyzer.h"
@@ -35,18 +37,51 @@ CommandHandler::CommandHandler(IReconTool* tool)
 }
 
 bool CommandHandler::handleCommand(char cmd) {
+    uint32_t now = millis();
+    
+    // Auto-deactivate serial after 5 minutes of inactivity (prevents overnight noise issues)
+    if (serialActivated && lastCommandTime > 0 && (now - lastCommandTime) > INACTIVITY_TIMEOUT_MS) {
+        serialActivated = false;
+        firstEnterTime = 0;
+        Serial.println("\n[SERIAL] Auto-deactivated due to inactivity. Press Enter twice to reactivate.");
+    }
+    
     // SERIAL ACTIVATION CHECK: Prevent phantom commands from USB noise
-    // Serial commands are ignored until user explicitly presses Enter
-    // This prevents random noise from triggering mode changes
+    // Requires DOUBLE-ENTER within 1.5 seconds to activate
+    // Single Enter or random noise will NOT trigger activation
     if (!serialActivated) {
         if (cmd == '\n' || cmd == '\r') {
-            serialActivated = true;
-            Serial.println("\n[SERIAL] Serial console activated. Press 'm' for menu.");
-            return true;
+            // Debounce: Ignore \r\n arriving as single keypress (within 100ms)
+            if (lastEnterTime > 0 && (now - lastEnterTime) < ENTER_DEBOUNCE_MS) {
+                return false;  // Silently ignore, same keypress
+            }
+            lastEnterTime = now;
+            
+            if (firstEnterTime == 0) {
+                // First Enter - start the window
+                firstEnterTime = now;
+                Serial.println("\n[SERIAL] Press Enter again within 1.5s to activate console...");
+                return true;
+            } else if ((now - firstEnterTime) <= DOUBLE_ENTER_WINDOW_MS) {
+                // Second Enter within window - activate!
+                serialActivated = true;
+                firstEnterTime = 0;
+                lastCommandTime = now;
+                Serial.println("[SERIAL] ✓ Serial console activated. Press 'm' for menu.");
+                return true;
+            } else {
+                // Too slow - reset and start over
+                firstEnterTime = now;
+                Serial.println("\n[SERIAL] Timeout. Press Enter again within 1.5s to activate...");
+                return true;
+            }
         }
-        // Silently ignore all input until activated (likely noise)
+        // Silently ignore all non-Enter input until activated (likely noise)
         return false;
     }
+    
+    // Track last command time for auto-deactivation
+    lastCommandTime = now;
     
     // Filter out newlines after activation (common after commands)
     if (cmd == '\n' || cmd == '\r') {
@@ -137,6 +172,8 @@ void CommandHandler::showCommands() {
 // ============================================================================
 
 void CommandHandler::cmdShowMenu(IReconTool* tool) {
+    ModeManager modeManager;
+    modeManager.logModeTransition(reconState.scanState.mode, MODE_INTERACTIVE_MENU, "Serial:showMenu");
     reconState.scanState.mode = MODE_INTERACTIVE_MENU;
     // Track when menu mode was entered for auto-timeout
     if (g_reconTool) {
@@ -172,8 +209,11 @@ void CommandHandler::cmdResumeRecon(IReconTool* tool) {
     
     // Clear persisted targeting mode from NVS
     ModeManager modeManager;
-    modeManager.clearPersistedMode();
+    modeManager.clearPersistedMode("Serial:resumeRecon");
     Serial.println("[MODE] Cleared persisted targeting mode");
+    
+    // Log the mode transition
+    modeManager.logModeTransition(reconState.scanState.mode, MODE_RECONNAISSANCE, "Serial:resumeRecon");
     
     // Reset only the scan state to restart the cycle
     reconState.scanState.mode = MODE_RECONNAISSANCE;
@@ -235,6 +275,8 @@ void CommandHandler::cmdShowSummary(IReconTool* tool) {
 
 void CommandHandler::cmdSecurityAssessment(IReconTool* tool) {
     showSecurityAssessment();
+    ModeManager modeManager;
+    modeManager.logModeTransition(reconState.scanState.mode, MODE_INTERACTIVE_MENU, "Serial:securityAssess");
     reconState.scanState.mode = MODE_INTERACTIVE_MENU;
     if (g_reconTool) {
         g_reconTool->setMenuModeEntered();
@@ -373,5 +415,26 @@ void CommandHandler::cmdClearDevices(IReconTool* tool) {
     uint8_t deviceCount = reconState.getNumTargetableDevices();
     reconState.clearTargetableDevices();
     Serial.printf("\n✅ Cleared %d device(s).\n\n", deviceCount);
+}
+
+void CommandHandler::cmdShowToken(IReconTool* tool) {
+    String token = APISecurity::getToken();
+    
+    Serial.println("\n🔑 API TOKEN (for protected endpoints)");
+    Serial.println("======================================");
+    Serial.printf("Token: %s\n", token.c_str());
+    Serial.println("======================================");
+    Serial.println("Enter this in Settings > API Authentication on the web UI");
+    Serial.println("Or use header: X-API-Token: <token>\n");
+    
+    // Show on OLED for mobile users
+    #ifdef BOARD_HELTEC_V3
+    OLEDDisplay* display = tool->getDisplay();
+    if (display) {
+        display->showApiToken(token.c_str());
+        Serial.println("📱 TOKEN DISPLAYED ON OLED");
+        Serial.println("   (Look at device screen)\n");
+    }
+    #endif
 }
 

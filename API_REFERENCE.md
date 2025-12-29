@@ -1,7 +1,7 @@
 # 🔌 ESP32 LoRa Sniffer - REST API Reference
 
-**Version:** 2.2.0  
-**Base URL:** `http://192.168.4.1` or `http://esp32-lora.local`  
+**Version:** 2.2.1  
+**Base URL:** `http://192.168.4.1` or `http://lora-XXXXXX.local`  
 **Protocol:** HTTP/1.1  
 **Format:** JSON  
 **Authentication:** Token-based for protected endpoints (see [Authentication](#-authentication))  
@@ -18,12 +18,13 @@
 6. [Capture Control](#capture-control)
 7. [Geographic Data](#geographic-data)
 8. [Status & Statistics](#status--statistics)
-9. [Scan Control](#scan-control)
-10. [WiFi Configuration](#wifi-configuration)
-11. [WebSocket API](#websocket-api)
-12. [Error Codes](#error-codes)
-13. [Rate Limiting](#rate-limiting)
-14. [Examples](#examples)
+9. [Security Assessment](#security-assessment)
+10. [Scan Control](#scan-control)
+11. [WiFi Configuration](#wifi-configuration)
+12. [WebSocket API](#websocket-api)
+13. [Error Codes](#error-codes)
+14. [Rate Limiting](#rate-limiting)
+15. [Examples](#examples)
 
 ---
 
@@ -57,6 +58,21 @@ curl http://192.168.4.1/api/status
 ### **Token-Based Authentication**
 
 **Version 2.2.0+** implements token-based API authentication for sensitive endpoints.
+
+### **Private Network Auto-Trust**
+
+Clients connecting from RFC 1918 private IP addresses are automatically authenticated:
+- `10.0.0.0/8` — Class A private networks
+- `172.16.0.0/12` — Class B private networks (172.16.x.x - 172.31.x.x)
+- `192.168.0.0/16` — Class C private networks (including device AP at 192.168.4.x)
+
+**Rationale:** If you're on the same private network, you already authenticated via WiFi password. The network boundary *is* the security boundary.
+
+This means:
+- ✅ Device AP (192.168.4.x) — auto-authenticated
+- ✅ Phone hotspot (172.20.x.x) — auto-authenticated  
+- ✅ Home WiFi (192.168.1.x) — auto-authenticated
+- ❌ Public internet — requires token header (if you ever port-forward)
 
 ### **How It Works**
 
@@ -529,6 +545,20 @@ slotIndex=1&repeatCount=3&delayMs=500
 curl -X POST http://192.168.4.1/api/replay/transmit \
   -d "slotIndex=1&repeatCount=3&delayMs=500"
 ```
+
+**⚠️ Important: Half-Duplex Radio Limitation**
+
+The SX1262 radio is **half-duplex** — it can either transmit OR receive, never both simultaneously. This means:
+
+- **You will NOT see your own replayed packet recaptured** by the same device
+- The radio switches to TX mode, transmits the packet, then returns to RX mode
+- By the time RX resumes, your transmission has already completed
+
+**To verify replay transmission:**
+1. Use a second Meshtastic device in range — it will receive and display the message
+2. Use an SDR (RTL-SDR + SDR++) to observe the RF transmission directly
+3. Watch serial output for "TX complete" confirmation
+4. If another mesh node relays your packet, you may capture the *relayed* copy (from the other node, not your own transmission)
 
 ---
 
@@ -1064,7 +1094,91 @@ curl -X GET http://192.168.4.1/api/activity
 
 ---
 
-## 🔍 Scan Control
+## �️ Security Assessment
+
+### **GET /api/recon/security**
+
+Get security vulnerability assessment for all discovered devices.
+
+**Request:**
+```http
+GET /api/recon/security HTTP/1.1
+Host: 192.168.4.1
+```
+
+**Response:**
+```json
+{
+  "status": "success",
+  "summary": {
+    "totalDevices": 5,
+    "vulnerable": 1,
+    "moderate": 2,
+    "secure": 2
+  },
+  "devices": [
+    {
+      "nodeId": "9EA3D744",
+      "nodeIdDecimal": 2662901572,
+      "protocol": "Meshtastic",
+      "score": 55,
+      "riskLevel": "vulnerable",
+      "packetCount": 150,
+      "bestRSSI": -45,
+      "isRouter": true,
+      "findings": [
+        "Physical proximity risk (RSSI > -50 dBm)",
+        "Router device (elevated attack surface)",
+        "High packet count (information leakage)"
+      ]
+    }
+  ],
+  "timestamp": 1699900800000
+}
+```
+
+### **Security Scoring Methodology**
+
+Devices start at **100 points** (fully secure) and lose points for risk factors:
+
+| Risk Factor | Points Lost | Detection Criteria |
+|-------------|-------------|-------------------|
+| Physical proximity | -15 | `bestRSSI > -50 dBm` (device within ~5 meters) |
+| Router device | -10 | Device has relayed ≥2 packets (see Router Detection below) |
+| High packet count | -15 | `packetCount > 100` (chatty device leaks metadata) |
+| Low packet count | -5 | `packetCount < 5` (may indicate battery/reliability issues) |
+| Outdated firmware | -20 | Firmware version contains "v1.x" or "v2.0" |
+
+### **Risk Level Thresholds**
+
+| Score Range | Risk Level | UI Display |
+|-------------|------------|------------|
+| 80-100 | `secure` | 🟢 Low |
+| 60-79 | `moderate` | 🟡 Med |
+| 0-59 | `vulnerable` | 🔴 High |
+
+### **Router Detection**
+
+A device is marked as a **router** when it has relayed ≥2 packets. Router detection uses Meshtastic hop count analysis:
+
+1. Meshtastic packets have a default hop limit of 3
+2. When a packet is forwarded, the hop count decrements
+3. If we receive a packet with `hopCount < 3`, it was relayed by an intermediate node
+4. The node that relayed it is marked as a router
+
+**Why routers are a risk factor:**
+- Routers forward all mesh traffic, making them high-value targets
+- Compromising a router allows traffic interception/injection
+- Routers have larger attack surface due to message forwarding code paths
+
+### **cURL Example:**
+```bash
+curl -X GET http://192.168.4.1/api/recon/security
+```
+
+---
+
+## �🔍 Scan Control
 
 ### **POST /api/scan/start**
 
