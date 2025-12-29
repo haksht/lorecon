@@ -7,6 +7,7 @@
 
 #include "user_interface.h"
 #include "lora_recon_tool.h"
+#include "mode_manager.h"
 #include "psk_decryption_simple.h"
 #include "utils/security_scorer.h"
 #include <Arduino.h>
@@ -519,6 +520,8 @@ void showFrequencyTargetingMenu() {
 // Handle frequency targeting input
 void handleFrequencyTargetingInput() {
   if (!waitForSerialInput()) {
+    ModeManager modeManager;
+    modeManager.logModeTransition(reconState.scanState.mode, MODE_INTERACTIVE_MENU, "FreqMenu:timeout");
     reconState.scanState.mode = MODE_INTERACTIVE_MENU;
     if (g_reconTool) {
         g_reconTool->setMenuModeEntered();
@@ -558,6 +561,8 @@ void handleFrequencyTargetingInput() {
     
     Serial.println("\nPress any key to continue...");
     if (!waitForSerialInput()) {
+      ModeManager modeManager;
+      modeManager.logModeTransition(reconState.scanState.mode, MODE_INTERACTIVE_MENU, "FreqSummary:timeout");
       reconState.scanState.mode = MODE_INTERACTIVE_MENU;
       if (g_reconTool) {
           g_reconTool->setMenuModeEntered();
@@ -568,6 +573,8 @@ void handleFrequencyTargetingInput() {
     Serial.read();
     showFrequencyTargetingMenu();
   } else if (cmd == 'r' || cmd == 'R') {
+    ModeManager modeManager;
+    modeManager.logModeTransition(reconState.scanState.mode, MODE_INTERACTIVE_MENU, "FreqMenu:return");
     reconState.scanState.mode = MODE_INTERACTIVE_MENU;
     if (g_reconTool) {
         g_reconTool->setMenuModeEntered();

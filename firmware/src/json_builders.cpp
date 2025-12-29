@@ -11,6 +11,7 @@
 #include "geo_intelligence.h"
 #include "data_structures.h"
 #include "text_packet_diagnostic.h"
+#include "mode_manager.h"
 #include "utils/format_utils.h"
 #include "utils/security_scorer.h"
 #include "config.h"
@@ -127,6 +128,10 @@ String buildStatusJson(ReconState& reconState) {
     doc["capturedPackets"] = reconState.getNumCapturedPackets();
     doc["freeHeap"] = ESP.getFreeHeap();
     doc["heapSize"] = ESP.getHeapSize();
+    
+    // Mode change counter for debugging long-duration tests
+    ModeManager modeManager;
+    doc["modeChangeCount"] = modeManager.getModeChangeCount();
 
     // Battery voltage reading (Heltec V3: GPIO 37 control, GPIO 1 ADC)
     pinMode(Config::Hardware::VBAT_CTRL_PIN, OUTPUT);
