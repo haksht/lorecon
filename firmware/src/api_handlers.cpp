@@ -252,7 +252,11 @@ void handleGetReplaySlots(AsyncWebServerRequest* request) {
 }
 
 void handleClearReplaySlots(AsyncWebServerRequest* request) {
-    // Protected endpoint - requires authentication
+    // Protected endpoint - requires authentication and rate limiting
+    if (!APISecurity::checkRateLimit(request)) {
+        APISecurity::sendRateLimited(request);
+        return;
+    }
     if (!APISecurity::isAuthenticated(request)) {
         APISecurity::sendUnauthorized(request);
         return;
@@ -262,7 +266,11 @@ void handleClearReplaySlots(AsyncWebServerRequest* request) {
 }
 
 void handleReplayPacket(AsyncWebServerRequest* request) {
-    // Protected endpoint - requires authentication (transmits RF)
+    // Protected endpoint - requires authentication and rate limiting (transmits RF)
+    if (!APISecurity::checkRateLimit(request)) {
+        APISecurity::sendRateLimited(request);
+        return;
+    }
     if (!APISecurity::isAuthenticated(request)) {
         APISecurity::sendUnauthorized(request);
         return;
@@ -313,7 +321,11 @@ void handleReplayPacket(AsyncWebServerRequest* request) {
 // =============================================================================
 
 void handleClearDevices(AsyncWebServerRequest* request) {
-    // Protected endpoint - requires authentication
+    // Protected endpoint - requires authentication and rate limiting
+    if (!APISecurity::checkRateLimit(request)) {
+        APISecurity::sendRateLimited(request);
+        return;
+    }
     if (!APISecurity::isAuthenticated(request)) {
         APISecurity::sendUnauthorized(request);
         return;
@@ -397,7 +409,11 @@ void handleSetVerboseMode(AsyncWebServerRequest* request) {
 // =============================================================================
 
 void handleCommand(AsyncWebServerRequest* request) {
-    // Authentication required - command can reboot device
+    // Authentication and rate limiting required - command can reboot device
+    if (!APISecurity::checkRateLimit(request)) {
+        APISecurity::sendRateLimited(request);
+        return;
+    }
     if (!APISecurity::isAuthenticated(request)) {
         APISecurity::sendUnauthorized(request);
         return;

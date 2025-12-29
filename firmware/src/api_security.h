@@ -5,6 +5,7 @@
  * - Token generation and storage in NVS
  * - Request validation via X-API-Token header
  * - Rate limiting for replay operations
+ * - Per-IP rate limiting for DoS protection
  * 
  * Design: Simple token auth suitable for local network operation
  */
@@ -17,9 +18,18 @@
 #include "config.h"
 
 /**
+ * Rate limiter bucket for tracking requests per IP
+ */
+struct RateLimitBucket {
+    uint32_t ipHash;
+    uint16_t requestCount;
+    uint32_t windowStart;
+};
+
+/**
  * API Security Manager
  * 
- * Handles token generation, storage, and validation.
+ * Handles token generation, storage, validation, and rate limiting.
  * Token is generated on first boot and stored in NVS.
  */
 class APISecurity {
@@ -72,14 +82,30 @@ public:
      */
     static void boundReplayParams(uint8_t repeatCount, uint16_t delayMs,
                                    uint8_t& outRepeatCount, uint16_t& outDelayMs);
+    
+    /**
+     * Check if request is rate limited
+     * Uses sliding window per IP address
+     * @param request HTTP request to check
+     * @return true if within rate limit, false if exceeded
+     */
+    static bool checkRateLimit(AsyncWebServerRequest* request);
+    
+    /**
+     * Send 429 Too Many Requests response
+     * @param request HTTP request to respond to
+     */
+    static void sendRateLimited(AsyncWebServerRequest* request);
 
 private:
     static String apiToken;
     static bool initialized;
+    static RateLimitBucket rateLimitBuckets[Config::Security::RATE_LIMIT_BUCKETS];
     
     static void loadToken();
     static void saveToken(const String& token);
     static String generateToken();
+    static uint32_t hashIP(IPAddress ip);
 };
 
 #endif // API_SECURITY_H
