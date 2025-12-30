@@ -261,9 +261,9 @@ void CommandHandler::cmdRebootDevice(IReconTool* tool) {
         Serial.println("Cleared diagnostic counters.");
         Serial.println("Cleared replay slots.");
         
-        const ScanConfig& cfg = reconState.getScanConfig(reconState.scanState.currentConfig);
-        tool->getRadioController()->applyConfig(cfg);
-        tool->getRadioController()->startReceive();
+        Serial.flush();  // Ensure output is sent before restart
+        delay(100);
+        ESP.restart();
     } else {
         Serial.println("\n❌ Reboot cancelled. Returning to menu.");
     }
