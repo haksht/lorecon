@@ -37,7 +37,8 @@ String APIController::getDevices() { return JsonBuilders::buildDevicesJson(recon
 String APIController::getDevice(uint32_t nodeId) { 
     // Find device index by nodeId
     for (uint8_t i = 0; i < reconState.getNumTargetableDevices(); i++) {
-        if (reconState.getTargetableDevice(i).nodeId == nodeId) {
+        TargetableDevice dev = reconState.getTargetableDevice(i);  // Copy for thread safety
+        if (dev.nodeId == nodeId) {
             return JsonBuilders::buildDeviceJson(reconState, i);
         }
     }
@@ -413,7 +414,7 @@ String APIController::getTemporalData() {
     JsonArray beacons = doc["beacons"].to<JsonArray>();
     uint8_t beaconCount = 0;
     for (uint8_t i = 0; i < reconState.getNumTargetableDevices(); i++) {
-        const TargetableDevice& device = reconState.getTargetableDevice(i);
+        TargetableDevice device = reconState.getTargetableDevice(i);  // Copy for thread safety
         
         // Only include devices with high periodicity score
         if (device.periodicityScore >= Config::Anomaly::MIN_BEACON_CONFIDENCE) {
