@@ -11,17 +11,14 @@ const WAR_DEBUG = {
     error: (...args) => console.error('[WarRoom]', ...args)
 };
 
-/**
- * Escape HTML entities to prevent XSS attacks
- * @param {string} text - Raw text to escape
- * @returns {string} HTML-escaped text
- */
-function warRoomEscapeHtml(text) {
+// Use shared escapeHtml from app.js (loaded first)
+// Falls back to local implementation if not available
+const warRoomEscapeHtml = window.escapeHtml || function(text) {
     if (!text) return '';
     const div = document.createElement('div');
     div.textContent = String(text);
     return div.innerHTML;
-}
+};
 
 class WarRoom {
     constructor(containerId) {

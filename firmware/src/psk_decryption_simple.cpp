@@ -12,8 +12,39 @@
 #include "text_packet_diagnostic.h"
 #include "utils/protobuf_utils.h"
 
-// Static storage for last decrypted message
+// Static storage for last decrypted message (protected by mutex)
 char PSKDecryption::lastMessage[PSKDecryption::MAX_MESSAGE_LEN] = {0};
+SemaphoreHandle_t PSKDecryption::messageMutex = nullptr;
+
+// Thread-safe setter for lastMessage
+void PSKDecryption::setLastMessage(const char* msg) {
+    if (!messageMutex) messageMutex = xSemaphoreCreateMutex();
+    if (xSemaphoreTake(messageMutex, pdMS_TO_TICKS(10)) == pdTRUE) {
+        strncpy(lastMessage, msg, MAX_MESSAGE_LEN - 1);
+        lastMessage[MAX_MESSAGE_LEN - 1] = '\0';
+        xSemaphoreGive(messageMutex);
+    }
+}
+
+// Thread-safe getter - copies to caller buffer
+void PSKDecryption::getLastMessageSafe(char* buffer, size_t bufferSize) {
+    if (!buffer || bufferSize == 0) return;
+    buffer[0] = '\0';
+    if (!messageMutex) messageMutex = xSemaphoreCreateMutex();
+    if (xSemaphoreTake(messageMutex, pdMS_TO_TICKS(10)) == pdTRUE) {
+        strncpy(buffer, lastMessage, bufferSize - 1);
+        buffer[bufferSize - 1] = '\0';
+        xSemaphoreGive(messageMutex);
+    }
+}
+
+void PSKDecryption::clearLastMessage() {
+    if (!messageMutex) messageMutex = xSemaphoreCreateMutex();
+    if (xSemaphoreTake(messageMutex, pdMS_TO_TICKS(10)) == pdTRUE) {
+        lastMessage[0] = '\0';
+        xSemaphoreGive(messageMutex);
+    }
+}
 
 // Protocol constants
 #define MIN_PACKET_LENGTH           5    // Minimum protobuf packet size
@@ -199,8 +230,8 @@ int PSKDecryption::decodeBase64(const char* input, uint8_t* output, size_t maxLe
 bool PSKDecryption::testDefaultPSKs(const uint8_t* data, size_t length) {
     pskStats.attempts++;
     
-    // Clear lastMessage to prevent stale data from previous packets
-    lastMessage[0] = '\0';
+    // Clear lastMessage to prevent stale data from previous packets (thread-safe)
+    clearLastMessage();
     
     // Validate minimum packet structure
     if (length < 20) {
@@ -298,9 +329,8 @@ bool PSKDecryption::testDefaultPSKs(const uint8_t* data, size_t length) {
             Serial.println("\n╔════════════════════════════════════════════╗");
             Serial.printf("║  📧 PLAINTEXT MESSAGE: \"%s\"\n", plaintext.c_str());
             Serial.println("╚════════════════════════════════════════════╝\n");
-            // Store for web broadcast
-            strncpy(lastMessage, plaintext.c_str(), MAX_MESSAGE_LEN - 1);
-            lastMessage[MAX_MESSAGE_LEN - 1] = '\0';
+            // Store for web broadcast (thread-safe)
+            setLastMessage(plaintext.c_str());
             return true;
         }
         
@@ -451,9 +481,8 @@ bool PSKDecryption::testDefaultPSKs(const uint8_t* data, size_t length) {
             Serial.println("\n╔════════════════════════════════════════════╗");
             Serial.printf("║  📧 TEXT MESSAGE: \"%s\"\n", messageText.c_str());
             Serial.println("╚════════════════════════════════════════════╝\n");
-            // Store for web broadcast
-            strncpy(lastMessage, messageText.c_str(), MAX_MESSAGE_LEN - 1);
-            lastMessage[MAX_MESSAGE_LEN - 1] = '\0';
+            // Store for web broadcast (thread-safe)
+            setLastMessage(messageText.c_str());
         } else {
             // Try to extract telemetry data (if portnum suggests it)
             if (firstByte == 0x08 && encryptedLen > 1) {

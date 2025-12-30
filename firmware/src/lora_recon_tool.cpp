@@ -159,6 +159,8 @@ bool LoRaReconTool::initialize() {
     deviceArchiver = new DeviceArchiver();
     if (deviceArchiver) {
         LOG_INFO("Device archiver initialized");
+        // Wire up archiver to ReconState for restore-on-packet functionality
+        reconState.setDeviceArchiver(deviceArchiver);
     } else {
         LOG_WARN("Device archiver initialization failed - continuing without SD offload");
     }
@@ -190,7 +192,7 @@ void LoRaReconTool::update() {
     // Periodic health check and device archival (every 5 minutes)
     static uint32_t lastHealthCheck = 0;
     
-    if (now - lastHealthCheck >= 300000) {  // 5 minutes
+    if (now - lastHealthCheck >= Config::System::HEALTH_CHECK_INTERVAL_MS) {
         // Update network intelligence statistics
         reconState.updateNetworkIntel();
         
@@ -779,11 +781,24 @@ void LoRaReconTool::replayPacket(uint8_t slotIndex) {
 void LoRaReconTool::handleButtonPress(uint32_t now) {
     bool currentButtonState = (digitalRead(Config::Hardware::USER_BUTTON) == LOW);  // Active low
     
+    // Track stable LOW readings for debouncing
+    static uint32_t buttonLowSince = 0;
+    
     // Detect button press (transition from not pressed to pressed)
+    // Require button to be LOW for BUTTON_DEBOUNCE_MS before registering as pressed
     if (currentButtonState && !buttonPressed) {
-        buttonPressed = true;
-        buttonPressStart = now;
-        LOG_DEBUG("Button pressed");
+        if (buttonLowSince == 0) {
+            buttonLowSince = now;  // Start timing LOW state
+        } else if (now - buttonLowSince >= Config::UI::BUTTON_DEBOUNCE_MS) {
+            // Button has been LOW for debounce period - register as pressed
+            buttonPressed = true;
+            buttonPressStart = now;
+            LOG_INFO("Button pressed (debounced %dms)", now - buttonLowSince);
+        }
+        // Else still waiting for debounce period
+    } else if (!currentButtonState) {
+        // Button is HIGH - reset debounce tracking
+        buttonLowSince = 0;
     }
     
     // Button is being held down
@@ -825,9 +840,9 @@ void LoRaReconTool::handleButtonPress(uint32_t now) {
         uint32_t pressDuration = now - buttonPressStart;
         buttonPressed = false;
         
-        // Short press = toggle display
+        // Short press = toggle display (only if button was stable/debounced)
         if (pressDuration < Config::UI::BUTTON_LONG_PRESS_MS && !shutdownInitiated) {
-            LOG_DEBUG("Short press detected - toggling display");
+            LOG_INFO("Short press (%dms) - toggling display", pressDuration);
             if (oledDisplay) {
                 oledDisplay->toggle();
                 if (oledDisplay->isOn()) {

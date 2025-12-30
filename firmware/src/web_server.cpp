@@ -21,9 +21,6 @@
 #include <Update.h>
 #include <ArduinoJson.h>
 
-// External WiFi manager (from main.cpp)
-extern WiFiManager wifiManager;
-
 // Global instance for static handlers
 WebServer* g_webServer = nullptr;
 

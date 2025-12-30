@@ -13,17 +13,14 @@ const MAP_DEBUG = {
     error: (...args) => console.error('[NetworkMap]', ...args)
 };
 
-/**
- * Escape HTML entities to prevent XSS attacks
- * @param {string} text - Raw text to escape
- * @returns {string} HTML-escaped text
- */
-function mapEscapeHtml(text) {
+// Use shared escapeHtml from app.js (loaded first)
+// Falls back to local implementation if not available
+const mapEscapeHtml = window.escapeHtml || function(text) {
     if (!text) return '';
     const div = document.createElement('div');
     div.textContent = String(text);
     return div.innerHTML;
-}
+};
 
 /**
  * Configuration constants for network map visualization
@@ -157,6 +154,8 @@ class NetworkMap {
             this.redraw();
         };
         
+        // Store bound reference for cleanup in destroy()
+        this.boundResizeHandler = resizeCanvas;
         window.addEventListener('resize', resizeCanvas);
         // Small delay to ensure canvas has rendered
         setTimeout(resizeCanvas, MAP_CONFIG.resizeDelay);
@@ -863,7 +862,11 @@ class NetworkMap {
     
     destroy() {
         this.stopAnimation();
-        window.removeEventListener('resize', this.setupCanvas);
+        // Clean up resize listener to prevent memory leak
+        if (this.boundResizeHandler) {
+            window.removeEventListener('resize', this.boundResizeHandler);
+            this.boundResizeHandler = null;
+        }
     }
 }
 

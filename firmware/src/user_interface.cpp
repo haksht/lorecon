@@ -121,7 +121,7 @@ void showSecurityAssessment() {
     String vulnerabilities;
     const TargetableDevice* dev;
   };
-  DeviceAssessment assessments[32]; // Match MAX_TARGETABLE_DEVICES
+  DeviceAssessment assessments[Config::Tracking::MAX_DEVICES];
   
   uint8_t vulnerableCount = 0;
   uint8_t moderateCount = 0;

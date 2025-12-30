@@ -11,7 +11,7 @@ ESP32-S3 passive LoRa reconnaissance firmware for security research. **Hardware-
 - **`LoRaReconTool`**: Application orchestrator implementing `IReconTool` interface. Coordinates components, manages modes (recon/targeted), handles 5min scan cycle through 26 LoRa configs.
 - **`IReconTool`**: Interface pattern breaks circular dependency with `CommandHandler`. Use this, not concrete class, for dependencies.
 - **`CommandHandler`**: Dispatch table (not if/else chains). Static command functions take `IReconTool*`.
-- **`ReconState`**: Device tracking, RF stats, replay slots. Singleton pattern with 80-device circular buffer.
+- **`ReconState`**: Device tracking, RF stats, replay slots. Singleton pattern with 50-device fixed array (LRU eviction when full).
 
 ### Data Flow
 ```
@@ -123,7 +123,7 @@ No unit test framework (embedded constraints). Validation via:
 
 ## When Modifying Code
 
-1. **Keep module line counts low**: RadioController ~200 lines, PacketProcessor ~180 lines. Extract new components if growing beyond ~300 lines.
+1. **Keep module line counts low**: RadioController ~200 lines, PacketProcessor ~350 lines, LoRaReconTool ~850 lines. Extract new components if growing beyond ~400 lines.
 2. **Update relevant docs**: `API_REFERENCE.md` for HTTP endpoints, `docs/technical/ARCHITECTURE.md` for major design changes.
 3. **Test on hardware**: No simulator. Flash real Heltec V3 board.
 4. **Preserve web UI simplicity**: `data/webapp/` is vanilla HTML+CSS+JS. No build step. Keep it under 100KB total.

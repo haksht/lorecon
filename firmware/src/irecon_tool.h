@@ -41,6 +41,10 @@ public:
     // Packet replay operations
     virtual void showReplayMenu() = 0;
     virtual void replayPacket(uint8_t slotIndex) = 0;
+    
+    // Menu timeout tracking (prevents auto mode switching during user interaction)
+    virtual void setMenuModeEntered() = 0;
+    virtual void clearMenuTimeout() = 0;
 };
 
 #endif // IRECON_TOOL_H

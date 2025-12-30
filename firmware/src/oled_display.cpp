@@ -215,6 +215,8 @@ void OLEDDisplay::turnOn() {
 
 void OLEDDisplay::turnOff() {
     if (displayOn) {
+        Serial.printf("[DISPLAY] turnOff() called at %lu ms (heap: %u)\n", millis(), ESP.getFreeHeap());
+        
         // Show "Display OFF" message briefly before turning off
         display.clearBuffer();
         display.setFont(u8g2_font_10x20_tf);
@@ -226,7 +228,7 @@ void OLEDDisplay::turnOff() {
         
         display.setPowerSave(1);
         displayOn = false;
-        Serial.println("[DISPLAY] Display OFF");
+        Serial.println("[DISPLAY] Display OFF complete");
     }
 }
 

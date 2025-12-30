@@ -2,6 +2,8 @@
 #define PSK_DECRYPTION_SIMPLE_H
 
 #include <Arduino.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/semphr.h>
 #include "data_structures.h"  // For PSKStats struct
 #include "config.h"           // For Config::PSK::NUM_DEFAULT_KEYS
 
@@ -18,16 +20,21 @@ public:
   static int decodeBase64(const char* input, uint8_t* output, size_t maxLen);  // Returns decoded byte count (0 on failure)
   static uint8_t getDefaultPSKCount() { return Config::PSK::NUM_DEFAULT_KEYS; }
   
-  // Get last decrypted message (for web broadcast)
+  // Thread-safe access to last decrypted message (copies to caller buffer)
+  static void getLastMessageSafe(char* buffer, size_t bufferSize);
+  static void clearLastMessage();
+  
+  // Legacy accessor (for compatibility - prefer getLastMessageSafe)
   static const char* getLastMessage() { return lastMessage; }
-  static void clearLastMessage() { lastMessage[0] = '\0'; }
 
 private:
   static bool extractMessageText(const uint8_t* data, size_t length, String& message);
+  static void setLastMessage(const char* msg);  // Thread-safe internal setter
   
-  // Storage for last decrypted message
+  // Storage for last decrypted message (protected by mutex)
   static constexpr size_t MAX_MESSAGE_LEN = 256;
   static char lastMessage[MAX_MESSAGE_LEN];
+  static SemaphoreHandle_t messageMutex;
 };
 
 // External access to PSK stats

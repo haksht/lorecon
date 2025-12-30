@@ -9,6 +9,7 @@
 #include "text_packet_diagnostic.h"
 #include "psk_decryption_simple.h"
 #include "config.h"
+#include "logger.h"
 
 // Constructor
 PacketProcessor::PacketProcessor() {
@@ -32,15 +33,15 @@ bool PacketProcessor::queuePacket(const uint8_t* data, size_t length, float rssi
                                   uint8_t configIndex, float frequencyMHz) {
     if (isQueueFull()) {
         reconState.scanState.droppedPackets++;
-        Serial.printf("[QUEUE] Full (100 packets) - dropping packet! Total drops: %u\n", 
-                      reconState.scanState.droppedPackets);
+        LOG_WARN("Queue full (100 packets) - dropping! Total drops: %u", 
+                 reconState.scanState.droppedPackets);
         return false;
     }
     
     // Validate packet length to prevent buffer overflow
     if (length > Config::PacketProcessing::MAX_PACKET_SIZE) {
-        Serial.printf("[QUEUE] Rejecting oversized packet (%d bytes > %d max)\n", 
-                      length, Config::PacketProcessing::MAX_PACKET_SIZE);
+        LOG_WARN("Rejecting oversized packet (%d bytes > %d max)", 
+                 length, Config::PacketProcessing::MAX_PACKET_SIZE);
         reconState.scanState.droppedPackets++;
         return false;
     }
@@ -68,7 +69,7 @@ bool PacketProcessor::queuePacket(const uint8_t* data, size_t length, float rssi
 void PacketProcessor::processQueue(OLEDDisplay* display) {
     // Debug: Show queue size if it's building up
     if (packetQueue.size() > 1) {
-        Serial.printf("[QUEUE] %d packets buffered\n", packetQueue.size());
+        LOG_DEBUG("%d packets buffered", packetQueue.size());
     }
     
     while (!packetQueue.empty()) {
@@ -173,8 +174,8 @@ void PacketProcessor::processSinglePacket(const QueuedPacket& qp, OLEDDisplay* d
 // Handle packet in reconnaissance mode
 void PacketProcessor::handleReconPacket(const PacketInfo& info, const uint8_t* data, size_t length, 
                                         float rssi, float snr, OLEDDisplay* display) {
-    Serial.printf("[RECON] Packet #%d: %s, 0x%08X, %d bytes, %.1f dBm, %.1f dB SNR\n",
-                  reconState.scanState.totalPackets, info.protocol, info.nodeId, length, rssi, snr);
+    LOG_INFO("Packet #%d: %s, 0x%08X, %d bytes, %.1f dBm, %.1f dB SNR",
+             reconState.scanState.totalPackets, info.protocol, info.nodeId, length, rssi, snr);
     
     // Update display with packet info
     if (display && display->isOn()) {
@@ -276,10 +277,8 @@ void PacketProcessor::handleTargetedPacket(const PacketInfo& info, const uint8_t
     
     // Try decryption on ALL packets to find text messages
     if (length >= 20) {
-        if (length < 40) {
-            Serial.printf("Decrypting... ");
-        } else {
-            Serial.printf("[PSK] Analyzing %d-byte packet (text message size)\n", length);
+        if (length >= 40) {
+            LOG_DEBUG("Analyzing %d-byte packet (text message size)", length);
         }
         
         // For "Unknown" packets that might be routed Meshtastic, try to find the header
@@ -294,7 +293,7 @@ void PacketProcessor::handleTargetedPacket(const PacketInfo& info, const uint8_t
                 if (data[i] == 0xFF && data[i+1] == 0xFF && data[i+2] == 0xFF && data[i+3] == 0xFF) {
                     payload = data + i;
                     payloadLen = length - i;
-                    Serial.printf("[ROUTED] Found Meshtastic header at offset %d in %d-byte packet\n", i, length);
+                    LOG_DEBUG("Found Meshtastic header at offset %d in %d-byte packet", i, length);
                     break;
                 }
             }

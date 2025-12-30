@@ -16,6 +16,7 @@ const DEBUG = {
 
 // ===== Security Utilities =====
 // HTML escape function to prevent XSS attacks
+// Exported globally for use by other modules (war-room.js, network-map.js)
 function escapeHtml(text) {
     if (text === null || text === undefined) return '';
     const str = String(text);
@@ -23,6 +24,7 @@ function escapeHtml(text) {
     div.textContent = str;
     return div.innerHTML;
 }
+window.escapeHtml = escapeHtml;  // Export globally
 
 // ===== API Token Management =====
 const AUTH_TOKEN_KEY = 'esp32_lora_api_token';
@@ -430,10 +432,15 @@ class ReconApp {
             this.setConnected(true);
         };
         
+        this.ws.onerror = (error) => {
+            DEBUG.error('WebSocket error:', error);
+            this.setConnected(false);
+        };
+        
         this.ws.onmessage = (event) => {
             try {
                 const data = JSON.parse(event.data);
-                if (data.type === 'status') {
+                if (data && data.type === 'status') {
                     this.handleStatusUpdate(data);
                 }
             } catch (error) {
