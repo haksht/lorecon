@@ -27,7 +27,8 @@ bool ReconService::isInitialized() {
 
 uint8_t ReconService::findDeviceIndex(uint32_t nodeId) {
     for (uint8_t i = 0; i < reconState.getNumTargetableDevices(); i++) {
-        if (reconState.getTargetableDevice(i).nodeId == nodeId) {
+        TargetableDevice dev = reconState.getTargetableDevice(i);  // Copy for thread safety
+        if (dev.nodeId == nodeId) {
             return i;
         }
     }
@@ -61,7 +62,7 @@ bool ReconService::startTargetedCaptureByIndex(uint8_t deviceIndex, String& outM
     }
 
     reconTool->startTargetedCapture(deviceIndex);
-    const TargetableDevice& device = reconState.getTargetableDevice(deviceIndex);
+    TargetableDevice device = reconState.getTargetableDevice(deviceIndex);  // Copy for thread safety
     
     outMessage = "Targeted capture started on device " + FormatUtils::formatNodeIdPadded(device.nodeId);
     return true;

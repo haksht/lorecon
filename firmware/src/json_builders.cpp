@@ -117,7 +117,7 @@ String buildDeviceJson(ReconState& reconState, uint8_t deviceIndex) {
     doc["status"] = "success";
     
     JsonObject deviceObj = doc["device"].to<JsonObject>();
-    const TargetableDevice& dev = reconState.getTargetableDevice(deviceIndex);
+    TargetableDevice dev = reconState.getTargetableDevice(deviceIndex);  // Copy for thread safety
     Internal::fillDevice(deviceObj, dev, deviceIndex, reconState);
 
     String response;
@@ -182,7 +182,7 @@ String buildStatusJson(ReconState& reconState) {
 
         // Try to find the targetable device to get node ID
         for (uint8_t i = 0; i < reconState.getNumTargetableDevices(); i++) {
-            const TargetableDevice& device = reconState.getTargetableDevice(i);
+            TargetableDevice device = reconState.getTargetableDevice(i);  // Copy for thread safety
             if (device.configIndex == reconState.scanState.targetConfig) {
                 target["nodeId"] = FormatUtils::formatNodeIdJson(device.nodeId);
                 target["deviceType"] = device.deviceType;
@@ -211,7 +211,7 @@ String buildStatisticsJson(ReconState& reconState) {
 
     int meshtastic = 0, lorawan = 0, helium = 0, generic = 0;
     for (uint8_t i = 0; i < reconState.getNumTargetableDevices(); i++) {
-        const TargetableDevice& device = reconState.getTargetableDevice(i);
+        TargetableDevice device = reconState.getTargetableDevice(i);  // Copy for thread safety
         if (strcmp(device.protocol, "Meshtastic") == 0) meshtastic++;
         else if (strcmp(device.protocol, "LoRaWAN") == 0) lorawan++;
         else if (strcmp(device.protocol, "Helium") == 0) helium++;
@@ -434,7 +434,7 @@ String buildReconSummaryJson(ReconState& reconState, GeoIntelligence& geoIntel) 
     uint32_t now = millis();
     for (uint8_t i = 0; i < reconState.getNumTargetableDevices(); i++) {
         JsonObject deviceObj = devices.add<JsonObject>();
-        const TargetableDevice& dev = reconState.getTargetableDevice(i);
+        TargetableDevice dev = reconState.getTargetableDevice(i);  // Copy for thread safety
         Internal::fillDevice(deviceObj, dev, i, reconState);
         // fillDevice now includes lastSeenSecondsAgo, add firstSeenSecondsAgo here
         uint32_t firstSeenAge = (dev.firstSeen > 0 && dev.firstSeen <= now) ?
@@ -539,7 +539,7 @@ String buildSecurityAssessmentJson(ReconState& reconState) {
     uint8_t moderateCount = 0;
 
     for (uint8_t i = 0; i < reconState.getNumTargetableDevices(); i++) {
-        const TargetableDevice& dev = reconState.getTargetableDevice(i);
+        TargetableDevice dev = reconState.getTargetableDevice(i);  // Copy for thread safety
         
         // Use shared security scorer for consistent assessment
         SecurityScorer::Assessment assessment = SecurityScorer::assess(dev);
