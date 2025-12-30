@@ -11,9 +11,6 @@
 #include "utils/json_utils.h"
 #include <ArduinoJson.h>
 
-// External WiFi manager (from main.cpp)
-extern WiFiManager wifiManager;
-
 namespace WiFiHandlers {
 
 void handleGetWiFiStatus(AsyncWebServerRequest* request) {

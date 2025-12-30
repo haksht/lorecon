@@ -9,10 +9,15 @@
 #define RECON_STATE_H
 
 #include <Arduino.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/semphr.h>
 #include "data_structures.h"
 #include "config.h"
 #include "repositories/packet_store.h"
 #include "repositories/device_repository.h"
+
+// Forward declaration for archiver integration
+class DeviceArchiver;
 
 class ReconState {
 private:
@@ -23,6 +28,14 @@ private:
     // Repository delegates
     PacketStore packetStore_;
     DeviceRepository deviceRepo_;
+    
+    // Optional archiver for restore-on-packet (owned by LoRaReconTool)
+    DeviceArchiver* deviceArchiver_;
+    
+    // Thread safety mutex for repository access
+    // Protects packetStore_ and deviceRepo_ from concurrent access
+    // between main loop (packet capture) and AsyncWebServer task (API handlers)
+    mutable SemaphoreHandle_t repoMutex_;
 
 public:
     // Core reconnaissance state
@@ -64,14 +77,36 @@ public:
     void addTargetableDevice(uint32_t nodeId, uint8_t configIndex, float rssi, 
                             const char* protocol, const uint8_t* packetData = nullptr, 
                             size_t packetLength = 0, uint8_t hopCount = 0xFF);
-    const TargetableDevice& getTargetableDevice(uint8_t index) const;
+    TargetableDevice getTargetableDevice(uint8_t index) const;  // Returns copy for thread safety
     TargetableDevice* getTargetableDeviceMutable(uint8_t index);
     TargetableDevice* findTargetableDevice(uint32_t nodeId);
     void clearTargetableDevices();
     uint8_t getNumTargetableDevices() const { return deviceRepo_.count(); }
     
     // Repository access (for DeviceArchiver and other components that need direct access)
+    // WARNING: Caller must hold lock when accessing repositories directly
     DeviceRepository& getDeviceRepository() { return deviceRepo_; }
+    
+    // Archiver integration (for restore-on-packet during long sessions)
+    void setDeviceArchiver(DeviceArchiver* archiver) { deviceArchiver_ = archiver; }
+    
+    // Thread-safe lock/unlock for API handlers accessing repositories
+    // Use RAII guard pattern: ReconState::ScopedLock lock(reconState);
+    bool lock(uint32_t timeoutMs = 100) const;
+    void unlock() const;
+    
+    // RAII helper for scoped locking
+    class ScopedLock {
+    public:
+        explicit ScopedLock(const ReconState& state, uint32_t timeoutMs = 100)
+            : state_(state), acquired_(state.lock(timeoutMs)) {}
+        ~ScopedLock() { if (acquired_) state_.unlock(); }
+        bool acquired() const { return acquired_; }
+        operator bool() const { return acquired_; }
+    private:
+        const ReconState& state_;
+        bool acquired_;
+    };
     
     // State queries
     bool hasTargetableDevices() const { return deviceRepo_.count() > 0; }
@@ -84,9 +119,12 @@ public:
                                 uint32_t nodeId = 0, uint32_t packetId = 0, uint8_t hopCount = 0,
                                 uint32_t destId = 0xFFFFFFFF, uint8_t channel = 0,
                                 bool wantAck = false, bool viaMqtt = false, uint8_t priority = 0);
-    const CapturedPacket& getReplayPacket(uint8_t index) const;
+    CapturedPacket getReplayPacket(uint8_t index) const;  // Returns copy for thread safety
     void clearReplaySlots();
     uint8_t getNumCapturedPackets() const { return packetStore_.count(); }
+    
+    // Direct repository access (caller MUST hold lock via ScopedLock first)
+    const PacketStore& getPacketStore() const { return packetStore_; }
     
     // Statistics and reporting
     void printStateSummary() const;

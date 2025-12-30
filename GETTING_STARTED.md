@@ -111,6 +111,8 @@ The ESP32 creates its own WiFi network.
 
 **Best for:** Headless deployment, testing, skip setup wizard
 
+**Method 1: Legacy JSON file** (migrated to NVS on first boot)
+
 Create `data/wifi_creds.json` before uploading filesystem:
 
 ```json
@@ -121,6 +123,8 @@ Create `data/wifi_creds.json` before uploading filesystem:
 ```
 
 Then upload: `pio run --target uploadfs`
+
+> **Note:** Credentials are automatically migrated to secure NVS (Non-Volatile Storage) on first boot. The JSON file is then deleted. All subsequent credential operations use NVS.
 
 Device will auto-connect on boot. See [API_REFERENCE.md](API_REFERENCE.md#pre-provisioned-credentials-optional) for details.
 
@@ -162,8 +166,6 @@ Press 'd' - Device type analysis
 Press 'k' - Export KML
 Press 'j' - Export GeoJSON
 Press 'b' - Reboot device
-Press 'k' - Export KML
-Press 'j' - Export GeoJSON
 ```
 
 **Best for:** Debugging, detailed packet analysis, development

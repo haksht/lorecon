@@ -1094,7 +1094,7 @@ curl -X GET http://192.168.4.1/api/activity
 
 ---
 
-## �️ Security Assessment
+## 🛡️ Security Assessment
 
 ### **GET /api/recon/security**
 

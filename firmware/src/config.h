@@ -152,6 +152,14 @@ namespace System {
     // SD card flush interval (packets)
     // Write to SD card after this many packets
     constexpr uint8_t SD_FLUSH_INTERVAL = 10;
+    
+    // Health check interval (milliseconds)
+    // Network intel update and device archival check
+    constexpr uint32_t HEALTH_CHECK_INTERVAL_MS = 300000;  // 5 minutes
+    
+    // Mutex lock timeout (milliseconds)
+    // Used for thread-safe repository access
+    constexpr uint32_t MUTEX_TIMEOUT_MS = 100;
 }
 
 // ============================================================================
@@ -287,8 +295,13 @@ namespace Archiver {
     constexpr float NO_SD_ROTATION_THRESHOLD = 30.0f;  // 30% (lower than SD threshold)
     
     // Archive file paths
-    constexpr const char* ARCHIVE_FILE = "/devices_archive.jsonl";
-    constexpr const char* STATS_FILE = "/archive_stats.jsonl";
+    constexpr const char* ARCHIVE_FILE = "/recon/devices_archive.jsonl";
+    constexpr const char* STATS_FILE = "/recon/archive_stats.jsonl";
+    constexpr const char* ARCHIVE_BACKUP_FILE = "/recon/devices_archive.old.jsonl";
+    
+    // Archive rotation settings (for 48+ hour sessions)
+    constexpr uint32_t MAX_ARCHIVE_SIZE_BYTES = 512 * 1024;  // 512KB max before rotation
+    constexpr uint8_t MAX_BACKUP_FILES = 3;  // Keep up to 3 rotated backups
 }
 
 // ANOMALY DETECTION

@@ -5,6 +5,8 @@
 #include "recon_state.h"
 #include "config.h"
 #include "utils/format_utils.h"
+#include "logger.h"
+#include "device_archiver.h"
 
 // Compile-time check: Ensure rfActivity array size matches NUM_CONFIGS
 static_assert(sizeof(((ReconState*)0)->rfActivity) / sizeof(RFActivity) >= 16, 
@@ -40,7 +42,7 @@ const ScanConfig ReconState::scanConfigs[] = {
   // Meshtastic LongSlow preset (maximum range)
   {906.875, 125.0, 12, 0x48, "Meshtastic_LongSlow"},
   
-  // Helium Network US915 (uplink - catch sensor transmissions)or transmissions)
+  // Helium Network US915 (uplink - catch sensor transmissions)
   {904.3,   125.0,  9, 0x12, "Helium_US_UL1"},
   {904.5,   125.0, 10, 0x12, "Helium_US_UL2"},
   
@@ -60,17 +62,35 @@ const uint8_t ReconState::NUM_CONFIGS = sizeof(scanConfigs) / sizeof(ScanConfig)
 // Global instance
 ReconState reconState;
 
-ReconState::ReconState() {
+ReconState::ReconState() : deviceArchiver_(nullptr), repoMutex_(nullptr) {
+    // Create mutex for thread-safe repository access
+    repoMutex_ = xSemaphoreCreateMutex();
+    if (!repoMutex_) {
+        Serial.println("[ERROR] Failed to create ReconState mutex!");
+    }
     initialize();
+}
+
+bool ReconState::lock(uint32_t timeoutMs) const {
+    if (!repoMutex_) return false;
+    return xSemaphoreTake(repoMutex_, pdMS_TO_TICKS(timeoutMs)) == pdTRUE;
+}
+
+void ReconState::unlock() const {
+    if (repoMutex_) {
+        xSemaphoreGive(repoMutex_);
+    }
 }
 
 void ReconState::initialize() {
     // Clear all arrays
     memset(rfActivity, 0, sizeof(rfActivity));
     
-    // Clear repositories
+    // Clear repositories (lock if mutex exists, safe for constructor call)
+    if (repoMutex_) lock();
     deviceRepo_.clear();
     packetStore_.clear();
+    if (repoMutex_) unlock();
     
     // Initialize scan state
     scanState.mode = MODE_RECONNAISSANCE;
@@ -111,9 +131,14 @@ bool ReconState::isValidConfigIndex(uint8_t index) const {
 
 void ReconState::updateRFActivity(uint8_t configIndex, float rssi) {
     if (configIndex >= NUM_CONFIGS) {
-        Serial.printf("[ERROR] updateRFActivity: Invalid config index %d (max: %d)\n", 
-                      configIndex, NUM_CONFIGS - 1);
+        LOG_ERROR("updateRFActivity: Invalid config index %d (max: %d)", 
+                  configIndex, NUM_CONFIGS - 1);
         return;
+    }
+    
+    // Thread safety: Use short lock to protect rfActivity array
+    if (!lock(10)) {
+        return;  // Skip update rather than block - RF activity is non-critical
     }
     
     RFActivity* activity = &rfActivity[configIndex];
@@ -142,6 +167,8 @@ void ReconState::updateRFActivity(uint8_t configIndex, float rssi) {
     } else {
         activity->activityLevel = "LOW";
     }
+    
+    unlock();
 }
 
 const RFActivity& ReconState::getRFActivity(uint8_t configIndex) const {
@@ -161,17 +188,38 @@ void ReconState::clearRFActivity() {
 }
 
 // Device management - delegates storage to DeviceRepository, identification stays here
+// Thread-safe: Protected by mutex
 void ReconState::addTargetableDevice(uint32_t nodeId, uint8_t configIndex, float rssi, 
                                     const char* protocol, const uint8_t* packetData, 
                                     size_t packetLength, uint8_t hopCount) {
     if (nodeId == 0 || configIndex >= NUM_CONFIGS) return;
+    
+    if (!lock(50)) {  // 50ms timeout - don't block packet processing too long
+        Serial.println("[WARN] addTargetableDevice: Failed to acquire lock");
+        return;
+    }
     
     // Check if device already exists
     TargetableDevice* existing = deviceRepo_.findByNodeId(nodeId);
     if (existing) {
         // Delegate update to repository with hop count for originated/relayed tracking
         deviceRepo_.addOrUpdate(nodeId, configIndex, rssi, protocol, nullptr, 0, hopCount);
+        unlock();
         return;
+    }
+    
+    // NEW DEVICE: First try to restore from archive (preserves history from long sessions)
+    if (deviceArchiver_) {
+        TargetableDevice* restored = deviceArchiver_->tryRestoreOnPacket(nodeId, deviceRepo_);
+        if (restored) {
+            // Device was in archive - update with current packet info
+            deviceRepo_.addOrUpdate(nodeId, configIndex, rssi, protocol, nullptr, 0, hopCount);
+            scanState.totalDetections++;
+            LOG_INFO("Restored device 0x%08X from archive (had %u packets)", 
+                     nodeId, restored->packetCount);
+            unlock();
+            return;
+        }
     }
     
     // New device - do identification here, then add via repository
@@ -202,25 +250,53 @@ void ReconState::addTargetableDevice(uint32_t nodeId, uint8_t configIndex, float
         // Increment total detections counter when new device is added
         scanState.totalDetections++;
         
-        Serial.printf("[TARGET] New targetable device: 0x%08X (%s) on %s (%.1f dBm)\n", 
-                      nodeId, device->deviceType, getScanConfig(configIndex).protocol, rssi);
+        LOG_INFO("New targetable device: 0x%08X (%s) on %s (%.1f dBm)", 
+                 nodeId, device->deviceType, getScanConfig(configIndex).protocol, rssi);
     }
+    unlock();
 }
 
-const TargetableDevice& ReconState::getTargetableDevice(uint8_t index) const {
-    return deviceRepo_.getByIndex(index);
+// Thread-safe: Returns copy to avoid reference-after-unlock race
+TargetableDevice ReconState::getTargetableDevice(uint8_t index) const {
+    if (!lock(100)) {
+        LOG_WARN("getTargetableDevice: Failed to acquire lock");
+        return TargetableDevice{};  // Return empty device
+    }
+    TargetableDevice copy = deviceRepo_.getByIndex(index);  // Copy while locked
+    unlock();
+    return copy;
 }
 
+// Thread-safe: Protected by mutex
 TargetableDevice* ReconState::getTargetableDeviceMutable(uint8_t index) {
-    return deviceRepo_.getByIndexMutable(index);
+    if (!lock(100)) {
+        LOG_WARN("getTargetableDeviceMutable: Failed to acquire lock");
+        return nullptr;
+    }
+    TargetableDevice* dev = deviceRepo_.getByIndexMutable(index);
+    unlock();
+    return dev;
 }
 
+// Thread-safe: Protected by mutex
 TargetableDevice* ReconState::findTargetableDevice(uint32_t nodeId) {
-    return deviceRepo_.findByNodeId(nodeId);
+    if (!lock(100)) {
+        Serial.println("[WARN] findTargetableDevice: Failed to acquire lock");
+        return nullptr;
+    }
+    TargetableDevice* dev = deviceRepo_.findByNodeId(nodeId);
+    unlock();
+    return dev;
 }
 
+// Thread-safe: Protected by mutex
 void ReconState::clearTargetableDevices() {
+    if (!lock(100)) {
+        Serial.println("[WARN] clearTargetableDevices: Failed to acquire lock");
+        return;
+    }
     deviceRepo_.clear();
+    unlock();
 }
 
 bool ReconState::hasRFActivity() const {
@@ -352,24 +428,44 @@ void ReconState::printStateSummary() const {
 }
 
 // Packet replay management - delegates to PacketStore
+// Thread-safe: Protected by mutex
 bool ReconState::capturePacketForReplay(const uint8_t* data, size_t length, uint8_t configIndex,
                                         float rssi, const char* protocol, const char* decryptedText,
                                         uint32_t nodeId, uint32_t packetId, uint8_t hopCount,
                                         uint32_t destId, uint8_t channel, bool wantAck,
                                         bool viaMqtt, uint8_t priority) {
-    return packetStore_.capturePacket(data, length, configIndex, 
+    if (!lock(50)) {  // 50ms timeout for capture operations
+        Serial.println("[WARN] capturePacketForReplay: Failed to acquire lock, dropping packet");
+        return false;
+    }
+    bool result = packetStore_.capturePacket(data, length, configIndex, 
                                        static_cast<int16_t>(rssi),
                                        nodeId, packetId, hopCount,
                                        destId, channel, wantAck, viaMqtt, priority,
                                        protocol, decryptedText);
+    unlock();
+    return result;
 }
 
-const CapturedPacket& ReconState::getReplayPacket(uint8_t index) const {
-    return packetStore_.getPacket(index);
+// Thread-safe: Returns copy to avoid use-after-unlock race condition
+CapturedPacket ReconState::getReplayPacket(uint8_t index) const {
+    if (!lock(Config::System::MUTEX_TIMEOUT_MS)) {
+        LOG_WARN("getReplayPacket: Failed to acquire lock");
+        return CapturedPacket{};
+    }
+    CapturedPacket pkt = packetStore_.getPacket(index);  // Copy while locked
+    unlock();
+    return pkt;
 }
 
+// Thread-safe: Protected by mutex
 void ReconState::clearReplaySlots() {
+    if (!lock(Config::System::MUTEX_TIMEOUT_MS)) {
+        LOG_WARN("clearReplaySlots: Failed to acquire lock");
+        return;
+    }
     packetStore_.clear();
+    unlock();
 }
 
 // Calculate network intelligence statistics

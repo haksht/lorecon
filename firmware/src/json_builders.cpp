@@ -16,6 +16,7 @@
 #include "utils/security_scorer.h"
 #include "config.h"
 #include "web_server.h"  // For g_webServer->getClientCount()
+#include "logger.h"
 
 namespace JsonBuilders {
 
@@ -81,12 +82,24 @@ void fillDevice(ArduinoJson::JsonObject& obj, const TargetableDevice& dev, uint8
 String buildDevicesJson(ReconState& reconState) {
     JsonDocument doc;
     doc["status"] = "success";
+    
+    // Use scoped lock to ensure consistent view during iteration
+    ReconState::ScopedLock lock(reconState);
+    if (!lock) {
+        doc["status"] = "error";
+        doc["message"] = "Failed to acquire lock";
+        String response;
+        serializeJson(doc, response);
+        return response;
+    }
+    
     doc["count"] = reconState.getNumTargetableDevices();
     
     JsonArray devices = doc["devices"].to<JsonArray>();
     for (uint8_t i = 0; i < reconState.getNumTargetableDevices(); i++) {
         JsonObject deviceObj = devices.add<JsonObject>();
-        const TargetableDevice& dev = reconState.getTargetableDevice(i);
+        // Use direct repository access since we hold the lock
+        const TargetableDevice& dev = reconState.getDeviceRepository().getByIndex(i);
         Internal::fillDevice(deviceObj, dev, i, reconState);
     }
 
@@ -448,13 +461,15 @@ String buildDeviceTypeSummaryJson(ReconState& reconState) {
         uint8_t powerClassSum;
     };
 
-    DeviceTypeStats stats[Config::Tracking::MAX_DEVICES];
+    // Use static allocation to avoid 2KB stack usage (50 * ~40 bytes)
+    // Safe because this function is only called from a single task context
+    static DeviceTypeStats stats[Config::Tracking::MAX_DEVICES];
     memset(stats, 0, sizeof(stats));
     uint8_t typeCount = 0;
     uint16_t totalRouters = 0;
 
     for (uint8_t i = 0; i < reconState.getNumTargetableDevices(); i++) {
-        const TargetableDevice& dev = reconState.getTargetableDevice(i);
+        TargetableDevice dev = reconState.getTargetableDevice(i);  // Copy for thread safety
 
         DeviceTypeStats* statPtr = nullptr;
         for (uint8_t j = 0; j < typeCount; j++) {
@@ -621,19 +636,31 @@ String buildReplaySlotsJson(ReconState& reconState) {
     doc["status"] = "success";
     doc["capacity"] = Config::Replay::MAX_SLOTS;
     
-    uint8_t numCaptured = reconState.getNumCapturedPackets();
+    // Use scoped lock to ensure consistent view during iteration
+    ReconState::ScopedLock lock(reconState);
+    if (!lock) {
+        doc["status"] = "error";
+        doc["message"] = "Failed to acquire lock";
+        LOG_WARN("buildReplaySlotsJson: Failed to acquire lock");
+        String response;
+        serializeJson(doc, response);
+        return response;
+    }
+    
+    // Direct access to packet store while holding lock
+    const PacketStore& store = reconState.getPacketStore();
+    uint8_t numCaptured = store.count();
     doc["count"] = numCaptured;
     doc["available"] = Config::Replay::MAX_SLOTS - numCaptured;
     
-    // Debug: Log what we're building
-    Serial.printf("[API] buildReplaySlotsJson: numCaptured=%d\n", numCaptured);
+    LOG_DEBUG("buildReplaySlotsJson: numCaptured=%d (locked)", numCaptured);
 
     JsonArray slots = doc["slots"].to<JsonArray>();
     uint8_t validCount = 0;
     for (uint8_t i = 0; i < numCaptured; i++) {
-        const CapturedPacket& packet = reconState.getReplayPacket(i);
+        const CapturedPacket& packet = store.getPacket(i);
         if (!packet.valid) {
-            Serial.printf("[API] Slot %d: invalid (skipped)\n", i);
+            LOG_DEBUG("Slot %d: invalid (skipped)", i);
             continue;
         }
         validCount++;
@@ -685,7 +712,7 @@ String buildReplaySlotsJson(ReconState& reconState) {
         }
     }
     
-    Serial.printf("[API] buildReplaySlotsJson: returned %d valid slots\n", validCount);
+    LOG_DEBUG("buildReplaySlotsJson: returned %d valid slots", validCount);
 
     String response;
     serializeJson(doc, response);

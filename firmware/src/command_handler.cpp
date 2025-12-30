@@ -13,11 +13,11 @@
 #include <esp_task_wdt.h>
 #include "command_handler.h"
 #include "mode_manager.h"
-#include "irecon_tool.h"  // Interface only
-#include "lora_recon_tool.h"  // For g_reconTool global
+#include "irecon_tool.h"  // Interface only - no concrete class needed
 #include "radio_controller.h"  // Need full definition for method calls
 #include "api_security.h"  // For token display
 #include "oled_display.h"  // For OLED token display
+#include "logger.h"
 #include "user_interface.h"
 #include "recon_state.h"
 #include "protocol_analyzer.h"
@@ -90,7 +90,7 @@ bool CommandHandler::handleCommand(char cmd) {
     
     // Filter out non-printable characters
     if (cmd < 0x20 || cmd > 0x7E) {
-        Serial.printf("[SERIAL-NOISE] Ignoring non-printable byte: 0x%02X\n", (uint8_t)cmd);
+        LOG_DEBUG("Ignoring non-printable byte: 0x%02X", (uint8_t)cmd);
         return false;
     }
     
@@ -101,18 +101,18 @@ bool CommandHandler::handleCommand(char cmd) {
     if (!entry && !isDeviceSelect) {
         // Not a valid command - ignore silently (whitespace) or warn
         if (cmd != ' ' && cmd != '\t') {
-            Serial.printf("[SERIAL] Unknown command: '%c'. Press 'm' for menu.\n", cmd);
+            LOG_DEBUG("Unknown command: '%c'. Press 'm' for menu.", cmd);
         }
         return false;
     }
     
     // Log valid serial input for debugging
-    Serial.printf("[SERIAL-CMD] Received: '%c' (0x%02X) in mode %d\n", 
-                  cmd, (uint8_t)cmd, reconState.scanState.mode);
+    LOG_DEBUG("Received: '%c' (0x%02X) in mode %d", 
+              cmd, (uint8_t)cmd, reconState.scanState.mode);
     
     // Execute command from dispatch table
     if (entry) {
-        Serial.printf("[SERIAL-CMD] Executing: %s\n", entry->description);
+        LOG_DEBUG("Executing: %s", entry->description);
         entry->handler(reconTool);
         return true;
     }
@@ -142,14 +142,14 @@ const CommandHandler::CommandEntry* CommandHandler::findCommand(char cmd) {
 }
 
 void CommandHandler::showCommands() {
-    Serial.println("\\n=== AVAILABLE COMMANDS ===");
+    Serial.println("\n=== AVAILABLE COMMANDS ===");
     
     // Group by functionality
-    Serial.println("\\n📡 TARGETING:");
+    Serial.println("\n📡 TARGETING:");
     Serial.println("  1-9 : Target device by number");
     Serial.println("  f   : Frequency targeting (skip device)");
     
-    Serial.println("\\n📊 ANALYSIS:");
+    Serial.println("\n📊 ANALYSIS:");
     Serial.println("  m   : Show menu with discovered devices");
     Serial.println("  s   : Show summary again");
     Serial.println("  a   : Detailed RF activity analysis");
@@ -176,8 +176,8 @@ void CommandHandler::cmdShowMenu(IReconTool* tool) {
     modeManager.logModeTransition(reconState.scanState.mode, MODE_INTERACTIVE_MENU, "Serial:showMenu");
     reconState.scanState.mode = MODE_INTERACTIVE_MENU;
     // Track when menu mode was entered for auto-timeout
-    if (g_reconTool) {
-        g_reconTool->setMenuModeEntered();
+    if (tool) {
+        tool->setMenuModeEntered();
     }
     showReconResults();
 }
@@ -221,8 +221,8 @@ void CommandHandler::cmdResumeRecon(IReconTool* tool) {
     reconState.scanState.lastScanSwitch = millis();
     
     // Clear menu timeout since we're leaving menu mode
-    if (g_reconTool) {
-        g_reconTool->clearMenuTimeout();
+    if (tool) {
+        tool->clearMenuTimeout();
     }
     reconState.scanState.packetPending = false;
     reconState.scanState.waitingForUserInput = false;
@@ -278,8 +278,8 @@ void CommandHandler::cmdSecurityAssessment(IReconTool* tool) {
     ModeManager modeManager;
     modeManager.logModeTransition(reconState.scanState.mode, MODE_INTERACTIVE_MENU, "Serial:securityAssess");
     reconState.scanState.mode = MODE_INTERACTIVE_MENU;
-    if (g_reconTool) {
-        g_reconTool->setMenuModeEntered();
+    if (tool) {
+        tool->setMenuModeEntered();
     }
     showReconResults();
 }

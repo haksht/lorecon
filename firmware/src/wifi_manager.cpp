@@ -440,9 +440,10 @@ bool WiFiManager::startStation(const char* ssid, const char* password) {
         }
         esp_task_wdt_reset();  // Feed watchdog during long wait
         delay(100);
+        // Progress indicator (intentionally raw Serial for inline dots)
         Serial.print(".");
     }
-    Serial.println();
+    Serial.println();  // End progress line
     
     currentMode = WiFiMode::STA;
     LOG_INFO("✓ Connected to WiFi");

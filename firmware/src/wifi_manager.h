@@ -97,4 +97,7 @@ private:
     void startBackgroundAP(); // Start AP alongside STA for fallback access
 };
 
+// Global instance (defined in wifi_manager.cpp)
+extern WiFiManager wifiManager;
+
 #endif // WIFI_MANAGER_H

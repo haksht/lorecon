@@ -248,7 +248,8 @@ void handleGetPSKStats(AsyncWebServerRequest* request) {
 // =============================================================================
 
 void handleGetReplaySlots(AsyncWebServerRequest* request) {
-    request->send(200, "application/json", APIController::getReplaySlots());
+    String response = APIController::getReplaySlots();
+    request->send(200, "application/json", response);
 }
 
 void handleClearReplaySlots(AsyncWebServerRequest* request) {

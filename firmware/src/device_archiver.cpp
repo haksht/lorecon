@@ -75,6 +75,9 @@ bool DeviceArchiver::checkAndArchive(DeviceRepository& deviceRepo) {
 }
 
 bool DeviceArchiver::archiveInactiveDevices(DeviceRepository& deviceRepo) {
+    // Check if we need to rotate the archive file first
+    rotateArchiveIfNeeded();
+    
     float fragBefore = getCurrentFragmentation();
     uint32_t heapBefore = ESP.getFreeHeap();
     uint32_t now = millis();
@@ -243,14 +246,68 @@ void DeviceArchiver::logArchiveOperation(uint8_t archivedCount, float fragBefore
 }
 
 bool DeviceArchiver::restoreDevice(uint32_t nodeId, TargetableDevice& device) {
-    // TODO: Implement device restoration from archive
-    // Would need to:
-    // 1. Open archive file
-    // 2. Search for nodeId in JSON Lines
-    // 3. Parse and populate device struct
-    // 4. Optionally remove from archive or mark as restored
-    LOG_WARN("[ARCHIVE] restoreDevice() not yet implemented");
-    return false;
+    if (!isSDAvailable()) {
+        return false;  // Can't restore without SD
+    }
+    
+    File archive = SD.open(Config::Archiver::ARCHIVE_FILE, FILE_READ);
+    if (!archive) {
+        return false;  // No archive file
+    }
+    
+    bool found = false;
+    String line;
+    
+    // Scan JSON Lines file for matching nodeId
+    while (archive.available() && !found) {
+        line = archive.readStringUntil('\n');
+        if (line.length() == 0) continue;
+        
+        JsonDocument doc;
+        DeserializationError err = deserializeJson(doc, line);
+        if (err) continue;
+        
+        // Check if this is a device record with matching nodeId
+        if (doc["type"] == "device" && doc["nodeId"] == nodeId) {
+            // Restore device fields
+            device.nodeId = nodeId;
+            device.configIndex = doc["configIndex"] | 0;
+            device.bestRSSI = doc["bestRSSI"] | -120.0f;
+            device.avgRSSI = doc["avgRSSI"] | -120.0f;
+            device.packetCount = doc["packetCount"] | 0;
+            device.lastSeen = millis();  // Update to now since we're restoring on activity
+            device.firstSeen = doc["firstSeen"] | millis();
+            device.isRouter = doc["isRouter"] | false;
+            device.powerClass = doc["powerClass"] | 0;
+            
+            // Copy string fields safely
+            strncpy(device.protocol, doc["protocol"] | "Unknown", sizeof(device.protocol) - 1);
+            device.protocol[sizeof(device.protocol) - 1] = '\0';
+            
+            strncpy(device.deviceType, doc["deviceType"] | "Unknown", sizeof(device.deviceType) - 1);
+            device.deviceType[sizeof(device.deviceType) - 1] = '\0';
+            
+            strncpy(device.firmwareVersion, doc["firmwareVersion"] | "", sizeof(device.firmwareVersion) - 1);
+            device.firmwareVersion[sizeof(device.firmwareVersion) - 1] = '\0';
+            
+            // Initialize RSSI tracking fields for Welford's algorithm
+            device.rssiStdDev = 0.0f;
+            device.rssiM2 = 0.0f;
+            device.originatedPackets = 0;
+            device.relayedPackets = 0;
+            device.periodicityScore = 0;
+            device.avgPacketInterval = 0;
+            device.lastPacketInterval = 0;
+            
+            found = true;
+            stats.totalRestored++;
+            
+            LOG_INFO("[ARCHIVE] ✓ Restored device 0x%08X from archive", nodeId);
+        }
+    }
+    
+    archive.close();
+    return found;
 }
 
 void DeviceArchiver::printStats() const {
@@ -263,4 +320,106 @@ void DeviceArchiver::printStats() const {
                   stats.fragmentationBefore, stats.fragmentationAfter);
     Serial.printf("  Current fragmentation: %.1f%%\n", getCurrentFragmentation());
     Serial.printf("  Current free heap: %u bytes\n", ESP.getFreeHeap());
+}
+
+TargetableDevice* DeviceArchiver::tryRestoreOnPacket(uint32_t nodeId, DeviceRepository& deviceRepo) {
+    // Only try restore if SD is available and we have archive
+    if (!isSDAvailable()) {
+        return nullptr;
+    }
+    
+    // Check if device is already in repository
+    if (deviceRepo.findByNodeId(nodeId) != nullptr) {
+        return nullptr;  // Already in memory, no need to restore
+    }
+    
+    // Check if repository has room
+    if (deviceRepo.isFull()) {
+        return nullptr;  // No room to restore
+    }
+    
+    // Try to find in archive
+    TargetableDevice restoredDevice;
+    if (restoreDevice(nodeId, restoredDevice)) {
+        // Add restored device to repository
+        // Use addOrUpdate which will handle the insert
+        TargetableDevice* device = deviceRepo.addOrUpdate(
+            restoredDevice.nodeId,
+            restoredDevice.configIndex,
+            restoredDevice.avgRSSI,
+            restoredDevice.protocol,
+            nullptr,  // No packet data needed for restore
+            0,
+            0xFF  // Unknown hop count
+        );
+        
+        if (device) {
+            // Copy over archived stats
+            device->packetCount = restoredDevice.packetCount;
+            device->firstSeen = restoredDevice.firstSeen;
+            device->isRouter = restoredDevice.isRouter;
+            device->powerClass = restoredDevice.powerClass;
+            strncpy(device->deviceType, restoredDevice.deviceType, sizeof(device->deviceType) - 1);
+            device->deviceType[sizeof(device->deviceType) - 1] = '\0';
+            strncpy(device->firmwareVersion, restoredDevice.firmwareVersion, sizeof(device->firmwareVersion) - 1);
+            device->firmwareVersion[sizeof(device->firmwareVersion) - 1] = '\0';
+            
+            LOG_INFO("[ARCHIVE] Device 0x%08X restored from archive with %u prior packets",
+                    nodeId, device->packetCount);
+            return device;
+        }
+    }
+    
+    return nullptr;
+}
+
+bool DeviceArchiver::rotateArchiveIfNeeded() {
+    if (!isSDAvailable()) {
+        return false;
+    }
+    
+    // Check archive file size
+    File archive = SD.open(Config::Archiver::ARCHIVE_FILE, FILE_READ);
+    if (!archive) {
+        return false;  // No archive to rotate
+    }
+    
+    size_t fileSize = archive.size();
+    archive.close();
+    
+    if (fileSize < Config::Archiver::MAX_ARCHIVE_SIZE_BYTES) {
+        return false;  // File is small enough
+    }
+    
+    LOG_INFO("[ARCHIVE] Archive file %u bytes exceeds limit, rotating...", fileSize);
+    
+    // Remove oldest backup if it exists
+    char backupPath[64];
+    for (int i = Config::Archiver::MAX_BACKUP_FILES; i >= 1; i--) {
+        snprintf(backupPath, sizeof(backupPath), "/recon/devices_archive.%d.jsonl", i);
+        
+        if (i == Config::Archiver::MAX_BACKUP_FILES) {
+            // Delete oldest
+            if (SD.exists(backupPath)) {
+                SD.remove(backupPath);
+                LOG_INFO("[ARCHIVE] Removed oldest backup: %s", backupPath);
+            }
+        } else {
+            // Rename N to N+1
+            char newPath[64];
+            snprintf(newPath, sizeof(newPath), "/recon/devices_archive.%d.jsonl", i + 1);
+            if (SD.exists(backupPath)) {
+                SD.rename(backupPath, newPath);
+            }
+        }
+    }
+    
+    // Rename current archive to .1.jsonl
+    snprintf(backupPath, sizeof(backupPath), "/recon/devices_archive.1.jsonl");
+    if (SD.exists(Config::Archiver::ARCHIVE_FILE)) {
+        SD.rename(Config::Archiver::ARCHIVE_FILE, backupPath);
+        LOG_INFO("[ARCHIVE] ✓ Rotated archive to %s", backupPath);
+    }
+    
+    return true;
 }

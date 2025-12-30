@@ -39,6 +39,11 @@
 namespace CrashContext {
     static Preferences prefs;
     static constexpr const char* NVS_NAMESPACE = "crash";
+    static const char* lastAction = "boot";  // Track last significant action
+    
+    void setLastAction(const char* action) {
+        lastAction = action;
+    }
     
     void saveState(uint8_t mode, uint32_t uptimeSec, uint32_t freeHeap) {
         if (!prefs.begin(NVS_NAMESPACE, false)) return;
@@ -46,6 +51,7 @@ namespace CrashContext {
         prefs.putULong("lastUptime", uptimeSec);
         prefs.putULong("lastHeap", freeHeap);
         prefs.putULong("saveCount", prefs.getULong("saveCount", 0) + 1);
+        prefs.putString("lastAction", lastAction);
         prefs.end();
     }
     
@@ -55,6 +61,7 @@ namespace CrashContext {
         uint32_t lastUptime = prefs.getULong("lastUptime", 0);
         uint32_t lastHeap = prefs.getULong("lastHeap", 0);
         uint32_t saveCount = prefs.getULong("saveCount", 0);
+        String lastActionStr = prefs.getString("lastAction", "unknown");
         prefs.end();
         
         if (lastMode != 255 && lastUptime > 0) {
@@ -64,6 +71,7 @@ namespace CrashContext {
                                   (lastMode == 3) ? "REPLAY" : "UNKNOWN";
             LOG_INFO("📊 Pre-crash context: mode=%s, uptime=%lu sec, heap=%lu bytes", 
                      modeStr, lastUptime, lastHeap);
+            LOG_INFO("   Last action: %s", lastActionStr.c_str());
             LOG_INFO("   (crash context saved %lu times since flash)", saveCount);
         }
     }
@@ -205,11 +213,12 @@ void loop() {
     // Update WiFi connection monitoring
     wifiManager.update();
     
-    // Periodically save crash context (every 60 seconds)
+    // Periodically save crash context (every 10 seconds for better diagnostics)
     // If device crashes, we'll know what mode it was in
     static uint32_t lastCrashContextSave = 0;
     uint32_t now = millis();
-    if (now - lastCrashContextSave >= 60000) {
+    if (now - lastCrashContextSave >= 10000) {
+        CrashContext::setLastAction("loop");
         CrashContext::saveState(
             reconState.scanState.mode,
             now / 1000,

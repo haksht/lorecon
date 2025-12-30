@@ -37,14 +37,14 @@ RadioController::~RadioController() {
 
 // Initialize radio hardware
 bool RadioController::initialize() {
-    Serial.println("[RADIO] Initializing SX1262...");
+    LOG_INFO("Initializing SX1262...");
     
     // Initialize SPI bus
     SPI.begin(Config::Hardware::SPI_SCK, Config::Hardware::SPI_MISO, 
               Config::Hardware::SPI_MOSI, Config::Hardware::LORA_NSS);
-    Serial.printf("[RADIO] SPI initialized (SCK:%d MISO:%d MOSI:%d NSS:%d)\n", 
-                  Config::Hardware::SPI_SCK, Config::Hardware::SPI_MISO, 
-                  Config::Hardware::SPI_MOSI, Config::Hardware::LORA_NSS);
+    LOG_DEBUG("SPI initialized (SCK:%d MISO:%d MOSI:%d NSS:%d)", 
+              Config::Hardware::SPI_SCK, Config::Hardware::SPI_MISO, 
+              Config::Hardware::SPI_MOSI, Config::Hardware::LORA_NSS);
     
     // Initialize radio module
     int state = radio.begin();
@@ -53,12 +53,12 @@ bool RadioController::initialize() {
         return false;
     }
     
-    Serial.println("[RADIO] SX1262 initialized successfully");
+    LOG_INFO("SX1262 initialized successfully");
     
     // Configure interrupt pin and handler
     pinMode(Config::Hardware::LORA_DIO1, INPUT);
     radio.setDio1Action(radioISR);
-    Serial.printf("[RADIO] Interrupt configured on GPIO %d\n", Config::Hardware::LORA_DIO1);
+    LOG_DEBUG("Interrupt configured on GPIO %d", Config::Hardware::LORA_DIO1);
     
     // Set receive-only mode (no transmission by default)
     radio.setCurrentLimit(Config::Radio::CURRENT_LIMIT_MA);
@@ -75,35 +75,35 @@ void RadioController::shutdown() {
 
 // Apply complete scan configuration
 bool RadioController::applyConfig(const ScanConfig& config) {
-    Serial.printf("[RADIO] Scanning: %s (%.3f MHz, SF%d, BW%.0f, SW:0x%02X)\n", 
-                  config.protocol, config.frequency, config.spreadingFactor, 
-                  config.bandwidth, config.syncWord);
+    LOG_DEBUG("Scanning: %s (%.3f MHz, SF%d, BW%.0f, SW:0x%02X)", 
+              config.protocol, config.frequency, config.spreadingFactor, 
+              config.bandwidth, config.syncWord);
     
     // Apply frequency
     int state = radio.setFrequency(config.frequency);
     if (state != RADIOLIB_ERR_NONE) {
-        Serial.printf("[RADIO] setFrequency failed: %d\n", state);
+        LOG_ERROR("setFrequency failed: %d", state);
         return false;
     }
     
     // Apply bandwidth
     state = radio.setBandwidth(config.bandwidth);
     if (state != RADIOLIB_ERR_NONE) {
-        Serial.printf("[RADIO] setBandwidth failed: %d\n", state);
+        LOG_ERROR("setBandwidth failed: %d", state);
         return false;
     }
     
     // Apply spreading factor
     state = radio.setSpreadingFactor(config.spreadingFactor);
     if (state != RADIOLIB_ERR_NONE) {
-        Serial.printf("[RADIO] setSpreadingFactor failed: %d\n", state);
+        LOG_ERROR("setSpreadingFactor failed: %d", state);
         return false;
     }
     
     // Apply sync word
     state = radio.setSyncWord(config.syncWord);
     if (state != RADIOLIB_ERR_NONE) {
-        Serial.printf("[RADIO] setSyncWord failed: %d\n", state);
+        LOG_ERROR("setSyncWord failed: %d", state);
         return false;
     }
     

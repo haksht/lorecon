@@ -6,23 +6,16 @@
 #include "irecon_tool.h"  // Interface to implement
 #include "config.h"
 
-// Forward declarations
-class CommandHandler;
-class OLEDDisplay;
-class RadioController;
-class PacketProcessor;
-class WebServer;
-class DeviceArchiver;
-
+// Include full definitions (forward declarations removed - they were redundant)
 #include "recon_state.h"
 #include "radio_controller.h"
 #include "packet_processor.h"
 #include "command_handler.h"
 #include "oled_display.h"
 
-// Hardware configuration moved to config.h
-
-// Scanning configuration moved to config.h
+// Forward declarations only for types not yet included
+class WebServer;
+class DeviceArchiver;
 
 /**
  * LoRa Reconnaissance Tool - Main application orchestrator
@@ -48,12 +41,12 @@ public:
     void showReplayMenu() override;
     void replayPacket(uint8_t slotIndex) override;
     
+    // Menu timeout tracking - IReconTool interface
+    void setMenuModeEntered() override { menuModeEnteredAt = millis(); }
+    void clearMenuTimeout() override { menuModeEnteredAt = 0; }
+    
     // Web server integration
     void setWebServer(WebServer* ws);
-    
-    // Menu timeout tracking (public for CommandHandler access)
-    void setMenuModeEntered() { menuModeEnteredAt = millis(); }
-    void clearMenuTimeout() { menuModeEnteredAt = 0; }
     
 private:
     // Component instances
