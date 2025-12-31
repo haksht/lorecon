@@ -1081,9 +1081,14 @@ class ReconApp {
         data.anomalies.slice(0, 5).forEach(anom => {
             const typeEmoji = {'packet_size': '📦', 'relay_hops': '↻', 'rate_limit': '⚡', 'rssi_variance': '📡', 'replay': '🔁', 'timing': '⏱️'}[anom.type] || '⚠️';
             const safeNodeId = escapeHtml(anom.nodeId.toString(16));
+            // timestamp is millis() uptime, format as relative time
+            const uptimeSec = Math.floor(anom.timestamp / 1000);
+            const mins = Math.floor(uptimeSec / 60);
+            const hrs = Math.floor(mins / 60);
+            const timeStr = hrs > 0 ? `${hrs}h ${mins % 60}m ago` : `${mins}m ago`;
             html += '<div class="alert-item">';
             html += `<div class="alert-item-row"><span>${typeEmoji} <strong>0x${safeNodeId}</strong></span>`;
-            html += `<span class="alert-item-timestamp">${new Date(anom.timestamp).toLocaleTimeString()}</span></div>`;
+            html += `<span class="alert-item-timestamp">${timeStr}</span></div>`;
             html += `<div class="alert-item-detail">${escapeHtml(anom.description)}</div></div>`;
         });
         

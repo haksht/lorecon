@@ -127,6 +127,12 @@ public:
     bool removeByNodeId(uint32_t nodeId);
     
     /**
+     * Evict the oldest inactive device to make room for a new one
+     * @return true if a device was evicted, false if none could be evicted
+     */
+    bool evictOldestInactive();
+    
+    /**
      * Initialize/reset the repository
      */
     void initialize();

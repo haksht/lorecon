@@ -473,7 +473,11 @@ void WebServer::broadcastAggregatedUpdate() {
     if (json.length() > 0 && json.length() < 256 && 
         !disconnectInProgress.load(std::memory_order_acquire) &&
         ws->count() > 0) {
-        ws->textAll(json);
+        // Clean up stale clients before sending to prevent queue buildup
+        ws->cleanupClients();
+        if (ws->count() > 0) {
+            ws->textAll(json);
+        }
     }
     
     aggStats.packetCount = 0;
@@ -516,6 +520,7 @@ void WebServer::broadcastDeviceUpdate(uint32_t nodeId) {
     String json;
     serializeJson(doc, json);
     
+    ws->cleanupClients();
     if (!disconnectInProgress.load(std::memory_order_acquire) && ws->count() > 0) {
         ws->textAll(json);
     }
@@ -538,6 +543,7 @@ void WebServer::broadcastStatusUpdate() {
     String json;
     serializeJson(doc, json);
 
+    ws->cleanupClients();
     if (!disconnectInProgress.load(std::memory_order_acquire) && ws->count() > 0) {
         ws->textAll(json);
     }
