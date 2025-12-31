@@ -67,8 +67,11 @@ TargetableDevice* DeviceRepository::addOrUpdate(
     
     // Create new device if we have capacity
     if (deviceCount >= Config::Tracking::MAX_DEVICES) {
-        LOG_WARN("Device repository full, cannot add node 0x%08X", nodeId);
-        return nullptr;
+        // Try to evict oldest inactive device to make room
+        if (!evictOldestInactive()) {
+            LOG_WARN("Device repository full, cannot add node 0x%08X", nodeId);
+            return nullptr;
+        }
     }
     
     device = &devices[deviceCount++];
@@ -257,6 +260,39 @@ bool DeviceRepository::removeByNodeId(uint32_t nodeId) {
     deviceCount--;
     
     // Clear the last slot
+    memset(&devices[deviceCount], 0, sizeof(TargetableDevice));
+    
+    return true;
+}
+
+bool DeviceRepository::evictOldestInactive() {
+    if (deviceCount == 0) return false;
+    
+    uint32_t now = millis();
+    uint32_t oldestTime = UINT32_MAX;
+    uint8_t oldestIndex = UINT8_MAX;
+    
+    // Find the device with the oldest lastSeen timestamp
+    for (uint8_t i = 0; i < deviceCount; i++) {
+        if (devices[i].lastSeen < oldestTime) {
+            oldestTime = devices[i].lastSeen;
+            oldestIndex = i;
+        }
+    }
+    
+    if (oldestIndex == UINT8_MAX) return false;
+    
+    uint32_t inactiveMs = now - oldestTime;
+    uint32_t nodeId = devices[oldestIndex].nodeId;
+    
+    LOG_INFO("[DEVICE] Evicting 0x%08X (inactive %lu ms) to make room", nodeId, inactiveMs);
+    
+    // Shift remaining devices down
+    for (uint8_t i = oldestIndex; i < deviceCount - 1; i++) {
+        devices[i] = devices[i + 1];
+    }
+    
+    deviceCount--;
     memset(&devices[deviceCount], 0, sizeof(TargetableDevice));
     
     return true;
