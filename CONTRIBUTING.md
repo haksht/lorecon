@@ -133,7 +133,7 @@ No unit test framework. Validate via:
 1. **PSK Boot Tests**: `PSKTests::runAll()` runs automatically
 2. **Serial Monitor**: Watch for errors during operation
 3. **Web UI Testing**: Check all tabs, actions, error states
-4. **Python Tools**: Use `tools/demo.py` for visualizer testing
+4. **Python Tools**: Use `tools/enhanced_live_visualizer.py` for visualizer testing
 
 ## Pull Request Checklist
 

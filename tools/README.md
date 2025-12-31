@@ -2,7 +2,49 @@
 
 Professional-grade visualization and analysis tools for ESP32 LoRa reconnaissance data.
 
-## 📁 Directory Structure
+## � Data Access: SD Card vs Real-Time Connection
+
+The ESP32 stores captured data **in RAM only** unless an SD card is installed. This affects how you use these tools:
+
+### Without SD Card (Real-Time Connection Required)
+
+You **must** be connected via **Serial (USB)** or **WiFi (WebSocket/API)** to access data:
+
+| Connection | How to Use | Data Access |
+|------------|------------|-------------|
+| **Serial/USB** | `pio device monitor` | View live output, use 'k'/'j' for KML/GeoJSON |
+| **WiFi (AP)** | Connect to `lora-recon-XXXXXX`, browse `192.168.4.1` | Web UI, API, WebSocket |
+| **WiFi (Hotspot)** | Device joins your network | Same as AP, use assigned IP |
+
+**Tools that work (real-time):**
+- `ws_monitor.py` - WebSocket packet monitor
+- `api_client.py` - REST API (devices, status, replay slots)
+- `enhanced_live_visualizer.py` - Live 5-panel dashboard
+- `position_tracker.py` - Live GPS map
+- `visualization/*.html` - Browser dashboards
+
+**⚠️ Data is lost on reboot!** Export via API before power cycling.
+
+### With SD Card (Offline Analysis)
+
+SD card enables **persistent storage** - data survives reboots and can be analyzed later **without the device connected**:
+
+1. Run capture session (device writes PCAP/CSV to SD card)
+2. Remove SD card from device
+3. Insert SD card into PC card reader
+4. Analyze files offline - no device or WiFi needed
+
+**Additional tools available (file-based):**
+- `pcap_analyzer.py` - Analyze `.pcap` capture files
+- `session_analyzer.py` - Parse SD card session logs
+- `timeline_replay.py` - DVR-style session replay
+- `recon_report.py` - Generate security reports from files
+
+**Note:** Real-time tools (ws_monitor, visualizers) still work with SD card installed - you get both live monitoring AND persistent storage.
+
+---
+
+## �📁 Directory Structure
 
 ```
 tools/

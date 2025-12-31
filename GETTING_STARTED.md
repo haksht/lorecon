@@ -195,7 +195,7 @@ Once configured for your hotspot:
 
 #### Web Interface Features
 
-**8 Interactive Tabs:**
+**7 Interactive Tabs:**
 
 1. **Info** - System overview, GPS data, security assessment
 2. **Devices** - Discovered devices sorted by vulnerability

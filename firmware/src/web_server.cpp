@@ -475,8 +475,11 @@ void WebServer::broadcastAggregatedUpdate() {
         ws->count() > 0) {
         // Clean up stale clients before sending to prevent queue buildup
         ws->cleanupClients();
-        if (ws->count() > 0) {
-            ws->textAll(json);
+        // Only send to clients that aren't backed up
+        for (auto& client : ws->getClients()) {
+            if (client->status() == WS_CONNECTED && !client->queueIsFull()) {
+                client->text(json);
+            }
         }
     }
     
@@ -495,6 +498,14 @@ void WebServer::service() {
     }
     
     uint32_t now = millis();
+    
+    // Periodic WebSocket cleanup every 30 seconds to catch ghost connections
+    static uint32_t lastCleanup = 0;
+    if (ws && (now - lastCleanup >= 30000)) {
+        ws->cleanupClients();
+        lastCleanup = now;
+    }
+    
     if (now - lastBroadcast >= BROADCAST_INTERVAL_MS) {
         bool broadcastPending = pendingPacketBroadcast.load(std::memory_order_relaxed);
         if (broadcastPending && activeClients.load(std::memory_order_relaxed) > 0) {
@@ -521,8 +532,12 @@ void WebServer::broadcastDeviceUpdate(uint32_t nodeId) {
     serializeJson(doc, json);
     
     ws->cleanupClients();
-    if (!disconnectInProgress.load(std::memory_order_acquire) && ws->count() > 0) {
-        ws->textAll(json);
+    if (!disconnectInProgress.load(std::memory_order_acquire)) {
+        for (auto& client : ws->getClients()) {
+            if (client->status() == WS_CONNECTED && !client->queueIsFull()) {
+                client->text(json);
+            }
+        }
     }
 }
 
@@ -544,8 +559,12 @@ void WebServer::broadcastStatusUpdate() {
     serializeJson(doc, json);
 
     ws->cleanupClients();
-    if (!disconnectInProgress.load(std::memory_order_acquire) && ws->count() > 0) {
-        ws->textAll(json);
+    if (!disconnectInProgress.load(std::memory_order_acquire)) {
+        for (auto& client : ws->getClients()) {
+            if (client->status() == WS_CONNECTED && !client->queueIsFull()) {
+                client->text(json);
+            }
+        }
     }
 }
 

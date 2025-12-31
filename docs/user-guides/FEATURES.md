@@ -234,6 +234,32 @@ Reduces serial output by 95% to minimize packet processing time and capture gaps
 
 **What it does**: Saves captured packets to flash memory for later analysis and exports geographic data to standard mapping formats.
 
+#### 💾 Data Export: SD Card vs No SD Card
+
+| Export Type | Without SD Card | With SD Card |
+|-------------|-----------------|--------------|
+| **Discovered Devices (JSON)** | ✅ `/api/devices` | ✅ `/api/devices` |
+| **System Status (JSON)** | ✅ `/api/status` | ✅ `/api/status` |
+| **Replay Packets (JSON)** | ✅ `/api/replay/slots` | ✅ `/api/replay/slots` |
+| **GPS Positions (KML)** | ✅ Serial 'k' command | ✅ Serial + file export |
+| **GPS Positions (GeoJSON)** | ✅ Serial 'j' command | ✅ Serial + file export |
+| **PCAP Packet Capture** | ❌ Not available | ✅ `/packets.pcap` |
+| **CSV Packet Log** | ❌ Not available | ✅ `/packets.csv` |
+| **Persistent History** | ❌ Lost on reboot | ✅ Survives reboot |
+
+**Without SD Card - How to Export:**
+```bash
+# Via browser or curl - works over WiFi (AP at 192.168.4.1 or hotspot IP)
+curl http://<device-ip>/api/devices > devices.json
+curl http://<device-ip>/api/status > status.json
+curl http://<device-ip>/api/replay/slots > packets.json
+
+# Via serial - KML/GeoJSON output (copy from terminal)
+# Press 'k' for KML, 'j' for GeoJSON
+```
+
+**Key Limitation**: Without SD card, all captured data is in RAM only. A reboot loses everything. Export frequently if you need to preserve data.
+
 ---
 
 ### 🎨 User Interface (ESSENTIAL)
@@ -250,22 +276,21 @@ Reduces serial output by 95% to minimize packet processing time and capture gaps
 - **Real-time statistics** (packet counts, uptime, error rates)
 
 #### Web Interface (v2.1 - November 2025)
-**Files**: `data/webapp/index.html`, `js/app.js`, `js/audio.js`, `js/stats.js`, `js/packet-stream.js`, `js/network-map.js`
+**Files**: `data/webapp/index.html`, `js/app.js`, `js/network-map.js`, `js/war-room.js`, `js/toast.js`
 
-**8-Tab Interface:**
-1. **Status Tab** - System overview with quick actions
-2. **Live Stream Tab** - Real-time packet feed with color-coded syntax highlighting
-3. **Stats Tab** - Protocol statistics with pie/bar chart visualization
-4. **Network Tab** - Interactive topology map with RSSI-based node positioning
-5. **Devices Tab** - Discovered devices with one-click targeting
-6. **Packets Tab** - Replay menu with transmission controls
-7. **Frequency Tab** - 26 scan configuration targeting
-8. **GPS Tab** - Geographic positions with KML/GeoJSON export
+**7-Tab Interface:**
+1. **Info Tab** - System overview, GPS data, security assessment, quick actions
+2. **Devices Tab** - Discovered devices with one-click targeting and vulnerability sorting
+3. **Packets Tab** - Replay menu with transmission controls and packet history
+4. **Frequency Tab** - 26 scan configuration targeting with activity indicators
+5. **Network Tab** - Interactive topology map with RSSI-based node positioning
+6. **Stats Tab** - Protocol statistics with war room dashboard (pie/bar charts)
+7. **Settings Tab** - WiFi configuration, diagnostics, OTA updates, system controls
 
 **Audio Feedback System** ("Geiger Counter for LoRa"):
 - **Protocol-specific tones**: Meshtastic (800 Hz), LoRaWAN (600 Hz), Helium (500 Hz)
 - **Event sounds**: Device discovery (click), capture complete (two-tone)
-- **Toggle control**: Enable/disable via button in Live Stream tab
+- **Toggle control**: Enable/disable via settings or header button
 - **Web Audio API**: Browser-native, no external dependencies
 
 **Protocol Statistics Dashboard**:

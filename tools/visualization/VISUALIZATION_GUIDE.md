@@ -2,32 +2,29 @@
 
 ## Tool Matrix
 
-| Feature | demo.py | enhanced_live_visualizer.py | session_analyzer.py | api_client.py | ws_monitor.py | pcap_analyzer.py |
-|---------|---------|----------------------------|-------------------|---------------|---------------|------------------|
-| **Purpose** | Launch script | Real-time 5-panel | Offline CSV analysis | REST API CLI | WebSocket monitor | PCAP analysis |
-| **GUI** | N/A (launcher) | matplotlib | matplotlib | Terminal | Terminal | Terminal |
-| **GPS Mapping** | - | ✅ Live | ✅ Scatter plot | - | - | - |
-| **Audio Feedback** | ✅ Launches with | ✅ Geiger counter | ❌ | ❌ | ❌ | ❌ |
-| **Protocol Colors** | - | ✅ Web UI matching | ⚠️ Generic | - | ✅ ANSI colors | - |
-| **Auto-Screenshot** | ✅ Via enhanced | ✅ Milestones | Manual save | - | - | - |
-| **Auto-Detect Port** | ✅ | ❌ | N/A | N/A | N/A | N/A |
-| **Web UI Launch** | ✅ Optional | ❌ | ❌ | ❌ | ❌ | ❌ |
-| **Timed Demo Mode** | ✅ --duration | ❌ | N/A | N/A | N/A | N/A |
-| **Data Source** | Serial | Serial | CSV file | REST API | WebSocket | PCAP file |
-| **Requires ESP32** | ✅ | ✅ | ❌ | ✅ (WiFi) | ✅ (WiFi) | ❌ |
-| **Best For** | Conference setup | Live demo (full) | Post-capture analysis | Scripting/automation | SSH monitoring | Wireshark-style |
+| Feature | enhanced_live_visualizer.py | session_analyzer.py | api_client.py | ws_monitor.py | pcap_analyzer.py |
+|---------|----------------------------|-------------------|---------------|---------------|------------------|
+| **Purpose** | Real-time 5-panel | Offline CSV analysis | REST API CLI | WebSocket monitor | PCAP analysis |
+| **GUI** | matplotlib | matplotlib | Terminal | Terminal | Terminal |
+| **GPS Mapping** | ✅ Live | ✅ Scatter plot | - | - | - |
+| **Audio Feedback** | ✅ Geiger counter | ❌ | ❌ | ❌ | ❌ |
+| **Protocol Colors** | ✅ Web UI matching | ⚠️ Generic | - | ✅ ANSI colors | - |
+| **Auto-Screenshot** | ✅ Milestones | Manual save | - | - | - |
+| **Demo Mode** | ✅ `--demo` | N/A | N/A | N/A | N/A |
+| **Data Source** | Serial/WebSocket | CSV file | REST API | WebSocket | PCAP file |
+| **Requires ESP32** | ✅ (or `--demo`) | ❌ | ✅ (WiFi) | ✅ (WiFi) | ❌ |
+| **Best For** | Live demo (full) | Post-capture analysis | Scripting/automation | SSH monitoring | Wireshark-style |
 
 ## Recommendation by Use Case
 
 ### 🎤 **Conference Presentation**
-**Use:** `demo.py COM3 --web --audio --record --duration 300`
+**Use:** `python enhanced_live_visualizer.py --auto-detect --web --audio`
 
 **Why:**
-- One command handles everything
+- 5-panel dashboard shows all data
 - Auto-screenshots for slides
 - Audio keeps audience engaged
-- Web UI as backup demo
-- Timed mode for scheduled talks
+- Works with `--demo` for no-hardware demos
 
 ### 🔬 **Security Research Session**
 **Use:** `enhanced_live_visualizer.py COM3 --json --record`
@@ -122,17 +119,16 @@ pip install -r requirements.txt  # Installs all dependencies
 **Prep:**
 ```bash
 # Test setup (day before)
-python demo.py --list-ports
-python demo.py COM3 --audio --record --duration 60
+python enhanced_live_visualizer.py --demo  # No hardware needed
 
-# Check screenshots/
-# Verify audio works
+# With hardware:
+python enhanced_live_visualizer.py --auto-detect --audio
 ```
 
 **Live Demo:**
 ```bash
 # Start 5 minutes before talk
-python demo.py COM3 --web --audio --record --duration 1800
+python enhanced_live_visualizer.py --auto-detect --web --audio
 
 # As devices are discovered:
 # - Point out audio feedback
