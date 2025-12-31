@@ -110,14 +110,15 @@ No exceptions (embedded C++). Return `bool` for success/failure. Use `LOG_ERROR(
 
 No unit test framework (embedded constraints). Validation via:
 - **Boot-time PSK tests**: `PSKTests::runAll()` validates decryption with known data
-- **Real hardware testing**: Serial monitor + web UI + Python visualizer (`tools/demo.py`)
+- **Real hardware testing**: Serial monitor + web UI + Python visualizer (`tools/enhanced_live_visualizer.py`)
 - **Compile-time checks**: `-Werror=return-type`, `-Werror=format` enforce correctness
 - `build_src_filter` excludes `test_*.cpp`, `unit_tests.cpp` from production builds
 
 ## Python Tooling (`tools/`)
 
-- **`demo.py`**: Auto-detect ESP32 port, launch visualizer, open web UI, enable audio feedback
 - **`enhanced_live_visualizer.py`**: 5-panel matplotlib dashboard for conference demos
+- **`position_tracker.py`**: GPS tracking & mapping with live mode
+- **`ws_monitor.py`**: Headless WebSocket packet monitor
 - **`pc_analyzer.py`**: Parse serial output for offline analysis
 - **Requirements**: `pip install -r tools/requirements.txt` (matplotlib, pyserial, websocket-client)
 
