@@ -15,6 +15,7 @@
 #include "utils/json_utils.h"
 #include <SD.h>
 #include <ArduinoJson.h>
+#include <esp_system.h>
 
 namespace APIHandlers {
 
@@ -23,7 +24,22 @@ namespace APIHandlers {
 // =============================================================================
 
 void handleGetDevices(AsyncWebServerRequest* request) {
-    request->send(200, "application/json", APIController::getDevices());
+    uint32_t heapBefore = ESP.getFreeHeap();
+    LOG_INFO("API /devices called (heap: %lu bytes)", heapBefore);
+    
+    // Check if we have enough heap to build response safely
+    if (heapBefore < 50000) {
+        LOG_WARN("Low heap (%lu bytes) - sending minimal response", heapBefore);
+        request->send(503, "application/json", JsonUtils::error("Low memory - try again"));
+        return;
+    }
+    
+    String response = APIController::getDevices();
+    uint32_t heapAfter = ESP.getFreeHeap();
+    LOG_INFO("API /devices response ready (%u bytes, heap: %lu→%lu)", 
+             response.length(), heapBefore, heapAfter);
+    
+    request->send(200, "application/json", response);
 }
 
 void handleGetDevice(AsyncWebServerRequest* request) {

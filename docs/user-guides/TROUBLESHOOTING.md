@@ -1,7 +1,7 @@
 # Meshtastic Detection & PSK Decryption Troubleshooting
 
-**Last Updated:** December 2025  
-**Version:** 2.2.1 Production  
+**Last Updated:** January 2026  
+**Version:** 2.2.2 Production  
 **Status:** Packet capture ✅ | PSK decryption ✅ (23 keys including leaked admin keys)
 
 ---
@@ -240,6 +240,34 @@ Backpressure (pausing radio when queue fills) would eliminate drops but create c
 - **2-5%**: Good - sustained high traffic
 - **5-10%**: Acceptable - very busy environment  
 - **>10%**: Problematic - consider mitigation strategies above
+
+### Issue 6: Hardware Sensitivity Variance Between Units
+**Symptom**: Two identical Heltec V3 boards running same firmware show significantly different packet/device counts
+
+**Example from testing:**
+| Metric | Unit A | Unit B | Difference |
+|--------|--------|--------|------------|
+| Packets (15h) | 214 | 143 | +50% |
+| Devices detected | 27 | 12 | +125% |
+| Memory (stable) | 189KB | 188KB | Same |
+
+**Why This Happens:**
+- SX1262 radio chips have **manufacturing tolerances** affecting receive sensitivity
+- Sensitivity can vary ±2-3 dB between individual chips
+- A 2-3 dB difference means one radio can hear weaker signals the other misses
+- This is **normal semiconductor variation**, not a firmware bug
+
+**What to Do:**
+1. **Test your units**: Run both overnight with same firmware/location
+2. **Label your boards**: Mark the more sensitive one as your "primary"
+3. **Use the better unit for field work**: Higher sensitivity = more devices detected
+4. **The "worse" unit is still fine**: Works correctly, just has slightly less range
+
+**Not a Fix For:**
+- This is hardware, not fixable in firmware
+- Both units work within SX1262 specifications
+- Antenna quality also affects sensitivity (check connections)
+
 - Try power cycle
 
 **Solution**:

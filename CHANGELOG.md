@@ -2,6 +2,24 @@
 
 All notable changes to the ESP32 LoRa Sniffer project.
 
+## [2.2.2] - 2026-01-02
+
+### Fixed
+- **WebSocket crash prevention**: Added `queueIsFull()` check before broadcast to prevent memory exhaustion
+- **API endpoint protection**: Heap check on `/api/devices` returns 503 if memory < 50KB
+
+### Added
+- **Heap monitoring**: 5-minute interval heap status logging for long-duration debugging
+- **API heap logging**: `/api/devices` endpoint logs heap before/after JSON building
+
+### Documented
+- **Hardware sensitivity variance**: SX1262 radio chips vary in receive sensitivity between units (see TROUBLESHOOTING.md)
+
+### Stability
+- **15+ hour battery test**: Two devices ran overnight with zero crashes
+- **Memory stable**: No leaks detected (188-189KB free after 15h)
+- **Confirmed hardware variance**: Identical firmware, ~50% packet count difference between units due to radio sensitivity
+
 ## [2.2.1] - 2024-12-21
 
 ### Fixed
