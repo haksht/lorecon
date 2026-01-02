@@ -216,6 +216,7 @@ void loop() {
     // Periodically save crash context (every 10 seconds for better diagnostics)
     // If device crashes, we'll know what mode it was in
     static uint32_t lastCrashContextSave = 0;
+    static uint32_t lastHeapLog = 0;
     uint32_t now = millis();
     if (now - lastCrashContextSave >= 10000) {
         CrashContext::setLastAction("loop");
@@ -225,6 +226,16 @@ void loop() {
             ESP.getFreeHeap()
         );
         lastCrashContextSave = now;
+    }
+    
+    // Log heap status every 5 minutes for long-duration monitoring
+    if (now - lastHeapLog >= 300000) {
+        uint32_t freeHeap = ESP.getFreeHeap();
+        uint32_t minFreeHeap = ESP.getMinFreeHeap();
+        uint32_t uptimeMin = now / 60000;
+        LOG_INFO("📊 Heap status @ %lu min: free=%lu bytes, min=%lu bytes", 
+                 uptimeMin, freeHeap, minFreeHeap);
+        lastHeapLog = now;
     }
     
     // Small delay to prevent watchdog triggers

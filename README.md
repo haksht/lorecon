@@ -13,7 +13,7 @@ Passive LoRa reconnaissance firmware for ESP32-S3 + SX1262 hardware. The ESP32 h
 ## Current Status
 
 - **Branch:** `main`
-- **Version:** 2.2.1 (Serial Noise Hardening + Long-Duration Operation)
+- **Version:** 2.2.2 (Stability Hardening + Long-Duration Tested)
 - **Hardware:** **Heltec WiFi LoRa 32 V3** (ESP32-S3 + SX1262 + OLED). Optional SD card.
   - ✅ **Fully Supported:** Heltec WiFi LoRa 32 V3 (tested, production-ready)
   - ⚠️ **Not Supported:** T-Deck variants (hardware incompatibilities - see `docs/hardware/TDECK_PLUS_INVESTIGATION.md` for details)
