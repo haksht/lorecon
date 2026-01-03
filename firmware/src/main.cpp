@@ -238,6 +238,18 @@ void loop() {
         lastHeapLog = now;
     }
     
+    // Check WiFi AP health every 60 seconds and recover if dead
+    static uint32_t lastWiFiHealthCheck = 0;
+    static uint32_t wifiRecoveryCount = 0;
+    if (now - lastWiFiHealthCheck >= 60000) {
+        if (!wifiManager.checkAPHealth()) {
+            wifiRecoveryCount++;
+            LOG_WARN("📡 WiFi AP recovery #%lu at uptime %lu min", 
+                     wifiRecoveryCount, now / 60000);
+        }
+        lastWiFiHealthCheck = now;
+    }
+    
     // Small delay to prevent watchdog triggers
     delay(10);
 }
