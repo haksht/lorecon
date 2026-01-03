@@ -10,6 +10,7 @@
 #include <Preferences.h>
 #include <esp_mac.h>
 #include <esp_task_wdt.h>
+#include <esp_wifi.h>
 
 // Preferences instance for secure credential storage
 static Preferences wifiPrefs;
@@ -617,4 +618,47 @@ bool WiFiManager::startMDNS(const char* hostname) {
         LOG_ERROR("✗ Failed to start mDNS");
         return false;
     }
+}
+
+/**
+ * Check AP health and restart if dead
+ * 
+ * Detects when WiFi AP has silently died (no longer broadcasting)
+ * and restarts it. This helps recover from WiFi stack crashes
+ * that don't trigger watchdog.
+ * 
+ * @return true if AP is healthy, false if it was dead and restarted
+ */
+bool WiFiManager::checkAPHealth() {
+    // Only check if we're supposed to be running AP
+    if (currentMode == WiFiMode::OFF || currentMode == WiFiMode::STA) {
+        return true;  // Not running AP, nothing to check
+    }
+    
+    // Check if AP is actually running
+    wifi_mode_t mode;
+    esp_wifi_get_mode(&mode);
+    
+    bool apRunning = (mode == WIFI_MODE_AP || mode == WIFI_MODE_APSTA);
+    
+    if (!apRunning) {
+        LOG_ERROR("⚠️  WiFi AP died! Attempting restart...");
+        
+        // Try to restart AP
+        String ssid = getUniqueAPSSID();
+        String password = String(Config::WiFi::DEFAULT_AP_PASSWORD_PREFIX) + deviceId;
+        
+        bool success = WiFi.softAP(ssid.c_str(), password.c_str());
+        
+        if (success) {
+            LOG_INFO("✓ WiFi AP recovered: %s", ssid.c_str());
+            LOG_INFO("  IP: %s", WiFi.softAPIP().toString().c_str());
+        } else {
+            LOG_ERROR("✗ Failed to restart WiFi AP!");
+        }
+        
+        return false;  // AP was dead
+    }
+    
+    return true;  // AP is healthy
 }

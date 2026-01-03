@@ -71,6 +71,7 @@ public:
     
     // Maintenance
     void update();  // Call in loop() for connection monitoring
+    bool checkAPHealth();  // Returns true if AP is healthy, restarts if dead
     
     // mDNS (for easy access like http://esp32-lora.local)
     bool startMDNS(const char* hostname);
