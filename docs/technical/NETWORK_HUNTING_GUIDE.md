@@ -191,16 +191,20 @@ python tools/session_analyzer.py your_capture.csv
 
 ## Current Scan Configuration Summary
 
-Your device now scans **20 frequency configurations**:
+Your device now scans **26 frequency configurations**:
 
 | Config | Frequency | Protocol | Notes |
 |--------|-----------|----------|-------|
-| 1-10   | 902-906 MHz | Meshtastic | Various spreading factors |
+| 1-4    | 902-906 MHz | Meshtastic LF/MF/SF | Primary routing configs |
+| 5-10   | 902 MHz variants | Meshtastic 902 | SF8-11, various sync words |
 | 11-14  | 903-904 MHz | TTN/LoRaWAN | The Things Network channels |
-| 15-18  | 923-925 MHz | Helium | LoRaWAN downlink sub-bands |
-| 19-20  | 915-920 MHz | ISM General | Catch-all for unknowns |
+| 15-17  | 902-911 MHz | LoRaWAN US915 | Commercial uplink channels |
+| 18     | 906 MHz | Meshtastic LongSlow | Maximum range preset |
+| 19-20  | 904 MHz | Helium Uplink | Sensor transmissions |
+| 21-24  | 923-925 MHz | Helium Downlink | Hotspot transmissions |
+| 25-26  | 915-920 MHz | ISM General | Catch-all for unknowns |
 
-**Total scan cycle**: ~4 minutes (20 configs × 12 seconds each)
+**Total scan cycle**: ~5 minutes (26 configs × 12 seconds each)
 
 ---
 

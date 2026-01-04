@@ -722,26 +722,158 @@ python session_analyzer.py capture.csv --bin-seconds 30
 
 ## 📦 PCAP Analyzer
 
-**Parse and analyze PCAP files** with custom LoRa pseudo-header.
+**Parse and analyze PCAP files** with custom LoRa pseudo-header. This tool understands the ESP32 sniffer's custom PCAP format and extracts all LoRa-specific metadata (RSSI, SNR, frequency, spreading factor, bandwidth, coding rate).
+
+### PCAP File Format
+
+The ESP32 writes PCAP files with `DLT_USER0` (link type 147) containing a custom pseudo-header before each packet:
+
+```
+┌──────────────────────────────────────────────────────────┐
+│ PCAP Global Header (24 bytes)                            │
+│   - Magic: 0xa1b2c3d4                                    │
+│   - Link type: 147 (USER0)                               │
+├──────────────────────────────────────────────────────────┤
+│ For each packet:                                          │
+│ ┌────────────────────────────────────────────────────┐  │
+│ │ PCAP Packet Header (16 bytes)                      │  │
+│ │   - Timestamp (sec + usec)                         │  │
+│ │   - Captured/Original length                       │  │
+│ ├────────────────────────────────────────────────────┤  │
+│ │ LoRa Pseudo-Header (20 bytes)                      │  │
+│ │   - frequencyMHz (float, 4 bytes)                  │  │
+│ │   - rssiDbm (float, 4 bytes)                       │  │
+│ │   - snrDb (float, 4 bytes)                         │  │
+│ │   - spreadingFactor (uint8, 1 byte)                │  │
+│ │   - bandwidth (uint32, 4 bytes) in Hz              │  │
+│ │   - codingRate (uint8, 1 byte)                     │  │
+│ │   - reserved (uint16, 2 bytes)                     │  │
+│ ├────────────────────────────────────────────────────┤  │
+│ │ Raw LoRa Packet Data (variable)                    │  │
+│ └────────────────────────────────────────────────────┘  │
+└──────────────────────────────────────────────────────────┘
+```
 
 ### Usage
 
 ```bash
-# Basic analysis
+# Basic analysis - shows protocol breakdown, signal quality, devices
 python pcap_analyzer.py capture.pcap
 
-# Export to CSV
+# Export to CSV for spreadsheet analysis
 python pcap_analyzer.py capture.pcap -o packets.csv
 
-# JSON output
+# Export to JSON for scripting
+python pcap_analyzer.py capture.pcap --export-json packets.json
+
+# JSON output to stdout (pipe to jq, etc.)
 python pcap_analyzer.py capture.pcap --json
 
-# Open in Wireshark
+# Open in Wireshark (raw bytes - no LoRa dissector needed for viewing)
 python pcap_analyzer.py capture.pcap --wireshark
 
-# Show raw hex
+# Show raw hex dumps of first 20 packets
 python pcap_analyzer.py capture.pcap --raw
 ```
+
+### Sample Output
+
+```
+📂 Loading capture_20260104_143022.pcap (1,234,567 bytes)
+PCAP Version: 2.4
+Link type: 147 (USER0/Custom)
+✅ Parsed 847 packets
+
+============================================================
+📊 PCAP ANALYSIS REPORT
+============================================================
+
+📦 Packet Statistics
+   Total packets: 847
+   Time range: 2026-01-04 14:30:22 - 2026-01-04 15:45:18
+   Duration: 4496.0 seconds
+   Average rate: 0.19 packets/sec
+
+📡 Protocol Distribution
+   Meshtastic      672 ( 79.3%)
+   LoRaWAN         143 ( 16.9%)
+   Unknown          32 (  3.8%)
+
+📶 Signal Quality
+   RSSI: min=-112.0, max=-42.5, avg=-78.3 dBm
+   SNR:  min=-5.2, max=12.8, avg=6.4 dB
+
+📻 Frequency Distribution
+   906.875 MHz:   412 ( 48.6%)
+   903.900 MHz:   198 ( 23.4%)
+   915.000 MHz:    87 ( 10.3%)
+   ...
+
+⚙️  Radio Configurations
+   Spreading Factors:
+      SF7: 143 packets
+      SF10: 89 packets
+      SF11: 615 packets
+   Bandwidths:
+      125 kHz: 143 packets
+      250 kHz: 704 packets
+
+📱 Device Analysis
+   Unique devices: 23
+
+   Top devices:
+   0x9EA3D744:   42 pkts, avg RSSI  -68.5 dBm (Meshtastic)
+   0xA1B2C3D4:   38 pkts, avg RSSI  -72.1 dBm (Meshtastic)
+   ...
+```
+
+### Opening in Wireshark
+
+Wireshark will show the packets but won't decode the LoRa pseudo-header by default. Options:
+
+1. **Use pcap_analyzer.py first** - Extract metadata to CSV, then view raw packets in Wireshark
+2. **Write a Lua dissector** - Place in Wireshark plugins folder (see below)
+3. **View raw bytes** - Wireshark shows hex, you mentally skip first 20 bytes
+
+#### Wireshark Lua Dissector (Optional)
+
+Save as `lora_sniffer.lua` in Wireshark's plugin folder:
+
+```lua
+-- LoRa Sniffer Pseudo-Header Dissector
+local lora = Proto("lora_sniffer", "ESP32 LoRa Sniffer")
+
+lora.fields.freq = ProtoField.float("lora.freq", "Frequency (MHz)")
+lora.fields.rssi = ProtoField.float("lora.rssi", "RSSI (dBm)")
+lora.fields.snr = ProtoField.float("lora.snr", "SNR (dB)")
+lora.fields.sf = ProtoField.uint8("lora.sf", "Spreading Factor")
+lora.fields.bw = ProtoField.uint32("lora.bw", "Bandwidth (Hz)")
+lora.fields.cr = ProtoField.uint8("lora.cr", "Coding Rate")
+
+function lora.dissector(buffer, pinfo, tree)
+    pinfo.cols.protocol = "LoRa"
+    local subtree = tree:add(lora, buffer(0, 20), "LoRa Pseudo-Header")
+    subtree:add_le(lora.fields.freq, buffer(0, 4))
+    subtree:add_le(lora.fields.rssi, buffer(4, 4))
+    subtree:add_le(lora.fields.snr, buffer(8, 4))
+    subtree:add(lora.fields.sf, buffer(12, 1))
+    subtree:add_le(lora.fields.bw, buffer(13, 4))
+    subtree:add(lora.fields.cr, buffer(17, 1))
+    
+    -- Add payload as data
+    local payload = buffer(20):tvb()
+    tree:add(payload(), "LoRa Payload (" .. payload:len() .. " bytes)")
+end
+
+-- Register for DLT_USER0 (147)
+local wtap = DissectorTable.get("wtap_encap")
+wtap:add(147, lora)
+```
+
+**Plugin locations:**
+- Windows: `%APPDATA%\Wireshark\plugins\`
+- macOS: `~/.config/wireshark/plugins/`
+- Linux: `~/.local/lib/wireshark/plugins/`
 
 ---
 

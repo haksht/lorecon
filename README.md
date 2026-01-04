@@ -159,9 +159,37 @@ tools/
   api_client.py, ws_monitor.py, attack_dashboard.html
 ```
 
-## Legal Use
+## ⚠️ Legal & Ethical Use Disclaimer
 
-The firmware is receive-only and intended for networks you own or have permission to observe. Respect local RF regulations, never transmit without authorization, and avoid intercepting private traffic. Default PSKs are tested only to highlight poor channel hygiene.
+**This tool is intended for authorized security research, education, and testing on networks you own or have explicit permission to analyze.**
+
+### ✅ Legitimate Uses
+- Security auditing of your own Meshtastic/LoRa networks
+- Research into LoRa protocol security with proper authorization
+- Educational demonstrations at conferences and workshops
+- Testing mesh network resilience (with network owner consent)
+- Identifying devices using vulnerable default configurations
+
+### ⚠️ Gray Area (Jurisdiction-Dependent)
+- Passive monitoring of RF signals in public spaces
+- Testing default PSKs against unidentified networks (research context)
+- Signal strength mapping without content inspection
+
+### ❌ Prohibited Uses
+- Intercepting private communications without consent
+- Tracking individuals without authorization
+- Disrupting or jamming networks (even briefly)
+- Commercial exploitation of captured data
+- Using packet replay to impersonate devices maliciously
+
+### Legal Context
+- **United States**: Passive RF reception is generally legal; interception of content may violate 18 U.S.C. § 2511 (Wiretap Act)
+- **European Union**: GDPR applies if tracking individuals; national laws vary
+- **Other jurisdictions**: Laws vary significantly—research local regulations
+
+**The authors provide this tool for educational purposes and assume no liability for misuse. Default PSKs (including leaked 2023 keys) are tested only to demonstrate the risks of poor cryptographic hygiene.**
+
+When in doubt, treat LoRa traffic like WiFi: observe protocol behavior for research, but don't intercept content or disrupt service.
 
 ## Contributing
 

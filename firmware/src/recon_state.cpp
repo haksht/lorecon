@@ -268,6 +268,8 @@ TargetableDevice ReconState::getTargetableDevice(uint8_t index) const {
 }
 
 // Thread-safe: Protected by mutex
+// WARNING: Returns mutable pointer - caller MUST NOT hold reference across yield points
+// Safe in current design because ESP32 main loop is single-threaded (ISR only sets atomic flag)
 TargetableDevice* ReconState::getTargetableDeviceMutable(uint8_t index) {
     if (!lock(100)) {
         LOG_WARN("getTargetableDeviceMutable: Failed to acquire lock");
@@ -279,6 +281,12 @@ TargetableDevice* ReconState::getTargetableDeviceMutable(uint8_t index) {
 }
 
 // Thread-safe: Protected by mutex
+// WARNING: Returns pointer that could become stale if repository is modified after unlock.
+// This is safe in current ESP32 architecture because:
+// 1. Main loop is single-threaded (no preemption between lock/unlock and pointer use)
+// 2. ISR only sets atomic flag, never modifies repository directly
+// 3. All repository mutations happen in main loop context
+// If multi-threading is added, change to return copy or use RAII lock guard pattern.
 TargetableDevice* ReconState::findTargetableDevice(uint32_t nodeId) {
     if (!lock(100)) {
         Serial.println("[WARN] findTargetableDevice: Failed to acquire lock");

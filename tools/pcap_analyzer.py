@@ -44,17 +44,18 @@ PCAP_MAGIC = 0xa1b2c3d4
 PCAP_MAGIC_NANO = 0xa1b23c4d
 PCAP_LINKTYPE_USER0 = 147  # DLT_USER0 for custom protocol
 
-# Custom LoRa pseudo-header format (from pcap_logger.cpp)
+# Custom LoRa pseudo-header format (from pcap_logger.h)
 # struct LoRaPseudoHeader {
-#     uint32_t timestamp_ms;
-#     int16_t rssi_x10;      // RSSI * 10 (to preserve decimal)
-#     int16_t snr_x10;       // SNR * 10
-#     uint32_t frequency_hz;
-#     uint8_t config_index;
-#     uint8_t reserved[3];
-# }
-LORA_HEADER_FORMAT = '<IhhIBBBB'  # Little-endian
-LORA_HEADER_SIZE = struct.calcsize(LORA_HEADER_FORMAT)
+#     float frequencyMHz;      // 4 bytes
+#     float rssiDbm;           // 4 bytes
+#     float snrDb;             // 4 bytes
+#     uint8_t spreadingFactor; // 1 byte
+#     uint32_t bandwidth;      // 4 bytes
+#     uint8_t codingRate;      // 1 byte
+#     uint16_t reserved;       // 2 bytes (padding)
+# } __attribute__((packed));   // Total: 20 bytes
+LORA_HEADER_FORMAT = '<fffBIBH'  # Little-endian: 3 floats, byte, uint32, byte, uint16
+LORA_HEADER_SIZE = struct.calcsize(LORA_HEADER_FORMAT)  # Should be 20 bytes
 
 
 class LoRaPacket:
@@ -69,6 +70,11 @@ class LoRaPacket:
         self.config_index = config_index
         self.data = data
         self.pcap_timestamp = pcap_timestamp
+        
+        # Extended radio metadata (populated by parser)
+        self.spreading_factor = 0
+        self.bandwidth = 0
+        self.coding_rate = 0
         
         # Derived fields
         self.length = len(data)
@@ -111,18 +117,21 @@ class LoRaPacket:
     
     def to_dict(self):
         """Convert to dictionary"""
-        return {
+        result = {
             'timestamp_ms': self.timestamp_ms,
             'pcap_timestamp': self.pcap_timestamp.isoformat() if self.pcap_timestamp else None,
-            'rssi': self.rssi,
-            'snr': self.snr,
-            'frequency_mhz': self.frequency_mhz,
-            'config_index': self.config_index,
+            'rssi': round(self.rssi, 1),
+            'snr': round(self.snr, 1),
+            'frequency_mhz': round(self.frequency_mhz, 3),
+            'spreading_factor': self.spreading_factor,
+            'bandwidth_hz': self.bandwidth,
+            'coding_rate': self.coding_rate,
             'length': self.length,
             'protocol': self.protocol,
             'node_id': self.node_id,
             'data_hex': self.data.hex()
         }
+        return result
 
 
 def parse_pcap_native(pcap_path):
@@ -174,27 +183,27 @@ def parse_pcap_native(pcap_path):
                 print(f"Warning: Truncated packet at offset {f.tell()}")
                 break
             
-            # Parse LoRa pseudo-header if present
+            # Parse LoRa pseudo-header if present (20 bytes)
             if len(pkt_data) >= LORA_HEADER_SIZE:
                 header = struct.unpack(LORA_HEADER_FORMAT, pkt_data[:LORA_HEADER_SIZE])
-                timestamp_ms, rssi_x10, snr_x10, freq_hz, config_idx, _, _, _ = header
-                
-                rssi = rssi_x10 / 10.0
-                snr = snr_x10 / 10.0
-                frequency_mhz = freq_hz / 1e6
+                frequency_mhz, rssi, snr, spreading_factor, bandwidth, coding_rate, reserved = header
                 
                 # Extract payload (after pseudo-header)
                 payload = pkt_data[LORA_HEADER_SIZE:]
                 
                 packet = LoRaPacket(
-                    timestamp_ms=timestamp_ms,
+                    timestamp_ms=int(ts_sec * 1000 + ts_usec / 1000),  # Derive from PCAP timestamp
                     rssi=rssi,
                     snr=snr,
                     frequency_mhz=frequency_mhz,
-                    config_index=config_idx,
+                    config_index=spreading_factor,  # Use SF as config indicator
                     data=payload,
                     pcap_timestamp=pcap_ts
                 )
+                # Store additional metadata
+                packet.spreading_factor = spreading_factor
+                packet.bandwidth = bandwidth
+                packet.coding_rate = coding_rate
                 packets.append(packet)
             else:
                 # No pseudo-header, treat entire packet as data
@@ -269,6 +278,27 @@ def analyze_packets(packets):
         pct = (count / len(packets)) * 100
         print(f"   {freq} MHz: {count:5} ({pct:5.1f}%)")
     
+    # Radio configuration analysis
+    print(f"\n⚙️  Radio Configurations")
+    sf_counts = defaultdict(int)
+    bw_counts = defaultdict(int)
+    for p in packets:
+        if hasattr(p, 'spreading_factor') and p.spreading_factor > 0:
+            sf_counts[p.spreading_factor] += 1
+        if hasattr(p, 'bandwidth') and p.bandwidth > 0:
+            bw_counts[p.bandwidth] += 1
+    
+    if sf_counts:
+        print(f"   Spreading Factors:")
+        for sf, count in sorted(sf_counts.items()):
+            print(f"      SF{sf}: {count} packets")
+    
+    if bw_counts:
+        print(f"   Bandwidths:")
+        for bw, count in sorted(bw_counts.items()):
+            bw_khz = bw / 1000 if bw > 1000 else bw
+            print(f"      {bw_khz:.0f} kHz: {count} packets")
+    
     # Device analysis
     print(f"\n📱 Device Analysis")
     device_stats = defaultdict(lambda: {'count': 0, 'rssi': [], 'protocols': set()})
@@ -305,8 +335,8 @@ def export_csv(packets, output_path):
     import csv
     
     fieldnames = ['timestamp_ms', 'pcap_timestamp', 'rssi', 'snr', 
-                  'frequency_mhz', 'config_index', 'length', 
-                  'protocol', 'node_id', 'data_hex']
+                  'frequency_mhz', 'spreading_factor', 'bandwidth_hz', 'coding_rate',
+                  'length', 'protocol', 'node_id', 'data_hex']
     
     with open(output_path, 'w', newline='') as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames)
