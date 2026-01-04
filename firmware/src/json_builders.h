@@ -85,6 +85,12 @@ String buildReplaySlotsJson(ReconState& reconState);
  */
 String buildDiagnosticsJson();
 
+/**
+ * Build consolidated report JSON with security, devices, statistics, and GPS
+ * Single download for security researchers
+ */
+String buildConsolidatedReportJson(ReconState& reconState, GeoIntelligence& geoIntel);
+
 // Internal helpers
 namespace Internal {
 

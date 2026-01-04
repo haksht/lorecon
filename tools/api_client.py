@@ -175,6 +175,13 @@ class ReconClient:
             print(f"❌ KML download failed: {e}")
             return None
     
+    def download_report(self, output="lora-recon-report.json"):
+        """Download consolidated JSON report (security, devices, stats, GPS)"""
+        data = self._get("/api/export/report")
+        with open(output, 'w') as f:
+            json.dump(data, f, indent=2)
+        return output
+    
     # === Geographic Data ===
     
     def get_positions(self):
@@ -292,6 +299,7 @@ Examples:
   %(prog)s target-freq 5             Target frequency config #5
   %(prog)s download-pcap             Download PCAP to capture.pcap
   %(prog)s download-geojson          Download GeoJSON positions
+  %(prog)s download-report           Download consolidated JSON report
   %(prog)s command r                 Send command (r=resume)
   %(prog)s security                  Show security assessment
 """
@@ -343,6 +351,9 @@ Examples:
     
     kml_parser = subparsers.add_parser('download-kml', help='Download KML')
     kml_parser.add_argument('-o', '--output', default='positions.kml', help='Output filename')
+    
+    report_parser = subparsers.add_parser('download-report', help='Download consolidated report')
+    report_parser.add_argument('-o', '--output', default='lora-recon-report.json', help='Output filename')
     
     # Geographic data
     subparsers.add_parser('positions', help='Show GPS positions')
@@ -433,6 +444,10 @@ Examples:
         output = client.download_kml(args.output)
         if output:
             print(f"✅ Downloaded KML to {output}")
+    
+    elif args.command == 'download-report':
+        output = client.download_report(args.output)
+        print(f"✅ Downloaded consolidated report to {output}")
     
     elif args.command == 'positions':
         data = client.get_positions()

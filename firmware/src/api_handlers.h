@@ -65,6 +65,9 @@ void handleSetVerboseMode(AsyncWebServerRequest* request);
 // Commands
 void handleCommand(AsyncWebServerRequest* request);
 
+// Consolidated Export
+void handleExportReport(AsyncWebServerRequest* request);
+
 }  // namespace APIHandlers
 
 #endif // API_HANDLERS_H

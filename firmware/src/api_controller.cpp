@@ -56,6 +56,7 @@ String APIController::getDeviceTypeSummary() { return JsonBuilders::buildDeviceT
 String APIController::getSecurityAssessment() { return JsonBuilders::buildSecurityAssessmentJson(reconState); }
 String APIController::getReplaySlots() { return JsonBuilders::buildReplaySlotsJson(reconState); }
 String APIController::getDiagnostics() { return JsonBuilders::buildDiagnosticsJson(); }
+String APIController::getConsolidatedReport() { return JsonBuilders::buildConsolidatedReportJson(reconState, geoIntel); }
 
 // ============================================================================
 // Action methods with error handling

@@ -75,6 +75,9 @@ public:
     // Statistics
     static String getStatistics();
     static String getRFActivity();
+    
+    // Consolidated Export
+    static String getConsolidatedReport();
 };
 
 #endif // API_CONTROLLER_H

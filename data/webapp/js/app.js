@@ -354,7 +354,7 @@ class ReconApp {
             mode: document.getElementById('mode'),
             devices: document.getElementById('devices'),
             packets: document.getElementById('packets'),
-            uptime: document.getElementById('uptime'),
+            battery: document.getElementById('battery'),
             devicesContent: document.getElementById('devices-content'),
             packetsContent: document.getElementById('packets-content'),
             frequencyContent: document.getElementById('frequency-content'),
@@ -466,10 +466,28 @@ class ReconApp {
         }
         
         // Update sidebar stats
-        if (this.el.mode) this.el.mode.textContent = this.formatMode(data.mode);
+        if (this.el.mode) {
+            this.el.mode.textContent = this.formatMode(data.mode);
+            // Add pulse animation when actively scanning
+            const modeCard = this.el.mode.closest('.stat-card');
+            if (modeCard) {
+                const isScanning = !(data.mode || '').toLowerCase().includes('target');
+                modeCard.classList.toggle('scanning-pulse', isScanning);
+            }
+        }
         if (this.el.devices) this.el.devices.textContent = data.devices || 0;
         if (this.el.packets) this.el.packets.textContent = data.capturedPackets || 0;
-        if (this.el.uptime) this.el.uptime.textContent = this.formatDuration(data.uptime || 0);
+        if (this.el.battery) {
+            const pct = data.batteryPercent;
+            if (pct !== undefined && pct !== null && pct >= 0) {
+                this.el.battery.innerHTML = `${pct}%`;
+                // Color code battery level
+                this.el.battery.className = 'stat-value ' + (pct > 50 ? 'text-success' : pct > 20 ? 'text-warning' : 'text-danger');
+            } else {
+                this.el.battery.textContent = '—';
+                this.el.battery.className = 'stat-value';
+            }
+        }
         
         // Update info tab if visible
         if (this.currentTab === 'info') {
@@ -514,10 +532,32 @@ class ReconApp {
         const mode = (data.mode || '').toLowerCase();
         if (mode.includes('target') && data.target.frequency) {
             this.el.targetInfo.style.display = 'block';
-            let html = `<strong>Frequency:</strong> ${data.target.frequency.toFixed(3)} MHz`;
-            if (data.target.nodeId) {
-                html += `<br><strong>Node:</strong> 0x${escapeHtml(String(data.target.nodeId))}`;
+            
+            // Clearly distinguish device targeting vs frequency targeting
+            const isDeviceTarget = data.target.targetedByDevice && data.target.nodeId;
+            
+            let html = '';
+            if (isDeviceTarget) {
+                // Device targeting - show device info prominently
+                html = `<div class="target-type">📡 Device Lock</div>`;
+                html += `<strong>Node:</strong> <code>${escapeHtml(String(data.target.nodeId))}</code>`;
+                if (data.target.deviceType) {
+                    html += ` <span class="text-muted">(${escapeHtml(data.target.deviceType)})</span>`;
+                }
+                html += `<br><span class="text-muted">Freq: ${data.target.frequency.toFixed(3)} MHz</span>`;
+                if (data.target.rssi) {
+                    html += ` • ${formatRSSI(data.target.rssi)}`;
+                }
+            } else {
+                // Frequency targeting - show frequency info prominently
+                html = `<div class="target-type">📻 Frequency Lock</div>`;
+                html += `<strong>${data.target.frequency.toFixed(3)} MHz</strong>`;
+                if (data.target.protocol) {
+                    html += ` <span class="text-muted">(${escapeHtml(data.target.protocol)})</span>`;
+                }
+                html += `<br><span class="text-muted">SF${data.target.spreadingFactor || '?'} / ${data.target.bandwidth || '?'} kHz</span>`;
             }
+            
             this.el.targetDetails.innerHTML = html;
         } else {
             this.el.targetInfo.style.display = 'none';
@@ -599,9 +639,8 @@ class ReconApp {
                 await this.showFrequency();
                 break;
             case 'network':
+                // Dashboard tab: load both network map and stats
                 await this.showNetwork();
-                break;
-            case 'stats':
                 await this.showStats();
                 break;
             case 'settings':
@@ -630,7 +669,13 @@ class ReconApp {
         try {
             const data = await this.get('/api/devices');
             if (!data || !data.devices || data.devices.length === 0) {
-                this.el.devicesContent.innerHTML = '<p class="placeholder">No devices found. Devices will appear as they are discovered during scanning.</p>';
+                this.el.devicesContent.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-icon">📡</div>
+                        <h3>Scanning for Devices</h3>
+                        <p>No LoRa devices detected yet. The scanner cycles through 26 frequency configurations every 5 minutes.</p>
+                        <p class="text-muted">Devices will appear here as they transmit packets in range.</p>
+                    </div>`;
                 return;
             }
             
@@ -746,7 +791,13 @@ class ReconApp {
         try {
             const data = await this.get('/api/replay/slots');
             if (!data || !data.slots || data.slots.length === 0) {
-                this.el.packetsContent.innerHTML = '<p class="placeholder">No packets captured for replay yet. Target a device or frequency first, then packets will be stored here for replay.</p>';
+                this.el.packetsContent.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-icon">📦</div>
+                        <h3>No Packets Captured</h3>
+                        <p>Packets are stored here when you <strong>target</strong> a specific device or frequency.</p>
+                        <p class="text-muted">Go to <a href="#" onclick="app.switchTab('devices'); return false;">Targets</a> and click "🎯 Target" on a device to start capturing.</p>
+                    </div>`;
                 return;
             }
             
@@ -993,7 +1044,7 @@ class ReconApp {
                 const infoEl = document.getElementById('network-info');
                 if (infoEl) {
                     if (data.devices.length === 0) {
-                        infoEl.innerHTML = '<p class="placeholder">No devices discovered yet. Start reconnaissance to populate the network map.</p>';
+                        infoEl.innerHTML = '<p class="placeholder">No devices discovered yet. The network map will populate as devices are scanned.</p>';
                     } else {
                         infoEl.innerHTML = `<p class="text-secondary small-text">Showing ${data.devices.length} device(s). Click a node for details.</p>`;
                     }
@@ -1152,7 +1203,7 @@ class ReconApp {
                 html += '</tbody></table></div>';
                 this.el.gpsContent.innerHTML = html;
             } else {
-                this.el.gpsContent.innerHTML = renderPlaceholder('📍', 'No GPS data captured yet.', 'Device positions will appear here once discovered during reconnaissance.');
+                this.el.gpsContent.innerHTML = renderPlaceholder('📍', 'No GPS data captured yet.', 'Device positions will appear here once discovered during scanning.');
             }
         } catch (error) {
             DEBUG.error('Failed to load GPS:', error);
@@ -1305,7 +1356,7 @@ class ReconApp {
                     
                     html += '</div>';
                 } else {
-                    html += '<p class="text-center text-muted p-lg">No frequency activity detected yet. Start reconnaissance to see active frequencies.</p>';
+                    html += '<p class="text-center text-muted p-lg">No frequency activity detected yet. Active frequencies will appear during scanning.</p>';
                 }
                 
                 html += '</div>';
@@ -1314,7 +1365,7 @@ class ReconApp {
             } else {
                 const freqAnalysisEl = document.getElementById('frequency-analysis-content');
                 if (freqAnalysisEl) {
-                    freqAnalysisEl.innerHTML = renderPlaceholder('📊', 'No frequency data yet.', 'Frequency analysis will appear during reconnaissance.');
+                    freqAnalysisEl.innerHTML = renderPlaceholder('📊', 'No frequency data yet.', 'Frequency analysis will appear during scanning.');
                 }
             }
         } catch (error) {
@@ -1605,12 +1656,13 @@ class ReconApp {
     
     setupButtons() {
         document.addEventListener('click', (e) => {
-            const btn = e.target.closest('button[data-action]');
-            if (!btn) return;
+            // Handle buttons and clickable elements with data-action
+            const actionEl = e.target.closest('[data-action]');
+            if (!actionEl) return;
             
             e.preventDefault();
-            const action = btn.dataset.action;
-            const value = btn.dataset.value;
+            const action = actionEl.dataset.action;
+            const value = actionEl.dataset.value;
             this.handleAction(action, value, e);
         });
     }
@@ -1621,16 +1673,13 @@ class ReconApp {
             'toggle-scan': () => this.actionToggleScan(),
             'resume-recon': () => this.actionToggleScan(),
             'stop-capture': () => this.actionStopCapture(),
-            'export-kml': () => this.actionExportKML(),
+            'download-report': () => this.actionDownloadReport(),
             'clear-packets': () => this.actionClearPackets(),
             'clear-devices': () => this.actionClearDevices(),
             'show-activity': () => this.actionShowActivity(),
             'show-security': () => this.actionShowSecurity(),
-            'export-pcap': () => this.actionExportPCAP(),
             'diagnostics': () => this.actionDiagnostics(),
             'reboot': () => this.actionReboot(),
-            'download-logs': () => showToast('Log download not implemented', 'info'),
-            'export-json': () => { window.open('/api/statistics', '_blank'); showToast('Exporting statistics...', 'info'); },
             'center-map': () => {}, // Handled by network-map.js
             'toggle-labels': () => {},
             'zoom-in': () => {},
@@ -1647,7 +1696,10 @@ class ReconApp {
             'wifi-setup': () => this.showWiFiSetupModal(),
             'dismiss-setup': () => this.actionDismissSetup(),
             'wifi-clear': () => this.actionWifiClear(),
-            'close-modal': () => this.closeModal()
+            'close-modal': () => this.closeModal(),
+            // Sidebar stat card navigation
+            'goto-devices': () => this.switchTab('devices'),
+            'goto-packets': () => this.switchTab('packets')
         };
     }
 
@@ -1691,16 +1743,16 @@ class ReconApp {
         const status = await this.get('/api/status');
         const currentMode = (status?.mode || '').toLowerCase();
         if (currentMode.includes('target')) {
-            if (!confirm('Exit frequency targeting and return to reconnaissance mode?')) return;
+            if (!confirm('Exit targeting and return to scanning mode?')) return;
         }
         await this.post('/api/scan/start', {});
-        showToast('Reconnaissance resumed', 'success');
+        showToast('Scanning resumed', 'success');
         await this.updateStatus();
     }
     
     async actionStopCapture() {
         // Confirm before stopping to prevent accidental taps
-        if (!confirm('Stop capture and return to reconnaissance mode?')) return;
+        if (!confirm('Stop capture and return to scanning mode?')) return;
         await this.post('/api/capture/stop', {});
         showToast('Capture stopped', 'success');
         await this.updateStatus();
@@ -1713,6 +1765,29 @@ class ReconApp {
             showToast(`Exporting ${gpsData.positions.length} GPS location(s)...`, 'success');
         } else {
             showToast('No GPS data to export. Capture packets with location data first.', 'warning');
+        }
+    }
+    
+    async actionDownloadReport() {
+        showToast('Downloading consolidated report...', 'info');
+        try {
+            const response = await fetch('/api/export/report');
+            if (!response.ok) {
+                showToast('Failed to generate report: HTTP ' + response.status, 'error');
+                return;
+            }
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'lora-recon-report-' + Date.now() + '.json';
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            a.remove();
+            showToast('Report downloaded successfully', 'success');
+        } catch (err) {
+            showToast('Report download failed: ' + err.message, 'error');
         }
     }
     
@@ -1746,7 +1821,7 @@ class ReconApp {
     async actionExportPCAP() {
         const statusData = await this.get('/api/status');
         if (!statusData || statusData.mode === 'idle') {
-            showToast('No active reconnaissance session. Start scanning first.', 'warning');
+            showToast('No active scan session. Start scanning first.', 'warning');
             return;
         }
         

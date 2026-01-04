@@ -159,12 +159,12 @@
         <div class="sidebar">
             <!-- Status Cards -->
             <div class="status-section">
-                <div class="stat-card" role="button" tabindex="0" aria-label="View devices">
-                    <div class="stat-label">Devices</div>
+                <div class="stat-card stat-card-clickable" data-action="goto-devices" role="button" tabindex="0" aria-label="View devices">
+                    <div class="stat-label">🎯 Targets</div>
                     <div class="stat-value" id="devices">0</div>
                 </div>
-                <div class="stat-card" role="button" tabindex="0" aria-label="View packets">
-                    <div class="stat-label">Packets</div>
+                <div class="stat-card stat-card-clickable" data-action="goto-packets" role="button" tabindex="0" aria-label="View captured packets">
+                    <div class="stat-label">📦 Captured</div>
                     <div class="stat-value" id="packets">0</div>
                 </div>
                 <div class="stat-card">
@@ -172,15 +172,15 @@
                     <div class="stat-value" id="mode">—</div>
                 </div>
                 <div class="stat-card">
-                    <div class="stat-label">Uptime</div>
-                    <div class="stat-value" id="uptime">0s</div>
+                    <div class="stat-label">🔋 Battery</div>
+                    <div class="stat-value" id="battery">—</div>
                 </div>
             </div>
 
             <!-- Target Info Banner -->
             <div class="target-info" id="target-info" style="display: none;">
                 <div class="target-header">
-                    <strong>🎯 Active Target</strong>
+                    <strong>🎯 Locked On</strong>
                     <button data-action="stop-capture" class="target-close" aria-label="Stop targeting">✕</button>
                 </div>
                 <div id="target-details" class="target-details"></div>
@@ -188,35 +188,15 @@
 
             <!-- Actions -->
             <div class="actions-section">
-                <h2>Quick Actions</h2>
+                <h2>Actions</h2>
                 <div class="button-list">
                     <button data-action="toggle-scan" class="btn btn-primary" aria-label="Toggle scanning">
                         <span class="btn-icon">▶</span>
                         <span>Resume Scan</span>
                     </button>
-                    <button data-action="export-kml" class="btn" aria-label="Export GPS data">
-                        <span class="btn-icon">🗺️</span>
-                        <span>Export GPS</span>
-                    </button>
-                    <button data-action="export-pcap" class="btn" aria-label="Export PCAP capture">
-                        <span class="btn-icon">💾</span>
-                        <span>Export PCAP</span>
-                    </button>
-                </div>
-
-                <h2>Analysis</h2>
-                <div class="button-list">
-                    <button data-action="show-activity" class="btn" aria-label="Show RF activity">
-                        <span class="btn-icon">📊</span>
-                        <span>RF Activity</span>
-                    </button>
-                    <button data-action="show-security" class="btn" aria-label="Security assessment">
-                        <span class="btn-icon">🔒</span>
-                        <span>Security</span>
-                    </button>
-                    <button data-action="diagnostics" class="btn" aria-label="Run diagnostics">
-                        <span class="btn-icon">🔧</span>
-                        <span>Diagnostics</span>
+                    <button data-action="download-report" class="btn" aria-label="Download consolidated report">
+                        <span class="btn-icon">📥</span>
+                        <span>Download Report</span>
                     </button>
                 </div>
             </div>
@@ -232,23 +212,19 @@
                 </button>
                 <button class="tab-btn" data-tab="devices" role="tab" aria-selected="false" aria-controls="tab-devices">
                     <span class="tab-icon">📡</span>
-                    <span class="tab-label">Devices</span>
+                    <span class="tab-label">Targets</span>
                 </button>
                 <button class="tab-btn" data-tab="packets" role="tab" aria-selected="false" aria-controls="tab-packets">
                     <span class="tab-icon">📦</span>
-                    <span class="tab-label">Replay</span>
+                    <span class="tab-label">Packets</span>
                 </button>
                 <button class="tab-btn" data-tab="frequency" role="tab" aria-selected="false" aria-controls="tab-frequency">
                     <span class="tab-icon">📻</span>
                     <span class="tab-label">Frequencies</span>
                 </button>
                 <button class="tab-btn" data-tab="network" role="tab" aria-selected="false" aria-controls="tab-network">
-                    <span class="tab-icon">🗺️</span>
-                    <span class="tab-label">Network</span>
-                </button>
-                <button class="tab-btn" data-tab="stats" role="tab" aria-selected="false" aria-controls="tab-stats">
-                    <span class="tab-icon">📈</span>
-                    <span class="tab-label">Stats</span>
+                    <span class="tab-icon">�</span>
+                    <span class="tab-label">Dashboard</span>
                 </button>
                 <button class="tab-btn" data-tab="settings" role="tab" aria-selected="false" aria-controls="tab-settings">
                     <span class="tab-icon">⚙️</span>
@@ -287,35 +263,21 @@
                         </div>
 
                         <div class="action-card">
-                            <h3>Device Actions</h3>
+                            <h3>Quick Tools</h3>
+                            <button data-action="diagnostics" class="btn">
+                                <span class="btn-icon">🔧</span>
+                                <span>Diagnostics</span>
+                            </button>
                             <button data-action="reboot" class="btn btn-secondary">
                                 <span class="btn-icon">🔄</span>
                                 <span>Reboot Device</span>
-                            </button>
-                            <button data-action="download-logs" class="btn">
-                                <span class="btn-icon">💾</span>
-                                <span>Download Logs</span>
-                            </button>
-                            <button data-action="export-json" class="btn">
-                                <span class="btn-icon">📄</span>
-                                <span>Export JSON</span>
                             </button>
                         </div>
                     </div>
 
                     <!-- Additional Info Sections -->
                     <div class="info-section">
-                        <h3>📍 GPS Data</h3>
-                        <div id="gps-content" class="content-area">
-                            <div class="loading-container">
-                                <div class="loading-spinner"></div>
-                                <p>Loading GPS data...</p>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="info-section">
-                        <h3>🔐 Security Assessment</h3>
+                        <h3> Security Assessment</h3>
                         <div id="security-content" class="content-area">
                             <div class="loading-container">
                                 <div class="loading-spinner"></div>
@@ -323,28 +285,18 @@
                             </div>
                         </div>
                     </div>
-
-                    <div class="info-section">
-                        <h3>📊 Frequency Analysis</h3>
-                        <div id="frequency-analysis-content" class="content-area">
-                            <div class="loading-container">
-                                <div class="loading-spinner"></div>
-                                <p>Analyzing frequencies...</p>
-                            </div>
-                        </div>
-                    </div>
                 </div>
             </div>
 
-            <!-- Devices Tab -->
+            <!-- Targets Tab -->
             <div class="tab-content" id="tab-devices" role="tabpanel" aria-labelledby="tab-devices">
                 <div class="tab-inner">
                     <div class="results-header">
-                        <h2>Discovered Devices</h2>
-                        <p class="header-subtitle">Devices appear as they are discovered during reconnaissance</p>
+                        <h2>Targetable Devices</h2>
+                        <p class="header-subtitle">Click "🎯 Target" to focus scanning on a specific device</p>
                         <button data-action="clear-devices" class="btn btn-secondary" aria-label="Clear devices">
                             <span class="btn-icon">🗑️</span>
-                            <span>Clear Devices</span>
+                            <span>Clear All</span>
                         </button>
                     </div>
                     <div class="results-content" id="devices-content">
@@ -361,7 +313,7 @@
                 <div class="tab-inner">
                     <div class="results-header">
                         <h2>Captured Packets</h2>
-                        <p class="header-subtitle">Replay slots available for packet transmission</p>
+                        <p class="header-subtitle">Last 10 unique packets stored for analysis and replay transmission</p>
                         <button data-action="clear-packets" class="btn btn-secondary" aria-label="Clear packets">
                             <span class="btn-icon">🗑️</span>
                             <span>Clear Packets</span>
@@ -383,6 +335,18 @@
                         <h2>Frequency Configurations</h2>
                         <p class="header-subtitle">26 scan configurations covering Meshtastic, LoRaWAN, and Helium</p>
                     </div>
+                    
+                    <!-- Frequency Analysis Summary -->
+                    <div class="info-section">
+                        <h3>📊 Activity Analysis</h3>
+                        <div id="frequency-analysis-content" class="content-area">
+                            <div class="loading-container">
+                                <div class="loading-spinner"></div>
+                                <p>Analyzing frequencies...</p>
+                            </div>
+                        </div>
+                    </div>
+                    
                     <div class="results-content" id="frequency-content">
                         <div class="loading-container">
                             <div class="loading-spinner"></div>
@@ -392,45 +356,53 @@
                 </div>
             </div>
 
-            <!-- Network Tab -->
+            <!-- Dashboard Tab (Network + Stats combined) -->
             <div class="tab-content" id="tab-network" role="tabpanel" aria-labelledby="tab-network">
                 <div class="tab-inner">
                     <div class="results-header">
-                        <h2>Network Topology Map</h2>
-                        <p class="header-subtitle">Visual representation of discovered devices based on signal strength</p>
+                        <h2>Dashboard</h2>
+                        <p class="header-subtitle">Network topology, real-time stats, and device positions</p>
                     </div>
-                    <div class="network-container">
-                        <canvas id="network-canvas" role="img" aria-label="Network topology map"></canvas>
-                        <div id="network-info" class="network-info">
-                            <p class="placeholder">No network data available. Devices will appear as they are discovered.</p>
-                        </div>
-                        <div class="network-controls">
-                            <button data-action="center-map" class="btn btn-small" aria-label="Center map">
-                                <span>⊙</span> Center
-                            </button>
-                            <button data-action="toggle-labels" class="btn btn-small" aria-label="Toggle labels">
-                                <span>🏷️</span> Labels
-                            </button>
-                            <button data-action="zoom-in" class="btn btn-small" aria-label="Zoom in">
-                                <span>+</span>
-                            </button>
-                            <button data-action="zoom-out" class="btn btn-small" aria-label="Zoom out">
-                                <span>−</span>
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Stats Tab -->
-            <div class="tab-content" id="tab-stats" role="tabpanel" aria-labelledby="tab-stats">
-                <div class="tab-inner">
-                    <div class="results-header">
-                        <h2>Statistics Dashboard</h2>
-                        <p class="header-subtitle">Real-time protocol and traffic analysis</p>
-                    </div>
+                    
+                    <!-- War Room Stats -->
                     <div class="results-content" id="stats-content">
                         <div id="war-room-container"></div>
+                    </div>
+                    
+                    <!-- Network Map -->
+                    <div class="info-section">
+                        <h3>🗺️ Network Topology</h3>
+                        <div class="network-container">
+                            <canvas id="network-canvas" role="img" aria-label="Network topology map"></canvas>
+                            <div id="network-info" class="network-info">
+                                <p class="placeholder">No network data available. Devices will appear as they are discovered.</p>
+                            </div>
+                            <div class="network-controls">
+                                <button data-action="center-map" class="btn btn-small" aria-label="Center map">
+                                    <span>⊙</span> Center
+                                </button>
+                                <button data-action="toggle-labels" class="btn btn-small" aria-label="Toggle labels">
+                                    <span>🏷️</span> Labels
+                                </button>
+                                <button data-action="zoom-in" class="btn btn-small" aria-label="Zoom in">
+                                    <span>+</span>
+                                </button>
+                                <button data-action="zoom-out" class="btn btn-small" aria-label="Zoom out">
+                                    <span>−</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- GPS Positions -->
+                    <div class="info-section">
+                        <h3>📍 GPS Positions</h3>
+                        <div id="gps-content" class="content-area">
+                            <div class="loading-container">
+                                <div class="loading-spinner"></div>
+                                <p>Loading GPS data...</p>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
