@@ -205,6 +205,7 @@ All successful responses follow this structure:
 | `/api/export/geojson` | GET | No | Export positions as GeoJSON |
 | `/api/export/kml` | GET | No | Export positions as KML |
 | `/api/export/pcap` | GET | No | Export packets as PCAP |
+| `/api/export/report` | GET | No | **Download consolidated JSON report** |
 | `/api/statistics` | GET | No | Detailed packet statistics |
 | `/api/activity` | GET | No | RF activity summary |
 | `/api/config` | GET | No | Frequency configurations |
@@ -837,6 +838,123 @@ wireshark capture.pcap
 ```bash
 curl -X GET http://192.168.4.1/api/export/pcap -o lora_capture.pcap
 ```
+
+---
+
+### **GET /api/export/report**
+
+**Download a consolidated JSON report** containing security assessments, device inventory, session statistics, and GPS positions in a single file. This is the **recommended export** for security researchers—one download captures all reconnaissance data.
+
+**Request:**
+```http
+GET /api/export/report HTTP/1.1
+Host: 192.168.4.1
+```
+
+**Response Headers:**
+```http
+Content-Type: application/json
+Content-Disposition: attachment; filename="lora-recon-report.json"
+```
+
+**Response Structure:**
+```json
+{
+  "status": "success",
+  "metadata": {
+    "generatedAt": 1234567,
+    "firmwareVersion": "2.2.1",
+    "reportVersion": "1.0"
+  },
+  "security": {
+    "devices": [
+      {
+        "nodeId": "!abc12345",
+        "nodeIdDecimal": 2880229189,
+        "deviceType": "Router",
+        "protocol": "Meshtastic",
+        "score": 75,
+        "riskLevel": "vulnerable",
+        "findings": [
+          "High signal strength (physical proximity)",
+          "Router device - elevated attack surface"
+        ]
+      }
+    ],
+    "summary": {
+      "totalDevices": 5,
+      "vulnerable": 2,
+      "moderate": 1,
+      "secure": 2
+    }
+  },
+  "devices": {
+    "count": 5,
+    "list": [
+      {
+        "nodeId": "!abc12345",
+        "nodeIdDecimal": 2880229189,
+        "protocol": "Meshtastic",
+        "deviceType": "Router",
+        "firmwareVersion": "2.5.1.abc",
+        "packetCount": 47,
+        "originatedPackets": 12,
+        "relayedPackets": 35,
+        "avgRSSI": -68,
+        "bestRSSI": -52,
+        "rssiStdDev": "4.2",
+        "isRouter": true,
+        "powerClass": 2,
+        "frequency": 906.875,
+        "firstSeenSecondsAgo": 3420,
+        "lastSeenSecondsAgo": 15
+      }
+    ]
+  },
+  "statistics": {
+    "totalPackets": 1247,
+    "totalDevices": 5,
+    "droppedPackets": 0,
+    "uptimeSeconds": 3600,
+    "protocolDistribution": {
+      "Meshtastic": 5,
+      "LoRaWAN": 0,
+      "Helium": 0,
+      "Other": 0
+    }
+  },
+  "gps": {
+    "count": 3,
+    "positions": [
+      {
+        "nodeId": "!abc12345",
+        "lat": 37.7749,
+        "lon": -122.4194,
+        "alt": 15.0,
+        "precision": 10
+      }
+    ]
+  }
+}
+```
+
+**cURL Example:**
+```bash
+# Download report
+curl http://192.168.4.1/api/export/report -o recon-report.json
+
+# Pretty-print with jq
+curl -s http://192.168.4.1/api/export/report | jq .
+
+# Extract just vulnerable devices
+curl -s http://192.168.4.1/api/export/report | jq '.security.devices[] | select(.riskLevel == "vulnerable")'
+```
+
+**Use Cases:**
+- Single-click export for security audits
+- Share findings with other researchers
+- Archive reconnaissance sessions
+- Feed into external analysis tools
 
 ---
 

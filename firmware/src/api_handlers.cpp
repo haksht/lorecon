@@ -467,4 +467,12 @@ void handleCommand(AsyncWebServerRequest* request) {
     request->send(400, "application/json", JsonUtils::error("Unknown command"));
 }
 
+void handleExportReport(AsyncWebServerRequest* request) {
+    // Force download with filename
+    AsyncWebServerResponse* response = request->beginResponse(
+        200, "application/json", APIController::getConsolidatedReport());
+    response->addHeader("Content-Disposition", "attachment; filename=\"lora-recon-report.json\"");
+    request->send(response);
+}
+
 }  // namespace APIHandlers

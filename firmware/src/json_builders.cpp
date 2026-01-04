@@ -769,4 +769,153 @@ String buildDiagnosticsJson() {
     return response;
 }
 
+// =============================================================================
+// CONSOLIDATED EXPORT
+// =============================================================================
+
+String buildConsolidatedReportJson(ReconState& reconState, GeoIntelligence& geoIntel) {
+    JsonDocument doc;
+    doc["status"] = "success";
+    
+    // Report metadata
+    JsonObject meta = doc["metadata"].to<JsonObject>();
+    meta["generatedAt"] = millis();
+    meta["firmwareVersion"] = "2.2.1";
+    meta["reportVersion"] = "1.0";
+    
+    // Use scoped lock for consistent snapshot
+    ReconState::ScopedLock lock(reconState);
+    if (!lock) {
+        doc["status"] = "error";
+        doc["message"] = "Failed to acquire lock";
+        String response;
+        serializeJson(doc, response);
+        return response;
+    }
+    
+    uint8_t numDevices = reconState.getNumTargetableDevices();
+    
+    // =========================================================================
+    // SECURITY SECTION
+    // =========================================================================
+    JsonObject security = doc["security"].to<JsonObject>();
+    
+    uint8_t vulnerableCount = 0;
+    uint8_t moderateCount = 0;
+    
+    JsonArray securityDevices = security["devices"].to<JsonArray>();
+    for (uint8_t i = 0; i < numDevices; i++) {
+        const TargetableDevice& dev = reconState.getDeviceRepository().getByIndex(i);
+        SecurityScorer::Assessment assessment = SecurityScorer::assess(dev);
+        
+        JsonObject deviceObj = securityDevices.add<JsonObject>();
+        deviceObj["nodeId"] = FormatUtils::formatNodeIdJson(dev.nodeId);
+        deviceObj["nodeIdDecimal"] = dev.nodeId;
+        deviceObj["deviceType"] = dev.deviceType;
+        deviceObj["protocol"] = dev.protocol;
+        deviceObj["score"] = assessment.score;
+        deviceObj["riskLevel"] = assessment.rating;
+        
+        JsonArray findings = deviceObj["findings"].to<JsonArray>();
+        if (assessment.physicalProximity) findings.add("High signal strength (physical proximity)");
+        if (assessment.possibleUnencrypted) findings.add("Heavy traffic without confirmed encryption");
+        if (assessment.isRouter) findings.add("Router device - elevated attack surface");
+        if (assessment.chatty) findings.add("Chatty device leaking metadata");
+        if (assessment.intermittent) findings.add("Intermittent transmissions");
+        if (assessment.outdatedFirmware) findings.add("Outdated firmware signature");
+        if (findings.size() == 0) findings.add("No obvious vulnerabilities");
+        
+        if (strcmp(assessment.rating, "vulnerable") == 0) vulnerableCount++;
+        else if (strcmp(assessment.rating, "moderate") == 0) moderateCount++;
+    }
+    
+    JsonObject secSummary = security["summary"].to<JsonObject>();
+    secSummary["totalDevices"] = numDevices;
+    secSummary["vulnerable"] = vulnerableCount;
+    secSummary["moderate"] = moderateCount;
+    secSummary["secure"] = (numDevices > vulnerableCount + moderateCount) ? 
+        numDevices - vulnerableCount - moderateCount : 0;
+    
+    // =========================================================================
+    // DEVICES SECTION
+    // =========================================================================
+    JsonObject devices = doc["devices"].to<JsonObject>();
+    devices["count"] = numDevices;
+    
+    JsonArray deviceList = devices["list"].to<JsonArray>();
+    for (uint8_t i = 0; i < numDevices; i++) {
+        const TargetableDevice& dev = reconState.getDeviceRepository().getByIndex(i);
+        JsonObject deviceObj = deviceList.add<JsonObject>();
+        
+        deviceObj["nodeId"] = FormatUtils::formatNodeIdJson(dev.nodeId);
+        deviceObj["nodeIdDecimal"] = dev.nodeId;
+        deviceObj["protocol"] = dev.protocol;
+        deviceObj["deviceType"] = dev.deviceType;
+        deviceObj["firmwareVersion"] = dev.firmwareVersion;
+        deviceObj["packetCount"] = dev.packetCount;
+        deviceObj["originatedPackets"] = dev.originatedPackets;
+        deviceObj["relayedPackets"] = dev.relayedPackets;
+        deviceObj["avgRSSI"] = dev.avgRSSI;
+        deviceObj["bestRSSI"] = dev.bestRSSI;
+        deviceObj["rssiStdDev"] = serialized(String(dev.rssiStdDev, 1));
+        deviceObj["isRouter"] = dev.isRouter;
+        deviceObj["powerClass"] = dev.powerClass;
+        
+        const ScanConfig& cfg = reconState.getScanConfig(dev.configIndex);
+        deviceObj["frequency"] = cfg.frequency;
+        
+        uint32_t now = millis();
+        deviceObj["firstSeenSecondsAgo"] = (dev.firstSeen > 0 && dev.firstSeen <= now) ? (now - dev.firstSeen) / 1000 : 0;
+        deviceObj["lastSeenSecondsAgo"] = (dev.lastSeen > 0 && dev.lastSeen <= now) ? (now - dev.lastSeen) / 1000 : 0;
+    }
+    
+    // =========================================================================
+    // STATISTICS SECTION
+    // =========================================================================
+    JsonObject statistics = doc["statistics"].to<JsonObject>();
+    statistics["totalPackets"] = reconState.scanState.totalPackets;
+    statistics["totalDevices"] = numDevices;
+    statistics["droppedPackets"] = reconState.scanState.droppedPackets;
+    statistics["uptimeSeconds"] = millis() / 1000;
+    
+    // Protocol distribution
+    JsonObject protocols = statistics["protocolDistribution"].to<JsonObject>();
+    int meshtastic = 0, lorawan = 0, helium = 0, generic = 0;
+    for (uint8_t i = 0; i < numDevices; i++) {
+        const TargetableDevice& dev = reconState.getDeviceRepository().getByIndex(i);
+        if (strcmp(dev.protocol, "Meshtastic") == 0) meshtastic++;
+        else if (strcmp(dev.protocol, "LoRaWAN") == 0) lorawan++;
+        else if (strcmp(dev.protocol, "Helium") == 0) helium++;
+        else generic++;
+    }
+    protocols["Meshtastic"] = meshtastic;
+    protocols["LoRaWAN"] = lorawan;
+    protocols["Helium"] = helium;
+    protocols["Other"] = generic;
+    
+    // =========================================================================
+    // GPS POSITIONS SECTION
+    // =========================================================================
+    JsonObject gps = doc["gps"].to<JsonObject>();
+    
+    JsonArray positions = gps["positions"].to<JsonArray>();
+    uint8_t pointCount = geoIntel.getPointCount();
+    for (uint8_t i = 0; i < pointCount; i++) {
+        const GeoPoint& point = geoIntel.getPoint(i);
+        if (!point.valid) continue;
+        
+        JsonObject pos = positions.add<JsonObject>();
+        pos["nodeId"] = FormatUtils::formatNodeIdJson(point.nodeId);
+        pos["lat"] = point.latitude;
+        pos["lon"] = point.longitude;
+        pos["alt"] = point.altitude;
+        pos["precision"] = point.precision;
+    }
+    gps["count"] = positions.size();
+
+    String response;
+    serializeJson(doc, response);
+    return response;
+}
+
 } // namespace JsonBuilders

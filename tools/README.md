@@ -686,6 +686,9 @@ python api_client.py capture 0x401ACD4E
 # Download PCAP
 python api_client.py download-pcap -o capture.pcap
 
+# Download consolidated report (security + devices + stats + GPS)
+python api_client.py download-report -o session-report.json
+
 # Send command
 python api_client.py command r   # Resume recon
 
