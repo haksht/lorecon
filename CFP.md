@@ -9,36 +9,38 @@
 
 ## Talk Title
 
-**LoRa Under the Radar: Building a $30 Passive Reconnaissance Tool for Mesh Network Security Research**
+**LoRa Under the Radar: Building a $30 Mesh Network Sniffer**
 
 ### Alternative Titles
-- *Meshtastic Mayhem: Exposing Encryption Gaps in Consumer Mesh Networks*
+- *Meshtastic Mayhem: A $30 Tool for LoRa Reconnaissance*
 - *When Default Keys Aren't: Hunting Leaked PSKs in LoRa Mesh Traffic*
 
 ---
 
 ## Abstract (300 words)
 
-Meshtastic, Helium, and LoRaWAN have quietly built massive mesh networks across cities worldwide—often using default encryption keys that offer little more than security theater. This talk introduces an open-source ESP32-based passive reconnaissance tool that scans 26 LoRa configurations, captures packets across the 902-928 MHz ISM band, and automatically decrypts traffic using 23 known PSKs—including leaked admin channel keys from 2023 security incidents.
+Meshtastic, Helium, and LoRaWAN have quietly built massive mesh networks across cities—often using default encryption keys that offer little more than security theater. This talk introduces an open-source ESP32-based passive reconnaissance tool that scans 26 LoRa configurations, captures packets, and automatically decrypts traffic using 23 known PSKs—including leaked admin channel keys from 2023.
 
-We'll walk through the architecture of a production-grade embedded firmware that transforms a $30 Heltec WiFi LoRa 32 V3 into a field-deployable LoRa sniffer with:
+We'll walk through building a $30 Heltec WiFi LoRa 32 V3 into a field-deployable sniffer with:
 
-- **Real-time packet capture** with interrupt-driven reception and 100-packet queuing
+- **Real-time packet capture** with interrupt-driven reception
 - **Multi-protocol detection** (Meshtastic, LoRaWAN/TTN, Helium Network)
-- **Automated PSK testing** against default keys, including "AQ==" and leaked admin keys like "PKdTs51e4EB0BoOevIN0Dw=="
+- **Automated PSK cracking** against default keys, including "AQ==" and leaked admin keys
 - **GPS coordinate extraction** from position broadcasts
 - **Mobile-friendly web UI** with threat-level network visualization
-- **PCAP export** compatible with Wireshark and custom LoRa dissectors
+- **PCAP export** compatible with Wireshark
 
-Live demo: We'll power up the sniffer at CackalackyCon and see what's transmitting in the Research Triangle—likely discovering Meshtastic nodes, IoT sensors, and potentially vulnerable devices broadcasting with default encryption.
+**Live demo:** We'll power up the sniffer at CackalackyCon and see what's transmitting in RTP—likely discovering Meshtastic nodes, IoT sensors, and devices broadcasting with default encryption.
 
 **Key takeaways:**
 1. Why default PSKs in consumer mesh networks are a research goldmine
-2. How to identify vulnerable devices using RSSI, firmware fingerprinting, and traffic patterns
-3. Defense strategies: proper key rotation, firmware updates, and network segmentation
-4. The ethics of passive RF reconnaissance (receive-only, legal considerations)
+2. How to identify vulnerable devices using RSSI and traffic patterns
+3. Defense strategies: key rotation, firmware updates, network segmentation
+4. Ethics of passive RF reconnaissance (receive-only, legal framework)
 
-All code is open source (MIT license). Attendees will leave with a shopping list, flash instructions, and the knowledge to build their own reconnaissance platform.
+All code is MIT-licensed open source. Attendees leave with a shopping list (~$30), flash instructions, and the knowledge to build their own reconnaissance platform tonight.
+
+*No prior LoRa experience required—just curiosity about what's transmitting around you.*
 
 ---
 
@@ -98,16 +100,14 @@ All code is open source (MIT license). Attendees will leave with a shopping list
 ## Target Audience
 
 **Primary:** Security researchers, penetration testers, red teamers  
-**Secondary:** IoT developers, ham radio operators, embedded systems engineers  
-**Skill Level:** Intermediate (some familiarity with wireless concepts helpful)
+**Secondary:** IoT developers, ham radio operators, embedded systems engineers, curious hackers  
+**Skill Level:** Intermediate (but accessible to beginners—no prior LoRa experience required)
 
 ---
 
 ## Speaker Bio
 
-*[Your name and bio here]*
-
-Security researcher focused on wireless protocols and embedded systems. Background in [relevant experience]. Previous talks at [conferences if any]. Active contributor to open-source security tooling.
+Tim Arnold is a retired software developer, Python programmer, and statistician who co-authored the 2nd edition of *Black Hat Python* (No Starch Press). These days he spends his time building security tools, breaking things for fun, and teaching others how to do the same. When not sniffing LoRa packets in the wild, he's probably writing Python code that probably shouldn't exist.
 
 **Contact:** [email]  
 **GitHub:** [profile]  
@@ -171,11 +171,12 @@ Security researcher focused on wireless protocols and embedded systems. Backgrou
 
 This talk is a perfect fit for CackalackyCon because:
 
-1. **Local relevance:** Research Triangle has significant Meshtastic/IoT adoption
-2. **Hands-on focus:** Working demo hardware, not just slides
-3. **Actionable takeaways:** Attendees can build their own tool for ~$30
-4. **Responsible disclosure:** Focuses on defense, not exploitation
-5. **Open source:** All code available, community can contribute
+1. **Local relevance:** RTP has significant Meshtastic/IoT adoption—we'll demo live at the venue
+2. **Hands-on focus:** Working demo hardware, not just slides (Hardware Hacking Village energy)
+3. **Build-it-tonight:** Attendees can order parts and build their own for ~$30
+4. **Inclusive:** No gatekeeping—accessible to newcomers while deep enough for experts
+5. **Responsible disclosure:** Focuses on defense strategies, not exploitation
+6. **Open source:** MIT-licensed, community can contribute and extend
 
 ---
 
