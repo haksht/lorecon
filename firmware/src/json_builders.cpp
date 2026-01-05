@@ -11,9 +11,11 @@
 #include "geo_intelligence.h"
 #include "data_structures.h"
 #include "text_packet_diagnostic.h"
+#include "lorawan_keys.h"
 #include "mode_manager.h"
 #include "utils/format_utils.h"
 #include "utils/security_scorer.h"
+#include "utils/channel_hash.h"
 #include "config.h"
 #include "web_server.h"  // For g_webServer->getClientCount()
 #include "logger.h"
@@ -396,7 +398,18 @@ String buildReconSummaryJson(ReconState& reconState, GeoIntelligence& geoIntel) 
     intel["relayNodes"] = reconState.networkIntel.relayOnlyNodes;
     intel["mixedNodes"] = reconState.networkIntel.mixedNodes;
     intel["encryptedNetworks"] = reconState.networkIntel.encryptedNetworks;
+    intel["floodingEvents"] = reconState.networkIntel.floodingEvents;
     intel["anomalyCount"] = reconState.networkIntel.anomalyCount;
+    
+    // LoRaWAN key testing stats
+    const auto& lorawanStats = LoRaWANKeys::getStats();
+    if (lorawanStats.joinRequestsSeen > 0) {
+        JsonObject lorawan = summary["lorawanStats"].to<JsonObject>();
+        lorawan["joinRequestsSeen"] = lorawanStats.joinRequestsSeen;
+        lorawan["joinRequestsDecoded"] = lorawanStats.joinRequestsDecoded;
+        lorawan["defaultKeysFound"] = lorawanStats.keysFound;
+        lorawan["keysTestedPerPacket"] = LoRaWANKeys::getKeyCount();
+    }
 
     if (reconState.scanState.mode == MODE_TARGETED_CAPTURE ||
         reconState.scanState.mode == MODE_PACKET_REPLAY) {
@@ -672,6 +685,7 @@ String buildReplaySlotsJson(ReconState& reconState) {
         slot["configIndex"] = packet.configIndex;
         slot["frequencyMHz"] = reconState.getScanConfig(packet.configIndex).frequency;
         slot["rssi"] = packet.originalRSSI;
+        slot["snr"] = packet.snr;
         uint32_t now = millis();
         slot["capturedSecondsAgo"] = (packet.captureTime > 0 && packet.captureTime <= now) ? (now - packet.captureTime) / 1000 : 0;
         
@@ -698,8 +712,12 @@ String buildReplaySlotsJson(ReconState& reconState) {
         }
         slot["isBroadcast"] = (packet.destId == 0xFFFFFFFF);
         
-        // Include channel index
+        // Include channel index and name (if known)
         slot["channel"] = packet.channel;
+        const char* channelName = ChannelHash::getChannelName(packet.channel);
+        if (channelName) {
+            slot["channelName"] = channelName;
+        }
         
         // Include flag information
         if (packet.wantAck) slot["wantAck"] = true;

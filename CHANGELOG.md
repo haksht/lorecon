@@ -2,6 +2,27 @@
 
 All notable changes to the ESP32 LoRa Sniffer project.
 
+## [2.2.3] - 2026-01-02
+
+### Added
+- **LoRaWAN Key Testing**: AES-CMAC MIC verification against 16 default AppKeys
+  - Detects devices using factory default or well-known keys
+  - Serial command `w` shows stats summary
+  - `/api/recon/summary` includes `lorawanStats` object
+- **Channel Hash Mapping**: Maps Meshtastic channel hash to known names
+  - `channelName` field in replay slots (LongFast, admin, ncmesh, etc.)
+  - `utils/channel_hash.h/cpp` utility module
+
+### Improved
+- **API Documentation**: Complete `/api/recon/summary` endpoint documentation
+- **Replay Slots API**: Added `snr`, `channel`, `channelName`, `hopCount`, `destId`, `isBroadcast`, `wantAck`, `viaMqtt`, `priority` fields
+
+### Documentation
+- Updated all docs to match codebase
+- Removed obsolete `DEBUG_HANDOFF_2024-12-30.md`
+- Added LoRaWAN key testing to FEATURES.md, ARCHITECTURE.md
+- Updated serial commands in GETTING_STARTED.md (added `t`, `w` commands)
+
 ## [2.2.2] - 2026-01-02
 
 ### Fixed

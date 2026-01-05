@@ -26,6 +26,7 @@ struct CapturedPacket {
   size_t length;
   uint8_t configIndex;  // Which radio config to use for replay
   float originalRSSI;
+  float snr;            // Signal-to-noise ratio (dB)
   uint32_t captureTime;
   uint32_t nodeId;      // From field - original sender (0 if unknown)
   uint32_t destId;      // To field - destination (0xFFFFFFFF = broadcast)

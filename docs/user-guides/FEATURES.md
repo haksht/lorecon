@@ -157,7 +157,31 @@ A production-ready LoRa packet capture and analysis platform for security resear
 
 ---
 
-### 📍 Geographic Intelligence (v2.0)
+### � LoRaWAN Key Testing (SECURITY RESEARCH)
+**Status**: ✅ Production Ready  
+**Architecture**: AES-CMAC verification via lorawan_keys module  
+**Files**: `lorawan_keys.cpp/.h`
+
+- **16 default LoRaWAN AppKeys** including:
+  - Test keys (all zeros, all ones)
+  - TTN documentation examples
+  - Manufacturer factory defaults (Dragino, RAK, Heltec)
+  - Sequential pattern keys
+- **Join Request detection** (identifies MHDR 0x00 frames)
+- **MIC verification** (AES-CMAC over JoinEUI + DevEUI + DevNonce)
+- **Statistics tracking** (Join Requests seen, decoded, keys found)
+
+**How it works**: When a LoRaWAN Join Request is captured, the tool computes the MIC (Message Integrity Code) using each default AppKey. A matching MIC means the device uses that default key, indicating a security vulnerability.
+
+**Access**: 
+- Serial command: `w` - Print LoRaWAN stats summary
+- API endpoint: `/api/recon/summary` - `lorawanStats` object
+
+**What it detects**: Devices using factory-default AppKeys are vulnerable to replay attacks and key compromise. Production LoRaWAN devices should always use unique, randomly-generated AppKeys.
+
+---
+
+### �📍 Geographic Intelligence (v2.0)
 **Status**: ✅ Production Ready  
 **Architecture**: GeoIntelligence component with protobuf parsing  
 **Files**: `geo_intelligence.cpp/.h`

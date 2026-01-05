@@ -459,9 +459,18 @@ Host: 192.168.4.1
 | `slots[].configIndex` | number | Frequency config index |
 | `slots[].frequencyMHz` | number | Capture frequency |
 | `slots[].rssi` | number | Signal strength at capture (dBm) |
+| `slots[].snr` | number | Signal-to-noise ratio at capture (dB) |
 | `slots[].capturedSecondsAgo` | number | Time since capture |
 | `slots[].nodeId` | string | **Optional** - Source node ID (hex) |
 | `slots[].packetId` | string | **Optional** - Meshtastic packet ID (hex) |
+| `slots[].hopCount` | number | **Optional** - Remaining hops (Meshtastic) |
+| `slots[].destId` | string | **Optional** - Destination node ID (hex, omitted for broadcast) |
+| `slots[].isBroadcast` | boolean | Whether packet is broadcast (destId = 0xFFFFFFFF) |
+| `slots[].channel` | number | Meshtastic channel index (byte 13 of packet) |
+| `slots[].channelName` | string | **Optional** - Known channel name (e.g., "LongFast", "admin") |
+| `slots[].wantAck` | boolean | **Optional** - Packet requests acknowledgment |
+| `slots[].viaMqtt` | boolean | **Optional** - Packet originated via MQTT gateway |
+| `slots[].priority` | number | **Optional** - Packet priority level (1-127) |
 | `slots[].decryptedText` | string | **Optional** - Decrypted message content |
 
 **cURL Example:**
@@ -1212,7 +1221,123 @@ curl -X GET http://192.168.4.1/api/activity
 
 ---
 
-## 🛡️ Security Assessment
+## � Reconnaissance Summary
+
+### **GET /api/recon/summary**
+
+Get comprehensive reconnaissance summary including network intelligence, RF activity, LoRaWAN key testing stats, and discovered devices.
+
+**Request:**
+```http
+GET /api/recon/summary HTTP/1.1
+Host: 192.168.4.1
+```
+
+**Response:**
+```json
+{
+  "status": "success",
+  "summary": {
+    "mode": "reconnaissance",
+    "uptimeSeconds": 3600,
+    "reconDurationSeconds": 3580,
+    "totalPackets": 1247,
+    "totalDetections": 892,
+    "targetableDevices": 5,
+    "capturedPackets": 3,
+    "verboseDiagnostics": false,
+    "networkIntel": {
+      "beaconDevices": 2,
+      "activeTransmitters": 4,
+      "relayNodes": 1,
+      "mixedNodes": 2,
+      "encryptedNetworks": 1,
+      "floodingEvents": 0,
+      "anomalyCount": 0
+    },
+    "lorawanStats": {
+      "joinRequestsSeen": 15,
+      "joinRequestsDecoded": 12,
+      "defaultKeysFound": 3,
+      "keysTestedPerPacket": 16
+    }
+  },
+  "targetedCapture": {
+    "configIndex": 5,
+    "protocol": "Meshtastic_LF_906",
+    "frequencyMHz": 906.875,
+    "spreadingFactor": 11,
+    "bandwidthKHz": 250,
+    "replaySlotsUsed": 3
+  },
+  "rfActivity": [
+    {
+      "configIndex": 5,
+      "protocol": "Meshtastic_LF_906",
+      "frequencyMHz": 906.875,
+      "packets": 847,
+      "avgRSSI": -68.5,
+      "peakRSSI": -45.0,
+      "activityLevel": "HIGH",
+      "lastActivitySecondsAgo": 2
+    }
+  ],
+  "devices": [
+    {
+      "index": 0,
+      "nodeId": "!9ea3d744",
+      "protocol": "Meshtastic",
+      "deviceType": "TRACKER_APP",
+      "packetCount": 47,
+      "avgRSSI": -68.5,
+      "lastSeenSecondsAgo": 15
+    }
+  ]
+}
+```
+
+**Summary Fields:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `mode` | string | Current operation mode |
+| `uptimeSeconds` | number | Device uptime |
+| `reconDurationSeconds` | number | Active reconnaissance time |
+| `totalPackets` | number | All packets received |
+| `totalDetections` | number | Valid protocol detections |
+| `targetableDevices` | number | Unique devices discovered |
+| `capturedPackets` | number | Packets in replay slots |
+| `verboseDiagnostics` | boolean | Verbose logging enabled |
+
+**Network Intelligence Fields:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `beaconDevices` | number | Devices transmitting periodic beacons |
+| `activeTransmitters` | number | Devices actively transmitting |
+| `relayNodes` | number | Pure relay/router nodes |
+| `mixedNodes` | number | Nodes that both originate and relay |
+| `encryptedNetworks` | number | Detected encrypted channels |
+| `floodingEvents` | number | Mesh flooding events detected |
+| `anomalyCount` | number | Protocol anomalies detected |
+
+**LoRaWAN Stats Fields (present only if Join Requests seen):**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `joinRequestsSeen` | number | LoRaWAN Join Request packets captured |
+| `joinRequestsDecoded` | number | Successfully parsed Join Requests |
+| `defaultKeysFound` | number | Packets decrypted with default AppKeys |
+| `keysTestedPerPacket` | number | Number of default keys tested (16) |
+
+**cURL Example:**
+```bash
+curl -X GET http://192.168.4.1/api/recon/summary
+```
+
+---
+
+## �🛡️ Security Assessment
 
 ### **GET /api/recon/security**
 

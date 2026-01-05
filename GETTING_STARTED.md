@@ -148,6 +148,8 @@ curl -X POST http://192.168.4.1/api/wifi/clear -H "X-API-Token: YOUR_TOKEN"
 
 Connect via USB and use serial commands:
 
+**Important:** Serial commands require activation. Press **Enter twice** within 1.5 seconds to activate the serial console, then commands work normally. This prevents phantom commands from USB electrical noise.
+
 ```
 Press 'm' - Main menu with device list
 Press 'f' - Frequency targeting
@@ -165,6 +167,8 @@ Press 'n' - Clear discovered devices
 Press 'd' - Device type analysis
 Press 'k' - Export KML
 Press 'j' - Export GeoJSON
+Press 't' - Show API token
+Press 'w' - LoRaWAN key testing stats
 Press 'b' - Reboot device
 ```
 

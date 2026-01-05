@@ -713,7 +713,7 @@ class ReconApp {
             
             let html = '<div class="table-wrapper">';
             html += '<table class="table"><thead><tr>';
-            html += '<th>Node ID</th><th>Risk</th><th>Type</th><th>Router</th><th>Power</th><th>Pkts (Orig/Relay)</th><th>RSSI (Avg/Best)</th><th>Frequency</th><th>First Seen</th><th>Last Seen</th><th>Actions</th>';
+            html += '<th>Node ID</th><th>Risk</th><th>Type</th><th>Firmware</th><th>Router</th><th>Beacon</th><th>Power</th><th>Pkts (Orig/Relay)</th><th>RSSI (Avg/Best)</th><th>Frequency</th><th>First Seen</th><th>Last Seen</th><th>Actions</th>';
             html += '</tr></thead><tbody>';
             
             enrichedDevices.forEach(device => {
@@ -742,16 +742,33 @@ class ReconApp {
                 // Power class indicator
                 const powerBadge = device.powerClass >= 2 ? '🔋 High' : (device.powerClass === 1 ? '🔋 Med' : '🪫 Low');
                 
+                // Beacon/periodicity indicator
+                const periodicityScore = device.periodicityScore || 0;
+                const avgInterval = device.avgPacketInterval || 0;
+                let beaconBadge = '—';
+                if (periodicityScore >= 80) {
+                    beaconBadge = `📡 ${periodicityScore}%`;
+                } else if (periodicityScore >= 50) {
+                    beaconBadge = `📶 ${periodicityScore}%`;
+                }
+                const intervalTooltip = avgInterval > 0 ? `Avg interval: ${(avgInterval/1000).toFixed(0)}s` : '';
+                
                 // Packet counts
                 const origPkts = device.originatedPackets || 0;
                 const relayPkts = device.relayedPackets || 0;
                 const totalPkts = device.packetCount || 0;
                 const pktDisplay = `${totalPkts} (${origPkts}/${relayPkts})`;
                 
-                // RSSI display with best
+                // RSSI display with best and spoofing indicator
                 const avgRssi = device.avgRSSI || device.rssi || 0;
                 const bestRssi = device.bestRSSI || avgRssi;
+                const rssiStdDev = device.rssiStdDev || 0;
                 const rssiDisplay = `${avgRssi.toFixed(0)} / ${bestRssi.toFixed(0)}`;
+                // High RSSI variance could indicate spoofing or mobile device
+                const rssiTooltip = rssiStdDev > 10 ? `σ=${rssiStdDev.toFixed(1)} ⚠️ High variance` : `σ=${rssiStdDev.toFixed(1)}`;
+                
+                // Firmware version
+                const firmware = escapeHtml(device.firmwareVersion || '—');
                 
                 // Escape all user-derived data for XSS prevention
                 const safeNodeId = escapeHtml(device.nodeId);
@@ -761,10 +778,12 @@ class ReconApp {
                 html += `<td><code>0x${safeNodeId}</code></td>`;
                 html += `<td><span class="${riskClass}">${riskBadge}</span></td>`;
                 html += `<td>${safeDeviceType}</td>`;
+                html += `<td><small>${firmware}</small></td>`;
                 html += `<td>${routerBadge}</td>`;
+                html += `<td><small title="${intervalTooltip}">${beaconBadge}</small></td>`;
                 html += `<td><small>${powerBadge}</small></td>`;
                 html += `<td>${pktDisplay}</td>`;
-                html += `<td><span class="${rssiClass}">${rssiDisplay} dBm</span></td>`;
+                html += `<td><span class="${rssiClass}" title="${rssiTooltip}">${rssiDisplay} dBm</span></td>`;
                 html += `<td>${(device.frequency || 0).toFixed(3)} MHz</td>`;
                 html += `<td>${this.formatDuration(device.firstSeenSecondsAgo || 0)} ago</td>`;
                 html += `<td>${this.formatLastSeen(device.lastSeenSecondsAgo)}</td>`;
@@ -806,7 +825,7 @@ class ReconApp {
             
             let html = '<div class="table-wrapper">';
             html += '<table class="table"><thead><tr>';
-            html += '<th>Protocol</th><th>From</th><th>To</th><th>Hops</th><th>Ch</th><th>Flags</th><th>Packet ID</th><th>Size</th><th>RSSI</th><th>Frequency</th><th>Captured</th><th>Message</th><th>Actions</th>';
+            html += '<th>Protocol</th><th>From</th><th>To</th><th>Hops</th><th>Ch</th><th>Flags</th><th>Packet ID</th><th>Size</th><th>RSSI</th><th>SNR</th><th>Frequency</th><th>Captured</th><th>Message</th><th>Actions</th>';
             html += '</tr></thead><tbody>';
             
             grouped.forEach(group => {
@@ -830,12 +849,22 @@ class ReconApp {
                         destDisplay = '<code>0x' + escapeHtml(String(pkt.destId)) + '</code>';
                     }
                     
+                    // Channel display: show name if known, otherwise just number
+                    let channelDisplay = '—';
+                    if (pkt.channel !== undefined) {
+                        if (pkt.channelName) {
+                            channelDisplay = `<span title="Hash: ${pkt.channel}">${escapeHtml(pkt.channelName)}</span>`;
+                        } else {
+                            channelDisplay = `<span class="text-muted">${pkt.channel}</span>`;
+                        }
+                    }
+                    
                     html += `<tr class="${rowClass}">`;
                     html += `<td><code>${escapeHtml(pkt.protocol || 'Unknown')}</code></td>`;
                     html += `<td>${pkt.nodeId ? '<code>0x' + escapeHtml(String(pkt.nodeId)) + '</code>' : '—'}</td>`;
                     html += `<td>${destDisplay}</td>`;
                     html += `<td>${pkt.hopCount !== undefined ? pkt.hopCount : '—'}</td>`;
-                    html += `<td>${pkt.channel !== undefined ? pkt.channel : '—'}</td>`;
+                    html += `<td>${channelDisplay}</td>`;
                     html += `<td><small>${flagsStr}</small></td>`;
                     
                     // Show packet ID with relay indicator
@@ -849,6 +878,7 @@ class ReconApp {
                     
                     html += `<td>${pkt.length || 0} B</td>`;
                     html += `<td><span class="${rssiClass}">${pkt.rssi || '—'} dBm</span></td>`;
+                    html += `<td>${pkt.snr !== undefined ? pkt.snr.toFixed(1) + ' dB' : '—'}</td>`;
                     html += `<td>${(pkt.frequencyMHz || 0).toFixed(3)} MHz</td>`;
                     html += `<td>${this.formatDuration(pkt.capturedSecondsAgo || 0)} ago</td>`;
                     html += `<td>${escapeHtml(pkt.decryptedText || '—')}</td>`;
