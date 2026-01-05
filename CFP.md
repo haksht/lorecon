@@ -9,13 +9,8 @@
 
 ## Talk Title
 
-**LoRa Under the Radar: Building a $30 Mesh Network Sniffer**
+**LoRecon:  A $30 Tool for LoRa Reconnaissance**
 
-### Alternative Titles
-- *Meshtastic Mayhem: A $30 Tool for LoRa Reconnaissance*
-- *When Default Keys Aren't: Hunting Leaked PSKs in LoRa Mesh Traffic*
-
----
 
 ## Abstract (300 words)
 
