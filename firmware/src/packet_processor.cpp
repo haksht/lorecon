@@ -8,6 +8,7 @@
 #include "oled_display.h"
 #include "text_packet_diagnostic.h"
 #include "psk_decryption_simple.h"
+#include "lorawan_keys.h"
 #include "config.h"
 #include "logger.h"
 
@@ -185,6 +186,12 @@ void PacketProcessor::handleReconPacket(const PacketInfo& info, const uint8_t* d
     // Track RF activity (for situational awareness)
     reconState.updateRFActivity(reconState.scanState.currentConfig, rssi);
     
+    // Protocol-specific key testing
+    if (strcmp(info.protocol, "LoRaWAN") == 0) {
+        // Test LoRaWAN Join Requests against default AppKeys
+        LoRaWANKeys::analyzePacket(data, length);
+    }
+    
     // Try decryption and capture packet for replay (same as targeted mode)
     if (length >= 20) {
         const uint8_t* payload = data;
@@ -245,7 +252,7 @@ void PacketProcessor::handleReconPacket(const PacketInfo& info, const uint8_t* d
         // Auto-capture packet for replay with all header fields
         const char* decryptedText = PSKDecryption::getLastMessage();
         if (reconState.capturePacketForReplay(data, length, reconState.scanState.currentConfig, 
-                                               rssi, info.protocol, decryptedText, nodeId, packetId, hopCount,
+                                               rssi, snr, info.protocol, decryptedText, nodeId, packetId, hopCount,
                                                destId, channel, wantAck, viaMqtt, priority)) {
             if (decryptedText && decryptedText[0] != '\0') {
                 Serial.printf("   ✅ Packet auto-captured with text: \"%s\"\n", decryptedText);
@@ -342,7 +349,7 @@ void PacketProcessor::handleTargetedPacket(const PacketInfo& info, const uint8_t
         // Auto-capture packet for replay with all header fields
         const char* decryptedText = PSKDecryption::getLastMessage();
         if (reconState.capturePacketForReplay(data, length, reconState.scanState.currentConfig, 
-                                               rssi, info.protocol, decryptedText, nodeId, packetId, hopCount,
+                                               rssi, snr, info.protocol, decryptedText, nodeId, packetId, hopCount,
                                                destId, channel, wantAck, viaMqtt, priority)) {
             if (decrypted && decryptedText && decryptedText[0] != '\0') {
                 Serial.printf("   ✅ Packet auto-captured with text: \"%s\"\n", decryptedText);

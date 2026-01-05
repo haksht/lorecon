@@ -13,7 +13,7 @@ Passive LoRa reconnaissance firmware for ESP32-S3 + SX1262 hardware. The ESP32 h
 ## Current Status
 
 - **Branch:** `main`
-- **Version:** 2.2.2 (Stability Hardening + Long-Duration Tested)
+- **Version:** 2.2.3 (LoRaWAN Key Testing + Documentation Sync)
 - **Hardware:** **Heltec WiFi LoRa 32 V3** (ESP32-S3 + SX1262 + OLED). Optional SD card.
   - ✅ **Fully Supported:** Heltec WiFi LoRa 32 V3 (tested, production-ready)
   - ⚠️ **Not Supported:** T-Deck variants (hardware incompatibilities - see `docs/hardware/TDECK_PLUS_INVESTIGATION.md` for details)
@@ -26,7 +26,7 @@ Passive LoRa reconnaissance firmware for ESP32-S3 + SX1262 hardware. The ESP32 h
 | Area | Highlights |
 | --- | --- |
 | Radio Control | `RadioController` wraps RadioLib with atomic ISR flagging and cached RSSI/SNR reads. The recon state cycles through 26 LoRa configs including Meshtastic, LoRaWAN/TTN, Helium Network, and ISM band (5 min cycle). |
-| Packet Processing | `PacketProcessor` queues interrupt captures, runs protocol analysis, PSK decryption, diagnostics, and replay capture with dual logging (CSV + PCAP). |
+| Packet Processing | `PacketProcessor` queues interrupt captures, runs protocol analysis, PSK decryption (23 Meshtastic keys), LoRaWAN key testing (16 default AppKeys), diagnostics, and replay capture with dual logging (CSV + PCAP). |
 | Recon State | `ReconState` tracks RF activity, targetable nodes, replay slots, quiet mode, and device intelligence with multi-factor security scoring. |
 | UI Surfaces | 1) Serial menu (command handler with dispatch table). 2) OLED quick-look cards. 3) **WiFi Web UI** with threat-colored network map, signal heatmaps, vulnerability assessment, and live packet visualization. |
 | Storage / Export | Optional SD logging (`packet_logger` with CSV + PCAP), KML/GeoJSON exports, Wireshark-compatible PCAP with LoRa metadata, security assessment reports, JSON APIs for scripting. |
@@ -112,6 +112,8 @@ WebSocket streams real-time updates to all connected clients with automatic reco
 
 ## Serial Command Reference (still available over USB)
 
+**Note:** Serial commands require activation. Press **Enter twice** within 1.5 seconds to activate, then commands work normally.
+
 | Command | Description |
 | --- | --- |
 | `m` | Menu with recon results and device list |
@@ -124,6 +126,10 @@ WebSocket streams real-time updates to all connected clients with automatic reco
 | `b` | Confirmed reboot (clears state) |
 | `c` | Capture last targeted packet into replay slot |
 | `p` | Replay menu |
+| `l` | Clear captured packets |
+| `n` | Clear discovered devices |
+| `t` | Show API token |
+| `w` | LoRaWAN key testing stats |
 | `q` | Quiet/verbose toggle |
 | `x` | Text-packet diagnostic report |
 

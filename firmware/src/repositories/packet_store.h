@@ -27,7 +27,7 @@ public:
      * @return true if captured successfully, false on invalid input
      */
     bool capturePacket(const uint8_t* data, size_t length,
-                       uint8_t configIndex, int16_t rssi,
+                       uint8_t configIndex, int16_t rssi, float snr,
                        uint32_t nodeId, uint32_t packetId,
                        uint8_t hopCount, uint32_t destId = 0xFFFFFFFF,
                        uint8_t channel = 0, bool wantAck = false,

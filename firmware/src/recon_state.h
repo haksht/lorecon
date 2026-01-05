@@ -115,7 +115,7 @@ public:
     
     // Packet replay management
     bool capturePacketForReplay(const uint8_t* data, size_t length, uint8_t configIndex, 
-                                float rssi, const char* protocol, const char* decryptedText = nullptr,
+                                float rssi, float snr, const char* protocol, const char* decryptedText = nullptr,
                                 uint32_t nodeId = 0, uint32_t packetId = 0, uint8_t hopCount = 0,
                                 uint32_t destId = 0xFFFFFFFF, uint8_t channel = 0,
                                 bool wantAck = false, bool viaMqtt = false, uint8_t priority = 0);

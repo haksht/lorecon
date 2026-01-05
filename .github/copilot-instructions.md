@@ -65,7 +65,13 @@ All magic numbers in `Config::` namespaces: `Config::Hardware::LORA_NSS`, `Confi
 ### 4. PSK Testing
 23 Meshtastic keys tested on encrypted packets (includes leaked 2023 admin/debug keys). `PSKDecryption::testDefaultPSKs()` called from `PacketProcessor`, not UI layer. `PSKTests::runAll()` runs at boot for validation.
 
-### 5. Error Handling
+### 5. LoRaWAN Key Testing
+16 default AppKeys tested against LoRaWAN Join Request packets. Uses AES-CMAC MIC verification to detect devices using factory default or well-known keys. Stats exposed via `/api/recon/summary` and serial command 'w'. See `lorawan_keys.h/cpp`.
+
+### 6. Channel Hash Mapping
+Meshtastic channel hash (byte 13 of packet header) mapped to known channel names (LongFast, admin, ncmesh, etc.). Used in replay slots and packet analysis. See `utils/channel_hash.h/cpp`.
+
+### 7. Error Handling
 No exceptions (embedded C++). Return `bool` for success/failure. Use `LOG_ERROR()`, `LOG_WARN()`, `LOG_INFO()` macros from `logger.h`. Never `printf()` directly.
 
 ## Critical Files for Understanding
@@ -79,6 +85,8 @@ No exceptions (embedded C++). Return `bool` for success/failure. Use `LOG_ERROR(
   - `protobuf_utils.h`: Varint decoding utilities
   - `security_scorer.h`: Unified security assessment scoring
   - `json_utils.h`: Standardized JSON response helpers (`JsonUtils::success()`, `JsonUtils::error()`, `JsonUtils::successWithData()`)
+  - `channel_hash.h`: Maps Meshtastic channel hash (byte 13) to channel names (LongFast, admin, ncmesh, etc.)
+- **`firmware/src/lorawan_keys.h/cpp`**: LoRaWAN Join Request parsing, AES-CMAC MIC verification, 16 default AppKeys testing
 - **`firmware/src/repositories/`**: Storage layer (delegates from ReconState):
   - `device_repository.h/cpp`: Targetable device storage with Welford's RSSI stats (50 devices max, LRU eviction)
   - `packet_store.h/cpp`: Replay slot management with FIFO circular buffer and packet deduplication

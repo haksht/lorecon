@@ -26,6 +26,7 @@
 #include "text_packet_diagnostic.h"  // For diagnostic reporting
 #include "psk_decryption_simple.h"   // For accessing decrypted text
 #include "psk_tests.h"
+#include "lorawan_keys.h"            // For LoRaWAN key testing stats
 
 // Explicit definition required for constexpr static members (C++ linkage rule)
 constexpr CommandHandler::CommandEntry CommandHandler::commands[];
@@ -337,7 +338,7 @@ void CommandHandler::cmdCapturePacket(IReconTool* tool) {
         const char* decryptedText = PSKDecryption::getLastMessage();
         
         if (reconState.capturePacketForReplay(data, length, reconState.scanState.currentConfig, 
-                                               rssi, info.protocol, decryptedText, nodeId, packetId, hopCount,
+                                               rssi, 0.0f, info.protocol, decryptedText, nodeId, packetId, hopCount,
                                                destId, channel, wantAck, viaMqtt, priority)) {
             Serial.println("✅ Packet saved to replay slot!");
             if (decryptedText && decryptedText[0] != '\0') {
@@ -436,5 +437,9 @@ void CommandHandler::cmdShowToken(IReconTool* tool) {
         Serial.println("   (Look at device screen)\n");
     }
     #endif
+}
+
+void CommandHandler::cmdLoRaWANStats(IReconTool* tool) {
+    LoRaWANKeys::printSummary();
 }
 

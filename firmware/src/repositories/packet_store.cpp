@@ -18,7 +18,7 @@ void PacketStore::initializeEmptyPacket() {
 }
 
 bool PacketStore::capturePacket(const uint8_t* data, size_t length,
-                                 uint8_t configIndex, int16_t rssi,
+                                 uint8_t configIndex, int16_t rssi, float snr,
                                  uint32_t nodeId, uint32_t packetId,
                                  uint8_t hopCount, uint32_t destId,
                                  uint8_t channel, bool wantAck,
@@ -57,6 +57,7 @@ bool PacketStore::capturePacket(const uint8_t* data, size_t length,
     slot.length = length;
     slot.configIndex = configIndex;
     slot.originalRSSI = rssi;
+    slot.snr = snr;
     slot.captureTime = millis();
     slot.nodeId = nodeId;
     slot.destId = destId;

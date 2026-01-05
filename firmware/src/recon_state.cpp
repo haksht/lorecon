@@ -438,7 +438,7 @@ void ReconState::printStateSummary() const {
 // Packet replay management - delegates to PacketStore
 // Thread-safe: Protected by mutex
 bool ReconState::capturePacketForReplay(const uint8_t* data, size_t length, uint8_t configIndex,
-                                        float rssi, const char* protocol, const char* decryptedText,
+                                        float rssi, float snr, const char* protocol, const char* decryptedText,
                                         uint32_t nodeId, uint32_t packetId, uint8_t hopCount,
                                         uint32_t destId, uint8_t channel, bool wantAck,
                                         bool viaMqtt, uint8_t priority) {
@@ -447,7 +447,7 @@ bool ReconState::capturePacketForReplay(const uint8_t* data, size_t length, uint
         return false;
     }
     bool result = packetStore_.capturePacket(data, length, configIndex, 
-                                       static_cast<int16_t>(rssi),
+                                       static_cast<int16_t>(rssi), snr,
                                        nodeId, packetId, hopCount,
                                        destId, channel, wantAck, viaMqtt, priority,
                                        protocol, decryptedText);

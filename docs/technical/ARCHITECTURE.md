@@ -1037,6 +1037,83 @@ bool PSKDecryption::tryDecrypt(const uint8_t* encryptedData,
 
 ---
 
+## **12.5. LoRaWAN Key Testing System**
+
+### **How LoRaWAN Join Works**
+
+```
+Join Request (JoinEUI, DevEUI, DevNonce) → Network Server
+                                               ↓
+Network Server verifies MIC using AppKey ← Device knows AppKey
+                                               ↓
+Join Accept (encrypted with AppKey) ← Network Server
+```
+
+The MIC (Message Integrity Code) in Join Requests is computed using AES-CMAC with the device's AppKey. If a device uses a default/well-known AppKey, we can verify this by computing the MIC ourselves.
+
+### **Join Request Structure**
+
+```cpp
+// LoRaWAN 1.0.x Join Request (23 bytes)
+struct JoinRequest {
+    uint8_t mhdr;           // MHDR = 0x00 (Join Request)
+    uint8_t joinEUI[8];     // AppEUI/JoinEUI (little-endian)
+    uint8_t devEUI[8];      // DevEUI (little-endian)
+    uint8_t devNonce[2];    // DevNonce (little-endian, random)
+    uint8_t mic[4];         // MIC (AES-CMAC over bytes 0-18)
+};
+```
+
+### **MIC Verification**
+
+```cpp
+// AES-CMAC computed over MHDR || JoinEUI || DevEUI || DevNonce
+bool LoRaWANKeys::verifyMIC(const uint8_t* packet, const uint8_t* appKey) {
+    uint8_t micInput[19];  // bytes 0-18 of Join Request
+    memcpy(micInput, packet, 19);
+    
+    uint8_t computedMIC[16];
+    aes_cmac(appKey, micInput, 19, computedMIC);
+    
+    // MIC is first 4 bytes of CMAC result
+    return memcmp(&packet[19], computedMIC, 4) == 0;
+}
+```
+
+### **Default AppKey Testing**
+
+```cpp
+bool LoRaWANKeys::testDefaultKeys(const uint8_t* packet, size_t length) {
+    if (!isJoinRequest(packet, length)) return false;
+    
+    // Test 16 well-known AppKeys
+    for (uint8_t i = 0; i < NUM_DEFAULT_KEYS; i++) {
+        if (verifyMIC(packet, DEFAULT_APPKEYS[i])) {
+            stats.keysFound++;
+            LOG_WARN("[LoRaWAN] Default key match: %s", KEY_NAMES[i]);
+            return true;
+        }
+    }
+    return false;
+}
+```
+
+**Default AppKeys (16 total):**
+1. All zeros (`0x00...00`) - Test/development
+2. All ones (`0xFF...FF`) - Test pattern
+3. TTN examples (`2B7E151628AED2A6ABF7158809CF4F3C`)
+4. Dragino factory defaults
+5. RAK factory defaults
+6. Heltec factory defaults
+7. Sequential patterns (`0x01020304...`)
+8-16. Other manufacturer defaults and documentation examples
+
+**Stats exposed via:**
+- Serial command `w` - Prints summary to console
+- `/api/recon/summary` - `lorawanStats` object in JSON response
+
+---
+
 ## **13. SD Card Logging Integration**
 
 ### **Why SD Card?**
