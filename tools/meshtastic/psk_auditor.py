@@ -41,9 +41,9 @@ except ImportError:
 PSK_DATABASE = [
     # CRITICAL - Widely known, actively exploited
     ("AQ==", "Default (0x01)", "CRITICAL", 
-     "Factory default key used by ~99% of Meshtastic installations"),
-    ("PKdTs51e4EB0BoOevIN0Dw==", "Admin Channel (pre-2.2)", "CRITICAL",
-     "LEAKED admin key - allows remote device configuration"),
+     "Factory default key used by most Meshtastic installations"),
+    ("PKdTs51e4EB0BoOevIN0Dw==", "Admin Channel (pre-2.5)", "CRITICAL",
+     "Legacy admin key - allows remote device configuration"),
     
     # HIGH - Common defaults, easy to find
     ("1PG7OiApB1nwvP+rz05pAQ==", "LongFast Preset", "HIGH",
@@ -73,7 +73,7 @@ PSK_DATABASE = [
     ("shmLkA9H74gAeLH3eGCqsw==", "Secondary Default", "LOW",
      "Secondary channel default"),
     ("ogDPnKVRN7wz/VF8nt6LkA==", "Debug Key", "LOW",
-     "Leaked debug/dev key from GitHub"),
+     "Debug/dev key from firmware source"),
     
     # Preset keys
     ("d1iq21lNSh7BP6MOkP6cQA==", "MediumFast", "MEDIUM", "Channel preset"),
@@ -294,8 +294,8 @@ class PSKAuditor:
         has_admin = 'Admin Channel' in str(self.vulnerable_networks.keys())
         
         if has_admin:
-            print(self._color("⚠️  URGENT: Devices using leaked admin key detected!", 'CRITICAL'))
-            print("   → Update firmware to 2.2+ immediately")
+            print(self._color("⚠️  URGENT: Devices using legacy admin key detected!", 'CRITICAL'))
+            print("   → Update firmware to 2.5+ immediately")
             print("   → Regenerate admin channel PSK")
             print()
         

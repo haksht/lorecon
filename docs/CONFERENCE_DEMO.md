@@ -61,16 +61,16 @@ Use this script for reproducible live demos at security conferences, workshops, 
 
 **Action:** Click on a device showing "Meshtastic" protocol
 
-**Say:** *"Here's where it gets interesting. Meshtastic encrypts traffic, but most people use default keys. We test 23 known PSKs - including keys leaked in 2023 security incidents."*
+**Say:** *"Here's where it gets interesting. Meshtastic encrypts traffic, but most people use default keys. We test 23 known default PSKs including admin channel defaults from older firmware."*
 
 **Show:** 
 - Navigate to **Info** tab → scroll to PSK Stats section
 - Or use serial command `m` to show decryption hits
 
 **Key talking points:**
-- *"Key #1 is the official default - over 80% of networks use it"*
-- *"Key #15 is the leaked admin channel key from pre-2.2 firmware"*
-- *"If we get a hit, we can read position broadcasts, telemetry, and channel messages"*
+- *"Key #1 is the official default - most networks use it"*
+- *"Key #15 is the admin channel default from pre-2.5 firmware"*
+- *"If we get a hit, we can read position broadcasts, telemetry, and channel messages"**
 
 ### Minute 3-4: GPS Extraction & Mapping
 

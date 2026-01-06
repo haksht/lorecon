@@ -14,13 +14,13 @@
 
 ## Abstract (300 words)
 
-Meshtastic, Helium, and LoRaWAN have quietly built massive mesh networks across cities—often using default encryption keys that offer little more than security theater. This talk introduces an open-source ESP32-based passive reconnaissance tool that scans 26 LoRa configurations, captures packets, and automatically decrypts traffic using 23 known PSKs—including leaked admin channel keys from 2023.
+Meshtastic, Helium, and LoRaWAN have quietly built massive mesh networks across cities—often using default encryption keys that offer little more than security theater. This talk introduces an open-source ESP32-based passive reconnaissance tool that scans 26 LoRa configurations, captures packets, and automatically decrypts traffic using 23 known default PSKs.
 
 We'll walk through building a $30 Heltec WiFi LoRa 32 V3 into a field-deployable sniffer with:
 
 - **Real-time packet capture** with interrupt-driven reception
 - **Multi-protocol detection** (Meshtastic, LoRaWAN/TTN, Helium Network)
-- **Automated PSK cracking** against default keys, including "AQ==" and leaked admin keys
+- **Automated PSK testing** against default keys, including "AQ==" and legacy admin keys
 - **GPS coordinate extraction** from position broadcasts
 - **Mobile-friendly web UI** with threat-level network visualization
 - **PCAP export** compatible with Wireshark
@@ -60,7 +60,7 @@ All code is MIT-licensed open source. Attendees leave with a shopping list (~$30
 ### Cryptographic Weaknesses (10 minutes)
 - Meshtastic encryption: AES-256-CTR with publicly documented keys
 - **The "AQ==" problem:** Single-byte keys expanded to 16 bytes
-- **2023 leaked keys:** Admin channel defaults, debug keys on GitHub
+- **Default key exposure:** Admin channel defaults, debug keys in firmware source
 - Live decryption demo: position broadcasts, telemetry, channel messages
 - **What we CAN'T decrypt:** Direct messages (PKC in firmware 2.5+)
 
@@ -133,7 +133,7 @@ Tim Arnold is a retired software developer, Python programmer, and statistician 
 | **Multi-protocol scan** | Manual frequency changes | **26 configs auto-cycle** (5 min) |
 | **GPS extraction** | ❌ | ✅ + KML/GeoJSON export |
 | **Packet replay** | Limited | **10-slot capture + configurable replay** |
-| **Leaked PSK testing** | ❌ | ✅ Including 2023 admin keys |
+| **Default PSK testing** | ❌ | ✅ 23 keys including legacy admin defaults |
 | **Long-duration operation** | Battery drain, no watchdog | **Week+ unattended** (hardened firmware) |
 
 **Elevator pitch**: "Flipper is a Swiss Army knife — great if you need RFID, IR, NFC, and Sub-GHz too. This is the specialist scalpel for LoRa recon at 1/7th the cost."
@@ -153,7 +153,7 @@ Tim Arnold is a retired software developer, Python programmer, and statistician 
 
 ### Unique Capabilities
 
-- **23 PSKs including leaked 2023 admin keys** — not just "AQ=="
+- **23 default PSKs including legacy admin keys** — not just "AQ=="
 - **26 frequency configs** — Meshtastic + LoRaWAN + Helium + ISM in one 5-min cycle
 - **Threat-scored network visualization** — color-coded vulnerability assessment
 - **GPS extraction + geographic export** — KML/GeoJSON for mapping

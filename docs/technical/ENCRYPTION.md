@@ -42,7 +42,7 @@ Meshtastic firmware 2.5.0+ (released June 2024) uses **two different encryption 
 
 **Your Tool:** ✅ **Can decrypt these with known channel PSK (23 keys tested)**
 
-**⚠️ 2023 Security Incidents:** Several admin and debug keys were leaked, allowing decryption of traffic from devices that haven't been updated. Key #15 (`PKdTs51e4EB0BoOevIN0Dw==`) is the admin channel default from pre-2.2 firmware - devices using this are vulnerable to remote configuration attacks.
+**Note on Default Keys:** Key #15 (`PKdTs51e4EB0BoOevIN0Dw==`) is the admin channel default from pre-2.5 firmware. Devices still using this default are potentially vulnerable to unauthorized remote configuration if admin channel is enabled.
 
 #### 2. Public Key Cryptography (Curve25519) ❌ You Cannot Decrypt
 
@@ -212,33 +212,35 @@ These packets are sent **automatically** by Meshtastic devices and **always use 
 
 ## 🔑 Default PSK Database
 
-Your tool tests 23 PSKs including leaked 2023 admin keys:
+Your tool tests 23 default and common PSKs:
 
 ```cpp
-// Core defaults (1-5)
-1. "AQ=="                      // Default (99% of devices)
-2. "1PG7OiApB1nwvP+rz05pAQ=="  // Common alternative
-3. "d1iq21lNSh7BP6MOkP6cQA=="  // Channel variant 1
-4. "2f8aH6iT8K9jQ1P3mD4nBw=="  // Channel variant 2
-5. "7h3kL9mR5wX2pY8qE6tZcA=="  // Channel variant 3
+// Core defaults (1-2)
+1. "AQ=="                      // Default (most common)
+2. "1PG7OiApB1nwvP+rz05pAQ=="  // LongFast channel key
 
-// Extended defaults (6-14)
-6-14. Additional channel presets and regional variants
+// Legacy single-byte keys (3-10)
+3-10. Single-byte keys from pre-2.0 firmware (expanded to 16 bytes)
 
-// ⚠️ 2023 Leaked Keys (15-23) - CRITICAL
-15. "PKdTs51e4EB0BoOevIN0Dw=="  // Admin channel default (pre-2.2) ⚠️
+// Test/development keys (11-14)
+11-14. Common test keys often left in deployments
+
+// Historic defaults from older firmware (15-18)
+15. "PKdTs51e4EB0BoOevIN0Dw=="  // Admin channel default (pre-2.5)
 16. Secondary channel default
-17. Debug/dev key leaked on GitHub
+17. Debug/dev key from firmware source
 18. EU868 regional default
-19-23. Channel preset derived keys (MediumFast, ShortFast, LongSlow, etc.)
+
+// Channel preset keys (19-23)
+19-23. Preset-derived keys (MediumFast, ShortFast, LongSlow, etc.)
 ```
 
-**⚠️ Security Note:** Devices decrypted with key #15 are vulnerable to remote configuration attacks (pre-2.2 admin key leak).
+**Note:** Devices using key #15 with admin channel enabled may be vulnerable to unauthorized remote configuration.
 
 **Success Rate:**
-- Default installations: ~99% (use "AQ==")
-- Legacy installations: Higher with leaked keys
-- Custom configurations: Varies (need specific PSK)
+- Default installations: High (most use "AQ==")
+- Legacy installations: Varies by firmware version
+- Custom configurations: Requires specific PSK
 
 ---
 

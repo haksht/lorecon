@@ -1020,10 +1020,10 @@ bool PSKDecryption::tryDecrypt(const uint8_t* encryptedData,
 2. `1PG7OiApB1nwvP+rz05pAQ==` - Official Meshtastic default (most common)
 3-10. Legacy single-byte keys (0x02-0x09, pre-2.0 firmware)
 11-14. Test/development keys (`AAAA...`, `1234...`, `test...`, `mesh...`)
-15-18. **LEAKED KEYS from 2023 security incidents:**
-  - Admin channel default (pre-2.2): `PKdTs51e4EB0BoOevIN0Dw==` ⚠️
+15-18. **Historic defaults from older firmware:**
+  - Admin channel default (pre-2.5): `PKdTs51e4EB0BoOevIN0Dw==`
   - Secondary channel default: `shmLkA9H74gAeLH3eGCqsw==`
-  - Debug/dev key (leaked on GitHub): `ogDPnKVRN7wz/VF8nt6LkA==`
+  - Debug/dev key (from firmware source): `ogDPnKVRN7wz/VF8nt6LkA==`
   - EU868 regional default: `ZQ+HdKKbbAU4dSCGt66Qqw==`
 19-23. Channel preset derived keys (LongFast, MediumSlow, ShortFast, etc.)
 

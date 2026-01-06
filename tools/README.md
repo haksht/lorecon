@@ -445,7 +445,7 @@ python enhanced_live_visualizer.py COM3 --web --web-ip 192.168.4.1
 
 | Level | Description | Example Keys |
 |-------|-------------|--------------|
-| 🔴 CRITICAL | Leaked production keys | Admin key, Debug key (2023 leak) |
+| 🔴 CRITICAL | Default production keys | Admin key (legacy), Default channel |
 | 🟠 HIGH | Default channel keys | Default, LongFast, ShortFast |
 | 🟡 MEDIUM | Regional defaults | EU868, US915 factory keys |
 | 🟢 LOW | Common test keys | Test, Development keys |
@@ -471,7 +471,7 @@ python meshtastic/psk_auditor.py capture.csv --output audit_results.json
 
 **Example Output:**
 ```
-🔴 CRITICAL: Leaked Admin Key
+🔴 CRITICAL: Legacy Admin Key
    Device: !401acd4e
    Decrypted: "GPS coordinates..."
    Risk: Administrative access compromised
@@ -485,7 +485,7 @@ python meshtastic/psk_auditor.py capture.csv --output audit_results.json
 
 ### Features
 
-- **23 Known Keys** - Includes 2023 leaked admin/debug keys
+- **23 Known Keys** - Includes legacy admin channel defaults
 - **AES-CTR Decryption** - Proper nonce construction from packet metadata
 - **Key Expansion** - Handles 1-byte, 8-byte, and 16-byte keys
 - **Validation** - UTF-8 and protobuf structure validation
@@ -510,7 +510,7 @@ if result:
 
 **Known Keys (23 total):**
 ```
-🔴 CRITICAL: admin_key, debug_key_2023, leaked_master
+🔴 CRITICAL: admin_channel_default, debug_key
 🟠 HIGH:     default, longfast, shortfast, mediumfast
 🟡 MEDIUM:   eu868_default, us915_default, cn470_default
 🟢 LOW:      test, development, demo
@@ -525,7 +525,7 @@ if result:
 ### Report Contents
 
 - Executive Summary with threat level assessment
-- Vulnerability analysis (default PSKs, leaked keys, GPS exposure)
+- Vulnerability analysis (default PSKs, legacy admin keys, GPS exposure)
 - Device inventory with security scores
 - Protocol distribution statistics
 - Recommendations for network hardening
@@ -607,7 +607,7 @@ python position_tracker.py --live 192.168.4.1 --update-interval 10
 
 ### Features
 
-- Tests 23 known Meshtastic PSKs (including 2023 leaked keys)
+- Tests 23 known Meshtastic PSKs (including legacy admin defaults)
 - Extracts text messages and GPS positions
 - Parses Meshtastic protobuf headers
 - Processes PCAP and CSV capture files

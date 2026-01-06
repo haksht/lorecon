@@ -2,7 +2,7 @@
 
 **Last Updated:** January 2026  
 **Version:** 2.2.2 Production  
-**Status:** Packet capture ✅ | PSK decryption ✅ (23 keys including leaked admin keys)
+**Status:** Packet capture ✅ | PSK decryption ✅ (23 default keys including legacy admin defaults)
 
 ---
 
@@ -29,7 +29,7 @@ USB cables can pick up electrical interference that appears as random characters
 
 ### What's Working
 - ✅ **Packet Capture**: Successfully capturing Meshtastic packets from 3+ nodes
-- ✅ **AES-CTR Decryption**: 100% functional with 23 default PSKs (including 2023 leaked keys)
+- ✅ **AES-CTR Decryption**: 100% functional with 23 default PSKs
 - ✅ **Node Detection**: Identifying unique device IDs (0x401ACD4E, 0x44D7A39E, 0xBE438E37)
 - ✅ **OLED Display**: Full display code with 6 modes (if hardware present)
 - ✅ **Button Control**: Toggle/shutdown via GPIO 0 button

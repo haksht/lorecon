@@ -280,7 +280,7 @@ Rebuild and upload. All endpoints become public.
 ✅ **Device Discovery** - Identifies Meshtastic nodes and LoRaWAN devices  
 ✅ **Protocol Analysis** - Parses packet structures  
 ✅ **Packet Replay** - Store and retransmit (10 slots)  
-✅ **Broadcast Decryption** - Tests 23 PSKs including leaked 2023 admin keys  
+✅ **Broadcast Decryption** - Tests 23 default/common PSKs including legacy admin channel keys  
 ✅ **Geographic Intelligence** - Extracts GPS coordinates  
 ✅ **Export Tools** - KML/GeoJSON for mapping
 

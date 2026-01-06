@@ -56,11 +56,11 @@ void PSKDecryption::clearLastMessage() {
 // Known Meshtastic default PSKs (Base64-encoded)
 // 
 // These are the most common pre-shared keys found in Meshtastic networks:
-// - Keys 1-5: Official default keys from Meshtastic firmware
-// - Keys 6-10: Legacy single-byte keys (pre-2.0 firmware, expanded to 16 bytes)
+// - Keys 1-2: Current default keys (AQ== is the standard default)
+// - Keys 3-10: Legacy single-byte keys (pre-2.0 firmware, expanded to 16 bytes)
 // - Keys 11-14: Test/development keys commonly left in deployments
-// - Keys 15-19: LEAKED KEYS from 2023 security incidents (admin channel, etc.)
-// - Keys 20-23: Channel preset keys (LongFast, MediumSlow, etc.)
+// - Keys 15-18: Historic defaults from older firmware (admin channel, etc.)
+// - Keys 19-23: Channel preset keys (MediumFast, ShortFast, LongSlow, etc.)
 //
 // Security Note: These keys are publicly documented. Production networks
 // should use unique PSKs. This tool tests default keys for research/analysis.
@@ -88,13 +88,13 @@ static constexpr const char* DEFAULT_PSKS[] = {
     "dGVzdHRlc3R0ZXN0dGVzdA==",          // #13: "testtesttesttest" ASCII
     "bWVzaHRhc3RpY21lc2h0YXN0",          // #14: "meshtasticmeshtast" ASCII
     
-    // === LEAKED KEYS from 2023 security incidents ===
-    // Admin channel default (pre-2.2) - allowed remote device config
-    "PKdTs51e4EB0BoOevIN0Dw==",          // #15: Admin channel default (CRITICAL)
+    // === Historic defaults from older firmware versions ===
+    // Admin channel default (pre-2.5) - used for remote device config
+    "PKdTs51e4EB0BoOevIN0Dw==",          // #15: Admin channel default (pre-2.5)
     // Default secondary channel key
     "shmLkA9H74gAeLH3eGCqsw==",          // #16: Secondary channel default
-    // Old firmware debug key (found in source)
-    "ogDPnKVRN7wz/VF8nt6LkA==",          // #17: Debug/dev key leaked in GitHub
+    // Debug/dev key found in firmware source code
+    "ogDPnKVRN7wz/VF8nt6LkA==",          // #17: Debug/dev key from source
     // EU868 regional default (some EU deployments)
     "ZQ+HdKKbbAU4dSCGt66Qqw==",          // #18: EU regional default
     
