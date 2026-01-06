@@ -250,7 +250,7 @@ def export_wireshark_keys(output_path, keys=None):
     meshtastic_keys = [
         ("AQ==", "Default (0x01)", "CRITICAL"),
         ("1PG7OiApB1nwvP+rz05pAQ==", "LongFast", "HIGH"),
-        ("PKdTs51e4EB0BoOevIN0Dw==", "Admin (LEAKED)", "CRITICAL"),
+        ("PKdTs51e4EB0BoOevIN0Dw==", "Admin (legacy)", "CRITICAL"),
         ("AAAAAAAAAAAAAAAAAAAAAA==", "AllZeros", "HIGH"),
         ("d1iq21lNSh7BP6MOkP6cQA==", "MediumFast", "MEDIUM"),
         ("GGC5DDnv8FKFm7WCZ5rXBA==", "LongSlow", "MEDIUM"),

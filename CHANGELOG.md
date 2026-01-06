@@ -87,7 +87,7 @@ All notable changes to the ESP32 LoRa Sniffer project.
 
 ### Technical
 - 26 frequency configs (Meshtastic, LoRaWAN, Helium, ISM)
-- 23 PSK keys including leaked 2023 admin/debug keys
+- 23 PSK keys including legacy admin channel defaults
 - 50 max targetable devices with LRU eviction
 - 100-packet processing queue
 - 14+ hours stable in targeting mode (631 packets, 44 devices)

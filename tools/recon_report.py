@@ -161,13 +161,13 @@ class SecurityAssessment:
                 'cwe': 'CWE-1392: Use of Default Credentials',
             })
         
-        # Check for leaked admin key
+        # Check for legacy admin key
         if 'ADMIN CHANNEL' in str(self.psk_success.keys()):
             self.findings.append({
                 'severity': 'CRITICAL',
-                'title': 'Leaked Admin Key Vulnerability',
-                'description': 'Devices using pre-2.2 admin channel default key detected. Remote configuration attack possible.',
-                'recommendation': 'Update firmware to 2.2+ and regenerate admin channel key.',
+                'title': 'Legacy Admin Key Vulnerability',
+                'description': 'Devices using pre-2.5 admin channel default key detected. Remote configuration attack possible.',
+                'recommendation': 'Update firmware to 2.5+ and regenerate admin channel key.',
                 'cwe': 'CWE-798: Use of Hard-coded Credentials',
             })
         

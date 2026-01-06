@@ -67,10 +67,10 @@ DEFAULT_PSKS = [
     "dGVzdHRlc3R0ZXN0dGVzdA==",          # 13: "testtesttesttest" ASCII
     "bWVzaHRhc3RpY21lc2h0YXN0",          # 14: "meshtasticmeshtast" ASCII
     
-    # === LEAKED KEYS from 2023 security incidents ===
-    "PKdTs51e4EB0BoOevIN0Dw==",          # 15: Admin channel default (CRITICAL)
+    # === Historic defaults from older firmware ===
+    "PKdTs51e4EB0BoOevIN0Dw==",          # 15: Admin channel default (pre-2.5)
     "shmLkA9H74gAeLH3eGCqsw==",          # 16: Secondary channel default
-    "ogDPnKVRN7wz/VF8nt6LkA==",          # 17: Debug/dev key leaked in GitHub
+    "ogDPnKVRN7wz/VF8nt6LkA==",          # 17: Debug/dev key from firmware source
     "ZQ+HdKKbbAU4dSCGt66Qqw==",          # 18: EU regional default
     
     # === Channel preset derived keys ===
@@ -97,9 +97,9 @@ KEY_DESCRIPTIONS = [
     "1234567890123456",
     "testtesttesttest",
     "meshtasticmeshtast",
-    "Admin channel (LEAKED)",
-    "Secondary channel (LEAKED)",
-    "Debug key (LEAKED)",
+    "Admin channel (legacy)",
+    "Secondary channel default",
+    "Debug key (source)",
     "EU regional default",
     "MediumFast preset",
     "ShortFast preset",
@@ -442,7 +442,7 @@ Known Default Keys (23 total):
     - Single byte defaults (0x01-0x09)
     - Channel preset keys (LongFast, MediumSlow, etc.)
     - Test/dev keys (zeros, "test", "1234...")
-    - LEAKED admin/debug keys from 2023 incidents
+    - Legacy admin channel defaults
 '''
     )
     

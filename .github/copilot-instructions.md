@@ -7,7 +7,7 @@ ESP32-S3 passive LoRa reconnaissance firmware for security research. **Hardware-
 
 ### Component Boundaries
 - **`RadioController`**: SX1262 hardware abstraction. Atomic ISR flags (`std::atomic<bool> packetAvailable`), cached RSSI/SNR to avoid SPI spam. Global instance (`g_radioController`) required for ISR access.
-- **`PacketProcessor`**: Queue-based analysis. Processes interrupt-captured packets, runs protocol analysis, PSK decryption (23 keys incl. leaked 2023 admin keys), GPS extraction. Optional callback for WebSocket streaming.
+- **`PacketProcessor`**: Queue-based analysis. Processes interrupt-captured packets, runs protocol analysis, PSK decryption (23 default keys incl. legacy admin defaults), GPS extraction. Optional callback for WebSocket streaming.
 - **`LoRaReconTool`**: Application orchestrator implementing `IReconTool` interface. Coordinates components, manages modes (recon/targeted), handles 5min scan cycle through 26 LoRa configs.
 - **`IReconTool`**: Interface pattern breaks circular dependency with `CommandHandler`. Use this, not concrete class, for dependencies.
 - **`CommandHandler`**: Dispatch table (not if/else chains). Static command functions take `IReconTool*`.
@@ -63,7 +63,7 @@ All magic numbers in `Config::` namespaces: `Config::Hardware::LORA_NSS`, `Confi
 `WebServer` uses `PacketProcessor::setPacketCallback()` for real-time updates. Aggregates stats every 100ms to avoid WebSocket spam. Uses `IReconTool*` interface, not concrete class.
 
 ### 4. PSK Testing
-23 Meshtastic keys tested on encrypted packets (includes leaked 2023 admin/debug keys). `PSKDecryption::testDefaultPSKs()` called from `PacketProcessor`, not UI layer. `PSKTests::runAll()` runs at boot for validation.
+23 Meshtastic keys tested on encrypted packets (includes legacy admin channel defaults). `PSKDecryption::testDefaultPSKs()` called from `PacketProcessor`, not UI layer. `PSKTests::runAll()` runs at boot for validation.
 
 ### 5. LoRaWAN Key Testing
 16 default AppKeys tested against LoRaWAN Join Request packets. Uses AES-CMAC MIC verification to detect devices using factory default or well-known keys. Stats exposed via `/api/recon/summary` and serial command 'w'. See `lorawan_keys.h/cpp`.

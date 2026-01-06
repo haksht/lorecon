@@ -7,7 +7,7 @@ This project is a **production-ready LoRa reconnaissance platform** using Platfo
 ### **🔬 Production Platform**
 - **Purpose**: Professional security research and RF analysis  
 - **Architecture**: Clean component separation (RadioController, PacketProcessor, IReconTool)
-- **Features**: PSK decryption (23 keys incl. leaked admin keys), GPS parsing, packet replay, geographic export
+- **Features**: PSK decryption (23 default keys incl. legacy admin defaults), GPS parsing, packet replay, geographic export
 - **Target Audience**: Security researchers, RF engineers, network analysts
 - **Code Quality**: 9.0/10 - Production-ready with comprehensive error handling
 
@@ -70,7 +70,7 @@ pio run --target upload --target uploadfs --target monitor
 | Capability | Status | Notes |
 |------------|--------|-------|
 | **📡 LoRa Packet Capture** | ✅ Production | 26 frequency configurations, interrupt-driven |
-| **🔓 PSK Decryption** | ✅ Production | 23 keys (incl. 2023 leaked admin/debug keys) |
+| **🔓 PSK Decryption** | ✅ Production | 23 keys (incl. legacy admin channel defaults) |
 | **📍 GPS Position Parsing** | ✅ Production | Latitude/longitude extraction from POSITION_APP |
 | **🎯 Device Targeting** | ✅ Production | Interactive menu, frequency locking |
 | **📦 Packet Replay** | ✅ Production | 10 slots, repeat count configuration |

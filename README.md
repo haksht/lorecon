@@ -40,7 +40,7 @@ Passive LoRa reconnaissance firmware for ESP32-S3 + SX1262 hardware. The ESP32 h
 | Flipper Zero + LoRa | $190-210 | Basic | ❌ | ✅ | ❌ |
 | HackRF + GNU Radio | $300+ | ✅ | Manual | ❌ (laptop) | ❌ |
 
-**vs. Flipper**: Flipper is a multi-tool; this is a specialist. 1/7th the cost, deeper Meshtastic analysis, includes leaked 2023 admin keys, mobile-friendly web UI.
+**vs. Flipper**: Flipper is a multi-tool; this is a specialist. Lower cost, deeper Meshtastic protocol analysis, tests 23 default PSKs, mobile-friendly web UI.
 
 **vs. SDR**: SDR requires a laptop and GNU Radio expertise. This is pocket-sized, flash-and-go, with built-in replay and phone-accessible results.
 
@@ -193,7 +193,7 @@ tools/
 - **European Union**: GDPR applies if tracking individuals; national laws vary
 - **Other jurisdictions**: Laws vary significantly—research local regulations
 
-**The authors provide this tool for educational purposes and assume no liability for misuse. Default PSKs (including leaked 2023 keys) are tested only to demonstrate the risks of poor cryptographic hygiene.**
+**The authors provide this tool for educational purposes and assume no liability for misuse. Default PSKs are tested to demonstrate the risks of using factory-default encryption keys.**
 
 When in doubt, treat LoRa traffic like WiFi: observe protocol behavior for research, but don't intercept content or disrupt service.
 

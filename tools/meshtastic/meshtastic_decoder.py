@@ -3,7 +3,7 @@
 ESP32 LoRa Sniffer - Meshtastic Packet Decoder
 
 Offline PSK decryption and protobuf parsing for captured Meshtastic packets.
-Tests 23 known default PSKs including leaked 2023 admin keys.
+Tests 23 known default PSKs including legacy admin channel defaults.
 
 Usage:
     python meshtastic_decoder.py capture.pcap
@@ -56,10 +56,10 @@ DEFAULT_PSKS = [
     ("dGVzdHRlc3R0ZXN0dGVzdA==", "testtesttesttest"),
     ("bWVzaHRhc3RpY21lc2h0YXN0", "meshtasticmeshtast"),
     
-    # === LEAKED KEYS from 2023 security incidents ===
-    ("PKdTs51e4EB0BoOevIN0Dw==", "⚠️ ADMIN CHANNEL DEFAULT (pre-2.2) - CRITICAL"),
+    # === Historic defaults from older firmware ===
+    ("PKdTs51e4EB0BoOevIN0Dw==", "Admin channel default (pre-2.5)"),
     ("shmLkA9H74gAeLH3eGCqsw==", "Secondary channel default"),
-    ("ogDPnKVRN7wz/VF8nt6LkA==", "Debug/dev key (leaked on GitHub)"),
+    ("ogDPnKVRN7wz/VF8nt6LkA==", "Debug/dev key (from firmware source)"),
     ("ZQ+HdKKbbAU4dSCGt66Qqw==", "EU868 regional default"),
     
     # === Channel preset derived keys ===
