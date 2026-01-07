@@ -466,8 +466,8 @@ Host: 192.168.4.1
 | `slots[].hopCount` | number | **Optional** - Remaining hops (Meshtastic) |
 | `slots[].destId` | string | **Optional** - Destination node ID (hex, omitted for broadcast) |
 | `slots[].isBroadcast` | boolean | Whether packet is broadcast (destId = 0xFFFFFFFF) |
-| `slots[].channel` | number | Meshtastic channel index (byte 13 of packet) |
-| `slots[].channelName` | string | **Optional** - Known channel name (e.g., "LongFast", "admin") |
+| `slots[].channel` | number | **Meshtastic only** - Channel hash (byte 13 of packet header) |
+| `slots[].channelName` | string | **Meshtastic only, optional** - Known channel name (e.g., "LongFast", "admin") |
 | `slots[].wantAck` | boolean | **Optional** - Packet requests acknowledgment |
 | `slots[].viaMqtt` | boolean | **Optional** - Packet originated via MQTT gateway |
 | `slots[].priority` | number | **Optional** - Packet priority level (1-127) |
