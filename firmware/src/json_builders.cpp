@@ -712,11 +712,14 @@ String buildReplaySlotsJson(ReconState& reconState) {
         }
         slot["isBroadcast"] = (packet.destId == 0xFFFFFFFF);
         
-        // Include channel index and name (if known)
-        slot["channel"] = packet.channel;
-        const char* channelName = ChannelHash::getChannelName(packet.channel);
-        if (channelName) {
-            slot["channelName"] = channelName;
+        // Include channel hash and name only for Meshtastic packets
+        // (byte 13 has different meaning in other protocols)
+        if (strcmp(packet.protocol, "Meshtastic") == 0) {
+            slot["channel"] = packet.channel;
+            const char* channelName = ChannelHash::getChannelName(packet.channel);
+            if (channelName) {
+                slot["channelName"] = channelName;
+            }
         }
         
         // Include flag information

@@ -51,10 +51,6 @@ static const HashEntry KNOWN_HASHES[] = {
     { 0x70, "ShortFast" },      // XOR("ShortFast")=0x72 ^ 0x02 = 0x70
     { 0x02, "" },               // Empty name (uses preset) with default PSK
     
-    // === Regional/Community Channels (observed hashes, custom PSKs) ===
-    // These use community-specific PSKs, so hashes are empirically observed
-    { 0x3c, "ncmesh" },         // NC Mesh (North Carolina) - observed hash 60
-    
     // === Special Channels (default PSK) ===
     { 0x6d, "admin" },          // XOR("admin")=0x6f ^ 0x02 = 0x6d
     { 0x67, "gpio" },           // XOR("gpio")=0x65 ^ 0x02 = 0x67
