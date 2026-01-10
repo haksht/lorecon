@@ -13,11 +13,13 @@ Passive LoRa reconnaissance firmware for ESP32-S3 + SX1262 hardware. The ESP32 h
 ## Current Status
 
 - **Branch:** `main`
-- **Version:** 2.2.3 (LoRaWAN Key Testing + Documentation Sync)
-- **Hardware:** **Heltec WiFi LoRa 32 V3** (ESP32-S3 + SX1262 + OLED). Optional SD card.
-  - ✅ **Fully Supported:** Heltec WiFi LoRa 32 V3 (tested, production-ready)
-  - ⚠️ **Not Supported:** T-Deck variants (hardware incompatibilities - see `docs/hardware/TDECK_PLUS_INVESTIGATION.md` for details)
-  - ℹ️ **Note:** Codebase is Heltec-specific. Other boards would require porting.
+- **Version:** 2.3.0-dev (T3-S3 Board Support + SD Card Native)
+- **Hardware:** ESP32-S3 + SX1262 + OLED. Native or optional SD card.
+  - ✅ **Fully Supported:**
+    - **Heltec WiFi LoRa 32 V3** (tested, production-ready, SD requires external module)
+    - **LilyGO T3-S3 V1.2** (ESP32-S3 + SX1262 + native SD card slot) - New in v2.3.0!
+  - ⚠️ **Not Supported:** T-Deck variants (hardware incompatibilities - see `docs/hardware/TDECK_PLUS_INVESTIGATION.md`)
+  - ℹ️ **Note:** Both boards use same ESP32-S3 + SX1262 architecture, differing only in pin mappings
 - **Focus:** Passive reconnaissance (scan, target, capture, replay, export). All legacy offensive/stress docs and code paths have been removed.
 - **Web UI:** Lightweight interface served from LittleFS with interactive network visualization, threat assessment, and real-time packet analysis.
 
@@ -44,7 +46,9 @@ Passive LoRa reconnaissance firmware for ESP32-S3 + SX1262 hardware. The ESP32 h
 
 **vs. SDR**: SDR requires a laptop and GNU Radio expertise. This is pocket-sized, flash-and-go, with built-in replay and phone-accessible results.
 
-## Bill of Materials (~$35-50 USD)
+## Bill of Materials (~$30-50 USD)
+
+### Option 1: Heltec WiFi LoRa 32 V3 (Proven)
 
 | Component | Price | Notes | Link |
 |-----------|-------|-------|------|
@@ -53,9 +57,25 @@ Passive LoRa reconnaissance firmware for ESP32-S3 + SX1262 hardware. The ESP32 h
 | USB-C Cable | $0 | You have one | — |
 | **Optional:** 3D Printed Case | $5-10 | Search "Heltec V3 case" | [Printables](https://www.printables.com/search/models?q=heltec%20v3) |
 | **Optional:** 18650 Battery | $8-12 | For portable operation | [Amazon](https://www.amazon.com/dp/B0BG8XJMQX) |
-| **Optional:** SD Card | $5-8 | For PCAP logging | Any microSD |
+| **Optional:** SD Card Module | $5-8 | Requires hardware mod | Any microSD |
 
 **Total**: ~$30 basic / ~$50 with case + battery
+
+### Option 2: LilyGO T3-S3 V1.2 (Native SD Card)
+
+| Component | Price | Notes | Link |
+|-----------|-------|-------|------|
+| **LilyGO T3-S3 V1.2** | $23-30 | ESP32-S3 + SX1262 + OLED + **SD slot** | [Amazon](https://www.amazon.com/dp/B0BW5W9QXZ) / [Official](https://lilygo.cc/products/t3s3-v1-0) |
+| 915MHz Antenna (U.FL) | $0-8 | Usually included | [Amazon](https://www.amazon.com/dp/B09K3WMCVN) |
+| MicroSD Card (≤4GB) | $5-8 | **Native slot - no mod needed** | FAT32 formatted |
+| USB-C Cable | $0 | You have one | — |
+| **Optional:** 18650 Battery | $8-12 | For portable operation | [Amazon](https://www.amazon.com/dp/B0BG8XJMQX) |
+
+**Total**: ~$30 basic / ~$45 with battery + SD
+
+**Recommendation**: Choose **T3-S3** if you want native SD card logging without hardware modifications. Choose **Heltec V3** for proven stability and community support.
+
+> See [docs/hardware/T3_S3_GUIDE.md](docs/hardware/T3_S3_GUIDE.md) for T3-S3 setup details.
 
 **Time to first packet**: Under 5 minutes (flash → power → scanning)
 
