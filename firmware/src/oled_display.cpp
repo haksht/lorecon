@@ -1,4 +1,4 @@
-#ifdef BOARD_HELTEC_V3
+#if defined(BOARD_HELTEC_V3) || defined(BOARD_T3_S3)
 
 #include "oled_display.h"
 #include <Wire.h>
@@ -16,25 +16,30 @@ OLEDDisplay::OLEDDisplay()
 
 bool OLEDDisplay::initialize() {
     Serial.println("[DISPLAY] Initializing OLED...");
-    
-    // Step 1: Enable Vext power (always, regardless of previous state)
-    Serial.printf("[DISPLAY] Configuring Vext pin %d (active LOW)...\n", OLED_VEXT);
-    pinMode(OLED_VEXT, OUTPUT);
-    digitalWrite(OLED_VEXT, LOW);  // Turn on power to display
-    delay(100);  // Wait for power stabilization
-    
-    // Step 2: Send reset pulse to OLED (ALWAYS do this - handles unknown states)
-    // This is critical after power cycling, brownouts, or undefined states
-    Serial.printf("[DISPLAY] Sending reset pulse on pin %d...\n", OLED_RST);
-    pinMode(OLED_RST, OUTPUT);
-    digitalWrite(OLED_RST, LOW);   // Assert reset (active LOW)
-    delay(20);                      // Hold reset for 20ms (conservative)
-    digitalWrite(OLED_RST, HIGH);  // De-assert reset
-    delay(50);                      // Wait for OLED to finish reset sequence
-    
+
+    #if defined(BOARD_HELTEC_V3)
+        // Step 1: Enable Vext power (Heltec V3 only)
+        Serial.printf("[DISPLAY] Configuring Vext pin %d (active LOW)...\n", OLED_VEXT);
+        pinMode(OLED_VEXT, OUTPUT);
+        digitalWrite(OLED_VEXT, LOW);  // Turn on power to display
+        delay(100);  // Wait for power stabilization
+
+        // Step 2: Send reset pulse to OLED (Heltec V3 only)
+        Serial.printf("[DISPLAY] Sending reset pulse on pin %d...\n", OLED_RST);
+        pinMode(OLED_RST, OUTPUT);
+        digitalWrite(OLED_RST, LOW);   // Assert reset (active LOW)
+        delay(20);                      // Hold reset for 20ms (conservative)
+        digitalWrite(OLED_RST, HIGH);  // De-assert reset
+        delay(50);                      // Wait for OLED to finish reset sequence
+    #elif defined(BOARD_T3_S3)
+        // T3-S3: No Vext power control or hardware reset pin
+        Serial.println("[DISPLAY] T3-S3: Using software reset only");
+        delay(50);  // Short delay for power stabilization
+    #endif
+
     // Reset watchdog before potentially long I2C operations
     esp_task_wdt_reset();
-    
+
     // Step 3: Initialize I2C with custom pins
     Serial.printf("[DISPLAY] Initializing I2C: SDA=%d, SCL=%d\n", OLED_SDA, OLED_SCL);
     Wire.begin(OLED_SDA, OLED_SCL);
@@ -173,25 +178,31 @@ void OLEDDisplay::update() {
 
 bool OLEDDisplay::reinitialize() {
     Serial.println("[DISPLAY] Attempting to reinitialize OLED...");
-    
+
     // Turn off display first
     if (displayOn) {
         display.setPowerSave(1);
         displayOn = false;
     }
-    
-    // Power cycle the OLED
-    digitalWrite(OLED_VEXT, HIGH);  // Power OFF
-    delay(100);
-    digitalWrite(OLED_VEXT, LOW);   // Power ON
-    delay(100);
-    
-    // Send reset pulse
-    digitalWrite(OLED_RST, LOW);
-    delay(20);
-    digitalWrite(OLED_RST, HIGH);
-    delay(50);
-    
+
+    #if defined(BOARD_HELTEC_V3)
+        // Power cycle the OLED (Heltec V3 only)
+        digitalWrite(OLED_VEXT, HIGH);  // Power OFF
+        delay(100);
+        digitalWrite(OLED_VEXT, LOW);   // Power ON
+        delay(100);
+
+        // Send reset pulse
+        digitalWrite(OLED_RST, LOW);
+        delay(20);
+        digitalWrite(OLED_RST, HIGH);
+        delay(50);
+    #elif defined(BOARD_T3_S3)
+        // T3-S3: No power control, just delay
+        Serial.println("[DISPLAY] T3-S3: Software reset only");
+        delay(150);
+    #endif
+
     // Try to reinit U8g2
     display.setBusClock(100000);
     if (display.begin()) {
@@ -199,7 +210,7 @@ bool OLEDDisplay::reinitialize() {
         displayOn = false;  // Start in off state
         return true;
     }
-    
+
     Serial.println("[DISPLAY] ✗ Reinitialize failed");
     return false;
 }
@@ -497,4 +508,4 @@ void OLEDDisplay::showApiToken(const char* token) {
     Serial.println("[DISPLAY] API token displayed on OLED");
 }
 
-#endif // BOARD_HELTEC_V3
+#endif // BOARD_HELTEC_V3 || BOARD_T3_S3
