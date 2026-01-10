@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -m platformio run:*)",
+      "Bash(python3.12 -m platformio run:*)",
+      "Bash(python3.10 -m platformio run:*)",
+      "Bash(git add:*)"
+    ]
+  }
+}
