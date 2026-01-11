@@ -2,7 +2,7 @@
 
 **Board:** LilyGO T3-S3 V1.2
 **Status:** ✅ Supported (v2.3.0+)
-**MCU:** ESP32-S3FN16R8 (16MB Flash, 8MB PSRAM)
+**MCU:** ESP32-S3FH4R2 (4MB Flash, 2MB PSRAM)
 **LoRa:** SX1262 (433/868/915 MHz variants)
 **SD Card:** Native MicroSD slot
 
@@ -197,10 +197,15 @@ The T3-S3 build automatically sets:
 
 ### What to Order
 
-- **Frequency**: Match your region (433/868/915 MHz)
-- **LoRa Chip**: SX1262 variant (recommended for best performance)
+**⚠️ CRITICAL: Order the SX1262 variant (NOT SX1276 or SX1280)**
+
+- **Frequency**: 915 MHz (US), 868 MHz (EU), 433 MHz (Asia/other)
+- **LoRa Chip**: **SX1262** (SKU H598 for 915MHz, H595 for 868MHz)
+  - ✅ SX1262: Matches Heltec V3, 4.2mA receive current, +22dBm, latest generation
+  - ❌ SX1276: Older chip, 12mA receive (3× more power), only +20dBm
+  - ❌ SX1280: 2.4 GHz only (incompatible with Meshtastic/LoRaWAN sub-GHz)
 - **Includes**: Board, antenna (U.FL connector), USB-C cable
-- **Not Included**: SD card, battery
+- **Not Included**: SD card (≤4GB recommended), 18650 battery
 
 ---
 
@@ -216,4 +221,16 @@ The T3-S3 build automatically sets:
 ## Revision History
 
 - **2026-01-10**: Initial T3-S3 support added (v2.3.0)
+- **2026-01-10**: Corrected MCU specs to ESP32-S3FH4R2 (4MB/2MB) - confirmed via official LilyGO wiki
 - **Hardware Tested**: LilyGO T3-S3 V1.2 with SX1262 (915 MHz)
+
+## Important Notes
+
+### Flash Memory Limitation
+
+**T3-S3 has 4MB flash (not 16MB)** - This is sufficient for the current firmware (~900KB) with room to spare:
+- OTA partition scheme: ~1.3MB per slot (firmware fits comfortably)
+- LittleFS filesystem: ~192KB - 1MB for web app
+- Remaining headroom: ~400KB+
+
+The native SD card slot provides unlimited storage for PCAP/CSV logging, so the 4MB flash limitation is not a practical concern for this reconnaissance tool.
