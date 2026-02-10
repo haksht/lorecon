@@ -16,27 +16,91 @@ namespace Config {
 // HARDWARE CONFIGURATION
 // ============================================================================
 namespace Hardware {
-    // SX1262 LoRa Radio Pins (Heltec WiFi LoRa 32 V3)
-    constexpr uint8_t LORA_NSS = 8;      // SPI chip select
-    constexpr uint8_t LORA_DIO1 = 14;    // Interrupt pin
-    constexpr uint8_t LORA_RST = 12;     // Reset pin
-    constexpr uint8_t LORA_BUSY = 13;    // Busy indicator
-    
-    // SPI Pins
-    constexpr uint8_t SPI_SCK = 9;       // Clock
-    constexpr uint8_t SPI_MISO = 11;     // Master In Slave Out
-    constexpr uint8_t SPI_MOSI = 10;     // Master Out Slave In
-    
-    // User Interface
-    constexpr uint8_t USER_BUTTON = 0;   // PRG button (active low)
-    
-    // SD Card (optional)
-    constexpr uint8_t SD_CS = 5;         // SD card chip select (GPIO 5, not 21 which conflicts with OLED_RST)
-    
-    // Battery ADC (Heltec WiFi LoRa 32 V3)
-    constexpr uint8_t VBAT_ADC_PIN = 1;   // GPIO 1 - battery voltage ADC
-    constexpr uint8_t VBAT_CTRL_PIN = 37; // GPIO 37 - ADC control (set HIGH to enable)
-    constexpr float VBAT_SCALE = 4.9f;    // Voltage divider scaling factor
+
+    // Board-specific pin definitions
+    #if defined(BOARD_T3_S3)
+        // ========================================================================
+        // LilyGO T3-S3 V1.2/V1.3 Pin Configuration
+        // ========================================================================
+        // Board: ESP32-S3FH4R2 (4MB flash, 2MB PSRAM) + SX1262 + SSD1306 OLED (I2C) + SD Card
+        // Display: 0.96" OLED on I2C (avoids SPI conflicts)
+        // SD Card: Native slot on separate SPI pins
+
+        // SX1262 LoRa Radio Pins
+        constexpr uint8_t LORA_NSS = 7;      // SPI chip select
+        constexpr uint8_t LORA_DIO1 = 33;    // Interrupt pin (DIO1)
+        constexpr uint8_t LORA_RST = 8;      // Reset pin
+        constexpr uint8_t LORA_BUSY = 34;    // Busy indicator
+
+        // LoRa SPI Bus Pins
+        constexpr uint8_t SPI_SCK = 5;       // Clock
+        constexpr uint8_t SPI_MISO = 3;      // Master In Slave Out
+        constexpr uint8_t SPI_MOSI = 6;      // Master Out Slave In
+
+        // SD Card Pins (separate from LoRa SPI)
+        constexpr uint8_t SD_CS = 13;        // SD card chip select
+        constexpr uint8_t SD_SCK = 14;       // SD card clock
+        constexpr uint8_t SD_MISO = 2;       // SD card MISO
+        constexpr uint8_t SD_MOSI = 11;      // SD card MOSI
+
+        // I2C Display Pins (SSD1306 OLED)
+        constexpr uint8_t OLED_SDA = 18;     // I2C data
+        constexpr uint8_t OLED_SCL = 17;     // I2C clock
+        constexpr uint8_t OLED_RST = -1;     // No reset pin (software reset)
+
+        // User Interface
+        constexpr uint8_t USER_BUTTON = 0;   // BOOT button (active low)
+        constexpr uint8_t USER_LED = 37;     // Onboard LED
+
+        // Battery Monitoring
+        constexpr uint8_t VBAT_ADC_PIN = 1;  // GPIO 1 - battery voltage ADC
+        constexpr uint8_t VBAT_CTRL_PIN = -1; // No control pin needed
+        constexpr float VBAT_SCALE = 2.0f;   // Voltage divider scaling factor
+
+    #elif defined(BOARD_HELTEC_V3)
+        // ========================================================================
+        // Heltec WiFi LoRa 32 V3 Pin Configuration
+        // ========================================================================
+        // Board: ESP32-S3 + SX1262 + SSD1306 OLED (I2C)
+        // Display: 0.96" OLED on I2C
+        // Note: SD card requires external module (not natively supported)
+
+        // SX1262 LoRa Radio Pins
+        constexpr uint8_t LORA_NSS = 8;      // SPI chip select
+        constexpr uint8_t LORA_DIO1 = 14;    // Interrupt pin
+        constexpr uint8_t LORA_RST = 12;     // Reset pin
+        constexpr uint8_t LORA_BUSY = 13;    // Busy indicator
+
+        // LoRa SPI Bus Pins
+        constexpr uint8_t SPI_SCK = 9;       // Clock
+        constexpr uint8_t SPI_MISO = 11;     // Master In Slave Out
+        constexpr uint8_t SPI_MOSI = 10;     // Master Out Slave In
+
+        // SD Card Pins (external module, if connected)
+        // Note: SD card support on Heltec V3 requires hardware modification
+        constexpr uint8_t SD_CS = 5;         // SD card chip select (GPIO 5, conflicts with OLED_RST avoided)
+        constexpr uint8_t SD_SCK = 9;        // Shares LoRa SPI bus
+        constexpr uint8_t SD_MISO = 11;      // Shares LoRa SPI bus
+        constexpr uint8_t SD_MOSI = 10;      // Shares LoRa SPI bus
+
+        // I2C Display Pins (SSD1306 OLED) - implicit, using Wire library defaults
+        constexpr uint8_t OLED_SDA = -1;     // Uses default I2C pins
+        constexpr uint8_t OLED_SCL = -1;     // Uses default I2C pins
+        constexpr uint8_t OLED_RST = -1;     // No reset pin (software reset)
+
+        // User Interface
+        constexpr uint8_t USER_BUTTON = 0;   // PRG button (active low)
+        constexpr uint8_t USER_LED = 35;     // Onboard LED (if present)
+
+        // Battery Monitoring
+        constexpr uint8_t VBAT_ADC_PIN = 1;  // GPIO 1 - battery voltage ADC
+        constexpr uint8_t VBAT_CTRL_PIN = 37; // GPIO 37 - ADC control (set HIGH to enable)
+        constexpr float VBAT_SCALE = 4.9f;   // Voltage divider scaling factor
+
+    #else
+        #error "No board type defined! Define BOARD_T3_S3 or BOARD_HELTEC_V3 in platformio.ini"
+    #endif
+
 }
 
 // ============================================================================

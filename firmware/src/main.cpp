@@ -195,6 +195,11 @@ void setup() {
         LOG_WARN("WiFi/Web server not started - continuing with serial only");
     }
     
+    // Run radio diagnostics now that USB serial is active
+    if (reconTool.getRadioController()) {
+        reconTool.getRadioController()->runDiagnostics();
+    }
+
     LOG_INFO("\n=== System Ready ===");
     LOG_INFO("LoRa reconnaissance active");
     if (wifiManager.isConnected()) {
