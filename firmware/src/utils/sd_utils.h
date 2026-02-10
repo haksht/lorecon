@@ -1,14 +1,20 @@
 /**
  * SD Card Utilities
- * 
+ *
  * Shared SD card initialization and status checking.
  * Centralizes SD init to avoid duplicate code across pcap_logger, packet_logger, device_archiver.
+ *
+ * T3-S3 NOTE: The SD card has dedicated SPI pins (SCK=14, MISO=2, MOSI=11, CS=13)
+ * separate from the LoRa radio SPI (SCK=5, MISO=3, MOSI=6). We MUST use a second
+ * SPIClass instance (HSPI/SPI3) to avoid stealing GPIO 5 from the LoRa SPI clock.
+ * The old hardcoded SD_CS_PIN=5 in packet_logger.h caused exactly this bug.
  */
 
 #ifndef SD_UTILS_H
 #define SD_UTILS_H
 
 #include <Arduino.h>
+#include <SPI.h>
 #include <SD.h>
 #include "../config.h"
 
@@ -32,26 +38,48 @@ inline SDState& getState() {
     return state;
 }
 
+#if defined(BOARD_T3_S3)
+/**
+ * Get the dedicated SD SPI bus instance (T3-S3 only).
+ * Uses HSPI (SPI3) so it doesn't conflict with LoRa on FSPI (SPI2).
+ */
+inline SPIClass& getSDSPI() {
+    static SPIClass sdSPI(HSPI);
+    static bool begun = false;
+    if (!begun) {
+        sdSPI.begin(Config::Hardware::SD_SCK, Config::Hardware::SD_MISO,
+                     Config::Hardware::SD_MOSI, Config::Hardware::SD_CS);
+        begun = true;
+    }
+    return sdSPI;
+}
+#endif
+
 /**
  * Initialize SD card (safe to call multiple times)
- * @param csPin Chip select pin (default: Config::Hardware::SD_CS)
  * @return true if SD card is available
  */
 inline bool initialize(int csPin = Config::Hardware::SD_CS) {
     SDState& state = getState();
-    
+
     // Already initialized successfully
     if (state.initialized && state.available) {
         return true;
     }
-    
+
     // Try to initialize
+#if defined(BOARD_T3_S3)
+    // T3-S3: SD card on dedicated SPI bus (HSPI) to avoid LoRa SPI conflict
+    if (!SD.begin(Config::Hardware::SD_CS, getSDSPI())) {
+#else
+    // Heltec V3: SD shares LoRa SPI bus (if external module connected)
     if (!SD.begin(csPin)) {
+#endif
         state.initialized = true;
         state.available = false;
         return false;
     }
-    
+
     // Check card type
     state.cardType = SD.cardType();
     if (state.cardType == CARD_NONE) {
@@ -59,11 +87,11 @@ inline bool initialize(int csPin = Config::Hardware::SD_CS) {
         state.available = false;
         return false;
     }
-    
+
     state.cardSizeMB = SD.cardSize() / (1024 * 1024);
     state.initialized = true;
     state.available = true;
-    
+
     return true;
 }
 
