@@ -27,8 +27,8 @@ PacketLogger::PacketLogger()
 bool PacketLogger::initialize() {
     Serial.println("[SD] Initializing SD card logger...");
     
-    // Use shared SD initialization
-    if (!SDUtils::initialize(SD_CS_PIN)) {
+    // Use shared SD initialization (board-specific CS pin from config.h)
+    if (!SDUtils::initialize()) {
         Serial.println("[SD] ⚠️  No SD card detected");
         Serial.println("[SD]   Insert SD card for data logging capability");
         Serial.println("[SD]   Device will continue without logging");

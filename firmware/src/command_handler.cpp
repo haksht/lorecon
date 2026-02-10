@@ -429,7 +429,7 @@ void CommandHandler::cmdShowToken(IReconTool* tool) {
     Serial.println("Or use header: X-API-Token: <token>\n");
     
     // Show on OLED for mobile users
-    #ifdef BOARD_HELTEC_V3
+    #ifdef HAS_OLED_DISPLAY
     OLEDDisplay* display = tool->getDisplay();
     if (display) {
         display->showApiToken(token.c_str());
