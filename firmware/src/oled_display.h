@@ -1,7 +1,7 @@
 #ifndef OLED_DISPLAY_H
 #define OLED_DISPLAY_H
 
-#if defined(BOARD_HELTEC_V3) || defined(BOARD_T3_S3)
+#if defined(BOARD_HELTEC_V3) || defined(BOARD_HELTEC_V4) || defined(BOARD_T3_S3)
 
 #include <Arduino.h>
 #include <U8g2lib.h>
@@ -18,10 +18,11 @@
     #define OLED_SCL    17  // GPIO 17
     #define OLED_RST    -1  // No hardware reset pin (software reset)
     #define OLED_VEXT   -1  // No Vext power control (always powered)
-#elif defined(BOARD_HELTEC_V3)
-    // Heltec WiFi LoRa 32 V3: Uses default I2C pins with Vext control
-    #define OLED_SDA    17  // GPIO 17 for V3
-    #define OLED_SCL    18  // GPIO 18 for V3
+#elif defined(BOARD_HELTEC_V3) || defined(BOARD_HELTEC_V4)
+    // Heltec WiFi LoRa 32 V3/V4: Uses default I2C pins with Vext control
+    // V4 is pin-compatible with V3 for OLED
+    #define OLED_SDA    17  // GPIO 17 for V3/V4
+    #define OLED_SCL    18  // GPIO 18 for V3/V4
     #define OLED_RST    21  // GPIO 21 (RST) - REQUIRED for this board variant
     #define OLED_VEXT   36  // GPIO 36 (Vext - power control, active LOW)
 #endif
@@ -118,5 +119,5 @@ private:
     void clearInfo();
 };
 
-#endif // BOARD_HELTEC_V3 || BOARD_T3_S3
+#endif // BOARD_HELTEC_V3 || BOARD_HELTEC_V4 || BOARD_T3_S3
 #endif // OLED_DISPLAY_H

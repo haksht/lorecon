@@ -97,8 +97,62 @@ namespace Hardware {
         constexpr uint8_t VBAT_CTRL_PIN = 37; // GPIO 37 - ADC control (set HIGH to enable)
         constexpr float VBAT_SCALE = 4.9f;   // Voltage divider scaling factor
 
+    #elif defined(BOARD_HELTEC_V4)
+        // ========================================================================
+        // Heltec WiFi LoRa 32 V4 Pin Configuration
+        // ========================================================================
+        // Board: ESP32-S3R2 + SX1262 + SSD1306 OLED (I2C) + GC1109 PA
+        // Display: 0.96" OLED on I2C (same as V3)
+        // New: GC1109 RF Front-End (28dBm TX), GNSS interface, 2MB PSRAM
+        // Core LoRa pins identical to V3 - pin-compatible for RX-only operation
+
+        // SX1262 LoRa Radio Pins (identical to V3)
+        constexpr uint8_t LORA_NSS = 8;      // SPI chip select
+        constexpr uint8_t LORA_DIO1 = 14;    // Interrupt pin (IRQ)
+        constexpr uint8_t LORA_RST = 12;     // Reset pin
+        constexpr uint8_t LORA_BUSY = 13;    // Busy indicator
+
+        // LoRa SPI Bus Pins (identical to V3)
+        constexpr uint8_t SPI_SCK = 9;       // Clock
+        constexpr uint8_t SPI_MISO = 11;     // Master In Slave Out
+        constexpr uint8_t SPI_MOSI = 10;     // Master Out Slave In
+
+        // GC1109 RF Front-End Control (V4 only - not used in RX-only mode)
+        // PA provides +11dB gain for 28dBm TX power
+        constexpr uint8_t LORA_PA_POWER = 7;   // VFEM LDO enable
+        constexpr uint8_t LORA_PA_EN = 2;      // CSD - GC1109 chip enable (HIGH=on)
+        constexpr uint8_t LORA_PA_TX_EN = 46;  // CPS - PA mode select (HIGH=full PA)
+
+        // SD Card Pins (external module, same as V3)
+        constexpr uint8_t SD_CS = 5;         // SD card chip select
+        constexpr uint8_t SD_SCK = 9;        // Shares LoRa SPI bus
+        constexpr uint8_t SD_MISO = 11;      // Shares LoRa SPI bus
+        constexpr uint8_t SD_MOSI = 10;      // Shares LoRa SPI bus
+
+        // I2C Display Pins (SSD1306 OLED) - same as V3
+        constexpr uint8_t OLED_SDA = -1;     // Uses default I2C pins
+        constexpr uint8_t OLED_SCL = -1;     // Uses default I2C pins
+        constexpr uint8_t OLED_RST = -1;     // No reset pin (software reset)
+
+        // GNSS Interface (optional L76K GPS module)
+        constexpr uint8_t GPS_EN = 34;       // Power enable (active LOW)
+        constexpr uint8_t GPS_TX = 38;       // Data to CPU
+        constexpr uint8_t GPS_RX = 39;       // Data to GPS
+        constexpr uint8_t GPS_STANDBY = 40;  // Wake control
+        constexpr uint8_t GPS_PPS = 41;      // Pulse-per-second
+        constexpr uint8_t GPS_RESET = 42;    // Reset (active LOW)
+
+        // User Interface
+        constexpr uint8_t USER_BUTTON = 0;   // PRG button (active low)
+        constexpr uint8_t USER_LED = -1;     // No onboard LED on V4
+
+        // Battery Monitoring (same as V3)
+        constexpr uint8_t VBAT_ADC_PIN = 1;  // GPIO 1 - battery voltage ADC
+        constexpr uint8_t VBAT_CTRL_PIN = 37; // GPIO 37 - ADC control (set HIGH to enable)
+        constexpr float VBAT_SCALE = 4.9f;   // Voltage divider scaling factor
+
     #else
-        #error "No board type defined! Define BOARD_T3_S3 or BOARD_HELTEC_V3 in platformio.ini"
+        #error "No board type defined! Define BOARD_T3_S3, BOARD_HELTEC_V3, or BOARD_HELTEC_V4 in platformio.ini"
     #endif
 
 }

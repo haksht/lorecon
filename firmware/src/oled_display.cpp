@@ -1,4 +1,4 @@
-#if defined(BOARD_HELTEC_V3) || defined(BOARD_T3_S3)
+#if defined(BOARD_HELTEC_V3) || defined(BOARD_HELTEC_V4) || defined(BOARD_T3_S3)
 
 #include "oled_display.h"
 #include <Wire.h>
@@ -17,14 +17,14 @@ OLEDDisplay::OLEDDisplay()
 bool OLEDDisplay::initialize() {
     Serial.println("[DISPLAY] Initializing OLED...");
 
-    #if defined(BOARD_HELTEC_V3)
-        // Step 1: Enable Vext power (Heltec V3 only)
+    #if defined(BOARD_HELTEC_V3) || defined(BOARD_HELTEC_V4)
+        // Step 1: Enable Vext power (Heltec V3/V4)
         Serial.printf("[DISPLAY] Configuring Vext pin %d (active LOW)...\n", OLED_VEXT);
         pinMode(OLED_VEXT, OUTPUT);
         digitalWrite(OLED_VEXT, LOW);  // Turn on power to display
         delay(100);  // Wait for power stabilization
 
-        // Step 2: Send reset pulse to OLED (Heltec V3 only)
+        // Step 2: Send reset pulse to OLED (Heltec V3/V4)
         Serial.printf("[DISPLAY] Sending reset pulse on pin %d...\n", OLED_RST);
         pinMode(OLED_RST, OUTPUT);
         digitalWrite(OLED_RST, LOW);   // Assert reset (active LOW)
@@ -185,8 +185,8 @@ bool OLEDDisplay::reinitialize() {
         displayOn = false;
     }
 
-    #if defined(BOARD_HELTEC_V3)
-        // Power cycle the OLED (Heltec V3 only)
+    #if defined(BOARD_HELTEC_V3) || defined(BOARD_HELTEC_V4)
+        // Power cycle the OLED (Heltec V3/V4)
         digitalWrite(OLED_VEXT, HIGH);  // Power OFF
         delay(100);
         digitalWrite(OLED_VEXT, LOW);   // Power ON
@@ -508,4 +508,4 @@ void OLEDDisplay::showApiToken(const char* token) {
     Serial.println("[DISPLAY] API token displayed on OLED");
 }
 
-#endif // BOARD_HELTEC_V3 || BOARD_T3_S3
+#endif // BOARD_HELTEC_V3 || BOARD_HELTEC_V4 || BOARD_T3_S3
