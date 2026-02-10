@@ -33,6 +33,7 @@ public:
     // Lifecycle
     bool initialize();
     void shutdown();
+    void runDiagnostics();
     
     // Configuration management
     bool applyConfig(const ScanConfig& config);
@@ -60,10 +61,10 @@ public:
     }
     
     // Radio access (for advanced operations like packet replay)
-    SX1262& getRadio() { return radio; }
+    SX1262& getRadio() { return *radio; }
     
 private:
-    SX1262 radio;
+    SX1262* radio;  // Constructed after SPI.begin() in initialize()
     std::atomic<bool> packetAvailable;
     
     // Cached signal metrics (avoid repeated SPI reads)

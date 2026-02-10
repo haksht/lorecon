@@ -17,7 +17,7 @@ Passive LoRa reconnaissance firmware for ESP32-S3 + SX1262 hardware. The ESP32 h
 - **Hardware:** ESP32-S3 + SX1262 + OLED. Native or optional SD card.
   - ✅ **Fully Supported:**
     - **Heltec WiFi LoRa 32 V3** (tested, production-ready, SD requires external module)
-    - **LilyGO T3-S3 V1.2** (ESP32-S3 + SX1262 + native SD card slot) - New in v2.3.0!
+    - **LilyGO T3-S3 V1.2/V1.3** (ESP32-S3 + SX1262 + native SD card slot) - New in v2.3.0!
   - ⚠️ **Not Supported:** T-Deck variants (hardware incompatibilities - see `docs/hardware/TDECK_PLUS_INVESTIGATION.md`)
   - ℹ️ **Note:** Both boards use same ESP32-S3 + SX1262 architecture, differing only in pin mappings
 - **Focus:** Passive reconnaissance (scan, target, capture, replay, export). All legacy offensive/stress docs and code paths have been removed.
@@ -61,11 +61,11 @@ Passive LoRa reconnaissance firmware for ESP32-S3 + SX1262 hardware. The ESP32 h
 
 **Total**: ~$30 basic / ~$50 with case + battery
 
-### Option 2: LilyGO T3-S3 V1.2 (Native SD Card)
+### Option 2: LilyGO T3-S3 V1.2/V1.3 (Native SD Card)
 
 | Component | Price | Notes | Link |
 |-----------|-------|-------|------|
-| **LilyGO T3-S3 V1.2** | $23-30 | ESP32-S3 + SX1262 + OLED + **SD slot** | [Amazon](https://www.amazon.com/dp/B0BW5W9QXZ) / [Official](https://lilygo.cc/products/t3s3-v1-0) |
+| **LilyGO T3-S3 V1.2/V1.3** | $23-30 | ESP32-S3FH4R2 (4MB flash, 2MB PSRAM) + SX1262 + OLED + **SD slot** | [Amazon](https://www.amazon.com/dp/B0BW5W9QXZ) / [Official](https://lilygo.cc/products/t3s3-v1-0) |
 | 915MHz Antenna (U.FL) | $0-8 | Usually included | [Amazon](https://www.amazon.com/dp/B09K3WMCVN) |
 | MicroSD Card (≤4GB) | $5-8 | **Native slot - no mod needed** | FAT32 formatted |
 | USB-C Cable | $0 | You have one | — |

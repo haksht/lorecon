@@ -20,9 +20,9 @@ namespace Hardware {
     // Board-specific pin definitions
     #if defined(BOARD_T3_S3)
         // ========================================================================
-        // LilyGO T3-S3 V1.2 Pin Configuration
+        // LilyGO T3-S3 V1.2/V1.3 Pin Configuration
         // ========================================================================
-        // Board: ESP32-S3 + SX1262 + SSD1306 OLED (I2C) + SD Card
+        // Board: ESP32-S3FH4R2 (4MB flash, 2MB PSRAM) + SX1262 + SSD1306 OLED (I2C) + SD Card
         // Display: 0.96" OLED on I2C (avoids SPI conflicts)
         // SD Card: Native slot on separate SPI pins
 

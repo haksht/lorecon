@@ -18,8 +18,8 @@
 #include "pcap_logger.h"
 #include "data_structures.h"
 
-// SD card configuration (adjust for your hardware)
-#define SD_CS_PIN 5  // Chip select pin for SD card (GPIO 5, not 21 which conflicts with OLED_RST)
+// SD card chip select — use board-specific config, not a hardcoded pin
+// NOTE: On T3-S3, the old hardcoded GPIO 5 conflicted with LoRa SPI_SCK!
 
 struct PacketLogRecord {
     uint64_t timestampMs;

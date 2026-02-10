@@ -1,6 +1,6 @@
-# LilyGO T3-S3 V1.2 Hardware Guide
+# LilyGO T3-S3 V1.2/V1.3 Hardware Guide
 
-**Board:** LilyGO T3-S3 V1.2
+**Board:** LilyGO T3-S3 V1.2/V1.3
 **Status:** ✅ Supported (v2.3.0+)
 **MCU:** ESP32-S3FH4R2 (4MB Flash, 2MB PSRAM)
 **LoRa:** SX1262 (433/868/915 MHz variants)
@@ -78,9 +78,9 @@ Insert MicroSD card **before** powering on. The firmware will:
 
 ## Comparison to Other Boards
 
-| Feature | T3-S3 V1.2 | Heltec V3 | T-Deck Plus |
+| Feature | T3-S3 V1.2/V1.3 | Heltec V3 | T-Deck Plus |
 |---------|------------|-----------|-------------|
-| **ESP32 Variant** | S3 (16MB/8MB) | S3 (8MB/8MB) | S3 (16MB/8MB) |
+| **ESP32 Variant** | S3FH4R2 (4MB/2MB) | S3 (8MB flash) | S3 (16MB/8MB) |
 | **LoRa Chip** | SX1262 | SX1262 | SX1262 |
 | **Display** | I2C OLED | I2C OLED | SPI LCD (conflict!) |
 | **SD Card** | ✅ Native | ❌ Requires mod | ✅ Native (conflicts!) |
@@ -176,6 +176,14 @@ The T3-S3 build automatically sets:
 3. Power cycle board
 4. Check serial for specific error codes
 
+### Radio Works at Boot but Fails Later (error -2)
+
+**Symptom**: Radio initializes successfully but `standby()` / `setFrequency()` return -2 (CHIP_NOT_FOUND) after WiFi starts.
+
+**Root cause (fixed in v2.3.0)**: The SD card initialization was using a hardcoded CS pin (GPIO 5) which is also the LoRa SPI clock on the T3-S3. `SD.begin(5)` reconfigured GPIO 5 from SPI clock to a regular GPIO output, killing the LoRa SPI bus.
+
+**Fix**: The T3-S3 SD card now uses a dedicated SPI bus (HSPI/SPI3) with the correct pins (SCK=14, MISO=2, MOSI=11, CS=13), completely isolated from the LoRa radio's SPI bus (FSPI/SPI2).
+
 ---
 
 ## Known Limitations
@@ -222,7 +230,8 @@ The T3-S3 build automatically sets:
 
 - **2026-01-10**: Initial T3-S3 support added (v2.3.0)
 - **2026-01-10**: Corrected MCU specs to ESP32-S3FH4R2 (4MB/2MB) - confirmed via official LilyGO wiki
-- **Hardware Tested**: LilyGO T3-S3 V1.2 with SX1262 (915 MHz)
+- **2026-02-10**: Fixed SPI bus conflict — SD card now uses dedicated HSPI bus, LoRa radio survives WiFi init
+- **Hardware Tested**: LilyGO T3-S3 V1.3 with SX1262 (915 MHz)
 
 ## Important Notes
 
