@@ -32,6 +32,8 @@
 #include <LittleFS.h>
 #include <Preferences.h>
 #include <esp_system.h>
+#include <esp_task_wdt.h>
+#include <time.h>
 #include "soc/rtc_cntl_reg.h"
 #include "soc/soc.h"
 
@@ -150,7 +152,29 @@ void setup() {
         // Start mDNS for easy access (unique per device)
         String mdnsHost = wifiManager.getUniqueMDNSHostname();
         wifiManager.startMDNS(mdnsHost.c_str());
-        
+
+        // Sync system clock via NTP (only works in STA mode with internet)
+        if (!wifiManager.isSetupMode()) {
+            LOG_INFO("Syncing time via NTP...");
+            configTime(0, 0, "pool.ntp.org", "time.nist.gov");
+
+            // Wait for NTP sync with timeout
+            struct tm timeinfo;
+            uint8_t ntpRetries = 0;
+            while (!getLocalTime(&timeinfo, 100) && ntpRetries < 50) {
+                ntpRetries++;
+                esp_task_wdt_reset();
+            }
+
+            if (ntpRetries < 50) {
+                char timeStr[32];
+                strftime(timeStr, sizeof(timeStr), "%Y-%m-%d %H:%M:%S", &timeinfo);
+                LOG_INFO("✓ Time synced: %s UTC", timeStr);
+            } else {
+                LOG_WARN("NTP sync timed out - file timestamps will be incorrect");
+            }
+        }
+
         // Initialize web server
         if (webServer.begin(&reconTool)) {
             // Connect web server to packet processor for live updates
