@@ -132,10 +132,18 @@ bool PCAPLogger::writePacket(const uint8_t* data, size_t length,
     // Calculate total packet length (pseudo-header + actual data)
     uint32_t totalLength = sizeof(LoRaPseudoHeader) + length;
     
-    // Write PCAP packet header
+    // Write PCAP packet header with wall-clock time if available
     PCAPPacketHeader pktHeader;
-    pktHeader.ts_sec = timestampMs / 1000;
-    pktHeader.ts_usec = (timestampMs % 1000) * 1000;
+    time_t now = time(nullptr);
+    if (now > 1700000000) {
+        // NTP synced — use wall-clock time with ms precision
+        pktHeader.ts_sec = (uint32_t)now;
+        pktHeader.ts_usec = (timestampMs % 1000) * 1000;
+    } else {
+        // No NTP — fall back to millis-since-boot
+        pktHeader.ts_sec = timestampMs / 1000;
+        pktHeader.ts_usec = (timestampMs % 1000) * 1000;
+    }
     pktHeader.incl_len = totalLength;
     pktHeader.orig_len = totalLength;
     
