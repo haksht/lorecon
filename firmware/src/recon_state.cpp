@@ -6,7 +6,6 @@
 #include "config.h"
 #include "utils/format_utils.h"
 #include "logger.h"
-#include "device_archiver.h"
 
 // Compile-time check: Ensure rfActivity array size matches NUM_CONFIGS
 static_assert(sizeof(((ReconState*)0)->rfActivity) / sizeof(RFActivity) >= 16, 
@@ -62,7 +61,7 @@ const uint8_t ReconState::NUM_CONFIGS = sizeof(scanConfigs) / sizeof(ScanConfig)
 // Global instance
 ReconState reconState;
 
-ReconState::ReconState() : deviceArchiver_(nullptr), repoMutex_(nullptr) {
+ReconState::ReconState() : repoMutex_(nullptr) {
     // Create mutex for thread-safe repository access
     repoMutex_ = xSemaphoreCreateMutex();
     if (!repoMutex_) {
@@ -206,20 +205,6 @@ void ReconState::addTargetableDevice(uint32_t nodeId, uint8_t configIndex, float
         deviceRepo_.addOrUpdate(nodeId, configIndex, rssi, protocol, nullptr, 0, hopCount);
         unlock();
         return;
-    }
-    
-    // NEW DEVICE: First try to restore from archive (preserves history from long sessions)
-    if (deviceArchiver_) {
-        TargetableDevice* restored = deviceArchiver_->tryRestoreOnPacket(nodeId, deviceRepo_);
-        if (restored) {
-            // Device was in archive - update with current packet info
-            deviceRepo_.addOrUpdate(nodeId, configIndex, rssi, protocol, nullptr, 0, hopCount);
-            scanState.totalDetections++;
-            LOG_INFO("Restored device 0x%08X from archive (had %u packets)", 
-                     nodeId, restored->packetCount);
-            unlock();
-            return;
-        }
     }
     
     // New device - do identification here, then add via repository

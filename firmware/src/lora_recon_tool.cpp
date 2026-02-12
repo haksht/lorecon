@@ -7,7 +7,6 @@
 #include "command_handler.h"
 #include "oled_display.h"
 #include "web_server.h"
-#include "device_archiver.h"
 #include "mode_manager.h"
 #include "config.h"
 #include "psk_decryption_simple.h"
@@ -28,7 +27,6 @@ LoRaReconTool::LoRaReconTool()
     , commandHandler(nullptr)
     , oledDisplay(nullptr)
     , webServerPtr(nullptr)
-    , deviceArchiver(nullptr)
     , buttonPressed(false)
     , buttonPressStart(0)
     , shutdownInitiated(false)
@@ -155,16 +153,6 @@ bool LoRaReconTool::initialize() {
     // Initialize PSK decryption system
     PSKDecryption::initialize();
     
-    // Initialize device archiver for memory management
-    deviceArchiver = new DeviceArchiver();
-    if (deviceArchiver) {
-        LOG_INFO("Device archiver initialized");
-        // Wire up archiver to ReconState for restore-on-packet functionality
-        reconState.setDeviceArchiver(deviceArchiver);
-    } else {
-        LOG_WARN("Device archiver initialization failed - continuing without SD offload");
-    }
-    
     // Initialize command handler
     commandHandler = new CommandHandler(this);
     LOG_INFO("Command handler initialized");
@@ -195,11 +183,6 @@ void LoRaReconTool::update() {
     if (now - lastHealthCheck >= Config::System::HEALTH_CHECK_INTERVAL_MS) {
         // Update network intelligence statistics
         reconState.updateNetworkIntel();
-        
-        // Check memory pressure and archive/rotate devices if needed
-        if (deviceArchiver) {
-            deviceArchiver->checkAndArchive(reconState.getDeviceRepository());
-        }
         
         lastHealthCheck = now;
     }
