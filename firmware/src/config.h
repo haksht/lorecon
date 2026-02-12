@@ -340,34 +340,6 @@ namespace Security {
     constexpr uint8_t RATE_LIMIT_BUCKETS = 8;         // IP tracking buckets
 }
 
-// ============================================================================
-// DEVICE ARCHIVER - SD OFFLOAD CONFIGURATION
-// ============================================================================
-namespace Archiver {
-    // Fragmentation threshold to trigger archival (percentage)
-    constexpr float FRAGMENTATION_THRESHOLD = 35.0f;
-    
-    // Minimum devices to keep in RAM (never archive if below this)
-    constexpr uint8_t MIN_ACTIVE_DEVICES = 5;
-    
-    // Device inactivity threshold (milliseconds)
-    // Devices not seen in this time are candidates for archival
-    constexpr uint32_t DEVICE_INACTIVITY_MS = 300000;  // 5 minutes
-    
-    // No-SD rotation settings
-    // When SD card not available, drop oldest devices at this fragmentation level
-    constexpr float NO_SD_ROTATION_THRESHOLD = 30.0f;  // 30% (lower than SD threshold)
-    
-    // Archive file paths
-    constexpr const char* ARCHIVE_FILE = "/recon/devices_archive.jsonl";
-    constexpr const char* STATS_FILE = "/recon/archive_stats.jsonl";
-    constexpr const char* ARCHIVE_BACKUP_FILE = "/recon/devices_archive.old.jsonl";
-    
-    // Archive rotation settings (for 48+ hour sessions)
-    constexpr uint32_t MAX_ARCHIVE_SIZE_BYTES = 512 * 1024;  // 512KB max before rotation
-    constexpr uint8_t MAX_BACKUP_FILES = 3;  // Keep up to 3 rotated backups
-}
-
 // ANOMALY DETECTION
 // ============================================================================
 namespace Anomaly {

@@ -16,9 +16,6 @@
 #include "repositories/packet_store.h"
 #include "repositories/device_repository.h"
 
-// Forward declaration for archiver integration
-class DeviceArchiver;
-
 class ReconState {
 private:
     // Scan configurations - made const and part of state
@@ -28,10 +25,7 @@ private:
     // Repository delegates
     PacketStore packetStore_;
     DeviceRepository deviceRepo_;
-    
-    // Optional archiver for restore-on-packet (owned by LoRaReconTool)
-    DeviceArchiver* deviceArchiver_;
-    
+
     // Thread safety mutex for repository access
     // Protects packetStore_ and deviceRepo_ from concurrent access
     // between main loop (packet capture) and AsyncWebServer task (API handlers)
@@ -83,12 +77,8 @@ public:
     void clearTargetableDevices();
     uint8_t getNumTargetableDevices() const { return deviceRepo_.count(); }
     
-    // Repository access (for DeviceArchiver and other components that need direct access)
-    // WARNING: Caller must hold lock when accessing repositories directly
+    // Repository access — caller must hold lock when accessing directly
     DeviceRepository& getDeviceRepository() { return deviceRepo_; }
-    
-    // Archiver integration (for restore-on-packet during long sessions)
-    void setDeviceArchiver(DeviceArchiver* archiver) { deviceArchiver_ = archiver; }
     
     // Thread-safe lock/unlock for API handlers accessing repositories
     // Use RAII guard pattern: ReconState::ScopedLock lock(reconState);

@@ -15,7 +15,6 @@
 
 // Forward declarations only for types not yet included
 class WebServer;
-class DeviceArchiver;
 
 /**
  * LoRa Reconnaissance Tool - Main application orchestrator
@@ -55,7 +54,6 @@ private:
     CommandHandler* commandHandler;
     OLEDDisplay* oledDisplay;
     WebServer* webServerPtr;
-    DeviceArchiver* deviceArchiver;
     
     // Button state tracking
     bool buttonPressed;

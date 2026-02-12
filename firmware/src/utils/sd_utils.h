@@ -2,7 +2,7 @@
  * SD Card Utilities
  *
  * Shared SD card initialization and status checking.
- * Centralizes SD init to avoid duplicate code across pcap_logger, packet_logger, device_archiver.
+ * Centralizes SD init to avoid duplicate code across pcap_logger and packet_logger.
  *
  * T3-S3 NOTE: The SD card has dedicated SPI pins (SCK=14, MISO=2, MOSI=11, CS=13)
  * separate from the LoRa radio SPI (SCK=5, MISO=3, MOSI=6). We MUST use a second
