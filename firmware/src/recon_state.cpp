@@ -6,10 +6,7 @@
 #include "config.h"
 #include "utils/format_utils.h"
 #include "logger.h"
-
-// Compile-time check: Ensure rfActivity array size matches NUM_CONFIGS
-static_assert(sizeof(((ReconState*)0)->rfActivity) / sizeof(RFActivity) >= 16, 
-              "rfActivity array must be large enough for all scan configs");
+#include <time.h>
 
 // Define the static scan configurations
 const ScanConfig ReconState::scanConfigs[] = {
@@ -62,6 +59,10 @@ const uint8_t ReconState::NUM_CONFIGS = sizeof(scanConfigs) / sizeof(ScanConfig)
 ReconState reconState;
 
 ReconState::ReconState() : repoMutex_(nullptr) {
+    // Verify scanConfigs matches NUM_CONFIGURATIONS (catches adding configs without updating config.h)
+    static_assert(sizeof(scanConfigs) / sizeof(ScanConfig) <= Config::Scanning::NUM_CONFIGURATIONS,
+                  "More scanConfigs entries than NUM_CONFIGURATIONS - increase it in config.h");
+
     // Create mutex for thread-safe repository access
     repoMutex_ = xSemaphoreCreateMutex();
     if (!repoMutex_) {
@@ -463,13 +464,18 @@ void ReconState::clearReplaySlots() {
 
 // Calculate network intelligence statistics
 void ReconState::updateNetworkIntel() {
+    if (!lock(100)) {
+        LOG_WARN("updateNetworkIntel: Failed to acquire lock");
+        return;
+    }
+
     networkIntel.activeTransmitters = 0;
     networkIntel.relayOnlyNodes = 0;
     networkIntel.mixedNodes = 0;
     networkIntel.floodingEvents = 0;
     networkIntel.encryptedNetworks = 0;
     networkIntel.beaconDevices = 0;
-    
+
     const uint8_t numDevices = deviceRepo_.count();
     const uint8_t numPackets = packetStore_.count();
     
@@ -549,8 +555,9 @@ void ReconState::updateNetworkIntel() {
     if (encryptedDevices > 0) {
         networkIntel.encryptedNetworks = (encryptedDevices + 2) / 3;  // Rough estimate
     }
-    
+
     networkIntel.lastUpdate = millis();
+    unlock();
 }
 
 /**
@@ -583,10 +590,11 @@ void ReconState::recordAnomaly(uint32_t nodeId, AnomalyType type, float severity
  */
 void ReconState::checkForAnomalies(const uint8_t* data, size_t length, uint32_t nodeId, float rssi) {
     if (!data || length == 0 || nodeId == 0) return;
-    
-    // Find device
-    TargetableDevice* device = findTargetableDevice(nodeId);
-    if (!device) return;
+
+    // Hold lock across entire check to prevent stale pointer from clearDevices race
+    if (!lock(50)) return;
+    TargetableDevice* device = deviceRepo_.findByNodeId(nodeId);
+    if (!device) { unlock(); return; }
     
     // Cooldown: prevent spam by checking if we recently logged this anomaly type for this device
     // Uses a simple check: skip if same device+type already in recent anomalies
@@ -636,6 +644,8 @@ void ReconState::checkForAnomalies(const uint8_t* data, size_t length, uint32_t 
     
     // Check 4: Replay attack detection (packet ID seen before with old timestamp)
     // This requires packet ID tracking - implementation deferred to packet processor
+
+    unlock();
 }
 
 /**
@@ -656,14 +666,23 @@ uint8_t ReconState::getUnacknowledgedAnomalies() const {
  * Update traffic histogram (called once per packet)
  */
 void ReconState::updateTrafficHistogram() {
-    unsigned long now = millis();
-    uint8_t currentHour = (now / 3600000) % 24;  // Hour of day (0-23)
-    
-    // Safety: should always be 0-23, but guarantee bounds
+    // Use wall clock time from NTP (time() returns epoch seconds, 0 if not synced)
+    time_t now = time(nullptr);
+    uint8_t currentHour;
+
+    if (now > 1700000000) {  // NTP synced (after ~2023)
+        struct tm timeinfo;
+        localtime_r(&now, &timeinfo);
+        currentHour = timeinfo.tm_hour;
+    } else {
+        // Fallback to uptime hours if NTP not yet synced
+        currentHour = (millis() / 3600000) % 24;
+    }
+
     if (currentHour < 24) {
         trafficHist.hourlyPackets[currentHour]++;
     }
-    trafficHist.lastHourChange = now;
+    trafficHist.lastHourChange = millis();
 }
 
 /**
@@ -671,10 +690,12 @@ void ReconState::updateTrafficHistogram() {
  */
 void ReconState::updateDeviceTemporalMetrics(uint32_t nodeId) {
     if (nodeId == 0) return;
-    
-    TargetableDevice* device = findTargetableDevice(nodeId);
-    if (!device) return;
-    
+
+    // Hold lock across entire update to prevent stale pointer from clearDevices race
+    if (!lock(50)) return;
+    TargetableDevice* device = deviceRepo_.findByNodeId(nodeId);
+    if (!device) { unlock(); return; }
+
     unsigned long now = millis();
     
     // Calculate packet interval (protect against millis() rollover)
@@ -717,4 +738,6 @@ void ReconState::updateDeviceTemporalMetrics(uint32_t nodeId) {
             }
         }
     }
+
+    unlock();
 }

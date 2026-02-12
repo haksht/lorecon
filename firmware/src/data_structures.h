@@ -80,7 +80,7 @@ struct TargetableDevice {
   float avgRSSI;
   float rssiStdDev;         // RSSI standard deviation (for spoofing detection)
   float rssiM2;             // Welford's M2 for variance calculation (internal use)
-  uint16_t packetCount;     // Number of successfully decoded packets
+  uint32_t packetCount;     // Number of successfully decoded packets
   uint16_t originatedPackets; // Packets originated by this device (not relays)
   uint16_t relayedPackets;    // Packets relayed by this device
   uint32_t lastSeen;
@@ -93,6 +93,7 @@ struct TargetableDevice {
   char firmwareVersion[32]; // Detected firmware version
   bool isRouter;            // Device appears to be routing traffic
   uint8_t powerClass;       // Estimated power class (0=low, 1=med, 2=high)
+  uint8_t maxHopCount;      // Max hop count seen (approximates sender's hop_limit)
 };
 
 // System state management
