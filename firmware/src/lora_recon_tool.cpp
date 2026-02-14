@@ -763,7 +763,7 @@ void LoRaReconTool::replayPacket(uint8_t slotIndex) {
 // Handle button press for display toggle and power off
 void LoRaReconTool::handleButtonPress(uint32_t now) {
     bool currentButtonState = (digitalRead(Config::Hardware::USER_BUTTON) == LOW);  // Active low
-    
+
     // Track stable LOW readings for debouncing
     static uint32_t buttonLowSince = 0;
     
@@ -810,7 +810,13 @@ void LoRaReconTool::handleButtonPress(uint32_t now) {
             Serial.flush();
             
             delay(Config::UI::SHUTDOWN_WARNING_MS);
-            
+
+            // Turn off OLED before deep sleep — SSD1306 retains last frame
+            // on its own charge pump otherwise, making it look like nothing happened
+            if (oledDisplay) {
+                oledDisplay->turnOff();
+            }
+
             // Enter deep sleep (effectively powered off until reset)
             LOG_INFO("Entering deep sleep mode");
             Serial.flush();
