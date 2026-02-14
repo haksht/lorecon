@@ -222,6 +222,16 @@ void setup() {
     // Run radio diagnostics now that USB serial is active
     if (reconTool.getRadioController()) {
         reconTool.getRadioController()->runDiagnostics();
+
+        // Diagnostics calls standby() which kills RX mode — restore it
+        const ScanConfig& restoreCfg = reconState.getScanConfig(reconState.scanState.currentConfig);
+        if (reconTool.getRadioController()->applyConfig(restoreCfg)) {
+            reconTool.getRadioController()->startReceive();
+            LOG_INFO("Radio restored to active receive on %s @ %.3f MHz",
+                     restoreCfg.protocol, restoreCfg.frequency);
+        } else {
+            LOG_ERROR("Failed to restore radio after diagnostics");
+        }
     }
 
     LOG_INFO("\n=== System Ready ===");

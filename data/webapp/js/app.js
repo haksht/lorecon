@@ -324,11 +324,53 @@ const ModalRenderer = {
         const container = document.createElement('div');
         container.innerHTML = html;
         document.body.appendChild(container.firstChild);
-        
+
         // Close on backdrop click
         const modal = document.body.lastElementChild;
         modal.addEventListener('click', (e) => {
             if (e.target === modal) modal.remove();
+        });
+    },
+
+    /**
+     * Show a confirmation modal (replaces browser confirm() which is
+     * suppressed by captive portal browsers)
+     * @param {string} title - Modal title
+     * @param {string} message - Confirmation message
+     * @param {string} [confirmLabel='Confirm'] - Label for confirm button
+     * @returns {Promise<boolean>} true if confirmed, false if cancelled
+     */
+    confirm(title, message, confirmLabel = 'Confirm') {
+        return new Promise((resolve) => {
+            const id = 'confirm-modal-' + Date.now();
+            const html = `<div class="modal-backdrop" id="${id}">
+                <div class="modal-box">
+                    <div class="modal-header-section">
+                        <h3 class="text-warning">${title}</h3>
+                    </div>
+                    <div class="modal-body-section"><p>${message}</p></div>
+                    <div class="modal-footer-section">
+                        <button data-confirm="cancel" class="btn btn-secondary">Cancel</button>
+                        <button data-confirm="ok" class="btn btn-primary">${confirmLabel}</button>
+                    </div>
+                </div>
+            </div>`;
+
+            const container = document.createElement('div');
+            container.innerHTML = html;
+            const modal = container.firstChild;
+            document.body.appendChild(modal);
+
+            modal.addEventListener('click', (e) => {
+                const action = e.target.dataset.confirm;
+                if (action === 'ok') {
+                    modal.remove();
+                    resolve(true);
+                } else if (action === 'cancel' || e.target === modal) {
+                    modal.remove();
+                    resolve(false);
+                }
+            });
         });
     }
 };
@@ -1930,7 +1972,12 @@ class ReconApp {
     }
     
     async actionReboot() {
-        if (confirm('Reboot the device? This will disconnect temporarily.')) {
+        const confirmed = await ModalRenderer.confirm(
+            'Reboot Device',
+            'Reboot the device? This will disconnect temporarily.',
+            'Reboot'
+        );
+        if (confirmed) {
             await this.post('/api/command', { command: 'b' });
             showToast('Device rebooting...', 'warning');
         }
