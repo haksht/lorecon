@@ -156,6 +156,9 @@ void OLEDDisplay::update() {
         case MODE_WELCOME:
             renderWelcome();
             break;
+        case MODE_BOOT:
+            renderBoot();
+            break;
         case MODE_SCANNING:
             renderScanning();
             break;
@@ -265,6 +268,15 @@ void OLEDDisplay::showWelcome() {
     update();  // Must render during setup() before main loop starts
 }
 
+void OLEDDisplay::showBootProgress(const char* stage, uint8_t step, uint8_t totalSteps) {
+    currentMode = MODE_BOOT;
+    strncpy(info.bootStage, stage, sizeof(info.bootStage) - 1);
+    info.bootStage[sizeof(info.bootStage) - 1] = '\0';
+    info.bootStep = step;
+    info.bootTotalSteps = totalSteps;
+    update();  // Render immediately — we're in setup(), no main loop yet
+}
+
 void OLEDDisplay::showScanningStatus(const char* frequency, uint8_t sf, uint8_t configIndex, uint8_t totalConfigs) {
     currentMode = MODE_SCANNING;
     if (frequency != nullptr) {
@@ -353,6 +365,38 @@ void OLEDDisplay::renderWelcome() {
     // Show button instructions at bottom
     display.setFont(u8g2_font_5x7_tf);
     display.drawStr(0, 62, "BTN:Off Long:Shutdown");
+}
+
+void OLEDDisplay::renderBoot() {
+    // Title
+    display.setFont(u8g2_font_9x15_tf);
+    display.drawStr(10, 15, "BOOTING");
+
+    // Current stage
+    display.setFont(u8g2_font_6x10_tf);
+    display.drawStr(0, 32, info.bootStage);
+
+    // Progress bar (full width minus padding)
+    const uint8_t barX = 0;
+    const uint8_t barY = 40;
+    const uint8_t barW = 128;
+    const uint8_t barH = 10;
+    display.drawFrame(barX, barY, barW, barH);
+
+    if (info.bootTotalSteps > 0) {
+        uint8_t fillW = (uint16_t)(info.bootStep) * (barW - 2) / info.bootTotalSteps;
+        if (fillW > 0) {
+            display.drawBox(barX + 1, barY + 1, fillW, barH - 2);
+        }
+    }
+
+    // Step counter
+    char stepStr[12];
+    snprintf(stepStr, sizeof(stepStr), "%d / %d", info.bootStep, info.bootTotalSteps);
+    display.setFont(u8g2_font_5x7_tf);
+    // Center the step text
+    uint8_t textW = strlen(stepStr) * 5;
+    display.drawStr((128 - textW) / 2, 62, stepStr);
 }
 
 void OLEDDisplay::renderScanning() {
