@@ -54,6 +54,7 @@ public:
     
     // Content updates
     void showWelcome();
+    void showBootProgress(const char* stage, uint8_t step, uint8_t totalSteps);
     void showScanningStatus(const char* frequency, uint8_t sf, uint8_t configIndex, uint8_t totalConfigs);
     void showPacketReceived(float rssi, float snr, const char* protocol, uint32_t nodeId);
     void showDeviceCount(uint8_t rfActivity, uint8_t trackedNodes, uint8_t targetableDevices);
@@ -77,6 +78,7 @@ private:
     // Display state
     enum DisplayMode {
         MODE_WELCOME,
+        MODE_BOOT,
         MODE_SCANNING,
         MODE_PACKET_INFO,
         MODE_DEVICE_LIST,
@@ -102,12 +104,16 @@ private:
         char targetInfo[32];
         char ipAddress[20];     // IP address (e.g., "192.168.1.100")
         char mdnsName[24];      // mDNS hostname (e.g., "lora-a1b2c3")
+        char bootStage[24];     // Current boot stage description
+        uint8_t bootStep;       // Current boot step (1-based)
+        uint8_t bootTotalSteps; // Total boot steps
     } info;
     
     // Display rendering helpers
     void drawHeader(const char* title);
     void drawFooter(const char* text);
     void renderWelcome();
+    void renderBoot();
     void renderScanning();
     void renderPacketInfo();
     void renderDeviceList();

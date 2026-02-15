@@ -141,12 +141,19 @@ void setup() {
     }
 
     ReconService::initialize(&reconTool);
-    
+
+    // Boot progress tracking on OLED
+    OLEDDisplay* bootDisplay = reconTool.getDisplay();
+    const uint8_t BOOT_STEPS = 5;
+
+    // Step 1: PSK tests
+    if (bootDisplay) bootDisplay->showBootProgress("PSK self-test...", 1, BOOT_STEPS);
     Serial.println("\n🧪 Running PSK Decryption Tests...");
     PSKTests::runAll();
     delay(2000);  // Give time to read results
 
-    // Initialize WiFi (auto-detects first-run vs returning user)
+    // Step 2: WiFi
+    if (bootDisplay) bootDisplay->showBootProgress("Connecting WiFi...", 2, BOOT_STEPS);
     LOG_INFO("\n=== Starting WiFi & Web Server ===");
     if (wifiManager.autoConnect()) {
         // Start mDNS for easy access (unique per device)
@@ -175,7 +182,8 @@ void setup() {
             }
         }
 
-        // Initialize web server
+        // Step 3: Web server
+        if (bootDisplay) bootDisplay->showBootProgress("Starting server...", 3, BOOT_STEPS);
         if (webServer.begin(&reconTool)) {
             // Connect web server to packet processor for live updates
             reconTool.setWebServer(&webServer);
@@ -219,7 +227,8 @@ void setup() {
         LOG_WARN("WiFi/Web server not started - continuing with serial only");
     }
     
-    // Run radio diagnostics now that USB serial is active
+    // Step 4: Radio diagnostics
+    if (bootDisplay) bootDisplay->showBootProgress("Radio diagnostics...", 4, BOOT_STEPS);
     if (reconTool.getRadioController()) {
         reconTool.getRadioController()->runDiagnostics();
 
@@ -231,6 +240,24 @@ void setup() {
                      restoreCfg.protocol, restoreCfg.frequency);
         } else {
             LOG_ERROR("Failed to restore radio after diagnostics");
+        }
+    }
+
+    // Step 5: Done — show READY then transition to normal display
+    if (bootDisplay) {
+        bootDisplay->showBootProgress("READY", 5, BOOT_STEPS);
+        delay(800);
+
+        // Restore normal display mode (scanning or targeting)
+        const ScanConfig& dispCfg = reconState.getScanConfig(reconState.scanState.currentConfig);
+        static char freqBuf[16];
+        snprintf(freqBuf, sizeof(freqBuf), "%.3f", dispCfg.frequency);
+        if (reconState.scanState.mode == MODE_TARGETED_CAPTURE) {
+            bootDisplay->showTargetingMode(freqBuf);
+        } else {
+            bootDisplay->showScanningStatus(freqBuf, dispCfg.spreadingFactor,
+                                            reconState.scanState.currentConfig,
+                                            reconState.getNumConfigs());
         }
     }
 
