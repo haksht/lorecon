@@ -68,7 +68,8 @@ private:
     static void cmdClearDevices(IReconTool* tool);
     static void cmdShowToken(IReconTool* tool);
     static void cmdLoRaWANStats(IReconTool* tool);
-    
+    static void cmdResetInfo(IReconTool* tool);
+
     // Command table entry
     struct CommandEntry {
         char key;
@@ -116,6 +117,8 @@ private:
         {'T', cmdShowToken,           "Show API token (for mobile)",   false},
         {'w', cmdLoRaWANStats,        "LoRaWAN key testing stats",     false},
         {'W', cmdLoRaWANStats,        "LoRaWAN key testing stats",     false},
+        {'i', cmdResetInfo,           "Reset reason & health info",    false},
+        {'I', cmdResetInfo,           "Reset reason & health info",    false},
     };
     
     static constexpr uint8_t numCommands = sizeof(commands) / sizeof(CommandEntry);

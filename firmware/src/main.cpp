@@ -38,15 +38,22 @@
 #include "soc/soc.h"
 
 // Crash context tracking - saved to NVS for post-mortem analysis
+// IMPORTANT: NVS writes wear flash. Save every 5 minutes, not seconds.
+// Previous bug: 10-second saves caused ~41K writes/day, likely triggering
+// NVS corruption and spontaneous reboots after ~23 hours.
 namespace CrashContext {
     static Preferences prefs;
     static constexpr const char* NVS_NAMESPACE = "crash";
-    static const char* lastAction = "boot";  // Track last significant action
-    
+    static const char* lastAction = "boot";
+
+    // Cached reset reason from current boot (persists in RAM for serial queries)
+    static esp_reset_reason_t bootResetReason = ESP_RST_UNKNOWN;
+    static const char* bootResetReasonStr = "Unknown";
+
     void setLastAction(const char* action) {
         lastAction = action;
     }
-    
+
     void saveState(uint8_t mode, uint32_t uptimeSec, uint32_t freeHeap) {
         if (!prefs.begin(NVS_NAMESPACE, false)) return;
         prefs.putUChar("lastMode", mode);
@@ -56,7 +63,18 @@ namespace CrashContext {
         prefs.putString("lastAction", lastAction);
         prefs.end();
     }
-    
+
+    // Save the reset reason to NVS so it survives across subsequent resets.
+    // Called once at boot before the crash context gets overwritten.
+    void saveResetReason(esp_reset_reason_t reason, const char* reasonStr) {
+        bootResetReason = reason;
+        bootResetReasonStr = reasonStr;
+        if (!prefs.begin(NVS_NAMESPACE, false)) return;
+        prefs.putUChar("rstReason", (uint8_t)reason);
+        prefs.putString("rstStr", reasonStr);
+        prefs.end();
+    }
+
     void loadAndReport() {
         if (!prefs.begin(NVS_NAMESPACE, true)) return;
         uint8_t lastMode = prefs.getUChar("lastMode", 255);
@@ -64,18 +82,58 @@ namespace CrashContext {
         uint32_t lastHeap = prefs.getULong("lastHeap", 0);
         uint32_t saveCount = prefs.getULong("saveCount", 0);
         String lastActionStr = prefs.getString("lastAction", "unknown");
+        uint8_t prevReason = prefs.getUChar("rstReason", 255);
+        String prevReasonStr = prefs.getString("rstStr", "unknown");
         prefs.end();
-        
+
         if (lastMode != 255 && lastUptime > 0) {
-            const char* modeStr = (lastMode == 0) ? "RECON" : 
+            const char* modeStr = (lastMode == 0) ? "RECON" :
                                   (lastMode == 1) ? "TARGETED" :
                                   (lastMode == 2) ? "MENU" :
                                   (lastMode == 3) ? "REPLAY" : "UNKNOWN";
-            LOG_INFO("📊 Pre-crash context: mode=%s, uptime=%lu sec, heap=%lu bytes", 
+            LOG_INFO("Pre-crash context: mode=%s, uptime=%lu sec, heap=%lu bytes",
                      modeStr, lastUptime, lastHeap);
             LOG_INFO("   Last action: %s", lastActionStr.c_str());
+            if (prevReason != 255) {
+                LOG_INFO("   Previous boot reason: %s (code %d)", prevReasonStr.c_str(), prevReason);
+            }
             LOG_INFO("   (crash context saved %lu times since flash)", saveCount);
         }
+    }
+
+    // Print current reset reason (callable from serial command 'i')
+    void printResetInfo() {
+        Serial.println("\n=== RESET / HEALTH INFO ===");
+        Serial.printf("Current boot reason: %s (code %d)\n", bootResetReasonStr, (int)bootResetReason);
+        Serial.printf("Uptime: %lu seconds (%.1f hours)\n", millis() / 1000, millis() / 3600000.0f);
+        Serial.printf("Free heap: %lu bytes\n", (unsigned long)ESP.getFreeHeap());
+        Serial.printf("Min free heap: %lu bytes\n", (unsigned long)ESP.getMinFreeHeap());
+
+        if (prefs.begin(NVS_NAMESPACE, true)) {
+            uint8_t prevReason = prefs.getUChar("rstReason", 255);
+            String prevReasonStr = prefs.getString("rstStr", "unknown");
+            uint8_t lastMode = prefs.getUChar("lastMode", 255);
+            uint32_t lastUptime = prefs.getULong("lastUptime", 0);
+            uint32_t lastHeap = prefs.getULong("lastHeap", 0);
+            uint32_t saveCount = prefs.getULong("saveCount", 0);
+            String lastActionStr = prefs.getString("lastAction", "unknown");
+            prefs.end();
+
+            if (prevReason != 255) {
+                Serial.printf("Previous boot reason: %s (code %d)\n", prevReasonStr.c_str(), prevReason);
+            }
+            if (lastMode != 255 && lastUptime > 0) {
+                const char* modeStr = (lastMode == 0) ? "RECON" :
+                                      (lastMode == 1) ? "TARGETED" :
+                                      (lastMode == 2) ? "MENU" :
+                                      (lastMode == 3) ? "REPLAY" : "UNKNOWN";
+                Serial.printf("Last crash context: mode=%s, uptime=%u sec, heap=%u bytes\n",
+                             modeStr, (unsigned)lastUptime, (unsigned)lastHeap);
+                Serial.printf("   Last action: %s\n", lastActionStr.c_str());
+            }
+            Serial.printf("Total NVS context saves: %u\n", (unsigned)saveCount);
+        }
+        Serial.println("===========================\n");
     }
 }
 
@@ -117,15 +175,18 @@ void setup() {
     LOG_INFO("     ESP32 RESTART DETECTED");
     LOG_INFO("========================================");
     LOG_INFO("Reset reason: %s (code %d)", resetReasonStr, resetReason);
-    if (resetReason == ESP_RST_PANIC || resetReason == ESP_RST_TASK_WDT || 
+
+    // Always show crash context for non-power-on resets (including after power-on,
+    // since the previous session's context is still in NVS)
+    if (resetReason == ESP_RST_PANIC || resetReason == ESP_RST_TASK_WDT ||
         resetReason == ESP_RST_INT_WDT || resetReason == ESP_RST_WDT) {
-        LOG_WARN("⚠️  ABNORMAL RESTART - check for bugs or blocking code");
-        // Show what state device was in before crash
-        CrashContext::loadAndReport();
-    } else if (resetReason != ESP_RST_POWERON) {
-        // Also show context for software resets (useful for debugging)
-        CrashContext::loadAndReport();
+        LOG_WARN("ABNORMAL RESTART - check for bugs or blocking code");
     }
+    // Always load crash context — shows previous session info regardless of reset type
+    CrashContext::loadAndReport();
+
+    // Persist this boot's reset reason to NVS so it survives the NEXT reboot
+    CrashContext::saveResetReason(resetReason, resetReasonStr);
     
     // Initialize LittleFS for web app files
     if (!LittleFS.begin(true)) {
@@ -279,12 +340,13 @@ void loop() {
     // Update WiFi connection monitoring
     wifiManager.update();
     
-    // Periodically save crash context (every 10 seconds for better diagnostics)
-    // If device crashes, we'll know what mode it was in
+    // Periodically save crash context to NVS (every 5 minutes)
+    // Reduced from 10 seconds to prevent NVS flash wear — 10s interval caused
+    // ~41K writes/day which can corrupt the NVS partition after ~23 hours.
     static uint32_t lastCrashContextSave = 0;
     static uint32_t lastHeapLog = 0;
     uint32_t now = millis();
-    if (now - lastCrashContextSave >= 10000) {
+    if (now - lastCrashContextSave >= 300000) {
         CrashContext::setLastAction("loop");
         CrashContext::saveState(
             reconState.scanState.mode,
@@ -318,4 +380,9 @@ void loop() {
     
     // Small delay to prevent watchdog triggers
     delay(10);
+}
+
+// Extern-callable wrapper for CrashContext::printResetInfo (used by command handler)
+void crashContextPrintResetInfo() {
+    CrashContext::printResetInfo();
 }
