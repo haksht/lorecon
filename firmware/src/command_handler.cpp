@@ -443,3 +443,9 @@ void CommandHandler::cmdLoRaWANStats(IReconTool* tool) {
     LoRaWANKeys::printSummary();
 }
 
+void CommandHandler::cmdResetInfo(IReconTool* tool) {
+    // Defined in main.cpp CrashContext namespace
+    extern void crashContextPrintResetInfo();
+    crashContextPrintResetInfo();
+}
+

@@ -13,8 +13,8 @@
 #include "logger.h"
 
 // Constructor
-PacketProcessor::PacketProcessor() {
-    lastPacketData.reserve(Config::PacketProcessing::MAX_PACKET_SIZE);
+PacketProcessor::PacketProcessor() : lastPacketLength(0) {
+    memset(lastPacketData, 0, sizeof(lastPacketData));
 }
 
 // Queue a packet for processing
@@ -82,10 +82,11 @@ void PacketProcessor::processQueue(OLEDDisplay* display) {
 
 // Process a single packet
 void PacketProcessor::processSinglePacket(const QueuedPacket& qp, OLEDDisplay* display) {
-    // Store for potential replay capture using vector
+    // Store for potential replay capture (static buffer — no heap allocation)
     if (qp.length <= Config::PacketProcessing::MAX_PACKET_SIZE) {
-        lastPacketData.assign(qp.data, qp.data + qp.length);
-        
+        memcpy(lastPacketData, qp.data, qp.length);
+        lastPacketLength = qp.length;
+
         // Also update recon state for backward compatibility
         memcpy(reconState.scanState.lastPacket, qp.data, qp.length);
         reconState.scanState.lastPacketLength = qp.length;

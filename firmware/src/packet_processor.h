@@ -9,8 +9,6 @@
 #define PACKET_PROCESSOR_H
 
 #include <Arduino.h>
-#include <queue>
-#include <vector>
 #include <functional>
 #include "data_structures.h"
 #include "protocol_analyzer.h"
@@ -32,57 +30,88 @@ struct PacketEvent {
 };
 
 /**
+ * Static ring buffer for packet queue — zero heap allocations.
+ * Replaces std::queue<QueuedPacket> which used std::deque internally,
+ * causing heap fragmentation over days of continuous operation.
+ */
+template<typename T, size_t N>
+class StaticRingBuffer {
+public:
+    bool push(const T& item) {
+        if (count_ >= N) return false;
+        buf_[tail_] = item;
+        tail_ = (tail_ + 1) % N;
+        count_++;
+        return true;
+    }
+
+    const T& front() const { return buf_[head_]; }
+
+    void pop() {
+        if (count_ == 0) return;
+        head_ = (head_ + 1) % N;
+        count_--;
+    }
+
+    bool empty() const { return count_ == 0; }
+    size_t size() const { return count_; }
+
+private:
+    T buf_[N];
+    size_t head_ = 0;
+    size_t tail_ = 0;
+    size_t count_ = 0;
+};
+
+/**
  * PacketProcessor - Manages packet queue and analysis
- * 
- * Responsibilities:
- * - Queue management for interrupt-received packets
- * - Protocol analysis and classification
- * - Node and RF activity tracking (via ReconState)
- * - PSK decryption coordination
- * - Mode-specific packet handling
+ *
+ * Uses a static ring buffer instead of std::queue to avoid heap
+ * fragmentation during long-running operation.
  */
 class PacketProcessor {
 public:
     PacketProcessor();
-    
+
     // Set packet event callback for live updates (web server, loggers, etc.)
     void setPacketCallback(std::function<void(const PacketEvent&)> callback) {
         packetCallback = callback;
     }
-    
+
     // Queue management
     bool queuePacket(const uint8_t* data, size_t length, float rssi, float snr,
                      uint8_t configIndex, float frequencyMHz);
     void processQueue(OLEDDisplay* display = nullptr);
     size_t getQueueSize() const { return packetQueue.size(); }
     bool isQueueFull() const { return packetQueue.size() >= Config::PacketProcessing::QUEUE_SIZE; }
-    
+
     // Access to last packet (for replay capture)
-    const std::vector<uint8_t>& getLastPacket() const { return lastPacketData; }
-    size_t getLastPacketLength() const { return lastPacketData.size(); }
-    
+    const uint8_t* getLastPacketData() const { return lastPacketData; }
+    size_t getLastPacketLength() const { return lastPacketLength; }
+
     // Access to protocol analyzer (for manual packet analysis)
     ProtocolAnalyzer& getProtocolAnalyzer() { return protocolAnalyzer; }
-    
+
 private:
-    // Packet queue
-    std::queue<QueuedPacket> packetQueue;
-    
-    // Last packet storage (for potential replay) - using vector for safety
-    std::vector<uint8_t> lastPacketData;
-    
+    // Static ring buffer — no heap allocations, no fragmentation
+    StaticRingBuffer<QueuedPacket, Config::PacketProcessing::QUEUE_SIZE> packetQueue;
+
+    // Last packet storage (static buffer instead of vector)
+    uint8_t lastPacketData[Config::PacketProcessing::MAX_PACKET_SIZE];
+    size_t lastPacketLength = 0;
+
     // Analysis modules
     ProtocolAnalyzer protocolAnalyzer;
     GeoIntelligence geoIntel;
-    
+
     // Event callback for live updates (optional)
     std::function<void(const PacketEvent&)> packetCallback;
-    
+
     // Processing helpers
     void processSinglePacket(const QueuedPacket& qp, OLEDDisplay* display);
-    void handleReconPacket(const PacketInfo& info, const uint8_t* data, size_t length, 
+    void handleReconPacket(const PacketInfo& info, const uint8_t* data, size_t length,
                           float rssi, float snr, OLEDDisplay* display);
-    void handleTargetedPacket(const PacketInfo& info, const uint8_t* data, size_t length, 
+    void handleTargetedPacket(const PacketInfo& info, const uint8_t* data, size_t length,
                              float rssi, float snr, OLEDDisplay* display);
 };
 
