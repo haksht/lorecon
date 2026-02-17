@@ -71,8 +71,8 @@ ReactNativeiPhone/
 # Agent state files
 .agent_state*/
 
-# Claude Code local settings (user-specific permissions)
-.claude/settings.local.json
+# Claude Code settings (user-specific permissions)
+.claude/
 
 # Firmware libraries (compiled)
 firmware/lib/
