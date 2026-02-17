@@ -64,13 +64,21 @@ bool LoRaReconTool::initialize() {
         LOG_WARN("Storage init failed");
     }
     
+    // Pre-check heap before major allocations
+    uint32_t freeHeap = ESP.getFreeHeap();
+    LOG_INFO("Free heap before init allocations: %lu bytes", freeHeap);
+    if (freeHeap < 40000) {
+        LOG_ERROR("Insufficient heap for initialization (%lu bytes, need 40000+)", freeHeap);
+        return false;
+    }
+
     // Initialize RadioController
     radioController = new RadioController();
     if (!radioController || !radioController->initialize()) {
         LOG_ERROR("Radio initialization failed");
         return false;
     }
-    
+
     // Initialize PacketProcessor
     packetProcessor = new PacketProcessor();
     if (!packetProcessor) {

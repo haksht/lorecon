@@ -149,8 +149,10 @@ String buildStatusJson(ReconState& reconState) {
     doc["modeChangeCount"] = modeManager.getModeChangeCount();
 
     // Battery voltage reading (Heltec V3: GPIO 37 control, GPIO 1 ADC)
-    pinMode(Config::Hardware::VBAT_CTRL_PIN, OUTPUT);
-    digitalWrite(Config::Hardware::VBAT_CTRL_PIN, HIGH);
+    if (Config::Hardware::VBAT_CTRL_PIN != Config::Hardware::PIN_UNUSED) {
+        pinMode(Config::Hardware::VBAT_CTRL_PIN, OUTPUT);
+        digitalWrite(Config::Hardware::VBAT_CTRL_PIN, HIGH);
+    }
     analogReadResolution(12);
     float batteryVoltage = (analogReadMilliVolts(Config::Hardware::VBAT_ADC_PIN) * Config::Hardware::VBAT_SCALE) / 1000.0f;
     // Map 3.2V (empty) to 4.2V (full) -> 0-100%

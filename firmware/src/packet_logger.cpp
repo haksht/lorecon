@@ -7,6 +7,7 @@
 
 #include "packet_logger.h"
 #include "pcap_logger.h"
+#include "config.h"
 #include "utils/sd_utils.h"
 #include <SPI.h>
 #include <time.h>
@@ -99,14 +100,14 @@ bool PacketLogger::startSession(const char* sessionName) {
     Serial.printf("[SD] ✅ Session started: %s\n", fullPath.c_str());
     
     // Start PCAP capture session
-    #ifdef ENABLE_PCAP_EXPORT
-    String pcapFilename = "/logs/" + currentSessionId + ".pcap";
-    if (pcapSession.startSession(pcapFilename.c_str())) {
-        Serial.printf("[PCAP] ✅ PCAP capture started: %s\n", pcapFilename.c_str());
-    } else {
-        Serial.println("[PCAP] ⚠️  PCAP capture failed to start");
+    if (Config::Logging::PCAP_EXPORT_ENABLED) {
+        String pcapFilename = "/logs/" + currentSessionId + ".pcap";
+        if (pcapSession.startSession(pcapFilename.c_str())) {
+            Serial.printf("[PCAP] ✅ PCAP capture started: %s\n", pcapFilename.c_str());
+        } else {
+            Serial.println("[PCAP] ⚠️  PCAP capture failed to start");
+        }
     }
-    #endif
     
     return true;
 }
@@ -185,7 +186,15 @@ bool PacketLogger::logPacket(const PacketLogRecord& record, const uint8_t* data,
         sessionFile.print(record.powerClass);
     }
     sessionFile.print(",");
-    sessionFile.println(bytesToHex(data, length));
+    // Write hex directly to file — avoids String allocation for up to 256-byte packets
+    {
+        char hexBuf[3];
+        for (size_t i = 0; i < length; i++) {
+            snprintf(hexBuf, sizeof(hexBuf), "%02X", data[i]);
+            sessionFile.print(hexBuf);
+        }
+    }
+    sessionFile.println();
     
     packetsLogged++;
     
@@ -195,11 +204,9 @@ bool PacketLogger::logPacket(const PacketLogRecord& record, const uint8_t* data,
     }
     
     // Also log to PCAP if enabled
-    #ifdef ENABLE_PCAP_EXPORT
-    if (pcapSession.isActive()) {
+    if (Config::Logging::PCAP_EXPORT_ENABLED && pcapSession.isActive()) {
         pcapSession.logPacket(data, length, record.rssiDbm, record.snrDb, record.frequencyMHz);
     }
-    #endif
     
     return true;
 }

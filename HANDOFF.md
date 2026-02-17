@@ -1,55 +1,62 @@
 # Session Handoff
 
-## Session Date: 2026-02-12
+## Session Date: 2026-02-16
 
 ## What Was Done
-Fixed all 6 bugs identified in the previous session's code audit:
+Investigated spontaneous reboot of Heltec V3 after ~23 hours of unattended operation. Implemented 4 stability fixes targeting NVS flash wear and heap fragmentation.
 
-### P1: Counter saturation breaks RSSI stats (~18h per busy device)
-- Changed `packetCount` from `uint16_t` to `uint32_t` in `data_structures.h` — Welford's running average no longer freezes after 65535 packets
-- Changed saturation cap from `UINT16_MAX` to `UINT32_MAX` in `device_repository.cpp`
-- Added `UINT16_MAX` saturation guards on `originatedPackets` and `relayedPackets` increments — no more silent wrap-to-zero
+### Context
+- Device: Heltec V3 on COM3 (SPI: SCK=9, MISO=11, MOSI=10)
+- Mode at crash: TARGETED capture, config 0 (Meshtastic_LF_906 @ 906.875 MHz)
+- WiFi: "Sploosh" not available, running in AP-only mode
+- Web UI: Unattended, no active clients
+- Original reset reason lost (overwritten by subsequent power cycle)
 
-### P2: Traffic histogram uses wall clock time
-- `updateTrafficHistogram()` now uses `time()` + `localtime_r()` for NTP-synced wall clock hour
-- Falls back to uptime-based hour only if NTP hasn't synced yet (epoch < 2023)
+### Fix 1: NVS write interval 10s -> 5 minutes
+- `main.cpp:343` — changed `>= 10000` to `>= 300000`
+- Old rate: ~41K writes/day. New rate: ~288/day
+- NVS flash wear was the primary suspect for the 23-hour reboot
 
-### P3: Hop count adaptive instead of hardcoded to 3
-- Added `maxHopCount` field to `TargetableDevice` struct
-- Originated/relayed classification now compares hop count against the max observed for each device, not hardcoded 3
-- Auto-adapts to any Meshtastic hop_limit setting (1-7)
-- First packet from a device sets the baseline; subsequent higher values update it
+### Fix 2: Reset reason persistence in NVS
+- `main.cpp` CrashContext — new `saveResetReason()` stores esp_reset_reason to NVS at boot
+- `loadAndReport()` now reads and displays previous session's reset reason
+- Boot always calls `loadAndReport()` then `saveResetReason()` regardless of reset type
+- Next spontaneous reboot will show the actual cause (watchdog, brownout, panic, etc.)
 
-### P4: Thread safety for updateNetworkIntel()
-- Added `lock()/unlock()` around the full device repo + packet store iteration in `updateNetworkIntel()`
-- Prevents race with AsyncWebServer `clearDevices` API
+### Fix 3: Static ring buffer replaces std::queue
+- `packet_processor.h` — new `StaticRingBuffer<T, N>` template (push/front/pop/empty/size)
+- Replaces `std::queue<QueuedPacket>` (which used `std::deque` with dynamic allocation)
+- `std::vector<uint8_t> lastPacketData` replaced with `uint8_t lastPacketData[256]`
+- Zero heap allocations for all packet queue operations
 
-### P5: findTargetableDevice() stale pointer fix
-- Changed `checkForAnomalies()` and `updateDeviceTemporalMetrics()` to hold the repo lock across their entire pointer lifetime
-- Both methods now use `deviceRepo_.findByNodeId()` directly instead of `findTargetableDevice()` (which released the lock before returning)
-
-### P6: Static assert fix
-- Replaced useless `>= 16` file-scope assert with proper in-class `static_assert` that checks `sizeof(scanConfigs)` against `NUM_CONFIGURATIONS`
-- Will catch at compile time if someone adds scan configs without updating the constant in `config.h`
+### Fix 4: Serial command 'i' for reset/health info
+- `command_handler.h/.cpp` — `cmdResetInfo` in dispatch table
+- `main.cpp` — `CrashContext::printResetInfo()` + extern wrapper
+- Shows: reset reason, uptime, free/min heap, previous boot reason, NVS save count
 
 ## Current State
 - Both `heltec_v3` and `t3_s3` build clean, zero warnings
-- T3-S3 firmware uploaded via COM9 and running
-- All 6 audit bugs from previous session are now fixed
+- Heltec V3 uploaded (COM3) — verified boot, all subsystems OK
+- T3-S3 uploaded (COM9)
+- Commit: `147dcd9`
 
 ## What's Blocked
 - Nothing blocked
 
-## Next Steps
-- No remaining known bugs from the code audit
-- Monitor T3-S3 for stability with the new fixes (especially the adaptive hop count and thread safety changes)
+## What to Watch For
+- If reboots continue, boot log and `i` command will now show the actual reset reason
+- NVS save count growth should be slow (~17/day vs ~41K/day previously)
+- Monitor `min free heap` via `i` command to verify heap stability over multi-day runs
 
 ## Key Parameters
 - PlatformIO: `c:/Users/tim/.platformio/penv/Scripts/pio.exe`
+- Heltec V3 port: COM3
 - T3-S3 upload port: COM9
 - Branch: main
 
 ## Files Changed This Session
-- `firmware/src/data_structures.h` — `packetCount` uint16→uint32, added `maxHopCount` field
-- `firmware/src/repositories/device_repository.cpp` — adaptive hop count, saturation guards
-- `firmware/src/recon_state.cpp` — NTP wall clock histogram, thread safety for 3 methods, fixed static_assert
+- `firmware/src/main.cpp` — NVS interval, reset reason persistence, printResetInfo, extern wrapper
+- `firmware/src/packet_processor.h` — StaticRingBuffer template, static buffers
+- `firmware/src/packet_processor.cpp` — memset/memcpy instead of vector ops
+- `firmware/src/command_handler.h` — cmdResetInfo declaration + dispatch table entries
+- `firmware/src/command_handler.cpp` — cmdResetInfo implementation

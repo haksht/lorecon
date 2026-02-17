@@ -49,12 +49,32 @@ const char* ProtocolAnalyzer::identifyProtocol(const uint8_t* data, size_t lengt
         return "Meshtastic";
     }
     
-    // TTN/LoRaWAN detection (structured frame format)
-    if (length >= 12 && length <= 51) {
-        uint8_t mtype = (data[0] >> 5) & 0x07;
-        // mtype is 3 bits (0-7), so always valid range
-        if (mtype <= 0x07) {
-            return "LoRaWAN";
+    // LoRaWAN detection (validate actual frame structure, not just length)
+    if (length >= 12) {
+        uint8_t mhdr = data[0];
+        uint8_t mtype = (mhdr >> 5) & 0x07;
+        uint8_t major = mhdr & 0x03;
+
+        // LoRaWAN R1 requires major version bits == 0x00
+        if (major == 0x00) {
+            // Join Request: exactly 23 bytes (MHDR + AppEUI + DevEUI + DevNonce + MIC)
+            if (mtype == 0x00 && length == 23) {
+                return "LoRaWAN";
+            }
+            // Join Accept: 17 or 33 bytes (with or without CFList)
+            if (mtype == 0x01 && (length == 17 || length == 33)) {
+                return "LoRaWAN";
+            }
+            // Data frames (unconfirmed/confirmed up/down): validate FHDR
+            // Minimum: MHDR(1) + DevAddr(4) + FCtrl(1) + FCnt(2) + MIC(4) = 12 bytes
+            if (mtype >= 0x02 && mtype <= 0x05 && length >= 12) {
+                uint8_t fctrl = data[5];
+                uint8_t foptsLen = fctrl & 0x0F;
+                // FOptsLen must fit within the frame: MHDR(1)+DevAddr(4)+FCtrl(1)+FCnt(2)+FOpts+MIC(4)
+                if (foptsLen <= 15 && (size_t)(8 + foptsLen + 4) <= length) {
+                    return "LoRaWAN";
+                }
+            }
         }
     }
     
@@ -199,50 +219,52 @@ bool ProtocolAnalyzer::isRoutingDevice(const uint8_t* data, size_t length, const
 }
 
 // Estimate firmware version based on packet patterns
+// NOTE: These are heuristic guesses based on packet structure, not definitive.
+// Packet length and flag patterns correlate with firmware versions but are not proof.
 const char* ProtocolAnalyzer::estimateFirmwareVersion(const uint8_t* data, size_t length, const char* protocol) {
     if (strcmp(protocol, "Meshtastic") == 0 && length >= 12) {
         // Analyze packet structure for version clues
-        
+
         // Firmware 2.2+ uses encryption flag in byte 8, bit 7
         if (length >= 9 && (data[8] & 0x80)) {
-            return "v2.2+ (encryption enabled)";
+            return "~v2.2+ (est: encryption flag)";
         }
-        
+
         // Firmware 2.1+ typically has longer packets (extended routing headers)
         if (length > 50) {
-            return "v2.1+ (extended headers)";
+            return "~v2.1+ (est: extended headers)";
         }
-        
+
         // Firmware 2.0.x has specific hop count patterns
         if (length >= 9) {
             uint8_t hopCount = data[8] & 0x07;
             uint8_t flags = data[9];
-            
+
             // v2.0 uses specific flag patterns
             if (hopCount <= 3 && (flags & 0xF0) == 0) {
-                return "v2.0.x (classic routing)";
+                return "~v2.0.x (est: flag pattern)";
             }
         }
-        
+
         // Check for very short packets (older firmware or beacons)
         if (length <= 16) {
-            return "v1.x or beacon";
+            return "~v1.x or beacon (est)";
         }
-        
-        return "v2.0-2.2 (uncertain)";
+
+        return "~v2.0-2.2 (est)";
     }
-    
+
     if (strcmp(protocol, "LoRaWAN") == 0) {
         // LoRaWAN version can be determined from MIC and frame format
         uint8_t mtype = (data[0] >> 5) & 0x07;
-        
+
         // LoRaWAN 1.1+ uses different join procedures
         if (mtype == 0x00 || mtype == 0x01) {
-            return "LoRaWAN 1.0/1.1";
+            return "~LoRaWAN 1.0/1.1 (est)";
         }
-        
-        return "LoRaWAN 1.0.x";
+
+        return "~LoRaWAN 1.0.x (est)";
     }
-    
+
     return "Unknown";
 }

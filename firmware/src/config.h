@@ -17,6 +17,9 @@ namespace Config {
 // ============================================================================
 namespace Hardware {
 
+    // Sentinel value for unused/unavailable pins
+    constexpr uint8_t PIN_UNUSED = 0xFF;
+
     // Board-specific pin definitions
     #if defined(BOARD_T3_S3)
         // ========================================================================
@@ -46,7 +49,7 @@ namespace Hardware {
         // I2C Display Pins (SSD1306 OLED)
         constexpr uint8_t OLED_SDA = 18;     // I2C data
         constexpr uint8_t OLED_SCL = 17;     // I2C clock
-        constexpr uint8_t OLED_RST = -1;     // No reset pin (software reset)
+        constexpr uint8_t OLED_RST = PIN_UNUSED;  // No reset pin (software reset)
 
         // User Interface
         constexpr uint8_t USER_BUTTON = 0;   // BOOT button (active low)
@@ -54,7 +57,7 @@ namespace Hardware {
 
         // Battery Monitoring
         constexpr uint8_t VBAT_ADC_PIN = 1;  // GPIO 1 - battery voltage ADC
-        constexpr uint8_t VBAT_CTRL_PIN = -1; // No control pin needed
+        constexpr uint8_t VBAT_CTRL_PIN = PIN_UNUSED; // No control pin needed
         constexpr float VBAT_SCALE = 2.0f;   // Voltage divider scaling factor
 
     #elif defined(BOARD_HELTEC_V3)
@@ -84,9 +87,9 @@ namespace Hardware {
         constexpr uint8_t SD_MOSI = 10;      // Shares LoRa SPI bus
 
         // I2C Display Pins (SSD1306 OLED) - implicit, using Wire library defaults
-        constexpr uint8_t OLED_SDA = -1;     // Uses default I2C pins
-        constexpr uint8_t OLED_SCL = -1;     // Uses default I2C pins
-        constexpr uint8_t OLED_RST = -1;     // No reset pin (software reset)
+        constexpr uint8_t OLED_SDA = PIN_UNUSED;  // Uses default I2C pins
+        constexpr uint8_t OLED_SCL = PIN_UNUSED;  // Uses default I2C pins
+        constexpr uint8_t OLED_RST = PIN_UNUSED;  // No reset pin (software reset)
 
         // User Interface
         constexpr uint8_t USER_BUTTON = 0;   // PRG button (active low)
@@ -146,14 +149,8 @@ namespace Replay {
 }
 
 // ============================================================================
-// DATA LOGGING
+// DATA LOGGING (merged with Logging namespace below)
 // ============================================================================
-namespace Logging {
-    // Enable PCAP export for offline analysis with Wireshark/LoRa_Craft
-    // PCAP files preserve RF metadata (RSSI/SNR/frequency) in pseudo-header
-    // Set to false to save SD space if you only need CSV logs
-    #define ENABLE_PCAP_EXPORT true
-}
 
 // ============================================================================
 // DEVICE TRACKING
@@ -230,6 +227,11 @@ namespace System {
 // LOGGING
 // ============================================================================
 namespace Logging {
+    // Enable PCAP export for offline analysis with Wireshark/LoRa_Craft
+    // PCAP files preserve RF metadata (RSSI/SNR/frequency) in pseudo-header
+    // Set to false to save SD space if you only need CSV logs
+    constexpr bool PCAP_EXPORT_ENABLED = true;
+
     // Log buffer size for formatting messages
     constexpr size_t LOG_BUFFER_SIZE = 256;
     

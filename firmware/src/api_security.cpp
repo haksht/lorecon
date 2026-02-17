@@ -6,6 +6,7 @@
 #include "logger.h"
 #include <Preferences.h>
 #include <esp_random.h>
+#include <WiFi.h>
 
 // Static member initialization
 String APISecurity::apiToken = "";
@@ -56,61 +57,65 @@ bool APISecurity::isAuthenticated(AsyncWebServerRequest* request) {
     
     if (!initialized) begin();
     
-    // Auto-trust clients on private networks (RFC 1918)
-    // Rationale: Private IP = already authenticated to local network (WiFi password)
-    // Threat model: prevent random internet access, not LAN neighbors
-    IPAddress clientIP = request->client()->remoteIP();
+    // Auto-trust private network clients ONLY when connected to an external network (STA mode).
+    // In AP mode, anyone who connects to the device's WiFi gets a 192.168.4.x address,
+    // so RFC 1918 trust would grant unauthenticated access to dangerous endpoints.
+    wifi_mode_t wifiMode = WiFi.getMode();
+    bool isStaConnected = (wifiMode == WIFI_STA || wifiMode == WIFI_AP_STA) && WiFi.isConnected();
+
+    if (isStaConnected) {
+        IPAddress clientIP = request->client()->remoteIP();
+        // Only trust clients on the STA network (not the AP subnet 192.168.4.x)
+        bool isAPSubnet = (clientIP[0] == 192 && clientIP[1] == 168 && clientIP[2] == 4);
+        if (!isAPSubnet) {
+            // RFC 1918 check: client is on user's trusted LAN
+            bool isPrivate = (clientIP[0] == 10) ||
+                             (clientIP[0] == 172 && clientIP[1] >= 16 && clientIP[1] <= 31) ||
+                             (clientIP[0] == 192 && clientIP[1] == 168);
+            if (isPrivate) {
+                return true;
+            }
+        }
+    }
     
-    // 10.0.0.0/8 - Class A private
-    if (clientIP[0] == 10) {
-        return true;
-    }
-    // 172.16.0.0/12 - Class B private (172.16.x.x - 172.31.x.x)
-    if (clientIP[0] == 172 && clientIP[1] >= 16 && clientIP[1] <= 31) {
-        return true;
-    }
-    // 192.168.0.0/16 - Class C private
-    if (clientIP[0] == 192 && clientIP[1] == 168) {
-        return true;
-    }
-    
+    // Helper: constant-time token comparison.
+    // Token is always TOKEN_LENGTH hex chars — reject wrong length upfront
+    // (length is public knowledge, not secret).
+    auto validateToken = [](const String& provided) -> bool {
+        if (provided.length() != Config::Security::TOKEN_LENGTH) {
+            return false;
+        }
+        // Constant-time comparison over fixed length
+        volatile uint8_t result = 0;
+        for (size_t i = 0; i < Config::Security::TOKEN_LENGTH; i++) {
+            result |= (provided[i] ^ apiToken[i]);
+        }
+        return result == 0;
+    };
+
     // Check for token in header
     if (request->hasHeader(Config::Security::AUTH_HEADER)) {
         String providedToken = request->header(Config::Security::AUTH_HEADER);
         providedToken.trim();
-        
-        // Constant-time comparison to prevent timing attacks
-        if (providedToken.length() == apiToken.length()) {
-            bool match = true;
-            for (size_t i = 0; i < apiToken.length(); i++) {
-                match &= (providedToken[i] == apiToken[i]);
-            }
-            if (match) return true;
-        }
+        if (validateToken(providedToken)) return true;
     }
-    
+
     // Check for token in query parameter (fallback for testing)
     if (request->hasParam("token")) {
         String providedToken = request->getParam("token")->value();
         providedToken.trim();
-        
-        if (providedToken.length() == apiToken.length()) {
-            bool match = true;
-            for (size_t i = 0; i < apiToken.length(); i++) {
-                match &= (providedToken[i] == apiToken[i]);
-            }
-            if (match) return true;
-        }
+        if (validateToken(providedToken)) return true;
     }
-    
+
     return false;
 }
 
 void APISecurity::sendUnauthorized(AsyncWebServerRequest* request) {
-    String response = "{\"status\":\"error\",\"error\":\"Unauthorized\",";
-    response += "\"message\":\"Protected endpoint requires authentication. ";
-    response += "Include header: " + String(Config::Security::AUTH_HEADER) + ": <token>\"}";
-    
+    char response[192];
+    snprintf(response, sizeof(response),
+        "{\"status\":\"error\",\"error\":\"Unauthorized\","
+        "\"message\":\"Protected endpoint requires authentication. "
+        "Include header: %s: <token>\"}", Config::Security::AUTH_HEADER);
     request->send(401, "application/json", response);
 }
 
@@ -221,10 +226,10 @@ bool APISecurity::checkRateLimit(AsyncWebServerRequest* request) {
 }
 
 void APISecurity::sendRateLimited(AsyncWebServerRequest* request) {
-    String response = "{\"status\":\"error\",\"error\":\"Too Many Requests\",";
-    response += "\"message\":\"Rate limit exceeded. Max ";
-    response += String(Config::Security::RATE_LIMIT_REQUESTS);
-    response += " requests per second.\"}";
-    
+    char response[128];
+    snprintf(response, sizeof(response),
+        "{\"status\":\"error\",\"error\":\"Too Many Requests\","
+        "\"message\":\"Rate limit exceeded. Max %d requests per second.\"}",
+        Config::Security::RATE_LIMIT_REQUESTS);
     request->send(429, "application/json", response);
 }

@@ -39,21 +39,32 @@ RadioController::~RadioController() {
 // Initialize radio hardware
 bool RadioController::initialize() {
     LOG_INFO("Initializing SX1262...");
-    
+
+    // Explicit hardware reset of SX1262 before SPI init.
+    // After a full flash erase, GPIO pin states may be undefined — the radio
+    // can be in a stuck state where it won't respond to SPI until reset.
+    pinMode(Config::Hardware::LORA_RST, OUTPUT);
+    digitalWrite(Config::Hardware::LORA_RST, LOW);
+    delay(10);
+    digitalWrite(Config::Hardware::LORA_RST, HIGH);
+    delay(20);  // SX1262 datasheet: 10ms max reset time
+    LOG_INFO("SX1262 hardware reset complete (RST pin %d)", Config::Hardware::LORA_RST);
+
     // Initialize SPI bus with custom pins BEFORE creating Module
-    // Note: SPI.begin(SCK, MISO, MOSI, SS) - don't pass LORA_NSS here,
-    // RadioLib handles chip select separately
-    SPI.begin(Config::Hardware::SPI_SCK, Config::Hardware::SPI_MISO, 
-              Config::Hardware::SPI_MOSI);
-    
-    LOG_INFO("SPI initialized (SCK:%d MISO:%d MOSI:%d)",
-              Config::Hardware::SPI_SCK, Config::Hardware::SPI_MISO, 
-              Config::Hardware::SPI_MOSI);
-    
-    // Now create radio object (after SPI is configured with correct pins)
-    // LilyGO factory code: uses default SPI (no explicit pass)
-    radio = new SX1262(new Module(Config::Hardware::LORA_NSS, Config::Hardware::LORA_DIO1, 
-                                   Config::Hardware::LORA_RST, Config::Hardware::LORA_BUSY));
+    // Use explicit FSPI (SPI2) bus — after a full flash erase, the default SPI
+    // object may not reliably map to FSPI on ESP32-S3.
+    static SPIClass loraSPI(FSPI);
+    loraSPI.begin(Config::Hardware::SPI_SCK, Config::Hardware::SPI_MISO,
+                  Config::Hardware::SPI_MOSI, Config::Hardware::LORA_NSS);
+
+    LOG_INFO("SPI initialized on FSPI bus (SCK:%d MISO:%d MOSI:%d NSS:%d)",
+              Config::Hardware::SPI_SCK, Config::Hardware::SPI_MISO,
+              Config::Hardware::SPI_MOSI, Config::Hardware::LORA_NSS);
+
+    // Create radio with explicit SPI bus reference
+    radio = new SX1262(new Module(Config::Hardware::LORA_NSS, Config::Hardware::LORA_DIO1,
+                                   Config::Hardware::LORA_RST, Config::Hardware::LORA_BUSY,
+                                   loraSPI));
     
     #if defined(BOARD_T3_S3)
         // T3-S3: SX1262 with TCXO on DIO3 at 1.8V
