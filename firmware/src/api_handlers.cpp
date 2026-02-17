@@ -102,25 +102,30 @@ void handleExportKML(AsyncWebServerRequest* request) {
 }
 
 void handleExportPCAP(AsyncWebServerRequest* request) {
-    #ifdef ENABLE_PCAP_EXPORT
+    if (!Config::Logging::PCAP_EXPORT_ENABLED) {
+        request->send(501, "application/json",
+            JsonUtils::error("PCAP export is disabled. Enable PCAP_EXPORT_ENABLED in config.h and recompile."));
+        return;
+    }
+
     // Check if SD card is available
     if (!packetLogger.isAvailable()) {
-        request->send(404, "application/json", 
+        request->send(404, "application/json",
             JsonUtils::error("SD card not available. Insert SD card and restart device to enable PCAP capture."));
         LOG_WARN("PCAP download requested but SD card not available");
         return;
     }
-    
+
     String sessionFile = packetLogger.getCurrentSessionFile();
-    
+
     // Check if a session is active
     if (sessionFile.isEmpty()) {
-        request->send(404, "application/json", 
+        request->send(404, "application/json",
             JsonUtils::error("No active logging session. Wait for packet capture to start."));
         LOG_WARN("PCAP download requested but no active session");
         return;
     }
-    
+
     // Build PCAP file path: /logs/<session>.pcap
     String pcapFile = "/logs/";
     if (sessionFile.endsWith(".csv")) {
@@ -128,7 +133,7 @@ void handleExportPCAP(AsyncWebServerRequest* request) {
     } else {
         pcapFile += sessionFile + ".pcap";
     }
-    
+
     // Check if PCAP file exists
     if (SD.exists(pcapFile.c_str())) {
         // Send file with proper MIME type and force download
@@ -138,23 +143,18 @@ void handleExportPCAP(AsyncWebServerRequest* request) {
         // PCAP file doesn't exist - provide helpful error message
         String csvPath = "/logs/" + sessionFile;
         bool csvExists = SD.exists(csvPath.c_str());
-        
+
         if (csvExists) {
-            request->send(404, "application/json", 
+            request->send(404, "application/json",
                 JsonUtils::error("PCAP file not found. CSV logging is active but PCAP generation may have failed."));
         } else {
-            request->send(404, "application/json", 
+            request->send(404, "application/json",
                 JsonUtils::error("No packet capture file available. Ensure SD card is inserted and packets have been captured."));
         }
-        
-        LOG_WARN("PCAP download requested but file not found: %s (CSV exists: %s)", 
+
+        LOG_WARN("PCAP download requested but file not found: %s (CSV exists: %s)",
                  pcapFile.c_str(), csvExists ? "yes" : "no");
     }
-    #else
-    // PCAP export disabled
-    request->send(501, "application/json", 
-        JsonUtils::error("PCAP export is disabled. Enable ENABLE_PCAP_EXPORT in config.h and recompile."));
-    #endif
 }
 
 // =============================================================================

@@ -157,14 +157,24 @@ void CommandHandler::showCommands() {
     Serial.println("  d   : Device type breakdown");
     Serial.println("  v   : Security vulnerability assessment");
     
+    Serial.println("\n🌍 GEO / EXPORT:");
+    Serial.println("  g   : Geographic intelligence");
+    Serial.println("  k   : Export KML (Google Earth)");
+    Serial.println("  j   : Export GeoJSON (web maps)");
+    Serial.println("  w   : LoRaWAN key testing stats");
+    Serial.println("  x   : Text packet diagnostic report");
+
     Serial.println("\n🔧 OPERATIONS:");
     Serial.println("  c   : Capture packet for replay");
     Serial.println("  p   : Packet replay menu");
     Serial.println("  l   : Clear all captured packets");
     Serial.println("  n   : Clear all discovered devices");
     Serial.println("  r   : Resume reconnaissance (keep devices)");
+    Serial.println("  q   : Toggle quiet/verbose mode");
+    Serial.println("  t   : Show API token (for mobile)");
+    Serial.println("  i   : Reset reason & health info");
     Serial.println("  b   : Reboot device (clears all data)");
-    
+
     Serial.println();
 }
 

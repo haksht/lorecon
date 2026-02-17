@@ -107,6 +107,28 @@ private:
     // Event callback for live updates (optional)
     std::function<void(const PacketEvent&)> packetCallback;
 
+    // Meshtastic header fields extracted from a packet
+    struct MeshtasticHeader {
+        const uint8_t* payload;    // Pointer to start of Meshtastic frame (after search)
+        size_t payloadLen;
+        uint32_t nodeId;
+        uint32_t destId;
+        uint32_t packetId;
+        uint8_t hopCount;
+        uint8_t channel;
+        bool wantAck;
+        bool viaMqtt;
+        uint8_t priority;
+        bool found;                // True if Meshtastic header was located
+    };
+
+    // Find Meshtastic header in packet and extract all fields
+    MeshtasticHeader findAndExtractMeshtasticHeader(const uint8_t* data, size_t length);
+
+    // Common logic: attempt PSK decryption and auto-capture for replay
+    void tryDecryptAndCapture(const uint8_t* data, size_t length, float rssi, float snr,
+                              const char* protocol, const MeshtasticHeader& hdr);
+
     // Processing helpers
     void processSinglePacket(const QueuedPacket& qp, OLEDDisplay* display);
     void handleReconPacket(const PacketInfo& info, const uint8_t* data, size_t length,

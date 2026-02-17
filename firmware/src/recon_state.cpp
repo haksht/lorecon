@@ -362,26 +362,26 @@ const char* ReconState::estimateFirmwareVersion(const uint8_t* data, size_t leng
     if (strcmp(protocol, "Meshtastic") == 0 && length >= 12) {
         // Firmware 2.2+ uses encryption flag
         if (length >= 9 && (data[8] & 0x80)) {
-            return "v2.2+";
+            return "~v2.2+ (est)";
         }
-        
+
         // Firmware 2.1+ has longer packets
         if (length > 50) {
-            return "v2.1+";
+            return "~v2.1+ (est)";
         }
-        
+
         // Short packets = older firmware or beacons
         if (length <= 16) {
-            return "v1.x/beacon";
+            return "~v1.x/beacon (est)";
         }
-        
-        return "v2.0-2.2";
+
+        return "~v2.0-2.2 (est)";
     }
-    
+
     if (strcmp(protocol, "LoRaWAN") == 0) {
-        return "LoRaWAN 1.0.x";
+        return "~LoRaWAN 1.0.x (est)";
     }
-    
+
     return "Unknown";
 }
 

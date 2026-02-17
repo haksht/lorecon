@@ -173,99 +173,109 @@ void PacketProcessor::processSinglePacket(const QueuedPacket& qp, OLEDDisplay* d
     }
 }
 
-// Handle packet in reconnaissance mode
-void PacketProcessor::handleReconPacket(const PacketInfo& info, const uint8_t* data, size_t length, 
-                                        float rssi, float snr, OLEDDisplay* display) {
-    LOG_INFO("Packet #%d: %s, 0x%08X, %d bytes, %.1f dBm, %.1f dB SNR",
-             reconState.scanState.totalPackets, info.protocol, info.nodeId, length, rssi, snr);
-    
-    // Update display with packet info
-    if (display && display->isOn()) {
-        display->showPacketReceived(rssi, snr, info.protocol, info.nodeId);
-    }
-    
-    // Track RF activity (for situational awareness)
-    reconState.updateRFActivity(reconState.scanState.currentConfig, rssi);
-    
-    // Protocol-specific key testing
-    if (strcmp(info.protocol, "LoRaWAN") == 0) {
-        // Test LoRaWAN Join Requests against default AppKeys
-        LoRaWANKeys::analyzePacket(data, length);
-    }
-    
-    // Try decryption and capture packet for replay (same as targeted mode)
-    if (length >= 20) {
-        const uint8_t* payload = data;
-        size_t payloadLen = length;
-        
-        // Look for Meshtastic header if not at start
-        if (data[0] != 0xFF && length >= 16) {
-            size_t searchLimit = (length >= 4) ? min(length - 4, size_t(20)) : 0;
-            for (size_t i = 0; i < searchLimit; i++) {
-                if (data[i] == 0xFF && data[i+1] == 0xFF && data[i+2] == 0xFF && data[i+3] == 0xFF) {
-                    payload = data + i;
-                    payloadLen = length - i;
-                    break;
-                }
+// Find Meshtastic header (FF FF FF FF) in packet and extract all fields
+PacketProcessor::MeshtasticHeader PacketProcessor::findAndExtractMeshtasticHeader(const uint8_t* data, size_t length) {
+    MeshtasticHeader hdr = {};
+    hdr.payload = data;
+    hdr.payloadLen = length;
+    hdr.destId = 0xFFFFFFFF;
+    hdr.found = false;
+
+    // Try to locate Meshtastic header if not at start (routed packets)
+    if (data[0] != 0xFF && length >= 16) {
+        size_t searchLimit = (length >= 4) ? min(length - 4, size_t(20)) : 0;
+        for (size_t i = 0; i < searchLimit; i++) {
+            if (data[i] == 0xFF && data[i+1] == 0xFF && data[i+2] == 0xFF && data[i+3] == 0xFF) {
+                hdr.payload = data + i;
+                hdr.payloadLen = length - i;
+                LOG_DEBUG("Found Meshtastic header at offset %d in %d-byte packet", i, length);
+                break;
             }
         }
-        
-        // Attempt decryption
-        bool decrypted = PSKDecryption::testDefaultPSKs(payload, payloadLen);
-        
-        // Extract header fields from Meshtastic packet
-        uint32_t nodeId = 0;
-        uint32_t destId = 0xFFFFFFFF;
-        uint32_t packetId = 0;
-        uint8_t hopCount = 0;
-        uint8_t channel = 0;
-        bool wantAck = false;
-        bool viaMqtt = false;
-        uint8_t priority = 0;
-        
-        if (payloadLen >= 16 && payload[0] == 0xFF && payload[1] == 0xFF && 
-            payload[2] == 0xFF && payload[3] == 0xFF) {
-            // Destination ID at bytes 0-3 (little-endian) - skip, it's always 0xFFFFFFFF for broadcast
-            destId = ((uint32_t)payload[0]) | ((uint32_t)payload[1] << 8) |
-                     ((uint32_t)payload[2] << 16) | ((uint32_t)payload[3] << 24);
-            // Source/From ID at bytes 4-7 (little-endian)
-            nodeId = ((uint32_t)payload[4]) | ((uint32_t)payload[5] << 8) |
-                     ((uint32_t)payload[6] << 16) | ((uint32_t)payload[7] << 24);
-            // Packet ID at offset 8-11 (little-endian)
-            if (payloadLen >= 12) {
-                packetId = ((uint32_t)payload[8]) | ((uint32_t)payload[9] << 8) |
-                           ((uint32_t)payload[10] << 16) | ((uint32_t)payload[11] << 24);
-            }
-            // Flags at byte 12
-            if (payloadLen >= 13) {
-                uint8_t flags = payload[12];
-                hopCount = flags & 0x07;           // Bits 0-2: hop count
-                wantAck = (flags >> 3) & 0x01;     // Bit 3: want acknowledgment
-                viaMqtt = (flags >> 4) & 0x01;     // Bit 4: via MQTT gateway
-                priority = (flags >> 5) & 0x03;   // Bits 5-6: priority (0-3)
-            }
-            // Channel at byte 13
-            if (payloadLen >= 14) {
-                channel = payload[13];
-            }
+    }
+
+    // Extract fields if we have a valid Meshtastic header
+    if (hdr.payloadLen >= 16 && hdr.payload[0] == 0xFF && hdr.payload[1] == 0xFF &&
+        hdr.payload[2] == 0xFF && hdr.payload[3] == 0xFF) {
+        hdr.found = true;
+        // Destination ID at bytes 0-3 (little-endian)
+        hdr.destId = ((uint32_t)hdr.payload[0]) | ((uint32_t)hdr.payload[1] << 8) |
+                     ((uint32_t)hdr.payload[2] << 16) | ((uint32_t)hdr.payload[3] << 24);
+        // Source/From ID at bytes 4-7 (little-endian)
+        hdr.nodeId = ((uint32_t)hdr.payload[4]) | ((uint32_t)hdr.payload[5] << 8) |
+                     ((uint32_t)hdr.payload[6] << 16) | ((uint32_t)hdr.payload[7] << 24);
+        // Packet ID at offset 8-11 (little-endian)
+        if (hdr.payloadLen >= 12) {
+            hdr.packetId = ((uint32_t)hdr.payload[8]) | ((uint32_t)hdr.payload[9] << 8) |
+                           ((uint32_t)hdr.payload[10] << 16) | ((uint32_t)hdr.payload[11] << 24);
         }
-        
-        // Auto-capture packet for replay with all header fields
-        const char* decryptedText = PSKDecryption::getLastMessage();
-        if (reconState.capturePacketForReplay(data, length, reconState.scanState.currentConfig, 
-                                               rssi, snr, info.protocol, decryptedText, nodeId, packetId, hopCount,
-                                               destId, channel, wantAck, viaMqtt, priority)) {
-            if (decryptedText && decryptedText[0] != '\0') {
-                Serial.printf("   ✅ Packet auto-captured with text: \"%s\"\n", decryptedText);
-            } else {
-                Serial.println("   ✅ Packet auto-captured");
-            }
+        // Flags at byte 12
+        if (hdr.payloadLen >= 13) {
+            uint8_t flags = hdr.payload[12];
+            hdr.hopCount = flags & 0x07;           // Bits 0-2: hop count
+            hdr.wantAck = (flags >> 3) & 0x01;     // Bit 3: want acknowledgment
+            hdr.viaMqtt = (flags >> 4) & 0x01;     // Bit 4: via MQTT gateway
+            hdr.priority = (flags >> 5) & 0x03;    // Bits 5-6: priority (0-3)
+        }
+        // Channel at byte 13
+        if (hdr.payloadLen >= 14) {
+            hdr.channel = hdr.payload[13];
+        }
+    }
+
+    return hdr;
+}
+
+// Common: attempt PSK decryption and auto-capture for replay
+void PacketProcessor::tryDecryptAndCapture(const uint8_t* data, size_t length, float rssi, float snr,
+                                            const char* protocol, const MeshtasticHeader& hdr) {
+    // Attempt decryption
+    bool decrypted = PSKDecryption::testDefaultPSKs(hdr.payload, hdr.payloadLen);
+
+    // Auto-capture packet for replay with all header fields
+    const char* decryptedText = PSKDecryption::getLastMessage();
+    if (reconState.capturePacketForReplay(data, length, reconState.scanState.currentConfig,
+                                           rssi, snr, protocol, decryptedText,
+                                           hdr.nodeId, hdr.packetId, hdr.hopCount,
+                                           hdr.destId, hdr.channel, hdr.wantAck, hdr.viaMqtt, hdr.priority)) {
+        if (decrypted && decryptedText && decryptedText[0] != '\0') {
+            Serial.printf("   ✅ Packet auto-captured with text: \"%s\"\n", decryptedText);
+        } else if (decrypted) {
+            Serial.println("   ✅ Packet auto-captured");
+        } else {
+            Serial.println("   ✅ Packet auto-captured (encrypted)");
         }
     }
 }
 
+// Handle packet in reconnaissance mode
+void PacketProcessor::handleReconPacket(const PacketInfo& info, const uint8_t* data, size_t length,
+                                        float rssi, float snr, OLEDDisplay* display) {
+    LOG_INFO("Packet #%d: %s, 0x%08X, %d bytes, %.1f dBm, %.1f dB SNR",
+             reconState.scanState.totalPackets, info.protocol, info.nodeId, length, rssi, snr);
+
+    // Update display with packet info
+    if (display && display->isOn()) {
+        display->showPacketReceived(rssi, snr, info.protocol, info.nodeId);
+    }
+
+    // Track RF activity (for situational awareness)
+    reconState.updateRFActivity(reconState.scanState.currentConfig, rssi);
+
+    // Protocol-specific key testing
+    if (strcmp(info.protocol, "LoRaWAN") == 0) {
+        LoRaWANKeys::analyzePacket(data, length);
+    }
+
+    // Try decryption and capture packet for replay
+    if (length >= 20) {
+        MeshtasticHeader hdr = findAndExtractMeshtasticHeader(data, length);
+        tryDecryptAndCapture(data, length, rssi, snr, info.protocol, hdr);
+    }
+}
+
 // Handle packet in targeted capture mode
-void PacketProcessor::handleTargetedPacket(const PacketInfo& info, const uint8_t* data, size_t length, 
+void PacketProcessor::handleTargetedPacket(const PacketInfo& info, const uint8_t* data, size_t length,
                                            float rssi, float snr, OLEDDisplay* display) {
     // Show ALL packets with full decryption to find text messages
     if (length < 40) {
@@ -274,92 +284,27 @@ void PacketProcessor::handleTargetedPacket(const PacketInfo& info, const uint8_t
         Serial.printf("\n🎯 [CAPTURE] Packet #%d: %s, %d bytes, %.1f dBm, %.1f dB SNR\n",
                       reconState.scanState.totalPackets, info.protocol, length, rssi, snr);
     }
-    
+
     // Update display silently
     if (display && display->isOn()) {
         display->showPacketReceived(rssi, snr, info.protocol, info.nodeId);
     }
-    
+
     // Track RF activity in targeted mode too
     reconState.updateRFActivity(reconState.scanState.currentConfig, rssi);
-    
+
     // Try decryption on ALL packets to find text messages
     if (length >= 20) {
         if (length >= 40) {
             LOG_DEBUG("Analyzing %d-byte packet (text message size)", length);
         }
-        
-        // For "Unknown" packets that might be routed Meshtastic, try to find the header
-        const uint8_t* payload = data;
-        size_t payloadLen = length;
-        
-        // If it doesn't start with FF FF FF FF, it might be a routed packet
-        // Try to locate Meshtastic header within the packet
-        if (data[0] != 0xFF && length >= 16) {
-            // Look for 0xFF 0xFF 0xFF 0xFF pattern in first 20 bytes
-            for (size_t i = 0; i < min(length - 4, size_t(20)); i++) {
-                if (data[i] == 0xFF && data[i+1] == 0xFF && data[i+2] == 0xFF && data[i+3] == 0xFF) {
-                    payload = data + i;
-                    payloadLen = length - i;
-                    LOG_DEBUG("Found Meshtastic header at offset %d in %d-byte packet", i, length);
-                    break;
-                }
-            }
-        }
-        
-        // Attempt decryption
-        bool decrypted = PSKDecryption::testDefaultPSKs(payload, payloadLen);
-        
-        // Extract all header fields from Meshtastic packet
-        uint32_t nodeId = 0;
-        uint32_t destId = 0xFFFFFFFF;
-        uint32_t packetId = 0;
-        uint8_t hopCount = 0;
-        uint8_t channel = 0;
-        bool wantAck = false;
-        bool viaMqtt = false;
-        uint8_t priority = 0;
-        
-        if (payloadLen >= 16 && payload[0] == 0xFF && payload[1] == 0xFF && 
-            payload[2] == 0xFF && payload[3] == 0xFF) {
-            // Destination ID at bytes 0-3 (little-endian)
-            destId = ((uint32_t)payload[0]) | ((uint32_t)payload[1] << 8) |
-                     ((uint32_t)payload[2] << 16) | ((uint32_t)payload[3] << 24);
-            // Source/From ID at bytes 4-7 (little-endian)
-            nodeId = ((uint32_t)payload[4]) | ((uint32_t)payload[5] << 8) |
-                     ((uint32_t)payload[6] << 16) | ((uint32_t)payload[7] << 24);
-            // Packet ID at bytes 8-11 (little-endian)
-            if (payloadLen >= 12) {
-                packetId = ((uint32_t)payload[8]) | ((uint32_t)payload[9] << 8) |
-                           ((uint32_t)payload[10] << 16) | ((uint32_t)payload[11] << 24);
-            }
-            // Flags at byte 12
-            if (payloadLen >= 13) {
-                uint8_t flags = payload[12];
-                hopCount = flags & 0x07;           // Bits 0-2: hop count
-                wantAck = (flags >> 3) & 0x01;     // Bit 3: want acknowledgment
-                viaMqtt = (flags >> 4) & 0x01;     // Bit 4: via MQTT gateway
-                priority = (flags >> 5) & 0x03;   // Bits 5-6: priority (0-3)
-            }
-            // Channel at byte 13
-            if (payloadLen >= 14) {
-                channel = payload[13];
-            }
-        }
-        
-        // Auto-capture packet for replay with all header fields
+
+        MeshtasticHeader hdr = findAndExtractMeshtasticHeader(data, length);
+        tryDecryptAndCapture(data, length, rssi, snr, info.protocol, hdr);
+
+        // Check if decryption failed on small packets
         const char* decryptedText = PSKDecryption::getLastMessage();
-        if (reconState.capturePacketForReplay(data, length, reconState.scanState.currentConfig, 
-                                               rssi, snr, info.protocol, decryptedText, nodeId, packetId, hopCount,
-                                               destId, channel, wantAck, viaMqtt, priority)) {
-            if (decrypted && decryptedText && decryptedText[0] != '\0') {
-                Serial.printf("   ✅ Packet auto-captured with text: \"%s\"\n", decryptedText);
-            } else {
-                Serial.println("   ✅ Packet auto-captured (encrypted)");
-            }
-        }
-        
-        if (!decrypted && length < 40) {
+        if ((!decryptedText || decryptedText[0] == '\0') && length < 40) {
             Serial.println("(no readable content found)");
         }
     }

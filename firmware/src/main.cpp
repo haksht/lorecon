@@ -45,6 +45,7 @@ namespace CrashContext {
     static Preferences prefs;
     static constexpr const char* NVS_NAMESPACE = "crash";
     static const char* lastAction = "boot";
+    static uint32_t sessionSaveCount = 0;  // Per-session counter (RAM only)
 
     // Cached reset reason from current boot (persists in RAM for serial queries)
     static esp_reset_reason_t bootResetReason = ESP_RST_UNKNOWN;
@@ -62,6 +63,7 @@ namespace CrashContext {
         prefs.putULong("saveCount", prefs.getULong("saveCount", 0) + 1);
         prefs.putString("lastAction", lastAction);
         prefs.end();
+        sessionSaveCount++;
     }
 
     // Save the reset reason to NVS so it survives across subsequent resets.
@@ -97,7 +99,7 @@ namespace CrashContext {
             if (prevReason != 255) {
                 LOG_INFO("   Previous boot reason: %s (code %d)", prevReasonStr.c_str(), prevReason);
             }
-            LOG_INFO("   (crash context saved %lu times since flash)", saveCount);
+            LOG_INFO("   (NVS saves since flash: %lu — interval is 5 min)", saveCount);
         }
     }
 
@@ -131,7 +133,8 @@ namespace CrashContext {
                              modeStr, (unsigned)lastUptime, (unsigned)lastHeap);
                 Serial.printf("   Last action: %s\n", lastActionStr.c_str());
             }
-            Serial.printf("Total NVS context saves: %u\n", (unsigned)saveCount);
+            Serial.printf("NVS saves this session: %u (cumulative since flash: %u)\n",
+                         (unsigned)sessionSaveCount, (unsigned)saveCount);
         }
         Serial.println("===========================\n");
     }
@@ -150,7 +153,13 @@ void setup() {
     
     // Initialize Serial FIRST so reset reason logging works
     Serial.begin(Config::UI::SERIAL_BAUD);
-    delay(100);  // Brief delay for serial to stabilize
+    #if ARDUINO_USB_CDC_ON_BOOT
+    // USB CDC needs time for host PC to enumerate the device.
+    // Without this delay, early log messages are lost.
+    delay(3000);
+    #else
+    delay(100);  // Brief delay for UART serial to stabilize
+    #endif
     
     // Initialize logger
     Logger::setInstance(&serialLogger);
@@ -195,10 +204,24 @@ void setup() {
         LOG_INFO("✓ LittleFS mounted successfully");
     }
     
-    // Initialize LoRa reconnaissance tool
-    if (!reconTool.initialize()) {
-        LOG_ERROR("Failed to initialize LoRa recon tool");
-        while (1) delay(1000);  // Halt on initialization failure
+    // Initialize LoRa reconnaissance tool (retry on failure — SX1262 sometimes
+    // needs a second attempt after cold boot or flash erase)
+    {
+        bool initOk = false;
+        for (int attempt = 1; attempt <= 3; attempt++) {
+            if (reconTool.initialize()) {
+                initOk = true;
+                break;
+            }
+            LOG_ERROR("Init attempt %d/3 failed — retrying in 2s...", attempt);
+            esp_task_wdt_reset();
+            delay(2000);
+        }
+        if (!initOk) {
+            LOG_ERROR("All init attempts failed — rebooting in 5s");
+            delay(5000);
+            esp_restart();
+        }
     }
 
     ReconService::initialize(&reconTool);

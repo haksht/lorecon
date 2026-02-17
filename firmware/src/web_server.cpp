@@ -55,7 +55,14 @@ bool WebServer::begin(IReconTool* tool, uint16_t port) {
     APIController::setReconTool(tool);
     
     LOG_INFO("Starting web server on port %d...", port);
-    
+
+    // Pre-check heap before allocating server objects
+    uint32_t freeHeap = ESP.getFreeHeap();
+    if (freeHeap < 40000) {
+        LOG_ERROR("Insufficient heap for web server (%lu bytes, need 40000+)", freeHeap);
+        return false;
+    }
+
     // Create server and WebSocket
     server = new AsyncWebServer(port);
     ws = new AsyncWebSocket("/ws");
@@ -86,6 +93,9 @@ bool WebServer::begin(IReconTool* tool, uint16_t port) {
     DefaultHeaders::Instance().addHeader("Access-Control-Allow-Origin", "*");
     DefaultHeaders::Instance().addHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
     DefaultHeaders::Instance().addHeader("Access-Control-Allow-Headers", "Content-Type, " + String(Config::Security::AUTH_HEADER));
+    // Force browsers to revalidate cached files on each request.
+    // Local device on LAN — latency is negligible, prevents stale JS/CSS after OTA updates.
+    DefaultHeaders::Instance().addHeader("Cache-Control", "no-cache");
     
     // Initialize API security
     APISecurity::begin();
