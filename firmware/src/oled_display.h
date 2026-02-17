@@ -60,6 +60,8 @@ public:
     void showDeviceCount(uint8_t rfActivity, uint8_t trackedNodes, uint8_t targetableDevices);
     void showTargetingMode(const char* targetInfo);
     void showShutdown();
+    void showReboot();
+    void clearAndOff();  // Blank GDDRAM and power off (no message shown)
     void showApiToken(const char* token);  // Display API token for mobile users
     
     // Network info display

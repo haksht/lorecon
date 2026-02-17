@@ -811,10 +811,11 @@ void LoRaReconTool::handleButtonPress(uint32_t now) {
             
             delay(Config::UI::SHUTDOWN_WARNING_MS);
 
-            // Turn off OLED before deep sleep — SSD1306 retains last frame
-            // on its own charge pump otherwise, making it look like nothing happened
+            // Blank OLED before deep sleep — SSD1306 retains last frame
+            // on its own charge pump otherwise. Use clearAndOff() instead of
+            // turnOff() to avoid showing misleading "Device running" message.
             if (oledDisplay) {
-                oledDisplay->turnOff();
+                oledDisplay->clearAndOff();
             }
 
             // Enter deep sleep (effectively powered off until reset)

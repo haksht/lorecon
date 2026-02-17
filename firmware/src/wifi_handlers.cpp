@@ -7,6 +7,7 @@
 #include "wifi_handlers.h"
 #include "wifi_manager.h"
 #include "api_security.h"
+#include "lora_recon_tool.h"
 #include "logger.h"
 #include "utils/json_utils.h"
 #include <ArduinoJson.h>
@@ -93,7 +94,11 @@ void handleSetWiFiCredentials(AsyncWebServerRequest* request) {
     response->addHeader("Connection", "close");
     request->send(response);
     
-    // Schedule restart to apply new credentials
+    // Show reboot message on OLED and restart
+    if (g_reconTool) {
+        OLEDDisplay* oled = g_reconTool->getDisplay();
+        if (oled) oled->showReboot();
+    }
     delay(2000);
     ESP.restart();
 }
@@ -121,7 +126,11 @@ void handleClearWiFiCredentials(AsyncWebServerRequest* request) {
     response->addHeader("Connection", "close");
     request->send(response);
     
-    // Restart to enter setup mode
+    // Show reboot message on OLED and restart
+    if (g_reconTool) {
+        OLEDDisplay* oled = g_reconTool->getDisplay();
+        if (oled) oled->showReboot();
+    }
     delay(2000);
     ESP.restart();
 }

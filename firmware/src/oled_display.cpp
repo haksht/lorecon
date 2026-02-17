@@ -320,6 +320,23 @@ void OLEDDisplay::showShutdown() {
     update();
 }
 
+void OLEDDisplay::showReboot() {
+    if (!displayOn) turnOn();
+    display.clearBuffer();
+    display.setFont(u8g2_font_10x20_tf);
+    display.drawStr(20, 30, "REBOOT");
+    display.setFont(u8g2_font_6x10_tf);
+    display.drawStr(10, 50, "Restarting...");
+    display.sendBuffer();
+}
+
+void OLEDDisplay::clearAndOff() {
+    display.clearBuffer();
+    display.sendBuffer();
+    display.setPowerSave(1);
+    displayOn = false;
+}
+
 void OLEDDisplay::clearInfo() {
     memset(&info, 0, sizeof(info));
     strncpy(info.lastProtocol, "None", sizeof(info.lastProtocol) - 1);
