@@ -254,14 +254,18 @@ void CommandHandler::cmdRebootDevice(IReconTool* tool) {
     
     if (confirmation == "YES") {
         Serial.println("\n✅ Confirmed. Clearing all data and restarting...");
-        
+
         reconState.reset();
         TextPacketDiagnostic::reset();
-        
+
         Serial.println("Cleared activity history and device list.");
         Serial.println("Cleared diagnostic counters.");
         Serial.println("Cleared replay slots.");
-        
+
+        // Show reboot message on OLED
+        OLEDDisplay* display = tool->getDisplay();
+        if (display) display->showReboot();
+
         Serial.flush();  // Ensure output is sent before restart
         delay(100);
         ESP.restart();

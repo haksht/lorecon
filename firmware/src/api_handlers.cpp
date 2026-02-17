@@ -10,6 +10,7 @@
 #include "api_security.h"
 #include "recon_state.h"
 #include "packet_logger.h"
+#include "lora_recon_tool.h"
 #include "logger.h"
 #include "config.h"
 #include "utils/json_utils.h"
@@ -452,11 +453,17 @@ void handleCommand(AsyncWebServerRequest* request) {
     
     // Handle reboot command
     if (cmd == "b") {
-        AsyncWebServerResponse *resp = request->beginResponse(200, "application/json", 
+        // Show reboot message on OLED before restarting
+        if (g_reconTool) {
+            OLEDDisplay* oled = g_reconTool->getDisplay();
+            if (oled) oled->showReboot();
+        }
+
+        AsyncWebServerResponse *resp = request->beginResponse(200, "application/json",
             JsonUtils::success("Rebooting device..."));
         resp->addHeader("Connection", "close");
         request->send(resp);
-        
+
         LOG_INFO("Reboot command received via web API");
         delay(1000);
         ESP.restart();

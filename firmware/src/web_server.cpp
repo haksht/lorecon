@@ -11,6 +11,7 @@
 #include "wifi_handlers.h"
 #include "api_controller.h"
 #include "api_security.h"
+#include "lora_recon_tool.h"
 #include "logger.h"
 #include "recon_state.h"
 #include "wifi_manager.h"
@@ -213,6 +214,10 @@ void WebServer::setupRoutes() {
             
             if (success) {
                 LOG_INFO("OTA Update Success - Rebooting...");
+                if (g_reconTool) {
+                    OLEDDisplay* oled = g_reconTool->getDisplay();
+                    if (oled) oled->showReboot();
+                }
                 delay(3000);
                 ESP.restart();
             }
