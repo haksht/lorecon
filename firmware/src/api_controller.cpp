@@ -124,7 +124,7 @@ String APIController::getPackets(int limit, int offset) {
     return JsonUtils::successWithData([&](JsonDocument& doc) {
         doc["limit"] = limit;
         doc["offset"] = offset;
-        doc["totalPackets"] = reconState.scanState.totalPackets;
+        doc["totalPackets"] = reconState.scanState.totalPackets.load();
         doc["packets"] = JsonArray();
         doc["message"] = "Packet history requires SD card logging";
     });
@@ -245,7 +245,7 @@ String APIController::getDashboard() {
     // Stats
     doc["replaySlots"] = reconState.getNumCapturedPackets();
     doc["maxReplaySlots"] = Config::Replay::MAX_SLOTS;
-    doc["totalPackets"] = reconState.scanState.totalPackets;
+    doc["totalPackets"] = reconState.scanState.totalPackets.load();
     doc["uptime"] = millis() / 1000;
     doc["mode"] = reconState.scanState.mode;
     doc["currentConfig"] = reconState.scanState.currentConfig;
@@ -283,8 +283,8 @@ String APIController::getSystemConfig() {
     JsonObject usage = doc["usage"].to<JsonObject>();
     usage["devices"] = reconState.getNumTargetableDevices();
     usage["replaySlots"] = reconState.getNumCapturedPackets();
-    usage["droppedPackets"] = reconState.scanState.droppedPackets;
-    usage["totalPackets"] = reconState.scanState.totalPackets;
+    usage["droppedPackets"] = reconState.scanState.droppedPackets.load();
+    usage["totalPackets"] = reconState.scanState.totalPackets.load();
     
     // Replay configuration
     JsonObject replay = doc["replay"].to<JsonObject>();
