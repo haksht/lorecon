@@ -157,8 +157,8 @@ version range from observable packet structure:
 |---|---|
 | Byte 8, bit 7 is set (encryption flag present) | `~v2.2+ (est: encryption flag)` |
 | Packet length > 50 bytes (extended routing headers) | `~v2.1+ (est: extended headers)` |
-| Packet length ≤ 16 bytes | `~v1.x or beacon (est)` |
 | Hop count ≤ 3 and upper nibble of byte 9 is zero | `~v2.0.x (est: flag pattern)` |
+| Packet length ≤ 16 bytes | `~v1.x or beacon (est)` |
 | None of the above | `~v2.0-2.2 (est)` |
 
 All Meshtastic firmware strings include `(est)` to indicate they are estimates. They should not
@@ -231,7 +231,7 @@ with 0,0 coordinates if the API serializes the raw struct before the `valid` che
 
 ## Why Only 10 Packets Are Kept Per Device
 
-**Source**: `firmware/src/repositories/packet_store.h:20`, `firmware/src/config.h:148`
+**Source**: `firmware/src/repositories/packet_store.h:20`, `firmware/src/config.h:153`
 
 ```cpp
 // config.h
