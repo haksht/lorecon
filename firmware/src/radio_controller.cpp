@@ -147,31 +147,28 @@ void RadioController::runDiagnostics() {
     }
 
     if (state != RADIOLIB_ERR_NONE) {
-        LOG_WARN("Radio not responding (error %d), attempting recovery...", state);
+        LOG_WARN("Radio not responding (error %d), attempting hardware reset recovery...", state);
 
-        // Re-assert SPI bus pins (in case something reconfigured them)
-        SPI.end();
-        SPI.begin(Config::Hardware::SPI_SCK, Config::Hardware::SPI_MISO,
-                  Config::Hardware::SPI_MOSI);
-        LOG_INFO("SPI bus re-initialized");
-
-        // Hardware reset the radio
+        // Hardware reset — only reliable recovery path.
+        // Note: SPI bus is on the explicit loraSPI(FSPI) instance created in initialize().
+        // Re-initializing the default SPI object here would have no effect on the radio.
         pinMode(Config::Hardware::LORA_RST, OUTPUT);
         digitalWrite(Config::Hardware::LORA_RST, LOW);
         delay(10);
         digitalWrite(Config::Hardware::LORA_RST, HIGH);
         delay(50);
 
-        state = radio->begin(906.875, 125.0, 9, 7,
-                             RADIOLIB_SX126X_SYNC_WORD_PRIVATE,
-                             10, 8, 1.8, false);
-        LOG_INFO("Re-init begin(906.875, tcxo=1.8): %d", state);
-
-        if (state == RADIOLIB_ERR_NONE) {
-            radio->setDio2AsRfSwitch(true);
-            state = radio->setFrequency(902.125);
-            LOG_INFO("After re-init, setFrequency(902.125): %d", state);
-        }
+        #if defined(BOARD_T3_S3)
+            state = radio->begin(906.875, 125.0, 9, 7,
+                                 RADIOLIB_SX126X_SYNC_WORD_PRIVATE,
+                                 10, 8, 1.8, false);
+            if (state == RADIOLIB_ERR_NONE) {
+                radio->setDio2AsRfSwitch(true);
+            }
+        #else
+            state = radio->begin();
+        #endif
+        LOG_INFO("Re-init after reset: %d", state);
     }
     LOG_INFO("=== END DIAGNOSTICS ===");
 }
@@ -220,22 +217,13 @@ bool RadioController::applyConfig(const ScanConfig& config) {
 }
 
 // Apply protocol-specific radio parameters
-void RadioController::applyProtocolParameters(const char* protocol) {
-    // Try different parameters based on protocol type
-    if (strstr(protocol, "Meshtastic_MSG") != nullptr) {
-        radio->setCodingRate(5);         // 4/5 for message content
-        radio->setPreambleLength(8);     // Standard for messages
-        radio->setCRC(false);            // Promiscuous mode for better capture
-    } else if (strstr(protocol, "Meshtastic_MF") != nullptr) {
-        radio->setCodingRate(8);         // 4/8 for MediumFast
-        radio->setPreambleLength(12);    // Longer preamble
-        radio->setCRC(false);            // Promiscuous mode
-    } else {
-        radio->setCodingRate(5);         // 4/5 for routing packets
-        radio->setPreambleLength(8);     // Standard
-        radio->setCRC(false);            // Promiscuous mode
-    }
-    
+// All protocols use the same promiscuous-mode settings for passive capture.
+// (Previous per-protocol branches for "Meshtastic_MSG" / "Meshtastic_MF" were
+// dead code — identifyProtocol() returns "Meshtastic", never those strings.)
+void RadioController::applyProtocolParameters(const char* /*protocol*/) {
+    radio->setCodingRate(5);    // 4/5 coding rate
+    radio->setPreambleLength(8);
+    radio->setCRC(false);       // Promiscuous mode: accept frames regardless of CRC
     radio->explicitHeader();
 }
 // Set frequency

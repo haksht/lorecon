@@ -40,7 +40,7 @@ LoRaReconTool::LoRaReconTool()
 bool LoRaReconTool::initialize() {
     // Serial already initialized in main.cpp for reset reason logging
     
-    LOG_INFO("ESP32 LoRa Reconnaissance Tool v2.0");
+    LOG_INFO("ESP32 LoRa Reconnaissance Tool %s", Config::VERSION);
     
     // Initialize error handler first
     ErrorHandler::initialize();
@@ -451,126 +451,127 @@ void LoRaReconTool::startFrequencyTargeting(uint8_t configIndex) {
 void LoRaReconTool::showReplayMenu() {
     // Remember what mode we came from so we can return to it
     OperationMode previousMode = reconState.scanState.mode;
-    
-    Serial.println("\n📡 PACKET REPLAY MENU");
-    Serial.println("====================");
-    
-    if (reconState.getNumCapturedPackets() == 0) {
-        Serial.println("No packets captured for replay yet.");
-        Serial.println("\nTo capture packets:");
-        Serial.println("  1. Enter targeted capture mode");
-        Serial.println("  2. Wait for packet reception");
-        Serial.println("  3. Press 'c' to save packet to replay slot");
-        Serial.println("\nPress any key to return to menu...");
-        
-        uint32_t startTime = millis();
-        while (!Serial.available()) {
-          if (millis() - startTime > 30000) {  // 30 second timeout
-            Serial.println("[TIMEOUT] Returning to menu...");
-            break;
-          }
-          esp_task_wdt_reset();  // Feed watchdog while waiting
-          delay(10);
-        }
-        if (Serial.available()) Serial.read();
-        // Restore previous mode instead of forcing menu mode
-        reconState.scanState.mode = previousMode;
-        if (previousMode == MODE_INTERACTIVE_MENU) {
-            setMenuModeEntered();
-            showReconResults();
-        } else {
-            Serial.printf("Returning to %s mode...\n", 
-                previousMode == MODE_TARGETED_CAPTURE ? "targeting" : "reconnaissance");
-        }
-        return;
-    }
-    
-    Serial.printf("Captured Packets: %d/%d slots used\n\n", 
-                  reconState.getNumCapturedPackets(), Config::Replay::MAX_SLOTS);
-    
-    Serial.println("Slot | Protocol     | Length | Config              | RSSI   | Age");
-    Serial.println("-----|--------------|--------|---------------------|--------|-------");
-    
-    for (uint8_t i = 0; i < reconState.getNumCapturedPackets(); i++) {
-        const CapturedPacket& pkt = reconState.getReplayPacket(i);
-        const ScanConfig& cfg = reconState.getScanConfig(pkt.configIndex);
-        uint32_t ageSeconds = (millis() - pkt.captureTime) / 1000;
-        
-        Serial.printf("  %d  | %-12s | %6d | %-19s | %6.1f | %5us\n",
-                      i + 1, pkt.protocol, pkt.length, cfg.protocol, 
-                      pkt.originalRSSI, (unsigned int)ageSeconds);
-    }
-    
-    Serial.println("\nCOMMANDS:");
-    Serial.println("1-9 : Replay packet from slot");
-  Serial.println("c   : Clear all replay slots");
-  Serial.println("m   : Return to main menu");
-  Serial.print("\nSelect option: ");
-  
-  // Wait for input with timeout
-  uint32_t startTime = millis();
-  while (!Serial.available()) {
-    if (millis() - startTime > 30000) {  // 30 second timeout
-      Serial.printf("\n[TIMEOUT] Returning to %s mode...\n",
-          previousMode == MODE_TARGETED_CAPTURE ? "targeting" :
-          previousMode == MODE_INTERACTIVE_MENU ? "menu" : "reconnaissance");
-      reconState.scanState.mode = previousMode;
-      if (previousMode == MODE_INTERACTIVE_MENU) {
-          setMenuModeEntered();
-          showReconResults();
-      }
-      return;
-    }
-    esp_task_wdt_reset();  // Feed watchdog while waiting
-    delay(10);
-  }
-  char cmd = Serial.read();
-  Serial.println(cmd);    if (cmd >= '1' && cmd <= '9') {
-        uint8_t slotIndex = cmd - '1';
-        if (slotIndex < reconState.getNumCapturedPackets()) {
-            replayPacket(slotIndex);
-        } else {
-            Serial.println("❌ Invalid slot number");
-            delay(2000);
-            showReplayMenu();
-        }
-    } else if (cmd == 'c' || cmd == 'C') {
-        Serial.print("Clear all replay slots? (y/N): ");
-        
-        uint32_t startTime = millis();
-        while (!Serial.available()) {
-          if (millis() - startTime > 10000) {  // 10 second timeout for confirmation
-            Serial.println("\n[TIMEOUT] Cancelled.");
-            showReplayMenu();
+
+    while (true) {
+        Serial.println("\n📡 PACKET REPLAY MENU");
+        Serial.println("====================");
+
+        if (reconState.getNumCapturedPackets() == 0) {
+            Serial.println("No packets captured for replay yet.");
+            Serial.println("\nTo capture packets:");
+            Serial.println("  1. Enter targeted capture mode");
+            Serial.println("  2. Wait for packet reception");
+            Serial.println("  3. Press 'c' to save packet to replay slot");
+            Serial.println("\nPress any key to return to menu...");
+
+            uint32_t startTime = millis();
+            while (!Serial.available()) {
+                if (millis() - startTime > 30000) {
+                    Serial.println("[TIMEOUT] Returning to menu...");
+                    break;
+                }
+                esp_task_wdt_reset();
+                delay(10);
+            }
+            if (Serial.available()) Serial.read();
+            reconState.scanState.mode = previousMode;
+            if (previousMode == MODE_INTERACTIVE_MENU) {
+                setMenuModeEntered();
+                showReconResults();
+            } else {
+                Serial.printf("Returning to %s mode...\n",
+                    previousMode == MODE_TARGETED_CAPTURE ? "targeting" : "reconnaissance");
+            }
             return;
-          }
-          esp_task_wdt_reset();  // Feed watchdog while waiting
-          delay(10);
         }
-        char confirm = Serial.read();
-        Serial.println(confirm);
-        
-        if (confirm == 'y' || confirm == 'Y') {
-            reconState.clearReplaySlots();
-            Serial.println("✅ All replay slots cleared");
+
+        Serial.printf("Captured Packets: %d/%d slots used\n\n",
+                      reconState.getNumCapturedPackets(), Config::Replay::MAX_SLOTS);
+
+        Serial.println("Slot | Protocol     | Length | Config              | RSSI   | Age");
+        Serial.println("-----|--------------|--------|---------------------|--------|-------");
+
+        for (uint8_t i = 0; i < reconState.getNumCapturedPackets(); i++) {
+            const CapturedPacket& pkt = reconState.getReplayPacket(i);
+            const ScanConfig& cfg = reconState.getScanConfig(pkt.configIndex);
+            uint32_t ageSeconds = (millis() - pkt.captureTime) / 1000;
+
+            Serial.printf("  %d  | %-12s | %6d | %-19s | %6.1f | %5us\n",
+                          i + 1, pkt.protocol, pkt.length, cfg.protocol,
+                          pkt.originalRSSI, (unsigned int)ageSeconds);
+        }
+
+        Serial.println("\nCOMMANDS:");
+        Serial.println("1-9 : Replay packet from slot");
+        Serial.println("c   : Clear all replay slots");
+        Serial.println("m   : Return to main menu");
+        Serial.print("\nSelect option: ");
+
+        uint32_t startTime = millis();
+        while (!Serial.available()) {
+            if (millis() - startTime > 30000) {
+                Serial.printf("\n[TIMEOUT] Returning to %s mode...\n",
+                    previousMode == MODE_TARGETED_CAPTURE ? "targeting" :
+                    previousMode == MODE_INTERACTIVE_MENU ? "menu" : "reconnaissance");
+                reconState.scanState.mode = previousMode;
+                if (previousMode == MODE_INTERACTIVE_MENU) {
+                    setMenuModeEntered();
+                    showReconResults();
+                }
+                return;
+            }
+            esp_task_wdt_reset();
+            delay(10);
+        }
+        char cmd = Serial.read();
+        Serial.println(cmd);
+
+        if (cmd >= '1' && cmd <= '9') {
+            uint8_t slotIndex = cmd - '1';
+            if (slotIndex < reconState.getNumCapturedPackets()) {
+                replayPacket(slotIndex);
+                // replayPacket() returns normally; loop back to show menu again
+            } else {
+                Serial.println("❌ Invalid slot number");
+                delay(2000);
+            }
+        } else if (cmd == 'c' || cmd == 'C') {
+            Serial.print("Clear all replay slots? (y/N): ");
+
+            uint32_t confirmStart = millis();
+            while (!Serial.available()) {
+                if (millis() - confirmStart > 10000) {
+                    Serial.println("\n[TIMEOUT] Cancelled.");
+                    break;
+                }
+                esp_task_wdt_reset();
+                delay(10);
+            }
+            if (Serial.available()) {
+                char confirm = Serial.read();
+                Serial.println(confirm);
+                if (confirm == 'y' || confirm == 'Y') {
+                    reconState.clearReplaySlots();
+                    Serial.println("✅ All replay slots cleared");
+                    delay(1000);
+                }
+            }
+            // Loop back to show updated menu
+        } else if (cmd == 'm' || cmd == 'M') {
+            reconState.scanState.mode = previousMode;
+            if (previousMode == MODE_INTERACTIVE_MENU) {
+                setMenuModeEntered();
+                showReconResults();
+            } else {
+                Serial.printf("Returning to %s mode...\n",
+                    previousMode == MODE_TARGETED_CAPTURE ? "targeting" : "reconnaissance");
+            }
+            return;
+        } else {
+            Serial.println("❌ Invalid option");
             delay(1000);
         }
-        showReplayMenu();
-    } else if (cmd == 'm' || cmd == 'M') {
-        // Restore previous mode instead of forcing menu mode
-        reconState.scanState.mode = previousMode;
-        if (previousMode == MODE_INTERACTIVE_MENU) {
-            setMenuModeEntered();
-            showReconResults();
-        } else {
-            Serial.printf("Returning to %s mode...\n",
-                previousMode == MODE_TARGETED_CAPTURE ? "targeting" : "reconnaissance");
-        }
-    } else {
-        Serial.println("❌ Invalid option");
-        delay(1000);
-        showReplayMenu();
-    }
+    } // while(true)
 }
 
 void LoRaReconTool::replayPacket(uint8_t slotIndex) {
@@ -630,7 +631,6 @@ void LoRaReconTool::replayPacket(uint8_t slotIndex) {
     if (!gotInput) {
         Serial.println("\n[TIMEOUT] Cancelled.");
         delay(1000);
-        showReplayMenu();
         return;
     }
     
@@ -640,7 +640,6 @@ void LoRaReconTool::replayPacket(uint8_t slotIndex) {
     if (repeatCount <= 0 || repeatCount > 100) {
         Serial.println("❌ Cancelled or invalid count");
         delay(1000);
-        showReplayMenu();
         return;
     }
     
@@ -698,7 +697,6 @@ void LoRaReconTool::replayPacket(uint8_t slotIndex) {
     if (!radioController->applyConfig(replayCfg)) {
         Serial.println("❌ Failed to apply radio configuration");
         delay(2000);
-        showReplayMenu();
         return;
     }
     
@@ -760,12 +758,10 @@ void LoRaReconTool::replayPacket(uint8_t slotIndex) {
     }
     Serial.read();
     
-    // Resume receiving
+    // Resume receiving; control returns to showReplayMenu()'s loop
     const ScanConfig& resumeCfg = reconState.getScanConfig(reconState.scanState.currentConfig);
     radioController->applyConfig(resumeCfg);
     radioController->startReceive();
-    
-    showReplayMenu();
 }
 
 // Handle button press for display toggle and power off

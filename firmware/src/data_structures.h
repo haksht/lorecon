@@ -10,6 +10,7 @@
 #define DATA_STRUCTURES_H
 
 #include <Arduino.h>
+#include <atomic>
 #include "config.h"
 
 // Operation modes
@@ -103,10 +104,14 @@ struct ScanState {
   uint8_t targetConfig;     // For targeted capture mode
   bool targetedByDevice;    // true = device targeting, false = frequency targeting
   uint32_t lastScanSwitch;
-  uint32_t totalPackets;
+  // Counters written from the main loop (packet_processor) and read from the
+  // AsyncWebServer task (api_controller, json_builders). Use std::atomic to
+  // prevent data races on dual-core ESP32-S3. Implicit load()/store() via
+  // assignment/conversion operators keep call sites unchanged.
+  std::atomic<uint32_t> totalPackets;
   uint32_t totalDetections;
-  uint32_t droppedPackets;      // Packets dropped due to queue full
-  uint32_t peakQueueSize;       // Maximum queue depth observed
+  std::atomic<uint32_t> droppedPackets;
+  std::atomic<uint32_t> peakQueueSize;
   bool packetPending;
   char lastPacket[Config::PacketProcessing::MAX_PACKET_SIZE];  // Fixed buffer instead of String
   size_t lastPacketLength;           // Track actual length

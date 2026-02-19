@@ -9,6 +9,7 @@
 .vscode/
 *.code-workspace
 wifi_creds.json
+data/wifi_creds.json
 
 # ESP32 / Arduino
 *.bin

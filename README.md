@@ -85,7 +85,7 @@ Passive LoRa reconnaissance firmware for ESP32-S3 + SX1262 hardware. The ESP32 h
 **Don't want to compile?** Download the pre-built firmware:
 
 1. Go to [Releases](https://github.com/tiarno/esp32-sniffer/releases/latest)
-2. Download `esp32-lora-sniffer-v2.2.0-binaries.zip`
+2. Download the firmware zip for your board
 3. Extract and run `flash.bat` (Windows) or `flash.sh` (Linux/Mac)
 4. Requires: `pip install esptool`
 
@@ -104,7 +104,7 @@ LittleFS serves the web UI assets. SD card is optional but required for PCAP exp
 
 ## Web Interface Features
 
-1. Power the ESP32 and wait for `ESP32-LoRa-Sniffer` WiFi AP.
+1. Power the ESP32 and wait for the `LoRa-XXYYZZ` WiFi AP (where `XXYYZZ` is the last 3 bytes of the device MAC address).
 2. Connect a phone/laptop, browse to `http://192.168.4.1`.
 3. Use the interactive web UI with **7 tabs**:
    - **Info:** System status, GPS data, security assessment, frequency analysis
