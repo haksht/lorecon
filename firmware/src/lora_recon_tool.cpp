@@ -289,15 +289,14 @@ void LoRaReconTool::handleReconnaissanceMode(uint32_t now) {
 
 // Handle targeted capture mode operations
 void LoRaReconTool::handleTargetedCaptureMode(uint32_t now) {
-    // Refresh targeting display when config changes OR every 5 seconds.
-    // The 5-second fallback ensures MODE_PACKET_INFO (set by showPacketReceived)
-    // doesn't permanently replace the targeting status screen when packets arrive
-    // at a high rate.  Unconditional every-loop calls are still avoided to keep
-    // I2C traffic low.
+    // Refresh targeting display when config changes OR every 2 seconds.
+    // The 2-second fallback returns to targeting status after packet RX info
+    // is shown, keeping it as the "home screen".  Unconditional every-loop
+    // calls are still avoided to keep I2C traffic low.
     if (oledDisplay && oledDisplay->isOn()) {
         static uint8_t  lastDisplayedTargetConfig = 0xFF;
         static uint32_t lastTargetingDisplayTime   = 0;
-        constexpr uint32_t TARGETING_REFRESH_MS    = 5000;
+        constexpr uint32_t TARGETING_REFRESH_MS    = 2000;
 
         bool configChanged   = reconState.scanState.targetConfig != lastDisplayedTargetConfig;
         bool periodicRefresh = (now - lastTargetingDisplayTime) >= TARGETING_REFRESH_MS;
