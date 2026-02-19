@@ -153,34 +153,9 @@ bool RadioController::applyConfig(const ScanConfig& config) {
 }
 ```
 
-## Next Steps (Priority Order)
+## Next Steps
 
-### 1. Verify SPI Pins Against V1.3 Schematic (CRITICAL)
-Download the actual T3-S3 V1.3 schematic from LilyGO GitHub and verify every pin:
-- https://github.com/Xinyuan-LilyGO/LilyGo-LoRa-Series
-- Check if V1.3 uses different SPI pins than V1.2
-- Check Meshtastic variant.h for `tlora_t3s3_v1` pins
-- **Specific concern:** Do any LoRa SPI pins (3, 5, 6, 7, 33, 34) conflict with WiFi on ESP32-S3?
-
-### 2. Test SPI Bus Isolation
-Try initializing the radio AFTER WiFi starts (move radio init after WiFi in main.cpp). If `begin()` fails when called after WiFi, the SPI bus is being stolen/corrupted by WiFi.
-
-### 3. Try Explicit SPI Bus Assignment
-ESP32-S3 has SPI2 (FSPI) and SPI3 (HSPI). Try explicitly using SPI3:
-```cpp
-SPIClass spiLora(HSPI);  // or SPI3
-spiLora.begin(SCK, MISO, MOSI);
-radio = new SX1262(new Module(NSS, DIO1, RST, BUSY, spiLora));
-```
-
-### 4. Check GPIO Conflict Table
-ESP32-S3 has restrictions on which GPIOs can be used when WiFi/BLE is active. GPIO 33-34 (DIO1/BUSY) are in the high-numbered GPIO range that may have special behavior. Check the ESP32-S3 Technical Reference Manual.
-
-### 5. Minimal SPI Test After WiFi
-Write a bare-minimum sketch that:
-1. Starts WiFi AP
-2. Does raw SPI read of SX1262 register (e.g., read device version register)
-3. Reports what comes back (should be non-zero/non-FF if chip is there)
+All hardware issues resolved. No outstanding items for T3-S3 port.
 
 ## What We Ruled Out
 
