@@ -34,8 +34,8 @@ bool PacketProcessor::queuePacket(const uint8_t* data, size_t length, float rssi
                                   uint8_t configIndex, float frequencyMHz) {
     if (isQueueFull()) {
         reconState.scanState.droppedPackets++;
-        LOG_WARN("Queue full (100 packets) - dropping! Total drops: %u", 
-                 reconState.scanState.droppedPackets);
+        LOG_WARN("Queue full (100 packets) - dropping! Total drops: %u",
+                 reconState.scanState.droppedPackets.load());
         return false;
     }
     
@@ -252,7 +252,7 @@ void PacketProcessor::tryDecryptAndCapture(const uint8_t* data, size_t length, f
 void PacketProcessor::handleReconPacket(const PacketInfo& info, const uint8_t* data, size_t length,
                                         float rssi, float snr, OLEDDisplay* display) {
     LOG_INFO("Packet #%d: %s, 0x%08X, %d bytes, %.1f dBm, %.1f dB SNR",
-             reconState.scanState.totalPackets, info.protocol, info.nodeId, length, rssi, snr);
+             reconState.scanState.totalPackets.load(), info.protocol, info.nodeId, length, rssi, snr);
 
     // Update display with packet info
     if (display && display->isOn()) {
@@ -282,7 +282,7 @@ void PacketProcessor::handleTargetedPacket(const PacketInfo& info, const uint8_t
         Serial.printf("\n[SMALL %d bytes] ", length);
     } else {
         Serial.printf("\n🎯 [CAPTURE] Packet #%d: %s, %d bytes, %.1f dBm, %.1f dB SNR\n",
-                      reconState.scanState.totalPackets, info.protocol, length, rssi, snr);
+                      reconState.scanState.totalPackets.load(), info.protocol, length, rssi, snr);
     }
 
     // Update display silently

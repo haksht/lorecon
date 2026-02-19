@@ -137,9 +137,9 @@ String buildStatusJson(ReconState& reconState) {
     doc["mode"] = Internal::modeToString(reconState.scanState.mode);
     doc["uptime"] = millis() / 1000;
     doc["devices"] = reconState.getNumTargetableDevices();
-    doc["totalPackets"] = reconState.scanState.totalPackets;
-    doc["droppedPackets"] = reconState.scanState.droppedPackets;
-    doc["peakQueueSize"] = reconState.scanState.peakQueueSize;
+    doc["totalPackets"] = reconState.scanState.totalPackets.load();
+    doc["droppedPackets"] = reconState.scanState.droppedPackets.load();
+    doc["peakQueueSize"] = reconState.scanState.peakQueueSize.load();
     doc["capturedPackets"] = reconState.getNumCapturedPackets();
     doc["freeHeap"] = ESP.getFreeHeap();
     doc["heapSize"] = ESP.getHeapSize();
@@ -207,7 +207,7 @@ String buildStatisticsJson(ReconState& reconState) {
     doc["status"] = "success";
 
     JsonObject stats = doc["statistics"].to<JsonObject>();
-    stats["totalPackets"] = reconState.scanState.totalPackets;
+    stats["totalPackets"] = reconState.scanState.totalPackets.load();
     stats["totalDevices"] = reconState.getNumTargetableDevices();
 
     JsonObject protocols = stats["protocolDistribution"].to<JsonObject>();
@@ -233,7 +233,7 @@ String buildStatisticsJson(ReconState& reconState) {
     protocols["Other"] = generic;
 
     JsonObject capture = stats["captureRate"].to<JsonObject>();
-    capture["total"] = reconState.scanState.totalPackets;
+    capture["total"] = reconState.scanState.totalPackets.load();
 
     String response;
     serializeJson(doc, response);
@@ -387,7 +387,7 @@ String buildReconSummaryJson(ReconState& reconState, GeoIntelligence& geoIntel) 
     summary["mode"] = Internal::modeToString(reconState.scanState.mode);
     summary["uptimeSeconds"] = millis() / 1000;
     summary["reconDurationSeconds"] = reconState.getReconDuration();
-    summary["totalPackets"] = reconState.scanState.totalPackets;
+    summary["totalPackets"] = reconState.scanState.totalPackets.load();
     summary["totalDetections"] = reconState.scanState.totalDetections;
     summary["targetableDevices"] = reconState.getNumTargetableDevices();
     summary["capturedPackets"] = reconState.getNumCapturedPackets();
@@ -896,9 +896,9 @@ String buildConsolidatedReportJson(ReconState& reconState, GeoIntelligence& geoI
     // STATISTICS SECTION
     // =========================================================================
     JsonObject statistics = doc["statistics"].to<JsonObject>();
-    statistics["totalPackets"] = reconState.scanState.totalPackets;
+    statistics["totalPackets"] = reconState.scanState.totalPackets.load();
     statistics["totalDevices"] = numDevices;
-    statistics["droppedPackets"] = reconState.scanState.droppedPackets;
+    statistics["droppedPackets"] = reconState.scanState.droppedPackets.load();
     statistics["uptimeSeconds"] = millis() / 1000;
     
     // Protocol distribution

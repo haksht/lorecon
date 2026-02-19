@@ -430,7 +430,7 @@ void showReconResults() {
 // Print scanning statistics
 void printStats() {
   Serial.println("\n=== RECONNAISSANCE SUMMARY ===");
-  Serial.printf("Total packets: %d\n", reconState.scanState.totalPackets);
+  Serial.printf("Total packets: %d\n", reconState.scanState.totalPackets.load());
   Serial.printf("Targetable devices: %d\n", reconState.getNumTargetableDevices());
   Serial.printf("Current: %s\n", reconState.getScanConfig(reconState.scanState.currentConfig).protocol);
   

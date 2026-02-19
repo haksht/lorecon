@@ -431,7 +431,7 @@ void OLEDDisplay::renderScanning() {
     display.drawStr(0, 36, buffer);
     
     // Spreading Factor and Packet count (use global count from reconState)
-    snprintf(buffer, sizeof(buffer), "SF:%d Pkts:%u", info.sf, reconState.scanState.totalPackets);
+    snprintf(buffer, sizeof(buffer), "SF:%d Pkts:%u", info.sf, reconState.scanState.totalPackets.load());
     display.drawStr(0, 48, buffer);
     
     // Show IP/mDNS at bottom if connected, else button help
@@ -509,8 +509,8 @@ void OLEDDisplay::renderTargeting() {
     char buffer[32];
     
     // Current stats
-    snprintf(buffer, sizeof(buffer), "Pkts: %u  RSSI: %.0f", 
-             reconState.scanState.totalPackets, info.lastRSSI);
+    snprintf(buffer, sizeof(buffer), "Pkts: %u  RSSI: %.0f",
+             reconState.scanState.totalPackets.load(), info.lastRSSI);
     display.drawStr(0, 40, buffer);
     
     // Show IP address so user knows how to connect

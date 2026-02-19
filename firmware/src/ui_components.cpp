@@ -74,7 +74,7 @@ void displayActivitySummary() {
     
     Serial.println("RECONNAISSANCE SUMMARY:");
     Serial.printf("  Duration: %s\n", formatDuration(reconTime).c_str());
-    Serial.printf("  Total Packets: %d\n", reconState.scanState.totalPackets);
+    Serial.printf("  Total Packets: %d\n", reconState.scanState.totalPackets.load());
     Serial.printf("  Devices Found: %d\n", reconState.getNumTargetableDevices());
     Serial.println();
 }

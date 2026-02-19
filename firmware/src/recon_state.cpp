@@ -389,8 +389,8 @@ void ReconState::printStateSummary() const {
     Serial.println("\n=== RECONNAISSANCE STATE SUMMARY ===");
     Serial.printf("Mode: %d, Current Config: %d/%d\n", 
                   scanState.mode, scanState.currentConfig, NUM_CONFIGS);
-    Serial.printf("Total packets: %d, Total detections: %d\n", 
-                  scanState.totalPackets, scanState.totalDetections);
+    Serial.printf("Total packets: %d, Total detections: %d\n",
+                  scanState.totalPackets.load(), scanState.totalDetections);
     Serial.printf("Targetable devices: %d\n", deviceRepo_.count());
     Serial.printf("Recon duration: %u seconds\n", (unsigned int)getReconDuration());
     
