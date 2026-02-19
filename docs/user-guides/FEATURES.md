@@ -382,7 +382,7 @@ curl http://<device-ip>/api/replay/slots > packets.json
 
 ### NICE TO HAVE (Polish)
 - ✅ KML/GeoJSON export
-- ✅ Security assessment scoring
+- ✅ Security assessment scoring (see [HOW_IT_WORKS.md](HOW_IT_WORKS.md) for scoring rubric)
 - ✅ Device type analysis
 - ✅ Live visualization (Python tools in `tools/`)
 

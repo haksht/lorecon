@@ -7,6 +7,7 @@ Passive LoRa reconnaissance firmware for ESP32-S3 + SX1262 hardware. The ESP32 h
 - `GETTING_STARTED.md` – complete setup guide with serial, OLED, and web interfaces.
 - `docs/user-guides/BUILD_GUIDE.md` – supported hardware + PlatformIO notes.
 - `docs/user-guides/FEATURES.md` – feature inventory and configuration knobs.
+- `docs/user-guides/HOW_IT_WORKS.md` – how security scoring, router detection, GPS, and packet limits work.
 - `docs/user-guides/TROUBLESHOOTING.md` & `docs/technical/ENCRYPTION.md` – protocol gotchas.
 - `API_REFERENCE.md` – HTTP + WebSocket surface area for custom tooling.
 
