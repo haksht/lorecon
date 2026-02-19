@@ -164,11 +164,16 @@ version range from observable packet structure:
 All Meshtastic firmware strings include `(est)` to indicate they are estimates. They should not
 be treated as confirmed version numbers.
 
-**Security scoring implication**: The outdated firmware check in `security_scorer.h` looks for
-the literal strings `v1.x` or `v2.0` in the firmware version field. The string `~v1.x or beacon (est)`
-contains `v1.x`, so it will trigger the −20 penalty. The string `~v2.0.x (est: flag pattern)`
-does **not** contain exactly `v2.0` (it has `.x` appended), so it will **not** trigger the penalty —
-this is a bug in the scoring logic.
+**Security scoring implication**: The outdated firmware check in `security_scorer.h` uses
+`strstr()` to look for the substrings `v1.x` or `v2.0` in the firmware version field.
+
+- `~v1.x or beacon (est)` — contains `v1.x` → −20 penalty
+- `~v2.0.x (est: flag pattern)` — contains `v2.0` as a prefix → −20 penalty
+- `~v2.0-2.2 (est)` — contains `v2.0` as a prefix → −20 penalty
+- `~v2.1+ (est: extended headers)` — no match → no penalty
+- `~v2.2+ (est: encryption flag)` — no match → no penalty
+
+The effective threshold is: anything estimated as v2.0.x or below loses 20 points.
 
 ### LoRaWAN
 
