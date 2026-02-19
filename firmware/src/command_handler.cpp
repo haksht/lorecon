@@ -12,6 +12,7 @@
 
 #include <esp_task_wdt.h>
 #include "command_handler.h"
+#include "crash_context.h"
 #include "mode_manager.h"
 #include "irecon_tool.h"  // Interface only - no concrete class needed
 #include "radio_controller.h"  // Need full definition for method calls
@@ -108,8 +109,8 @@ bool CommandHandler::handleCommand(char cmd) {
     }
     
     // Log valid serial input for debugging
-    LOG_DEBUG("Received: '%c' (0x%02X) in mode %d", 
-              cmd, (uint8_t)cmd, reconState.scanState.mode);
+    LOG_DEBUG("Received: '%c' (0x%02X) in mode %d",
+              cmd, (uint8_t)cmd, (int)reconState.scanState.mode.load());
     
     // Execute command from dispatch table
     if (entry) {
@@ -458,8 +459,6 @@ void CommandHandler::cmdLoRaWANStats(IReconTool* tool) {
 }
 
 void CommandHandler::cmdResetInfo(IReconTool* tool) {
-    // Defined in main.cpp CrashContext namespace
-    extern void crashContextPrintResetInfo();
-    crashContextPrintResetInfo();
+    CrashContext::printResetInfo();
 }
 

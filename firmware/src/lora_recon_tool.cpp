@@ -176,8 +176,8 @@ void LoRaReconTool::update() {
     static OperationMode lastKnownMode = reconState.scanState.mode;
     if (reconState.scanState.mode != lastKnownMode) {
         // Mode changed - log immediately with timestamp
-        LOG_WARN("🔀 MODE CHANGED: %d→%d at uptime %lu ms (%.1f hours)", 
-                 lastKnownMode, reconState.scanState.mode, now, now / 3600000.0f);
+        LOG_WARN("🔀 MODE CHANGED: %d→%d at uptime %lu ms (%.1f hours)",
+                 (int)lastKnownMode, (int)reconState.scanState.mode.load(), now, now / 3600000.0f);
         
         // Log the mode transition to NVS for persistence
         modeManager.logModeTransition(lastKnownMode, reconState.scanState.mode, "runtime");
@@ -859,7 +859,7 @@ void LoRaReconTool::handleButtonPress(uint32_t now) {
                             LOG_ERROR("Invalid frequency: %.3f", cfg.frequency);
                         }
                     } else {
-                        LOG_ERROR("Invalid config index: %d", reconState.scanState.currentConfig);
+                        LOG_ERROR("Invalid config index: %d", (int)reconState.scanState.currentConfig.load());
                     }
                 }
             }
