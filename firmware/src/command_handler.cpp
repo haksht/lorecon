@@ -303,7 +303,7 @@ void CommandHandler::cmdCapturePacket(IReconTool* tool) {
     if (reconState.scanState.lastPacketLength > 0 && 
         reconState.scanState.mode == MODE_TARGETED_CAPTURE) {
         
-        const uint8_t* data = (const uint8_t*)reconState.scanState.lastPacket;
+        const uint8_t* data = reconState.scanState.lastPacket;
         size_t length = reconState.scanState.lastPacketLength;
         float rssi = tool->getRadioController()->getRSSI();
         
