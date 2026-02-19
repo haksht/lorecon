@@ -260,29 +260,47 @@ void LoRaReconTool::handleReconnaissanceMode(uint32_t now) {
     if (now - reconState.scanState.lastScanSwitch >= Config::Scanning::DWELL_TIME_MS) {
         reconState.scanState.currentConfig = (reconState.scanState.currentConfig + 1) % reconState.getNumConfigs();
         reconState.scanState.lastScanSwitch = now;
-        
+
         // Show progress every full cycle (when back to config 0)
         if (reconState.scanState.currentConfig == 0) {
             uint32_t elapsed = (now - reconState.scanState.reconStartTime) / 1000;
-            LOG_INFO("Cycle complete - %u seconds elapsed, %d targetable devices found", 
+            LOG_INFO("Cycle complete - %u seconds elapsed, %d targetable devices found",
                      (unsigned int)elapsed, reconState.getNumTargetableDevices());
         }
-        
+
         const ScanConfig& cfg = reconState.getScanConfig(reconState.scanState.currentConfig);
         if (radioController->applyConfig(cfg)) {
             radioController->startReceive();
-            
-            // Update display with new scanning config
+
+            // Update display with new scanning config — also resets the
+            // periodic-refresh timer so packet RX info never holds longer
+            // than the 2-second fallback below.
             if (oledDisplay && oledDisplay->isOn()) {
                 static char freqStr[16];  // Static to avoid stack issues
                 snprintf(freqStr, sizeof(freqStr), "%.3f", cfg.frequency);
-                oledDisplay->showScanningStatus(freqStr, cfg.spreadingFactor, 
-                                                reconState.scanState.currentConfig, 
+                oledDisplay->showScanningStatus(freqStr, cfg.spreadingFactor,
+                                                reconState.scanState.currentConfig,
                                                 reconState.getNumConfigs());
             }
         }
     }
-    
+
+    // Restore scanning status every 2 seconds so MODE_PACKET_INFO (set by
+    // showPacketReceived) doesn't hold the display between config switches.
+    if (oledDisplay && oledDisplay->isOn()) {
+        static uint32_t lastScanningDisplayTime = 0;
+        constexpr uint32_t SCANNING_REFRESH_MS  = 2000;
+        if ((now - lastScanningDisplayTime) >= SCANNING_REFRESH_MS) {
+            lastScanningDisplayTime = now;
+            const ScanConfig& cfg = reconState.getScanConfig(reconState.scanState.currentConfig);
+            static char freqStr[16];
+            snprintf(freqStr, sizeof(freqStr), "%.3f", cfg.frequency);
+            oledDisplay->showScanningStatus(freqStr, cfg.spreadingFactor,
+                                            reconState.scanState.currentConfig,
+                                            reconState.getNumConfigs());
+        }
+    }
+
     // Handle packets in recon mode
     handlePacketReception();
 }
