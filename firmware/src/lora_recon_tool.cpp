@@ -289,14 +289,19 @@ void LoRaReconTool::handleReconnaissanceMode(uint32_t now) {
 
 // Handle targeted capture mode operations
 void LoRaReconTool::handleTargetedCaptureMode(uint32_t now) {
-    // Update display to show targeting status
+    // Gate display update on target config change — not every 10ms loop iteration.
+    // Unconditional showTargetingMode() every loop caused unnecessary I2C traffic.
     if (oledDisplay && oledDisplay->isOn()) {
-        const ScanConfig& cfg = reconState.getScanConfig(reconState.scanState.targetConfig);
-        static char targetInfo[32];
-        snprintf(targetInfo, sizeof(targetInfo), "%.3f MHz", cfg.frequency);
-        oledDisplay->showTargetingMode(targetInfo);
+        static uint8_t lastDisplayedTargetConfig = 0xFF;
+        if (reconState.scanState.targetConfig != lastDisplayedTargetConfig) {
+            lastDisplayedTargetConfig = reconState.scanState.targetConfig;
+            const ScanConfig& cfg = reconState.getScanConfig(reconState.scanState.targetConfig);
+            static char targetInfo[32];
+            snprintf(targetInfo, sizeof(targetInfo), "%.3f MHz", cfg.frequency);
+            oledDisplay->showTargetingMode(targetInfo);
+        }
     }
-    
+
     handlePacketReception();
 }
 
@@ -706,7 +711,7 @@ void LoRaReconTool::replayPacket(uint8_t slotIndex) {
     
     // Transmit the packet multiple times
     Serial.printf("\n📡 Transmitting %d time(s) with %d ms delay...\n", repeatCount, delayMs);
-    radioController->getRadio().setOutputPower(10);  // Set transmission power
+    radioController->setOutputPower(10);
     
     int successCount = 0;
     int failCount = 0;
@@ -733,7 +738,7 @@ void LoRaReconTool::replayPacket(uint8_t slotIndex) {
         }
     }
     
-    radioController->getRadio().setOutputPower(0);   // Back to receive-only mode
+    radioController->setOutputPower(Config::Radio::OUTPUT_POWER_DBM);  // Restore default (0 dBm)
     
     Serial.println("\n📊 REPLAY SUMMARY");
     Serial.println("=================");

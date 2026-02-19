@@ -308,8 +308,13 @@ float RadioController::getSNR(bool useCache) {
     if (useCache && (millis() - lastMetricUpdate < Config::PacketProcessing::METRIC_CACHE_MS)) {
         return cachedSNR;
     }
-    
+
     cachedSNR = radio->getSNR();
     lastMetricUpdate = millis();
     return cachedSNR;
+}
+
+// Set transmit output power
+void RadioController::setOutputPower(int dBm) {
+    radio->setOutputPower(dBm);
 }

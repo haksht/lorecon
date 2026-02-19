@@ -54,6 +54,9 @@ public:
     // Signal metrics
     float getRSSI(bool useCache = true);
     float getSNR(bool useCache = true);
+
+    // Transmit power (dBm). Use before transmit; restore to OUTPUT_POWER_DBM after.
+    void setOutputPower(int dBm);
     
     // Interrupt handling (public for ISR access)
     void markPacketReceived() { 

@@ -113,7 +113,7 @@ struct ScanState {
   std::atomic<uint32_t> droppedPackets;
   std::atomic<uint32_t> peakQueueSize;
   bool packetPending;
-  char lastPacket[Config::PacketProcessing::MAX_PACKET_SIZE];  // Fixed buffer instead of String
+  uint8_t lastPacket[Config::PacketProcessing::MAX_PACKET_SIZE];  // Raw binary packet bytes
   size_t lastPacketLength;           // Track actual length
   uint32_t reconStartTime;
   bool waitingForUserInput;
