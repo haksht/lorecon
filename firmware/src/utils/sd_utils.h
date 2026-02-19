@@ -67,6 +67,19 @@ inline bool initialize(int csPin = Config::Hardware::SD_CS) {
         return true;
     }
 
+#if !defined(HAS_SD_CARD)
+    // Board has no SD card support. Return immediately WITHOUT calling SD.begin().
+    // On Heltec V3 (and similar boards), SD.begin() invokes SPI.begin() with
+    // board-default pins that differ from the LoRa SPI pins, reconfiguring the
+    // shared FSPI hardware and breaking radio communication after init.
+    // (Root cause: loraSPI(FSPI) in radio_controller.cpp never calls begin() on
+    // the default SPI object, so SD.begin() finds it uninitialized and re-inits
+    // FSPI on wrong GPIO pins.)
+    state.initialized = true;
+    state.available = false;
+    return false;
+#endif
+
     // Try to initialize
 #if defined(BOARD_T3_S3)
     // T3-S3: SD card on dedicated SPI bus (HSPI) to avoid LoRa SPI conflict
