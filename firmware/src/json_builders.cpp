@@ -167,18 +167,18 @@ String buildStatusJson(ReconState& reconState) {
     // Scan info when in reconnaissance mode
     if (reconState.scanState.mode == MODE_RECONNAISSANCE) {
         JsonObject scan = doc["scan"].to<JsonObject>();
-        scan["currentConfig"] = reconState.scanState.currentConfig;
+        scan["currentConfig"] = reconState.scanState.currentConfig.load();
         scan["totalConfigs"] = reconState.getNumConfigs();
         uint32_t elapsed = millis() - reconState.scanState.reconStartTime;
         scan["cyclesCompleted"] = elapsed / (reconState.getNumConfigs() * Config::Scanning::DWELL_TIME_MS);
     } else if (reconState.scanState.mode == MODE_TARGETED_CAPTURE) {
         // Add target information when in targeted mode
         JsonObject target = doc["target"].to<JsonObject>();
-        target["targetedByDevice"] = reconState.scanState.targetedByDevice;
+        target["targetedByDevice"] = reconState.scanState.targetedByDevice.load();
 
         // Add config information
         const ScanConfig& cfg = reconState.getScanConfig(reconState.scanState.targetConfig);
-        target["configIndex"] = reconState.scanState.targetConfig;
+        target["configIndex"] = reconState.scanState.targetConfig.load();
         target["frequency"] = cfg.frequency;
         target["protocol"] = cfg.protocol;
         target["bandwidth"] = cfg.bandwidth;
@@ -416,7 +416,7 @@ String buildReconSummaryJson(ReconState& reconState, GeoIntelligence& geoIntel) 
     if (reconState.scanState.mode == MODE_TARGETED_CAPTURE ||
         reconState.scanState.mode == MODE_PACKET_REPLAY) {
         JsonObject targeted = doc["targetedCapture"].to<JsonObject>();
-        targeted["configIndex"] = reconState.scanState.targetConfig;
+        targeted["configIndex"] = reconState.scanState.targetConfig.load();
         const ScanConfig& cfg = reconState.getScanConfig(reconState.scanState.targetConfig);
         targeted["protocol"] = cfg.protocol;
         targeted["frequencyMHz"] = cfg.frequency;

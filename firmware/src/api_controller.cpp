@@ -247,8 +247,8 @@ String APIController::getDashboard() {
     doc["maxReplaySlots"] = Config::Replay::MAX_SLOTS;
     doc["totalPackets"] = reconState.scanState.totalPackets.load();
     doc["uptime"] = millis() / 1000;
-    doc["mode"] = reconState.scanState.mode;
-    doc["currentConfig"] = reconState.scanState.currentConfig;
+    doc["mode"] = (int)reconState.scanState.mode.load();
+    doc["currentConfig"] = reconState.scanState.currentConfig.load();
     
     return JsonUtils::serialize(doc);
 }

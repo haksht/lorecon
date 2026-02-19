@@ -99,15 +99,16 @@ struct TargetableDevice {
 
 // System state management
 struct ScanState {
-  OperationMode mode;
-  uint8_t currentConfig;
-  uint8_t targetConfig;     // For targeted capture mode
-  bool targetedByDevice;    // true = device targeting, false = frequency targeting
+  // Fields written from the main loop and read from the AsyncWebServer task
+  // (api_controller, json_builders) on the other core. Use std::atomic to
+  // prevent data races on the dual-core ESP32-S3. Implicit load()/store() via
+  // assignment/conversion operators keep most call sites unchanged; variadic
+  // and ArduinoJson sites use explicit .load().
+  std::atomic<OperationMode> mode;
+  std::atomic<uint8_t> currentConfig;
+  std::atomic<uint8_t> targetConfig;    // For targeted capture mode
+  std::atomic<bool> targetedByDevice;   // true = device targeting, false = frequency targeting
   uint32_t lastScanSwitch;
-  // Counters written from the main loop (packet_processor) and read from the
-  // AsyncWebServer task (api_controller, json_builders). Use std::atomic to
-  // prevent data races on dual-core ESP32-S3. Implicit load()/store() via
-  // assignment/conversion operators keep call sites unchanged.
   std::atomic<uint32_t> totalPackets;
   uint32_t totalDetections;
   std::atomic<uint32_t> droppedPackets;
