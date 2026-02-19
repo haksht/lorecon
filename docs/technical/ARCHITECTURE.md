@@ -1648,16 +1648,21 @@ std::vector<uint32_t> varints = ProtobufUtils::parseAllVarints(data, length);
 
 SecurityScorer::Assessment assessment = SecurityScorer::assess(device);
 
-// assessment.score      - 0-100 (higher = more vulnerable)
-// assessment.rating     - "High Risk" / "Medium" / "Low"
-// assessment.ratingEmoji- "🔴" / "🟡" / "🟢"
-// assessment.isRouter   - true if device acts as router
-// assessment.isHighRSSI - true if RSSI > -50 dBm
-// assessment.usesDefaultPSK - true if decrypted with default key
-// assessment.isEncrypted - true if packet was encrypted
+// assessment.score           - 0-100 (higher = more SECURE; 100 = no findings)
+// assessment.rating          - "secure" / "moderate" / "vulnerable"
+// assessment.ratingEmoji     - "✅ SECURE" / "⚠️ MODERATE" / "🔴 VULNERABLE"
+// assessment.isRouter        - true if device relayed >= 2 packets
+// assessment.physicalProximity - true if RSSI > -50 dBm
+// assessment.possibleUnencrypted - true if Meshtastic + >10 packets + no PSK hit
+// assessment.chatty          - true if packetCount > 100
+// assessment.intermittent    - true if packetCount < 5
+// assessment.outdatedFirmware - true if firmware string contains "v1.x" or "v2.0"
 ```
 
-**Used by:** `recon_service.cpp`, `user_interface.cpp`
+Score thresholds: >= 80 = secure, >= 60 = moderate, < 60 = vulnerable.
+See `docs/user-guides/HOW_IT_WORKS.md` for full scoring rubric.
+
+**Used by:** `user_interface.cpp`, `api_handlers.cpp`
 
 ### **Design Principles**
 
