@@ -36,7 +36,7 @@ jobs:
             ${{ runner.os }}-pio-${{ matrix.env }}-
 
       - name: Install PlatformIO
-        run: pip install platformio
+        run: pip install "platformio==6.1.19"
 
       - name: Build ${{ matrix.env }}
         run: pio run -e ${{ matrix.env }} -d ${{ github.workspace }}
@@ -66,7 +66,7 @@ jobs:
             ${{ runner.os }}-pio-native-
 
       - name: Install PlatformIO
-        run: pip install platformio
+        run: pip install "platformio==6.1.19"
 
       - name: Run native tests
         run: pio test -e native -d ${{ github.workspace }}
