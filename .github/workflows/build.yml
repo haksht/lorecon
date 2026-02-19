@@ -1,0 +1,72 @@
+name: Build & Test
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: ["**"]
+
+jobs:
+  # ── Firmware build matrix ─────────────────────────────────────────────────
+  # Builds every supported board target so a change that breaks one board's
+  # compilation is caught before merge, even if the other board still works.
+  firmware:
+    name: Build ${{ matrix.env }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false          # Show all failures, not just the first
+      matrix:
+        env: [heltec_v3, t3_s3]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Cache PlatformIO
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.platformio
+            ~/.cache/pip
+          key: ${{ runner.os }}-pio-${{ matrix.env }}-${{ hashFiles('platformio.ini') }}
+          restore-keys: |
+            ${{ runner.os }}-pio-${{ matrix.env }}-
+
+      - name: Install PlatformIO
+        run: pip install platformio
+
+      - name: Build ${{ matrix.env }}
+        run: pio run -e ${{ matrix.env }} -d ${{ github.workspace }}
+
+  # ── Native unit tests ──────────────────────────────────────────────────────
+  # Runs host-side tests (protocol parsing, security scorer, ring buffer,
+  # SD guard) on every push. No hardware required.
+  native-tests:
+    name: Native unit tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Cache PlatformIO
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.platformio
+            ~/.cache/pip
+          key: ${{ runner.os }}-pio-native-${{ hashFiles('platformio.ini') }}
+          restore-keys: |
+            ${{ runner.os }}-pio-native-
+
+      - name: Install PlatformIO
+        run: pip install platformio
+
+      - name: Run native tests
+        run: pio test -e native -d ${{ github.workspace }}
