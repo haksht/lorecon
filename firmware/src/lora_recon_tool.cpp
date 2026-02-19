@@ -289,12 +289,22 @@ void LoRaReconTool::handleReconnaissanceMode(uint32_t now) {
 
 // Handle targeted capture mode operations
 void LoRaReconTool::handleTargetedCaptureMode(uint32_t now) {
-    // Gate display update on target config change — not every 10ms loop iteration.
-    // Unconditional showTargetingMode() every loop caused unnecessary I2C traffic.
+    // Refresh targeting display when config changes OR every 5 seconds.
+    // The 5-second fallback ensures MODE_PACKET_INFO (set by showPacketReceived)
+    // doesn't permanently replace the targeting status screen when packets arrive
+    // at a high rate.  Unconditional every-loop calls are still avoided to keep
+    // I2C traffic low.
     if (oledDisplay && oledDisplay->isOn()) {
-        static uint8_t lastDisplayedTargetConfig = 0xFF;
-        if (reconState.scanState.targetConfig != lastDisplayedTargetConfig) {
+        static uint8_t  lastDisplayedTargetConfig = 0xFF;
+        static uint32_t lastTargetingDisplayTime   = 0;
+        constexpr uint32_t TARGETING_REFRESH_MS    = 5000;
+
+        bool configChanged   = reconState.scanState.targetConfig != lastDisplayedTargetConfig;
+        bool periodicRefresh = (now - lastTargetingDisplayTime) >= TARGETING_REFRESH_MS;
+
+        if (configChanged || periodicRefresh) {
             lastDisplayedTargetConfig = reconState.scanState.targetConfig;
+            lastTargetingDisplayTime  = now;
             const ScanConfig& cfg = reconState.getScanConfig(reconState.scanState.targetConfig);
             static char targetInfo[32];
             snprintf(targetInfo, sizeof(targetInfo), "%.3f MHz", cfg.frequency);
