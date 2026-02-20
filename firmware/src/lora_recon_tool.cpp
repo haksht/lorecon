@@ -235,9 +235,19 @@ void LoRaReconTool::update() {
         case MODE_INTERACTIVE_MENU:
             // Auto-resume after timeout to prevent "left in menu mode" issue
             if (menuModeEnteredAt > 0 && (now - menuModeEnteredAt) >= Config::UI::MENU_TIMEOUT_MS) {
-                LOG_INFO("Menu timeout after %d ms - auto-resuming reconnaissance mode", Config::UI::MENU_TIMEOUT_MS);
-                modeManager.logModeTransition(MODE_INTERACTIVE_MENU, MODE_RECONNAISSANCE, "MenuTimeout");
-                reconState.scanState.mode = MODE_RECONNAISSANCE;
+                OperationMode resumeMode = MODE_RECONNAISSANCE;
+                uint8_t resumeConfig = 0;
+                bool resumeByDevice = false;
+                if (modeManager.loadPersistedMode(resumeMode, resumeConfig, resumeByDevice)) {
+                    LOG_INFO("Menu timeout after %d ms - auto-resuming targeted capture (config %d)",
+                             Config::UI::MENU_TIMEOUT_MS, resumeConfig);
+                    reconState.scanState.targetConfig = resumeConfig;
+                } else {
+                    LOG_INFO("Menu timeout after %d ms - auto-resuming reconnaissance mode",
+                             Config::UI::MENU_TIMEOUT_MS);
+                }
+                modeManager.logModeTransition(MODE_INTERACTIVE_MENU, resumeMode, "MenuTimeout");
+                reconState.scanState.mode = resumeMode;
                 menuModeEnteredAt = 0;
             }
             // Just wait for user input
