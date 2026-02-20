@@ -135,6 +135,76 @@ Use this script for reproducible live demos at security conferences, workshops, 
 
 ---
 
+## Common Audience Questions
+
+### "Why not just use a HackRF?"
+
+**Short answer:** *"HackRF is a great tool, but it needs a laptop and setup time. This runs standalone, fits in your pocket, and is on from the moment you power it up."*
+
+**Talking points:**
+- HackRF is a general-purpose SDR — powerful, but requires a PC + SDR software (GNU Radio, SDR#, etc.) and meaningful setup per session
+- This device is purpose-built for LoRa: powers on and immediately sniffs, no configuration needed
+- The SX1262 radio demodulates LoRa in hardware — more sensitive and reliable than software-defined approaches on HackRF
+- **Cost**: Heltec V3 ~$25, T3-S3 ~$20 vs HackRF ~$350+
+- **Power**: HackRF draws ~350 mA and needs USB host; this runs for hours on a small LiPo
+- **Form factor**: Fits in a shirt pocket, deployable anywhere — no laptop bag required
+- HackRF can do LoRa, but you'd spend 30 minutes configuring GNU Radio before your first packet. This gives you your first packet in 5 minutes out of the box.
+
+**Honest concession:** *"If you already own a HackRF and know GNU Radio, you can do everything this does and more. This project's value is accessibility and deployability, not raw capability."*
+
+---
+
+### "Can't a Flipper Zero do this?"
+
+**Short answer:** *"Flipper can receive LoRa with an add-on module, but it has no LoRa-specific analysis — no PSK decryption, no device tracking, no web UI. It's a great multi-tool, not a dedicated LoRa recon platform."*
+
+**Talking points:**
+- Flipper LoRa support is via community add-on modules (e.g., LoRa-E5 board) — not first-class and not in stock firmware
+- Flipper can capture raw bytes on a fixed frequency; it cannot scan 26 channel configurations, decode Meshtastic protocol, or test PSKs
+- No SD logging, no PCAP export, no GPS extraction, no network map
+- Flipper is excellent for SubGHz replay attacks on simpler protocols (garage doors, etc.) — LoRa's spread-spectrum modulation is a different problem
+- Think of Flipper as a Swiss Army knife and this as a scalpel
+
+---
+
+### "Is this legal?"
+
+**Short answer:** *"Passive RF monitoring of unlicensed spectrum is legal in the US under FCC Part 15. We don't transmit, we don't intercept private communications — we observe the same signals any LoRa gateway would receive."*
+
+**Talking points:**
+- LoRa operates on ISM bands (915 MHz in US, 868 MHz in EU) — unlicensed, publicly shared spectrum
+- Passive monitoring (receive-only) has no legal restriction in the US; it's the same as listening to FM radio
+- Transmission (replay) requires authorization — that's why the demo script says don't replay without permission
+- Decrypting packets using publicly known default keys is legally analogous to logging into a router with the default password — not a CFAA violation
+- If someone in the audience challenges this, redirect: *"Great question for the legal panel — but we're in the same category as a WiFi packet sniffer on an open network"*
+
+---
+
+### "Could you use this against me right now?"
+
+**Short answer:** *"Only if your Meshtastic device is using a default PSK, which most out-of-the-box installations are. Change your PSK and you're invisible to this tool."*
+
+**Talking points:**
+- The tool discovers any LoRa device transmitting in range — that part is unavoidable (it's RF)
+- Decryption only works against known default PSKs — custom keys are opaque to us
+- Position data is only extracted if decryption succeeds
+- The whole point of the demo is to show what passive observers can see — and motivate people to harden their configs
+- *"This is the threat model you should be designing against"*
+
+---
+
+### "Why build this instead of contributing to an existing tool?"
+
+**Short answer:** *"Nothing else combined standalone hardware demodulation, PSK testing, and GPS extraction in a $25 embedded package. We looked."*
+
+**Talking points:**
+- Wireshark LoRa dissectors exist but require a PC + SDR frontend
+- ChirpStack and TTN gateways are infrastructure tools, not recon tools
+- Meshtastic's own app can only see traffic on its own network with the right key — it's not a passive sniffer
+- The embedded form factor is the unique contribution: deployable, low-power, no dependencies
+
+---
+
 ## Post-Demo Resources
 
 **Slide:** Show QR code linking to:
