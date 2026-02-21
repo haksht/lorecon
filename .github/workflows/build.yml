@@ -16,7 +16,7 @@ jobs:
     strategy:
       fail-fast: false          # Show all failures, not just the first
       matrix:
-        env: [heltec_v3, t3_s3]
+        env: [heltec_v3, t3_s3, tbeam_supreme]
 
     steps:
       - uses: actions/checkout@v4

@@ -10,6 +10,8 @@
 #include "mode_manager.h"
 #include "config.h"
 #include "psk_decryption_simple.h"
+#include "utils/pmu_controller.h"
+#include "gps_controller.h"
 #include <LittleFS.h>
 #include <ArduinoJson.h>
 #include <esp_task_wdt.h>
@@ -71,6 +73,15 @@ bool LoRaReconTool::initialize() {
         LOG_ERROR("Insufficient heap for initialization (%lu bytes, need 40000+)", freeHeap);
         return false;
     }
+
+    // Initialize AXP2101 PMIC (T-Beam Supreme only — no-op on other boards).
+    // MUST run before radio, display, SD, and GPS: the PMIC controls all power rails.
+#ifdef HAS_AXP2101
+    if (!PMUController::initialize()) {
+        LOG_ERROR("AXP2101 PMIC initialization failed — peripherals will not have power");
+        return false;
+    }
+#endif
 
     // Initialize RadioController
     radioController = new RadioController();
@@ -158,6 +169,19 @@ bool LoRaReconTool::initialize() {
         LOG_INFO("SD card not present - continuing without logging");
     }
     
+    // Initialize GPS controller (T-Beam Supreme only — no-op on other boards).
+    // Requires AXP2101 ALDO4 to be on (done above).
+#ifdef HAS_GPS
+    g_gpsController = new GpsController();
+    if (!g_gpsController->initialize()) {
+        LOG_WARN("GPS initialization failed - continuing without GPS");
+        delete g_gpsController;
+        g_gpsController = nullptr;
+    } else {
+        LOG_INFO("GPS initialized — waiting for fix (go outside for best results)");
+    }
+#endif
+
     // Initialize PSK decryption system
     PSKDecryption::initialize();
     
@@ -205,7 +229,19 @@ void LoRaReconTool::update() {
     
     // Pet the watchdog
     esp_task_wdt_reset();
-    
+
+    // Drain GPS UART buffer (non-blocking — just feeds bytes to TinyGPS++)
+#ifdef HAS_GPS
+    if (g_gpsController) {
+        g_gpsController->update();
+        // Push GPS status to display so indicators stay current
+        if (oledDisplay) {
+            oledDisplay->setGpsStatus(g_gpsController->hasFix(),
+                                      g_gpsController->getSatellites());
+        }
+    }
+#endif
+
     // Update display
     if (oledDisplay && oledDisplay->isOn()) {
         oledDisplay->update();

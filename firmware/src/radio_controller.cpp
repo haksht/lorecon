@@ -72,7 +72,7 @@ bool RadioController::initialize() {
         // BEFORE the internal "calibrate all blocks" step. Setting TCXO after
         // begin() causes PLL lock failures (-2) on setFrequency().
         // Ref: Meshtastic variant.h uses SX126X_DIO3_TCXO_VOLTAGE = 1.8
-        LOG_INFO("T3-S3: Initializing SX1262 (TCXO 1.8V)...");
+        LOG_INFO("T3-S3: Initializing SX1262 (TCXO 1.8V via DIO3)...");
         int state = radio->begin(
             868.0,    // freq (initial, changed later by applyConfig)
             125.0,    // bw (kHz)
@@ -98,8 +98,39 @@ bool RadioController::initialize() {
         } else {
             LOG_INFO("DIO2 RF switch enabled");
         }
+    #elif defined(BOARD_TBEAM_SUPREME)
+        // T-Beam Supreme: SX1262 with TCXO continuously powered by AXP2101 ALDO3.
+        // Unlike T3-S3, DIO3 does NOT control TCXO power — the PMIC supplies 3.3V
+        // constantly. We still pass tcxoVoltage=1.8 so RadioLib configures the
+        // SX1262 into TCXO mode (vs crystal mode) for calibration.
+        LOG_INFO("T-Beam Supreme: Initializing SX1262 (TCXO via AXP2101 ALDO3)...");
+        int state = radio->begin(
+            868.0,    // freq (initial, changed later by applyConfig)
+            125.0,    // bw (kHz)
+            9,        // sf
+            7,        // cr
+            RADIOLIB_SX126X_SYNC_WORD_PRIVATE,  // syncWord
+            10,       // power (dBm)
+            8,        // preambleLength
+            1.8,      // tcxoVoltage - tells RadioLib to use TCXO mode
+            false     // useRegulatorLDO (false = DCDC)
+        );
+        if (state != RADIOLIB_ERR_NONE) {
+            LOG_ERROR("SX1262 begin failed (error: %d)", state);
+            return false;
+        }
+
+        LOG_INFO("T-Beam Supreme: begin() succeeded");
+
+        // Enable DIO2 as RF switch control
+        state = radio->setDio2AsRfSwitch(true);
+        if (state != RADIOLIB_ERR_NONE) {
+            LOG_WARN("setDio2AsRfSwitch: %d", state);
+        } else {
+            LOG_INFO("DIO2 RF switch enabled");
+        }
     #else
-        // Non-T3-S3 boards: just call begin()
+        // Non-TCXO boards (Heltec V3): just call begin()
         int state = radio->begin();
         if (state != RADIOLIB_ERR_NONE) {
             LOG_ERROR("SX1262 initialization failed (error: %d)", state);
