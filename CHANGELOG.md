@@ -2,6 +2,26 @@
 
 All notable changes to the ESP32 LoRa Sniffer project.
 
+## [Unreleased] - 2026-02-21
+
+### Added
+- **Wireless data export**: 4 new sidebar buttons — Download CSV, Download PCAP, Export KML, Export GeoJSON
+- **CSV download endpoint**: `GET /api/export/csv` streams current session log directly from SD card
+- **File browser API**: `GET /api/files` lists `/logs/` directory; `GET /api/files/download?name=<file>` retrieves any past session file
+- **SD flush before stream**: `packetLogger.flush()` called before every SD streaming response to expose unflushed FAT write buffer
+
+### Fixed
+- **KML/GeoJSON download headers**: Added `Content-Disposition: attachment` so browsers download instead of rendering inline
+- **GeoJSON MIME type**: Changed to `application/geo+json` (correct RFC 7946 type)
+- **`actionExportKML`**: Replaced `window.open()` with blob download (was opening in browser tab)
+- **`entry.name()` full-path bug**: `handleListFiles` now strips directory prefix from SD file entries; without fix, `/api/files` and `/api/files/download` were incompatible
+- **File handle leak**: `handleListFiles` now calls `dir.close()` on all error paths
+- **Error handling**: All four download actions (`actionExportCSV`, `actionExportPCAP`, `actionExportKML`, `actionExportGeoJSON`) wrapped in try/catch for network errors
+
+### Improved
+- **OLED scanning mode**: Shows IP address and mDNS hostname (`hostname.local`) on two footer lines instead of cramming both on one line
+- **OLED targeting mode**: Now also shows mDNS hostname alongside IP address
+
 ## [2.2.3] - 2026-01-02
 
 ### Added
