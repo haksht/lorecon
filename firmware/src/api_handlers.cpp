@@ -94,11 +94,17 @@ void handleGetPositions(AsyncWebServerRequest* request) {
 }
 
 void handleExportGeoJSON(AsyncWebServerRequest* request) {
-    request->send(200, "application/json", APIController::exportGeoJSON());
+    AsyncWebServerResponse* response = request->beginResponse(
+        200, "application/geo+json", APIController::exportGeoJSON());
+    response->addHeader("Content-Disposition", "attachment; filename=\"lora-positions.geojson\"");
+    request->send(response);
 }
 
 void handleExportKML(AsyncWebServerRequest* request) {
-    request->send(200, "application/vnd.google-earth.kml+xml", APIController::exportKML());
+    AsyncWebServerResponse* response = request->beginResponse(
+        200, "application/vnd.google-earth.kml+xml", APIController::exportKML());
+    response->addHeader("Content-Disposition", "attachment; filename=\"lora-positions.kml\"");
+    request->send(response);
 }
 
 void handleExportPCAP(AsyncWebServerRequest* request) {
@@ -136,7 +142,8 @@ void handleExportPCAP(AsyncWebServerRequest* request) {
 
     // Check if PCAP file exists
     if (SD.exists(pcapFile.c_str())) {
-        // Send file with proper MIME type and force download
+        // Flush to ensure the reader sees all buffered writes
+        packetLogger.flush();
         request->send(SD, pcapFile, "application/vnd.tcpdump.pcap", true);
         LOG_INFO("PCAP file downloaded: %s", pcapFile.c_str());
     } else {
@@ -155,6 +162,36 @@ void handleExportPCAP(AsyncWebServerRequest* request) {
         LOG_WARN("PCAP download requested but file not found: %s (CSV exists: %s)",
                  pcapFile.c_str(), csvExists ? "yes" : "no");
     }
+}
+
+void handleExportCSV(AsyncWebServerRequest* request) {
+    if (!packetLogger.isAvailable()) {
+        request->send(404, "application/json",
+            JsonUtils::error("SD card not available. Insert SD card and restart device to enable CSV logging."));
+        LOG_WARN("CSV download requested but SD card not available");
+        return;
+    }
+
+    String sessionFile = packetLogger.getCurrentSessionFile();
+    if (sessionFile.isEmpty()) {
+        request->send(404, "application/json",
+            JsonUtils::error("No active logging session. Wait for packet capture to start."));
+        LOG_WARN("CSV download requested but no active session");
+        return;
+    }
+
+    String csvPath = "/logs/" + sessionFile;
+    if (!SD.exists(csvPath.c_str())) {
+        request->send(404, "application/json",
+            JsonUtils::error("CSV file not found on SD card."));
+        LOG_WARN("CSV download requested but file not found: %s", csvPath.c_str());
+        return;
+    }
+
+    // Flush to ensure the reader sees all buffered writes
+    packetLogger.flush();
+    request->send(SD, csvPath, "text/csv", true);
+    LOG_INFO("CSV file downloaded: %s", csvPath.c_str());
 }
 
 // =============================================================================
@@ -480,6 +517,102 @@ void handleExportReport(AsyncWebServerRequest* request) {
         200, "application/json", APIController::getConsolidatedReport());
     response->addHeader("Content-Disposition", "attachment; filename=\"lora-recon-report.json\"");
     request->send(response);
+}
+
+// =============================================================================
+// SD FILE BROWSER
+// =============================================================================
+
+void handleListFiles(AsyncWebServerRequest* request) {
+    if (!packetLogger.isAvailable()) {
+        request->send(404, "application/json", JsonUtils::error("SD card not available"));
+        return;
+    }
+
+    File dir = SD.open("/logs");
+    if (!dir) {
+        request->send(404, "application/json", JsonUtils::error("No logs directory on SD card"));
+        return;
+    }
+    if (!dir.isDirectory()) {
+        dir.close();
+        request->send(404, "application/json", JsonUtils::error("No logs directory on SD card"));
+        return;
+    }
+
+    String json = "{\"files\":[";
+    bool first = true;
+    File entry = dir.openNextFile();
+    while (entry) {
+        if (!entry.isDirectory()) {
+            // entry.name() may return the full path ("/logs/foo.csv") on some
+            // ESP32 SDK versions — strip to bare filename so the download
+            // endpoint receives a name that passes its path-traversal guard.
+            String name = entry.name();
+            int slash = name.lastIndexOf('/');
+            if (slash >= 0) name = name.substring(slash + 1);
+
+            if (!first) json += ",";
+            json += "{\"name\":\"";
+            json += name;
+            json += "\",\"size\":";
+            json += entry.size();
+            json += "}";
+            first = false;
+        }
+        entry.close();
+        entry = dir.openNextFile();
+    }
+    dir.close();
+    json += "]}";
+
+    request->send(200, "application/json", json);
+}
+
+void handleDownloadFile(AsyncWebServerRequest* request) {
+    if (!request->hasParam("name")) {
+        request->send(400, "application/json", JsonUtils::error("Missing name parameter"));
+        return;
+    }
+
+    String filename = request->getParam("name")->value();
+
+    // Reject path traversal attempts
+    if (filename.indexOf('/') >= 0 || filename.indexOf("..") >= 0) {
+        request->send(400, "application/json", JsonUtils::error("Invalid filename"));
+        return;
+    }
+
+    if (!packetLogger.isAvailable()) {
+        request->send(404, "application/json", JsonUtils::error("SD card not available"));
+        return;
+    }
+
+    String path = "/logs/" + filename;
+    if (!SD.exists(path.c_str())) {
+        request->send(404, "application/json", JsonUtils::error("File not found"));
+        return;
+    }
+
+    // Flush if this is the active session file (or its PCAP counterpart)
+    if (!packetLogger.getCurrentSessionFile().isEmpty()) {
+        String active = packetLogger.getCurrentSessionFile();
+        String activePcap = active.endsWith(".csv")
+            ? active.substring(0, active.length() - 4) + ".pcap"
+            : active;
+        if (filename == active || filename == activePcap) {
+            packetLogger.flush();
+        }
+    }
+
+    String mime = "application/octet-stream";
+    if (filename.endsWith(".csv"))  mime = "text/csv";
+    else if (filename.endsWith(".pcap")) mime = "application/vnd.tcpdump.pcap";
+    else if (filename.endsWith(".json")) mime = "application/json";
+    else if (filename.endsWith(".kml"))  mime = "application/vnd.google-earth.kml+xml";
+
+    request->send(SD, path, mime, true);
+    LOG_INFO("File downloaded via browser: %s", path.c_str());
 }
 
 }  // namespace APIHandlers

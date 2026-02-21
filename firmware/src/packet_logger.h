@@ -98,11 +98,14 @@ public:
     bool exportDeviceSummaryJSON();
     bool exportGPSTracksKML();
     
+    // Flush all buffered data to FAT (call before reading files via a second handle)
+    void flush();
+
     // Statistics
     uint32_t getPacketCount() const { return packetsLogged; }
     uint32_t getSessionDuration() const;
     void printStatus();
-    
+
 private:
     bool sdAvailable;
     File sessionFile;
@@ -115,7 +118,7 @@ private:
     // Helper methods
     String generateSessionFilename();
     bool writeCSVHeader();
-    bool flushBuffer();
+    bool flushBuffer();  // internal — use flush() from outside
     String escapeCSV(const String& str);
     String bytesToHex(const uint8_t* data, size_t length);
 };

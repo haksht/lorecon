@@ -1746,6 +1746,10 @@ class ReconApp {
             'resume-recon': () => this.actionToggleScan(),
             'stop-capture': () => this.actionStopCapture(),
             'download-report': () => this.actionDownloadReport(),
+            'download-csv':    () => this.actionExportCSV(),
+            'download-pcap':   () => this.actionExportPCAP(),
+            'export-kml':      () => this.actionExportKML(),
+            'export-geojson':  () => this.actionExportGeoJSON(),
             'clear-packets': () => this.actionClearPackets(),
             'clear-devices': () => this.actionClearDevices(),
             'show-activity': () => this.actionShowActivity(),
@@ -1832,11 +1836,77 @@ class ReconApp {
     
     async actionExportKML() {
         const gpsData = await this.get('/api/positions');
-        if (gpsData?.positions?.length > 0) {
-            window.open('/api/export/kml', '_blank');
-            showToast(`Exporting ${gpsData.positions.length} GPS location(s)...`, 'success');
-        } else {
+        if (!gpsData?.positions?.length) {
             showToast('No GPS data to export. Capture packets with location data first.', 'warning');
+            return;
+        }
+        showToast(`Exporting ${gpsData.positions.length} GPS location(s) as KML...`, 'info');
+        try {
+            const response = await fetch('/api/export/kml');
+            if (!response.ok) { showToast('KML export failed: HTTP ' + response.status, 'error'); return; }
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'lora-positions-' + Date.now() + '.kml';
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            a.remove();
+            showToast('KML downloaded successfully', 'success');
+        } catch (err) {
+            showToast('KML export failed: ' + err.message, 'error');
+        }
+    }
+
+    async actionExportGeoJSON() {
+        const gpsData = await this.get('/api/positions');
+        if (!gpsData?.positions?.length) {
+            showToast('No GPS data to export. Capture packets with location data first.', 'warning');
+            return;
+        }
+        showToast(`Exporting ${gpsData.positions.length} GPS location(s) as GeoJSON...`, 'info');
+        try {
+            const response = await fetch('/api/export/geojson');
+            if (!response.ok) { showToast('GeoJSON export failed: HTTP ' + response.status, 'error'); return; }
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'lora-positions-' + Date.now() + '.geojson';
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            a.remove();
+            showToast('GeoJSON downloaded successfully', 'success');
+        } catch (err) {
+            showToast('GeoJSON export failed: ' + err.message, 'error');
+        }
+    }
+
+    async actionExportCSV() {
+        showToast('Downloading CSV log from SD card...', 'info');
+        try {
+            const response = await fetch('/api/export/csv');
+            if (response.status === 404) {
+                const error = await response.json();
+                showToast(error.message || 'No CSV file available', 'error');
+            } else if (response.ok) {
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'lora_capture_' + Date.now() + '.csv';
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+                a.remove();
+                showToast('CSV downloaded successfully', 'success');
+            } else {
+                showToast('CSV export failed: HTTP ' + response.status, 'error');
+            }
+        } catch (err) {
+            showToast('CSV download failed: ' + err.message, 'error');
         }
     }
     
@@ -1898,26 +1968,29 @@ class ReconApp {
         }
         
         showToast('Downloading PCAP capture...', 'info');
-        const response = await fetch('/api/export/pcap');
-        
-        if (response.status === 404) {
-            const error = await response.json();
-            showToast(error.message || 'No PCAP file available', 'error');
-        } else if (response.status === 501) {
-            showToast('PCAP export is disabled on this device', 'error');
-        } else if (response.ok) {
-            const blob = await response.blob();
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = 'lora_capture_' + Date.now() + '.pcap';
-            document.body.appendChild(a);
-            a.click();
-            window.URL.revokeObjectURL(url);
-            a.remove();
-            showToast('PCAP downloaded successfully', 'success');
-        } else {
-            showToast('PCAP export failed: HTTP ' + response.status, 'error');
+        try {
+            const response = await fetch('/api/export/pcap');
+            if (response.status === 404) {
+                const error = await response.json();
+                showToast(error.message || 'No PCAP file available', 'error');
+            } else if (response.status === 501) {
+                showToast('PCAP export is disabled on this device', 'error');
+            } else if (response.ok) {
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'lora_capture_' + Date.now() + '.pcap';
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+                a.remove();
+                showToast('PCAP downloaded successfully', 'success');
+            } else {
+                showToast('PCAP export failed: HTTP ' + response.status, 'error');
+            }
+        } catch (err) {
+            showToast('PCAP download failed: ' + err.message, 'error');
         }
     }
     
