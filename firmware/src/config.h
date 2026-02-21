@@ -65,6 +65,57 @@ namespace Hardware {
         constexpr uint8_t VBAT_CTRL_PIN = PIN_UNUSED; // No control pin needed
         constexpr float VBAT_SCALE = 2.0f;   // Voltage divider scaling factor
 
+    #elif defined(BOARD_TBEAM_SUPREME)
+        // ========================================================================
+        // LilyGo T-Beam Supreme Pin Configuration
+        // ========================================================================
+        // Board: ESP32-S3FN8 (8MB QIO flash, 8MB Quad PSRAM) + SX1262 + SH1106 OLED
+        //        + SD Card + GPS (L76K/MAX-M10S) + AXP2101 PMIC
+        // GPIO 33-37 are safe (Quad PSRAM, NOT Octal — no OPI conflict)
+        // AXP2101 powers all peripherals; must initialize before radio/SD/GPS.
+
+        // SX1262 LoRa Radio Pins (FSPI/SPI2 — default FSPI pins on ESP32-S3)
+        constexpr uint8_t LORA_NSS = 10;     // SPI chip select
+        constexpr uint8_t LORA_DIO1 = 1;     // Interrupt pin (DIO1)
+        constexpr uint8_t LORA_RST = 5;      // Reset pin
+        constexpr uint8_t LORA_BUSY = 4;     // Busy indicator
+
+        // LoRa SPI Bus Pins (FSPI/SPI2)
+        constexpr uint8_t SPI_SCK = 12;      // Clock
+        constexpr uint8_t SPI_MISO = 13;     // Master In Slave Out
+        constexpr uint8_t SPI_MOSI = 11;     // Master Out Slave In
+
+        // SD Card Pins (HSPI/SPI3 — separate bus to avoid LoRa SPI conflict)
+        constexpr uint8_t SD_CS = 47;        // SD card chip select
+        constexpr uint8_t SD_SCK = 36;       // SD card clock
+        constexpr uint8_t SD_MISO = 37;      // SD card MISO
+        constexpr uint8_t SD_MOSI = 35;      // SD card MOSI
+
+        // I2C Display Bus (SH1106 OLED 128×64 @ 0x3C)
+        constexpr uint8_t OLED_SDA = 17;     // I2C data
+        constexpr uint8_t OLED_SCL = 18;     // I2C clock
+        constexpr uint8_t OLED_RST = PIN_UNUSED;
+
+        // GPS UART (L76K or MAX-M10S)
+        constexpr uint8_t GPS_RX = 9;        // GPS TX → ESP32 RX
+        constexpr uint8_t GPS_TX = 8;        // ESP32 TX → GPS RX
+        constexpr uint8_t GPS_EN = 7;        // Pull HIGH to enable GPS module
+
+        // AXP2101 PMIC (separate I2C bus from display)
+        constexpr uint8_t PMU_SDA = 42;      // PMU I2C data
+        constexpr uint8_t PMU_SCL = 41;      // PMU I2C clock
+        constexpr uint8_t PMU_IRQ = 40;      // PMU interrupt (active low)
+
+        // User Interface
+        constexpr uint8_t USER_BUTTON = 0;   // BOOT button (active low)
+        constexpr uint8_t USER_LED = PIN_UNUSED;  // No dedicated user LED
+
+        // Battery Monitoring (via AXP2101 PMIC over I2C, not ADC)
+        // Actual reading handled by pmu_controller.h
+        constexpr uint8_t VBAT_ADC_PIN = PIN_UNUSED;
+        constexpr uint8_t VBAT_CTRL_PIN = PIN_UNUSED;
+        constexpr float VBAT_SCALE = 1.0f;   // Not used (PMIC reads directly)
+
     #elif defined(BOARD_HELTEC_V3)
         // ========================================================================
         // Heltec WiFi LoRa 32 V3 Pin Configuration
@@ -106,7 +157,7 @@ namespace Hardware {
         constexpr float VBAT_SCALE = 4.9f;   // Voltage divider scaling factor
 
     #else
-        #error "No board type defined! Define BOARD_T3_S3 or BOARD_HELTEC_V3 in platformio.ini"
+        #error "No board type defined! Define BOARD_T3_S3, BOARD_HELTEC_V3, or BOARD_TBEAM_SUPREME in platformio.ini"
     #endif
 
 }

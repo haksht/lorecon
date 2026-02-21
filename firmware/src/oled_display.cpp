@@ -1,4 +1,4 @@
-#if defined(BOARD_HELTEC_V3) || defined(BOARD_T3_S3)
+#if defined(BOARD_HELTEC_V3) || defined(BOARD_T3_S3) || defined(BOARD_TBEAM_SUPREME)
 
 #include "oled_display.h"
 #include <Wire.h>
@@ -35,6 +35,10 @@ bool OLEDDisplay::initialize() {
         // T3-S3: No Vext power control or hardware reset pin
         Serial.println("[DISPLAY] T3-S3: Using software reset only");
         delay(50);  // Short delay for power stabilization
+    #elif defined(BOARD_TBEAM_SUPREME)
+        // T-Beam Supreme: Display powered by AXP2101 ALDO1 (always on after PMU init)
+        Serial.println("[DISPLAY] T-Beam Supreme: SH1106 display, software reset only");
+        delay(50);
     #endif
 
     // Reset watchdog before potentially long I2C operations
@@ -102,12 +106,14 @@ bool OLEDDisplay::initialize() {
         if (attempt < 2) {
             Serial.printf("[DISPLAY]   Attempt %d: U8g2 begin() failed, retrying...\n", attempt);
             delay(100);
-            
-            // Try another reset pulse before retry
+
+            // Try another reset pulse before retry (only on boards with a hardware RST pin)
+            #if OLED_RST >= 0
             digitalWrite(OLED_RST, LOW);
             delay(10);
             digitalWrite(OLED_RST, HIGH);
             delay(50);
+            #endif
         } else {
             Serial.println("[DISPLAY] ❌ U8g2 begin() failed after retries");
         }
@@ -129,8 +135,13 @@ bool OLEDDisplay::initialize() {
     lastActivityTime = millis();
     
     Serial.println("OK");
-    Serial.printf("[DISPLAY] OLED ready (128x64, I2C: SDA=%d, SCL=%d, Vext=%d)\n", 
+    #if defined(BOARD_HELTEC_V3)
+    Serial.printf("[DISPLAY] OLED ready (128x64, I2C: SDA=%d, SCL=%d, Vext=%d)\n",
                   OLED_SDA, OLED_SCL, OLED_VEXT);
+    #else
+    Serial.printf("[DISPLAY] OLED ready (128x64, I2C: SDA=%d, SCL=%d)\n",
+                  OLED_SDA, OLED_SCL);
+    #endif
     
     return true;
 }
@@ -203,6 +214,10 @@ bool OLEDDisplay::reinitialize() {
     #elif defined(BOARD_T3_S3)
         // T3-S3: No power control, just delay
         Serial.println("[DISPLAY] T3-S3: Software reset only");
+        delay(150);
+    #elif defined(BOARD_TBEAM_SUPREME)
+        // T-Beam Supreme: Powered by AXP2101, just delay
+        Serial.println("[DISPLAY] T-Beam Supreme: Software reset only");
         delay(150);
     #endif
 
@@ -345,6 +360,13 @@ void OLEDDisplay::clearInfo() {
     info.frequency[sizeof(info.frequency) - 1] = '\0';
     info.ipAddress[0] = '\0';
     info.mdnsName[0] = '\0';
+    info.gpsHasFix = false;
+    info.gpsSatellites = 0;
+}
+
+void OLEDDisplay::setGpsStatus(bool hasFix, uint32_t satellites) {
+    info.gpsHasFix = hasFix;
+    info.gpsSatellites = satellites;
 }
 
 void OLEDDisplay::setNetworkInfo(const char* ipAddr, const char* mdnsName) {
@@ -430,8 +452,19 @@ void OLEDDisplay::renderScanning() {
     snprintf(buffer, sizeof(buffer), "Freq: %s MHz", info.frequency);
     display.drawStr(0, 34, buffer);
 
-    // Spreading Factor and Packet count (use global count from reconState)
+    // Spreading Factor, Packet count, and GPS status (if available)
+    #ifdef HAS_GPS
+    if (info.gpsHasFix) {
+        snprintf(buffer, sizeof(buffer), "SF:%d Pkts:%u G:%u",
+                 info.sf, reconState.scanState.totalPackets.load(),
+                 static_cast<unsigned>(info.gpsSatellites));
+    } else {
+        snprintf(buffer, sizeof(buffer), "SF:%d Pkts:%u G:--",
+                 info.sf, reconState.scanState.totalPackets.load());
+    }
+    #else
     snprintf(buffer, sizeof(buffer), "SF:%d Pkts:%u", info.sf, reconState.scanState.totalPackets.load());
+    #endif
     display.drawStr(0, 46, buffer);
 
     // Show IP + mDNS on two lines at bottom, else button help
@@ -507,8 +540,31 @@ void OLEDDisplay::renderTargeting() {
              reconState.scanState.totalPackets.load(), info.lastRSSI);
     display.drawStr(0, 40, buffer);
     
-    // Show IP + mDNS at bottom so user knows how to connect
+    // Footer: show GPS coordinates when fix available, else IP/mDNS
     display.setFont(u8g2_font_5x7_tf);
+    #ifdef HAS_GPS
+    if (info.gpsHasFix && info.gpsSatellites > 0) {
+        // GPS coordinates are set externally via setGpsStatus(); display is
+        // updated by lora_recon_tool each loop, so info is always fresh.
+        // We store sats but not lat/lon in DisplayInfo to keep struct small;
+        // display just confirms fix quality here.
+        snprintf(buffer, sizeof(buffer), "GPS: %u sats",
+                 static_cast<unsigned>(info.gpsSatellites));
+        display.drawStr(0, 54, buffer);
+        if (info.ipAddress[0] != '\0') {
+            snprintf(buffer, sizeof(buffer), "%s.local", info.mdnsName);
+            display.drawStr(0, 63, buffer);
+        }
+    } else {
+        if (info.ipAddress[0] != '\0') {
+            display.drawStr(0, 54, info.ipAddress);
+            if (info.mdnsName[0] != '\0') {
+                snprintf(buffer, sizeof(buffer), "%s.local", info.mdnsName);
+                display.drawStr(0, 63, buffer);
+            }
+        }
+    }
+    #else
     if (info.ipAddress[0] != '\0') {
         display.drawStr(0, 54, info.ipAddress);
         if (info.mdnsName[0] != '\0') {
@@ -516,6 +572,7 @@ void OLEDDisplay::renderTargeting() {
             display.drawStr(0, 63, buffer);
         }
     }
+    #endif
 }
 
 void OLEDDisplay::renderShutdown() {
@@ -568,4 +625,4 @@ void OLEDDisplay::showApiToken(const char* token) {
     Serial.println("[DISPLAY] API token displayed on OLED");
 }
 
-#endif // BOARD_HELTEC_V3 || BOARD_T3_S3
+#endif // BOARD_HELTEC_V3 || BOARD_T3_S3 || BOARD_TBEAM_SUPREME

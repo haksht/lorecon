@@ -38,10 +38,11 @@ inline SDState& getState() {
     return state;
 }
 
-#if defined(BOARD_T3_S3)
+#if defined(BOARD_T3_S3) || defined(BOARD_TBEAM_SUPREME)
 /**
- * Get the dedicated SD SPI bus instance (T3-S3 only).
- * Uses HSPI (SPI3) so it doesn't conflict with LoRa on FSPI (SPI2).
+ * Get the dedicated SD SPI bus instance (T3-S3 and T-Beam Supreme).
+ * Both boards use HSPI (SPI3) for SD so it doesn't conflict with LoRa on FSPI (SPI2).
+ * Pin assignments differ per board but are resolved via Config::Hardware.
  */
 inline SPIClass& getSDSPI() {
     static SPIClass sdSPI(HSPI);
@@ -81,8 +82,8 @@ inline bool initialize(int csPin = Config::Hardware::SD_CS) {
 #endif
 
     // Try to initialize
-#if defined(BOARD_T3_S3)
-    // T3-S3: SD card on dedicated SPI bus (HSPI) to avoid LoRa SPI conflict
+#if defined(BOARD_T3_S3) || defined(BOARD_TBEAM_SUPREME)
+    // T3-S3 / T-Beam Supreme: SD card on dedicated HSPI bus to avoid LoRa SPI conflict
     if (!SD.begin(Config::Hardware::SD_CS, getSDSPI())) {
 #else
     // Heltec V3: SD shares LoRa SPI bus (if external module connected)
