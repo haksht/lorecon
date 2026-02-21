@@ -1,6 +1,6 @@
 # Feature Documentation
 
-**ESP32 LoRa Reconnaissance Tool v2.2.1**
+**ESP32 LoRa Reconnaissance Tool v2.3.1**
 
 ## 🎯 Tool Identity
 
@@ -36,6 +36,7 @@ A production-ready LoRa packet capture and analysis platform for security resear
   - **Short press** (< 3 seconds): Toggle display mode
   - **Long press** (≥ 3 seconds): Initiate shutdown sequence
 - **Auto-cycle timer** (configurable display rotation)
+- **IP + mDNS footer**: Scanning and targeting modes show both IP address and `hostname.local` on two footer lines for easy device identification
 - **Robust initialization** (reset pulse + retry logic)
 - **Runtime recovery** (reinitialize() method for transient failures)
 - **Graceful degradation** (continues without display on boards lacking OLED)
@@ -265,24 +266,29 @@ Reduces serial output by 95% to minimize packet processing time and capture gaps
 | **Discovered Devices (JSON)** | ✅ `/api/devices` | ✅ `/api/devices` |
 | **System Status (JSON)** | ✅ `/api/status` | ✅ `/api/status` |
 | **Replay Packets (JSON)** | ✅ `/api/replay/slots` | ✅ `/api/replay/slots` |
-| **GPS Positions (KML)** | ✅ Serial 'k' command | ✅ Serial + file export |
-| **GPS Positions (GeoJSON)** | ✅ Serial 'j' command | ✅ Serial + file export |
-| **PCAP Packet Capture** | ❌ Not available | ✅ `/packets.pcap` |
-| **CSV Packet Log** | ❌ Not available | ✅ `/packets.csv` |
+| **GPS Positions (KML)** | ✅ Webapp "Export KML" button | ✅ Webapp "Export KML" button |
+| **GPS Positions (GeoJSON)** | ✅ Webapp "Export GeoJSON" button | ✅ Webapp "Export GeoJSON" button |
+| **PCAP Packet Capture** | ❌ Not available | ✅ Webapp "Download PCAP" button |
+| **CSV Packet Log** | ❌ Not available | ✅ Webapp "Download CSV" button |
+| **Past Session Files** | ❌ Not available | ✅ `/api/files` + `/api/files/download` |
 | **Persistent History** | ❌ Lost on reboot | ✅ Survives reboot |
 
-**Without SD Card - How to Export:**
-```bash
-# Via browser or curl - works over WiFi (AP at 192.168.4.1 or hotspot IP)
-curl http://<device-ip>/api/devices > devices.json
-curl http://<device-ip>/api/status > status.json
-curl http://<device-ip>/api/replay/slots > packets.json
+**Wireless Download (Webapp Sidebar — Actions section):**
+- **Download CSV** — Streams current session log from SD card as `lora_capture_*.csv`
+- **Download PCAP** — Streams PCAP capture from SD card as `lora_capture_*.pcap`
+- **Export KML** — Generates KML from in-memory GPS positions, downloads as `lora-positions-*.kml`
+- **Export GeoJSON** — Generates GeoJSON from in-memory GPS positions, downloads as `lora-positions-*.geojson`
 
-# Via serial - KML/GeoJSON output (copy from terminal)
-# Press 'k' for KML, 'j' for GeoJSON
+**Past Sessions (API):**
+```bash
+# List all files in /logs/
+curl http://<device-ip>/api/files
+
+# Download a specific past session
+curl "http://<device-ip>/api/files/download?name=snf_12345.csv" -o snf_12345.csv
 ```
 
-**Key Limitation**: Without SD card, all captured data is in RAM only. A reboot loses everything. Export frequently if you need to preserve data.
+**Key Limitation**: Without SD card, CSV/PCAP export is unavailable. All packet data is in RAM only — a reboot loses everything. KML/GeoJSON export works without SD (GPS positions are in RAM). Export frequently if you need to preserve data.
 
 ---
 
@@ -357,10 +363,6 @@ curl http://<device-ip>/api/replay/slots > packets.json
 -DENABLE_OFFENSIVE_TESTING       # Removed - attack framework  
 -DENABLE_INTELLIGENCE_STORAGE    # Never fully implemented
 -DENABLE_TRAFFIC_ANALYSIS        # Redundant with existing analysis
-```
--DENABLE_INTELLIGENCE_STORAGE  # REMOVED - Module deleted
--DENABLE_NETWORK_RECON         # REMOVED - Module deleted
--DENABLE_TRAFFIC_ANALYSIS      # REMOVED - Module deleted
 ```
 
 ---

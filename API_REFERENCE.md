@@ -1,6 +1,6 @@
 # 🔌 ESP32 LoRa Sniffer - REST API Reference
 
-**Version:** 2.2.1  
+**Version:** 2.3.1
 **Base URL:** `http://192.168.4.1` or `http://lora-XXXXXX.local`  
 **Protocol:** HTTP/1.1  
 **Format:** JSON  
@@ -202,10 +202,13 @@ All successful responses follow this structure:
 | `/api/capture/start` | POST | No | Start targeted capture on device |
 | `/api/capture/stop` | POST | No | Stop capture, resume reconnaissance |
 | `/api/positions` | GET | No | GPS positions from packets |
-| `/api/export/geojson` | GET | No | Export positions as GeoJSON |
-| `/api/export/kml` | GET | No | Export positions as KML |
+| `/api/export/csv` | GET | No | Download current session CSV log from SD card |
+| `/api/export/geojson` | GET | No | Export positions as GeoJSON (attachment download) |
+| `/api/export/kml` | GET | No | Export positions as KML (attachment download) |
 | `/api/export/pcap` | GET | No | Export packets as PCAP |
 | `/api/export/report` | GET | No | **Download consolidated JSON report** |
+| `/api/files` | GET | No | List files in SD card `/logs/` directory |
+| `/api/files/download` | GET | No | Download a named file from SD card `/logs/` |
 | `/api/statistics` | GET | No | Detailed packet statistics |
 | `/api/activity` | GET | No | RF activity summary |
 | `/api/config` | GET | No | Frequency configurations |
@@ -964,6 +967,136 @@ curl -s http://192.168.4.1/api/export/report | jq '.security.devices[] | select(
 - Share findings with other researchers
 - Archive reconnaissance sessions
 - Feed into external analysis tools
+
+---
+
+### **GET /api/export/csv**
+
+Download the current session's CSV packet log directly from the SD card.
+
+**Request:**
+```http
+GET /api/export/csv HTTP/1.1
+Host: 192.168.4.1
+```
+
+**Response (Success - 200):**
+- **Content-Type:** `text/csv`
+- **Content-Disposition:** `attachment; filename="lora_capture_<session>.csv"`
+- **Body:** CSV stream — header row + one row per logged packet
+
+**Response (Error - 404):**
+```json
+{
+  "status": "error",
+  "message": "No active session or SD card unavailable"
+}
+```
+
+**CSV Columns:**
+`timestamp_ms, session_id, node_id_hex, protocol, frequency_mhz, config_index, rssi_dbm, snr_db, length_bytes, packet_type, encrypted, psk_result, psk_id, lat_deg, lon_deg, alt_m, hop_count, is_router, power_class, raw_hex`
+
+**Notes:**
+- SD card required. Returns 404 if no SD card or no active session.
+- File is flushed before streaming; last captured packets are always included.
+- PCAP export must be enabled in firmware for concurrent PCAP capture.
+
+**cURL Example:**
+```bash
+curl http://192.168.4.1/api/export/csv -o lora_capture.csv
+```
+
+---
+
+### **GET /api/files**
+
+List all files in the SD card `/logs/` directory (all sessions, not just current).
+
+**Request:**
+```http
+GET /api/files HTTP/1.1
+Host: 192.168.4.1
+```
+
+**Response (Success - 200):**
+```json
+{
+  "files": [
+    {"name": "snf_12345.csv", "size": 8192},
+    {"name": "snf_12345.pcap", "size": 4096},
+    {"name": "snf_98765.csv", "size": 16384},
+    {"name": "devices_summary.csv", "size": 512}
+  ]
+}
+```
+
+**Response (Error - 404):**
+```json
+{
+  "status": "error",
+  "message": "SD card unavailable or /logs directory not found"
+}
+```
+
+**Notes:**
+- Returns basenames only (no path prefix).
+- SD card required.
+
+**cURL Example:**
+```bash
+curl http://192.168.4.1/api/files
+```
+
+---
+
+### **GET /api/files/download**
+
+Download a named file from the SD card `/logs/` directory.
+
+**Request:**
+```http
+GET /api/files/download?name=snf_12345.csv HTTP/1.1
+Host: 192.168.4.1
+```
+
+**Query Parameters:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `name` | string | Yes | Basename of file in `/logs/` (e.g., `snf_12345.csv`) |
+
+**Response (Success - 200):**
+- **Content-Type:** `text/csv` (`.csv`), `application/vnd.tcpdump.pcap` (`.pcap`), or `application/octet-stream`
+- **Body:** File stream
+
+**Response (Error - 400):**
+```json
+{
+  "status": "error",
+  "message": "Invalid filename"
+}
+```
+
+**Response (Error - 404):**
+```json
+{
+  "status": "error",
+  "message": "File not found"
+}
+```
+
+**Security:**
+- Filenames containing `/` or `..` are rejected (path traversal prevention).
+- Only files within `/logs/` are accessible.
+
+**Notes:**
+- If `name` refers to the current active session file, it is flushed before streaming.
+- Use `/api/files` to enumerate available filenames first.
+
+**cURL Example:**
+```bash
+curl "http://192.168.4.1/api/files/download?name=snf_12345.csv" -o snf_12345.csv
+```
 
 ---
 

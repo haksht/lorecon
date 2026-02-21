@@ -32,7 +32,7 @@ Passive LoRa reconnaissance firmware for ESP32-S3 + SX1262 hardware. The ESP32 h
 | Packet Processing | `PacketProcessor` queues interrupt captures, runs protocol analysis, PSK decryption (23 Meshtastic keys), LoRaWAN key testing (16 default AppKeys), diagnostics, and replay capture with dual logging (CSV + PCAP). |
 | Recon State | `ReconState` tracks RF activity, targetable nodes, replay slots, quiet mode, and device intelligence with multi-factor security scoring. |
 | UI Surfaces | 1) Serial menu (command handler with dispatch table). 2) OLED quick-look cards. 3) **WiFi Web UI** with threat-colored network map, signal heatmaps, vulnerability assessment, and live packet visualization. |
-| Storage / Export | Optional SD logging (`packet_logger` with CSV + PCAP), KML/GeoJSON exports, Wireshark-compatible PCAP with LoRa metadata, security assessment reports, JSON APIs for scripting. |
+| Storage / Export | Optional SD logging (`packet_logger` with CSV + PCAP), wireless download buttons for CSV/PCAP/KML/GeoJSON, file browser API for past sessions, Wireshark-compatible PCAP with LoRa metadata, security assessment reports, JSON APIs for scripting. |
 | Security | Token-based API authentication for sensitive endpoints, device-unique AP passwords, NVS credential storage, XSS prevention, input validation with bounds checking. |
 
 ## Why This Over Alternatives?
@@ -123,11 +123,13 @@ LittleFS serves the web UI assets. SD card is optional but required for PCAP exp
    - Multi-factor vulnerability scoring (0-100 scale)
    - Considers: RSSI proximity, encryption status, router role, traffic patterns, firmware version
    - Consistent scoring across Info tab and Security modal
-5. **PCAP Export:**
-   - Wireshark-compatible packet captures with custom LoRa pseudo-header
-   - Preserves RSSI, SNR, frequency, timestamp metadata
-   - Download via Quick Actions menu
-   - Automatic error handling with user feedback
+5. **Wireless Data Download (Quick Actions sidebar):**
+   - **Download CSV** — current session packet log from SD card (`lora_capture_*.csv`)
+   - **Download PCAP** — Wireshark-compatible capture from SD card; preserves RSSI, SNR, frequency, timestamp metadata
+   - **Export KML** — GPS positions for Google Earth (`lora-positions-*.kml`)
+   - **Export GeoJSON** — GPS positions for web mapping tools (`lora-positions-*.geojson`)
+   - All downloads use blob streaming with try/catch error handling and user toast feedback
+   - Past session files accessible via `/api/files` + `/api/files/download` REST endpoints
 
 WebSocket streams real-time updates to all connected clients with automatic reconnection.
 
