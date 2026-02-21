@@ -69,6 +69,9 @@ public:
                     uint32_t bandwidth = 125000,
                     uint8_t codingRate = 5);
     
+    // Flush buffered data to FAT (call before reading the file via another handle)
+    void flush() { if (fileOpen && file) file.flush(); }
+
     // Statistics
     uint32_t getPacketCount() const { return packetCount; }
     size_t getFileSize() const { return fileSize; }
@@ -105,6 +108,9 @@ public:
     // Log packet (simplified interface)
     bool logPacket(const uint8_t* data, size_t length,
                   float rssiDbm, float snrDb, float frequencyMHz);
+
+    // Flush buffered data to FAT
+    void flush() { pcapLogger.flush(); }
     
     // Info
     String getSessionFile() const { return pcapLogger.getFilename(); }

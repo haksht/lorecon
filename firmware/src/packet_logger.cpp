@@ -368,11 +368,16 @@ bool PacketLogger::writeCSVHeader() {
     return true;
 }
 
+void PacketLogger::flush() {
+    if (sessionFile) sessionFile.flush();
+    if (Config::Logging::PCAP_EXPORT_ENABLED && pcapSession.isActive()) pcapSession.flush();
+}
+
 bool PacketLogger::flushBuffer() {
     if (!sessionFile) {
         return false;
     }
-    
+
     sessionFile.flush();
     return true;
 }

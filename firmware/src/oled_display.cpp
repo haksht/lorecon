@@ -424,32 +424,26 @@ void OLEDDisplay::renderScanning() {
     // Config number
     char buffer[32];
     snprintf(buffer, sizeof(buffer), "Config: %d/%d", info.configIndex + 1, info.totalConfigs);
-    display.drawStr(0, 24, buffer);
-    
+    display.drawStr(0, 22, buffer);
+
     // Frequency
     snprintf(buffer, sizeof(buffer), "Freq: %s MHz", info.frequency);
-    display.drawStr(0, 36, buffer);
-    
+    display.drawStr(0, 34, buffer);
+
     // Spreading Factor and Packet count (use global count from reconState)
     snprintf(buffer, sizeof(buffer), "SF:%d Pkts:%u", info.sf, reconState.scanState.totalPackets.load());
-    display.drawStr(0, 48, buffer);
-    
-    // Show IP/mDNS at bottom if connected, else button help
+    display.drawStr(0, 46, buffer);
+
+    // Show IP + mDNS on two lines at bottom, else button help
     display.setFont(u8g2_font_5x7_tf);
     if (strlen(info.ipAddress) > 0) {
-        // Show IP (fits on one line: "172.20.10.3")
-        display.drawStr(0, 62, info.ipAddress);
-        // Show mDNS hostname on second half if room (font is 5px wide)
+        display.drawStr(0, 55, info.ipAddress);
         if (strlen(info.mdnsName) > 0) {
-            // Format: "IP | hostname.local"
-            int ipWidth = strlen(info.ipAddress) * 5 + 4;  // IP width + gap
-            if (ipWidth < 80) {  // Leave room for mdns
-                snprintf(buffer, sizeof(buffer), "%s.local", info.mdnsName);
-                display.drawStr(ipWidth, 62, buffer);
-            }
+            snprintf(buffer, sizeof(buffer), "%s.local", info.mdnsName);
+            display.drawStr(0, 63, buffer);
         }
     } else {
-        display.drawStr(0, 62, "BTN:Off Long:Shutdown");
+        display.drawStr(0, 63, "BTN:Off  Long:Shutdown");
     }
 }
 
@@ -513,9 +507,14 @@ void OLEDDisplay::renderTargeting() {
              reconState.scanState.totalPackets.load(), info.lastRSSI);
     display.drawStr(0, 40, buffer);
     
-    // Show IP address so user knows how to connect
+    // Show IP + mDNS at bottom so user knows how to connect
+    display.setFont(u8g2_font_5x7_tf);
     if (info.ipAddress[0] != '\0') {
         display.drawStr(0, 54, info.ipAddress);
+        if (info.mdnsName[0] != '\0') {
+            snprintf(buffer, sizeof(buffer), "%s.local", info.mdnsName);
+            display.drawStr(0, 63, buffer);
+        }
     }
 }
 

@@ -165,8 +165,13 @@ void WebServer::setupRoutes() {
     server->on("/api/export/geojson", HTTP_GET, APIHandlers::handleExportGeoJSON);
     server->on("/api/export/kml", HTTP_GET, APIHandlers::handleExportKML);
     server->on("/api/export/pcap", HTTP_GET, APIHandlers::handleExportPCAP);
+    server->on("/api/export/csv", HTTP_GET, APIHandlers::handleExportCSV);
     server->on("/api/export/report", HTTP_GET, APIHandlers::handleExportReport);
-    
+
+    // SD File Browser
+    server->on("/api/files", HTTP_GET, APIHandlers::handleListFiles);
+    server->on("/api/files/download", HTTP_GET, APIHandlers::handleDownloadFile);
+
     // Status & Config
     server->on("/api/status", HTTP_GET, APIHandlers::handleGetStatus);
     server->on("/api/dashboard", HTTP_GET, APIHandlers::handleGetDashboard);

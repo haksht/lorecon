@@ -23,6 +23,7 @@ void handleGetPositions(AsyncWebServerRequest* request);
 void handleExportGeoJSON(AsyncWebServerRequest* request);
 void handleExportKML(AsyncWebServerRequest* request);
 void handleExportPCAP(AsyncWebServerRequest* request);
+void handleExportCSV(AsyncWebServerRequest* request);
 
 // Status & Configuration
 void handleGetStatus(AsyncWebServerRequest* request);
@@ -67,6 +68,10 @@ void handleCommand(AsyncWebServerRequest* request);
 
 // Consolidated Export
 void handleExportReport(AsyncWebServerRequest* request);
+
+// SD File Browser
+void handleListFiles(AsyncWebServerRequest* request);
+void handleDownloadFile(AsyncWebServerRequest* request);
 
 }  // namespace APIHandlers
 
