@@ -464,3 +464,29 @@ for BOARD in "${BOARDS[@]}"; do
         "$BOARD" "$LABEL" "$FLASH_SIZE" "$(( FULL_SIZE / 1024 / 1024 ))"
 done
 echo ""
+
+# ---- GitHub Release (optional) ---------------------------------------------
+# Auto-detect gh CLI
+GH=""
+for GH_CANDIDATE in \
+    "gh" \
+    "/c/Program Files/GitHub CLI/gh.exe" \
+    "$HOME/AppData/Local/Programs/GitHub CLI/gh.exe"; do
+    if command -v "$GH_CANDIDATE" &>/dev/null 2>&1 || [ -f "$GH_CANDIDATE" ]; then
+        GH="$GH_CANDIDATE"
+        break
+    fi
+done
+
+if [ -n "$GH" ]; then
+    echo "Publishing GitHub release $VERSION..."
+    cd "$REPO_ROOT"
+    "$GH" release create "$VERSION" \
+        "$ZIP_PATH#$ZIP_NAME" \
+        --title "$VERSION — ESP32 LoRa Sniffer Multi-board Release" \
+        --notes "See FLASH_INSTRUCTIONS.md inside the zip. Boards: Heltec V3, T3-S3, T-Beam Supreme." \
+        2>&1 && echo "  Published: $(\"$GH\" release view \"$VERSION\" --json url -q .url)"
+else
+    echo "  (gh CLI not found — upload $ZIP_NAME to GitHub Releases manually)"
+    echo "  https://github.com/tiarno/esp32-sniffer/releases/new?tag=$VERSION"
+fi
