@@ -189,7 +189,8 @@ void RadioController::runDiagnostics() {
         digitalWrite(Config::Hardware::LORA_RST, HIGH);
         delay(50);
 
-        #if defined(BOARD_T3_S3)
+        #if defined(BOARD_T3_S3) || defined(BOARD_TBEAM_SUPREME)
+            // Both boards use TCXO (1.8V) and DIO2 as RF switch
             state = radio->begin(906.875, 125.0, 9, 7,
                                  RADIOLIB_SX126X_SYNC_WORD_PRIVATE,
                                  10, 8, 1.8, false);
@@ -197,6 +198,7 @@ void RadioController::runDiagnostics() {
                 radio->setDio2AsRfSwitch(true);
             }
         #else
+            // Heltec V3: crystal oscillator, no DIO2 RF switch
             state = radio->begin();
         #endif
         LOG_INFO("Re-init after reset: %d", state);
