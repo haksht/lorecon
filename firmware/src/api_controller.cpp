@@ -309,7 +309,13 @@ String APIController::getSystemConfig() {
     
     // Hardware capabilities
     JsonObject hardware = doc["hardware"].to<JsonObject>();
+    #if defined(BOARD_TBEAM_SUPREME)
+    hardware["board"] = "TBEAM_SUPREME";
+    #elif defined(BOARD_T3_S3)
+    hardware["board"] = "T3_S3";
+    #else
     hardware["board"] = "HELTEC_V3";
+    #endif
     #ifdef HAS_OLED_DISPLAY
     hardware["hasOLED"] = true;
     #else
