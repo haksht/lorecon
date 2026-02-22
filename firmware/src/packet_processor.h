@@ -27,6 +27,12 @@ struct PacketEvent {
     size_t length;
     const char* message;  // nullptr if no message
     uint32_t timestamp;
+    // Sniffer GPS position at time of reception (T-Beam Supreme only).
+    // 0.0/false on boards without GPS or when no fix is available.
+    double lat;
+    double lon;
+    double alt;
+    bool hasPosition;
 };
 
 /**
