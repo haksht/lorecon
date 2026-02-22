@@ -80,3 +80,7 @@ firmware/lib/
 
 # Windows artifacts
 nul
+
+# Release build artifacts (binaries committed via GitHub Releases, not git)
+releases/v*/
+releases/*.zip
