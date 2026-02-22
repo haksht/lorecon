@@ -3,6 +3,7 @@
  */
 
 #include "packet_processor.h"
+#include "gps_controller.h"
 #include "packet_logger.h"
 #include "recon_state.h"
 #include "oled_display.h"
@@ -131,6 +132,19 @@ void PacketProcessor::processSinglePacket(const QueuedPacket& qp, OLEDDisplay* d
         handleTargetedPacket(info, qp.data, qp.length, qp.rssi, qp.snr, display);
     }
     
+    // Capture sniffer GPS fix once — used for both SD log and PacketEvent below.
+    // On boards without GPS (Heltec V3, T3-S3) this is always false.
+    bool snifferHasGPS = false;
+    double snifferLat = 0.0, snifferLon = 0.0, snifferAlt = 0.0;
+#ifdef HAS_GPS
+    if (g_gpsController && g_gpsController->hasGoodFix()) {
+        snifferHasGPS = true;
+        snifferLat = g_gpsController->getLatitude();
+        snifferLon = g_gpsController->getLongitude();
+        snifferAlt = g_gpsController->getAltitude();
+    }
+#endif
+
     // Log to SD card if available
     if (packetLogger.isAvailable()) {
         PacketLogRecord record;
@@ -148,9 +162,16 @@ void PacketProcessor::processSinglePacket(const QueuedPacket& qp, OLEDDisplay* d
         record.pskId = nullptr;
         record.hasPosition = positionExtracted && loggedPoint;
         if (record.hasPosition) {
+            // Use GPS position extracted from the Meshtastic packet payload
             record.latitudeDeg = loggedPoint->latitude;
             record.longitudeDeg = loggedPoint->longitude;
             record.altitudeM = loggedPoint->altitude;
+        } else if (snifferHasGPS) {
+            // Fall back to sniffer's own GPS: where WE were when we received this packet
+            record.hasPosition = true;
+            record.latitudeDeg = snifferLat;
+            record.longitudeDeg = snifferLon;
+            record.altitudeM = snifferAlt;
         }
         record.hopCount = -1;
         record.isRouter = info.isRouter;
@@ -168,7 +189,11 @@ void PacketProcessor::processSinglePacket(const QueuedPacket& qp, OLEDDisplay* d
         evt.length = qp.length;
         evt.message = info.hasMessage ? info.message : nullptr;
         evt.timestamp = qp.timestamp;
-        
+        evt.lat = snifferLat;
+        evt.lon = snifferLon;
+        evt.alt = snifferAlt;
+        evt.hasPosition = snifferHasGPS;
+
         packetCallback(evt);
     }
 }

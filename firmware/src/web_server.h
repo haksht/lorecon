@@ -35,9 +35,14 @@ struct AggregatedStats {
     char lastMessage[256];  // Copy message to prevent dangling pointer
     bool hasMessage;
     uint32_t timestamp;
-    
+    double lastLat;
+    double lastLon;
+    double lastAlt;
+    bool hasPosition;
+
     AggregatedStats() : packetCount(0), lastNodeId(0), lastProtocol("None"),
-                       lastRSSI(0), lastSNR(0), hasMessage(false), timestamp(0) {
+                       lastRSSI(0), lastSNR(0), hasMessage(false), timestamp(0),
+                       lastLat(0.0), lastLon(0.0), lastAlt(0.0), hasPosition(false) {
         lastMessage[0] = '\0';
     }
 };

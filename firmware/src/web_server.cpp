@@ -455,6 +455,10 @@ void WebServer::handlePacketEvent(const PacketEvent& evt) {
     }
     
     aggStats.timestamp = evt.timestamp;
+    aggStats.lastLat = evt.lat;
+    aggStats.lastLon = evt.lon;
+    aggStats.lastAlt = evt.alt;
+    aggStats.hasPosition = evt.hasPosition;
     pendingPacketBroadcast.store(true, std::memory_order_relaxed);
 }
 
@@ -487,11 +491,15 @@ void WebServer::broadcastAggregatedUpdate() {
     doc["nodeId"] = FormatUtils::formatNodeIdJson(aggStats.lastNodeId);
     doc["rssi"] = aggStats.lastRSSI;
     doc["count"] = aggStats.packetCount;
-    
+    if (aggStats.hasPosition) {
+        doc["lat"] = aggStats.lastLat;
+        doc["lon"] = aggStats.lastLon;
+    }
+
     String json;
     serializeJson(doc, json);
 
-    if (json.length() > 0 && json.length() < 256 && 
+    if (json.length() > 0 && json.length() < 384 && 
         !disconnectInProgress.load(std::memory_order_acquire) &&
         ws->count() > 0) {
         // Clean up stale clients before sending to prevent queue buildup
