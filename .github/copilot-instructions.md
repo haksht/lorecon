@@ -1,7 +1,7 @@
 # ESP32 LoRa Sniffer - AI Agent Instructions
 
 ## Project Overview
-ESP32-S3 passive LoRa reconnaissance firmware for security research. **Hardware-specific to Heltec WiFi LoRa 32 V3** (SX1262 radio + OLED). Not a generic project—T-Deck variants are explicitly unsupported.
+ESP32-S3 passive LoRa reconnaissance firmware for security research. Supports four boards: **Heltec WiFi LoRa 32 V3/V4**, **LilyGO T3-S3**, and **LilyGO T-Beam Supreme** — all ESP32-S3 + SX1262. T-Deck variants are explicitly unsupported.
 
 ## Critical Architecture (v2.0 Refactor)
 
@@ -95,9 +95,9 @@ No exceptions (embedded C++). Return `bool` for success/failure. Use `LOG_ERROR(
 
 ## Common Gotchas
 
-1. **Hardware Specificity**: Code assumes Heltec V3 pin layout (`Config::Hardware::*`). Don't suggest generic ESP32 solutions.
+1. **Hardware Specificity**: Pin layout is board-specific — always use `Config::Hardware::*` constants, never hardcode GPIO numbers. `BOARD_HELTEC_V3` covers both V3 and V4 (identical pinout). Don't suggest generic ESP32 solutions.
 2. **Global Instances for ISR**: `g_radioController` and `g_reconTool` required for interrupt handler access. Not a design mistake.
-3. **Memory Constraints**: T3-S3 has 2MB PSRAM (Quad), Heltec V3 has no external PSRAM (320KB SRAM only). Avoid heap fragmentation. `std::vector` with `reserve()` preferred over dynamic allocation in loops.
+3. **Memory Constraints**: T3-S3 has 2MB PSRAM (Quad), T-Beam Supreme has 8MB PSRAM (Quad), Heltec V3/V4 has no external PSRAM (320KB SRAM only). Avoid heap fragmentation. `std::vector` with `reserve()` preferred over dynamic allocation in loops.
 4. **LittleFS vs SD**: Web app in LittleFS (built-in), PCAP/CSV logs on SD card (optional). Don't confuse the two.
 5. **Frequency Configs**: 26 configs define Meshtastic, LoRaWAN, Helium presets. Cycle time = 26 × 12s = 5min. Don't suggest random frequency additions.
 6. **No Arduino String**: Use `std::string` or C-strings. Arduino `String` class avoided for memory fragmentation reasons.

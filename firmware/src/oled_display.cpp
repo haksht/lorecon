@@ -70,6 +70,7 @@ bool OLEDDisplay::initialize() {
         
         if (attempt < 3) {
             Serial.printf("[DISPLAY]   Attempt %d: Not found (error %d), retrying...\n", attempt, error);
+            esp_task_wdt_reset();  // Prevent watchdog timeout during I2C retry delays
             delay(50 * attempt);  // Progressive delay: 50ms, 100ms
         } else {
             Serial.printf("[DISPLAY] ❌ No device found at 0x3C after %d attempts (error %d)\n", attempt, error);

@@ -61,18 +61,17 @@ curl http://192.168.4.1/api/status
 
 ### **Private Network Auto-Trust**
 
-Clients connecting from RFC 1918 private IP addresses are automatically authenticated:
-- `10.0.0.0/8` — Class A private networks
-- `172.16.0.0/12` — Class B private networks (172.16.x.x - 172.31.x.x)
-- `192.168.0.0/16` — Class C private networks (including device AP at 192.168.4.x)
+Auto-trust applies **only when the device is connected to an external network (STA mode)** and the client is on that same private network. Clients on the device's own AP subnet (`192.168.4.x`) are always required to authenticate with a token, regardless of RFC 1918 address.
 
-**Rationale:** If you're on the same private network, you already authenticated via WiFi password. The network boundary *is* the security boundary.
+**Rationale:** Anyone who knows the AP password gets a `192.168.4.x` address — granting auto-trust there would allow unauthenticated access to sensitive endpoints. Auto-trust is reserved for users already on a trusted LAN (home router, phone hotspot the device joined).
 
 This means:
-- ✅ Device AP (192.168.4.x) — auto-authenticated
-- ✅ Phone hotspot (172.20.x.x) — auto-authenticated  
-- ✅ Home WiFi (192.168.1.x) — auto-authenticated
+- ✅ Home WiFi (192.168.1.x) — auto-authenticated (device in STA/AP_STA mode, client on same LAN)
+- ✅ Phone hotspot the device joined (172.20.x.x, 192.168.x.x) — auto-authenticated
+- ❌ Direct AP connection (192.168.4.x) — **requires token** (device acting as hotspot, client connected to it)
 - ❌ Public internet — requires token header (if you ever port-forward)
+
+**In practice:** If you connect your phone directly to the device's WiFi hotspot (`LoRa-XXXXXX`), you will be prompted to enter the API token the first time you perform a protected action. After entry, it is saved in your browser's `localStorage` and you won't be asked again on that device.
 
 ### **How It Works**
 

@@ -8,6 +8,7 @@
 #include "packet_logger.h"
 #include "pcap_logger.h"
 #include "config.h"
+#include "logger.h"
 #include "utils/sd_utils.h"
 #include <SPI.h>
 #include <time.h>
@@ -188,8 +189,11 @@ bool PacketLogger::logPacket(const PacketLogRecord& record, const uint8_t* data,
     sessionFile.print(",");
     // Write hex directly to file — avoids String allocation for up to 256-byte packets
     {
+        // Guard against malformed length values exceeding physical LoRa max
+        size_t safeLen = (length <= Config::PacketProcessing::MAX_PACKET_SIZE)
+                         ? length : Config::PacketProcessing::MAX_PACKET_SIZE;
         char hexBuf[3];
-        for (size_t i = 0; i < length; i++) {
+        for (size_t i = 0; i < safeLen; i++) {
             snprintf(hexBuf, sizeof(hexBuf), "%02X", data[i]);
             sessionFile.print(hexBuf);
         }
@@ -232,9 +236,10 @@ bool PacketLogger::logDevice(uint32_t nodeId, const char* deviceType,
     
     File f = SD.open(devicesFile.c_str(), FILE_APPEND);
     if (!f) {
+        LOG_ERROR("Failed to open devices summary for append: %s", devicesFile.c_str());
         return false;
     }
-    
+
     f.print(millis());
     f.print(",");
     f.printf("0x%08X", nodeId);
@@ -274,9 +279,10 @@ bool PacketLogger::logGPSPosition(uint32_t nodeId, double latitude,
     
     File f = SD.open(gpsFile.c_str(), FILE_APPEND);
     if (!f) {
+        LOG_ERROR("Failed to open GPS tracks file for append: %s", gpsFile.c_str());
         return false;
     }
-    
+
     f.print(millis());
     f.print(",");
     f.printf("0x%08X", nodeId);

@@ -14,14 +14,15 @@ Passive LoRa reconnaissance firmware for ESP32-S3 + SX1262 hardware. The ESP32 h
 ## Current Status
 
 - **Branch:** `main`
-- **Version:** 2.3.0-dev (T3-S3 Board Support + SD Card Native)
+- **Version:** 2.3.0
 - **Hardware:** ESP32-S3 + SX1262 + OLED. Native or optional SD card.
   - ✅ **Fully Supported:**
-    - **Heltec WiFi LoRa 32 V3** (tested, production-ready, SD requires external module)
-    - **LilyGO T3-S3 V1.2/V1.3** (ESP32-S3 + SX1262 + native SD card slot) - New in v2.3.0!
+    - **Heltec WiFi LoRa 32 V3 / V4** (tested, production-ready, SD requires external module; V3 and V4 use identical firmware)
+    - **LilyGO T3-S3 V1.2/V1.3** (ESP32-S3 + SX1262 + OLED + native SD card slot)
+    - **LilyGO T-Beam Supreme** (ESP32-S3 + SX1262 + SH1106 OLED + SD + GPS + AXP2101 PMIC) - New in v2.3.0!
   - ⚠️ **Not Supported:** T-Deck variants (hardware incompatibilities - see `docs/hardware/TDECK_PLUS_INVESTIGATION.md`)
-  - ℹ️ **Note:** Both boards use same ESP32-S3 + SX1262 architecture, differing only in pin mappings
-- **Focus:** Passive reconnaissance (scan, target, capture, replay, export). All legacy offensive/stress docs and code paths have been removed.
+  - ℹ️ **Note:** All three boards use ESP32-S3 + SX1262 architecture, differing in pin mappings and peripherals
+- **Focus:** Passive reconnaissance (scan, target, capture, replay, export).
 - **Web UI:** Lightweight interface served from LittleFS with interactive network visualization, threat assessment, and real-time packet analysis.
 
 ## Feature Snapshot
@@ -49,11 +50,11 @@ Passive LoRa reconnaissance firmware for ESP32-S3 + SX1262 hardware. The ESP32 h
 
 ## Bill of Materials (~$30-50 USD)
 
-### Option 1: Heltec WiFi LoRa 32 V3 (Proven)
+### Option 1: Heltec WiFi LoRa 32 V3 / V4 (Proven)
 
 | Component | Price | Notes | Link |
 |-----------|-------|-------|------|
-| **Heltec WiFi LoRa 32 V3** | $22-28 | ESP32-S3 + SX1262 + OLED | [Amazon](https://www.amazon.com/dp/B0B697NLJ5) / [AliExpress](https://www.aliexpress.com/item/1005005967763162.html) |
+| **Heltec WiFi LoRa 32 V3 or V4** | $22-32 | ESP32-S3 + SX1262 + OLED; V3 and V4 use identical firmware | [Amazon (V3)](https://www.amazon.com/dp/B0B697NLJ5) / [Heltec Store](https://heltec.org/project/wifi-lora-32-v3/) |
 | 915MHz Antenna (RP-SMA) | $0-8 | Often included with board | [Amazon](https://www.amazon.com/dp/B09K3WMCVN) |
 | USB-C Cable | $0 | You have one | — |
 | **Optional:** 3D Printed Case | $5-10 | Search "Heltec V3 case" | [Printables](https://www.printables.com/search/models?q=heltec%20v3) |
@@ -74,7 +75,19 @@ Passive LoRa reconnaissance firmware for ESP32-S3 + SX1262 hardware. The ESP32 h
 
 **Total**: ~$30 basic / ~$45 with battery + SD
 
-**Recommendation**: Choose **T3-S3** if you want native SD card logging without hardware modifications. Choose **Heltec V3** for proven stability and community support.
+### Option 3: LilyGO T-Beam Supreme (GPS + PMIC)
+
+| Component | Price | Notes | Link |
+|-----------|-------|-------|------|
+| **LilyGO T-Beam Supreme** | $45-55 | ESP32-S3FN8 (8MB flash, 8MB PSRAM) + SX1262 + SH1106 OLED + SD + GPS + AXP2101 | [Official](https://lilygo.cc/products/t-beam-supreme) |
+| 915MHz Antenna (U.FL) | $0-8 | Usually included | — |
+| MicroSD Card (≤32GB) | $5-8 | Native slot | FAT32 formatted |
+| USB-C Cable | $0 | You have one | — |
+| **Optional:** 18650 Battery | $8-12 | Recommended for GPS use | [Amazon](https://www.amazon.com/dp/B0BG8XJMQX) |
+
+**Total**: ~$50 basic / ~$70 with battery + SD
+
+**Recommendation**: Choose **T-Beam Supreme** if you want onboard GPS for location-stamped packet capture. Choose **T3-S3** for native SD without GPS. Choose **Heltec V3 or V4** for proven stability and lowest cost.
 
 > See [docs/hardware/T3_S3_GUIDE.md](docs/hardware/T3_S3_GUIDE.md) for T3-S3 setup details.
 
@@ -185,7 +198,8 @@ docs/
 tools/
   enhanced_live_visualizer.py  -> 5-panel matplotlib dashboard
   psk_auditor.py, recon_report.py, position_tracker.py
-  api_client.py, ws_monitor.py, attack_dashboard.html
+  api_client.py, ws_monitor.py
+  visualization/  -> network_topology.html, live_map.html, network_dashboard.html
 ```
 
 ## ⚠️ Legal & Ethical Use Disclaimer

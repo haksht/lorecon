@@ -62,9 +62,19 @@ bool RadioController::initialize() {
               Config::Hardware::SPI_MOSI, Config::Hardware::LORA_NSS);
 
     // Create radio with explicit SPI bus reference
-    radio = new SX1262(new Module(Config::Hardware::LORA_NSS, Config::Hardware::LORA_DIO1,
-                                   Config::Hardware::LORA_RST, Config::Hardware::LORA_BUSY,
-                                   loraSPI));
+    Module* module = new Module(Config::Hardware::LORA_NSS, Config::Hardware::LORA_DIO1,
+                                Config::Hardware::LORA_RST, Config::Hardware::LORA_BUSY,
+                                loraSPI);
+    if (!module) {
+        LOG_ERROR("Failed to allocate radio Module (OOM)");
+        return false;
+    }
+    radio = new SX1262(module);
+    if (!radio) {
+        delete module;
+        LOG_ERROR("Failed to allocate SX1262 (OOM)");
+        return false;
+    }
     
     #if defined(BOARD_T3_S3)
         // T3-S3: SX1262 with TCXO on DIO3 at 1.8V

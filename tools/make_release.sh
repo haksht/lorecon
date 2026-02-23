@@ -50,7 +50,7 @@ fi
 # ---- Board config -----------------------------------------------------------
 # Format: "flash_size:littlefs_offset:label:usb_hint"
 declare -A BOARD_CFG=(
-    [heltec_v3]="8MB:0x670000:Heltec WiFi LoRa 32 V3:COM3 or /dev/ttyUSB0 (CP210x)"
+    [heltec_v3]="8MB:0x670000:Heltec WiFi LoRa 32 V3/V4:COM3 or /dev/ttyUSB0 (CP210x)"
     [t3_s3]="4MB:0x290000:LilyGO T3-S3 V1.2/V1.3:COM9 or /dev/ttyACM0 (native USB)"
     [tbeam_supreme]="8MB:0x300000:LilyGO T-Beam Supreme:COM11 or /dev/ttyACM0 (native USB)"
 )
@@ -130,7 +130,7 @@ PORT=${2:-}
 # Board validation
 case "$BOARD" in
     heltec_v3)
-        LABEL="Heltec WiFi LoRa 32 V3"
+        LABEL="Heltec WiFi LoRa 32 V3/V4"
         FLASH_SIZE="8MB"
         PORT_HINT="COM3 or /dev/ttyUSB0 (CP210x USB-Serial)"
         ;;
@@ -149,7 +149,7 @@ case "$BOARD" in
         echo ""
         echo "Usage: $0 <board> [port]"
         echo "Boards:"
-        echo "  heltec_v3      — Heltec WiFi LoRa 32 V3"
+        echo "  heltec_v3      — Heltec WiFi LoRa 32 V3/V4"
         echo "  t3_s3          — LilyGO T3-S3 V1.2/V1.3"
         echo "  tbeam_supreme  — LilyGO T-Beam Supreme"
         exit 1
@@ -229,7 +229,7 @@ set BOARD=%1
 set PORT=%2
 
 if "%BOARD%"=="heltec_v3" (
-    set LABEL=Heltec WiFi LoRa 32 V3
+    set LABEL=Heltec WiFi LoRa 32 V3/V4
     set FLASH_SIZE=8MB
     set PORT_HINT=Usually COM3 (CP210x in Device Manager)
 ) else if "%BOARD%"=="t3_s3" (
@@ -245,7 +245,7 @@ if "%BOARD%"=="heltec_v3" (
     echo.
     echo Usage: flash.bat ^<board^> [port]
     echo Boards:
-    echo   heltec_v3      - Heltec WiFi LoRa 32 V3
+    echo   heltec_v3      - Heltec WiFi LoRa 32 V3/V4
     echo   t3_s3          - LilyGO T3-S3 V1.2/V1.3
     echo   tbeam_supreme  - LilyGO T-Beam Supreme
     exit /b 1
@@ -312,7 +312,7 @@ FLASH_BAT
 cat > "$RELEASE_DIR/FLASH_INSTRUCTIONS.md" << INSTRUCTIONS
 # ESP32 LoRa Sniffer $VERSION — Flash Instructions
 
-Pre-compiled binaries for **three boards**: Heltec WiFi LoRa 32 V3, LilyGO T3-S3, and LilyGO T-Beam Supreme.
+Pre-compiled binaries for **three boards**: Heltec WiFi LoRa 32 V3/V4, LilyGO T3-S3, and LilyGO T-Beam Supreme.
 
 ---
 
@@ -320,7 +320,7 @@ Pre-compiled binaries for **three boards**: Heltec WiFi LoRa 32 V3, LilyGO T3-S3
 
 | Board | Folder | Port (typical) | Flash |
 |-------|--------|----------------|-------|
-| Heltec WiFi LoRa 32 V3 | \`heltec_v3/\` | COM3 / /dev/ttyUSB0 | 8 MB |
+| Heltec WiFi LoRa 32 V3/V4 | \`heltec_v3/\` | COM3 / /dev/ttyUSB0 | 8 MB |
 | LilyGO T3-S3 V1.2/V1.3 | \`t3_s3/\` | COM9 / /dev/ttyACM0 | 4 MB |
 | LilyGO T-Beam Supreme | \`tbeam_supreme/\` | COM11 / /dev/ttyACM0 | 8 MB |
 
@@ -425,7 +425,7 @@ Addresses for manual multi-file flash:
 
 | Board | Supported | Notes |
 |-------|-----------|-------|
-| Heltec WiFi LoRa 32 V3 | ✅ | No SD card, no GPS |
+| Heltec WiFi LoRa 32 V3/V4 | ✅ | No SD card, no GPS |
 | LilyGO T3-S3 V1.2/V1.3 | ✅ | SD card logging |
 | LilyGO T-Beam Supreme | ✅ | SD card + GPS position logging |
 | Other ESP32 boards | ❌ | Requires recompilation |

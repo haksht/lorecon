@@ -2,15 +2,27 @@
 
 All notable changes to the ESP32 LoRa Sniffer project.
 
-## [Unreleased] - 2026-02-21
+## [2.3.0] - 2026-02-22
 
 ### Added
+- **T-Beam Supreme board support**: Full firmware port for LilyGO T-Beam Supreme (ESP32-S3FN8, 8MB flash/PSRAM)
+  - AXP2101 PMIC driver (XPowersLib) — mandatory init before all other peripherals
+  - SH1106 128×64 OLED via dedicated I2C bus (SDA=17, SCL=18)
+  - SD card on HSPI (CS=47, SCK=36, MISO=37, MOSI=35) separate from LoRa FSPI bus
+  - GPS (UART RX=9, TX=8, EN=7) with TinyGPS++ integration
+  - TCXO 1.8V via AXP2101 ALDO3; RadioLib TCXO mode flag set in `begin()`
+  - 8MB partition layout (`firmware/partitions_8MB.csv`): ~3MB app + ~5MB LittleFS
+- **GPS location stamping**: Packets received with a GPS fix include `latitude`, `longitude`, `altitude` in CSV logs and WebSocket `packet` events (guarded by `HAS_GPS`)
+- **Multi-board release packaging**: `tools/make_release.sh` / `tools/make_release.bat` — builds all three boards, merges binaries with esptool, publishes to GitHub Releases via `gh` CLI
 - **Wireless data export**: 4 new sidebar buttons — Download CSV, Download PCAP, Export KML, Export GeoJSON
 - **CSV download endpoint**: `GET /api/export/csv` streams current session log directly from SD card
 - **File browser API**: `GET /api/files` lists `/logs/` directory; `GET /api/files/download?name=<file>` retrieves any past session file
 - **SD flush before stream**: `packetLogger.flush()` called before every SD streaming response to expose unflushed FAT write buffer
 
 ### Fixed
+- **`/api/status` board name**: Was hardcoded to `"HELTEC_V3"` for all boards; now board-conditional (`HELTEC_V3` / `T3_S3` / `TBEAM_SUPREME`)
+- **`runDiagnostics()` recovery path**: T-Beam Supreme was falling into Heltec crystal-mode recovery (no TCXO, no DIO2); fixed to use shared `BOARD_T3_S3 || BOARD_TBEAM_SUPREME` branch
+- **API auth documentation**: Corrected `API_REFERENCE.md` auto-trust section — AP-subnet clients (`192.168.4.x`) are NOT auto-trusted; token always required when connecting directly to the device's own hotspot
 - **KML/GeoJSON download headers**: Added `Content-Disposition: attachment` so browsers download instead of rendering inline
 - **GeoJSON MIME type**: Changed to `application/geo+json` (correct RFC 7946 type)
 - **`actionExportKML`**: Replaced `window.open()` with blob download (was opening in browser tab)

@@ -62,6 +62,9 @@ private:
     
     // Menu mode timeout tracking
     uint32_t menuModeEnteredAt;
+
+    // Display update rate limiting (10 Hz max)
+    uint32_t lastDisplayUpdateMs;
     
     // Button handler
     void handleButtonPress(uint32_t now);

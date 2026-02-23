@@ -1,15 +1,18 @@
 # Getting Started with ESP32 LoRa Sniffer
 
-**Version:** 2.2.1  
-**Status:** ✅ Ready to Use  
-**Last Updated:** December 21, 2025
+**Version:** 2.3.0
+**Status:** ✅ Ready to Use
+**Last Updated:** February 23, 2026
 
 ---
 
 ## 🚀 Quick Start (5 Minutes)
 
 ### Prerequisites
-- **Heltec WiFi LoRa 32 V3** (ESP32-S3 + SX1262 + OLED)
+- One of the supported boards:
+  - **Heltec WiFi LoRa 32 V3 or V4** (ESP32-S3 + SX1262 + OLED; both use identical firmware under the `heltec_v3` build environment)
+  - **LilyGO T3-S3 V1.2/V1.3** (ESP32-S3 + SX1262 + OLED + native SD slot)
+  - **LilyGO T-Beam Supreme** (ESP32-S3 + SX1262 + SH1106 OLED + SD + GPS + AXP2101 PMIC)
 - USB cable
 - 902-928 MHz antenna (US ISM band)
 
@@ -18,7 +21,7 @@
 **No PlatformIO required!**
 
 1. Download from [Releases](https://github.com/tiarno/esp32-sniffer/releases/latest)
-2. Extract `esp32-lora-sniffer-v2.2.1-binaries.zip`
+2. Extract `esp32-lora-sniffer-v2.3.0-binaries.zip`
 3. Install esptool: `pip install esptool`
 4. Run `flash.bat` (Windows) or `./flash.sh` (Linux/Mac)
 5. Done! Skip to "First Run - WiFi Setup" below.
@@ -380,9 +383,11 @@ All features enabled by default. No build flags needed for:
 ### Optional Hardware
 
 **SD Card (Optional):**
-- CS pin: GPIO 5
-- SPI: SCK=9, MISO=11, MOSI=10
-- Enables packet logging to CSV
+- Pins are board-specific (all use a dedicated SPI bus separate from LoRa):
+  - **T3-S3**: CS=13, SCK=14, MISO=2, MOSI=11 (native slot, no mod needed)
+  - **T-Beam Supreme**: CS=47, SCK=36, MISO=37, MOSI=35 (native slot)
+  - **Heltec V3/V4**: requires external SD module (no native slot)
+- Enables packet logging to CSV and PCAP
 
 ---
 
@@ -488,10 +493,13 @@ ws.onmessage = (event) => {
 **Symptoms:** Display blank or garbled
 
 **Solutions:**
-1. Check hardware compatibility (Heltec V3 only)
-2. Verify I2C connections (SDA=17, SCL=18)
+1. Check serial monitor for `[DISPLAY]` initialization messages
+2. Verify I2C pins match your board:
+   - **Heltec V3/V4**: uses default I2C pins (auto-configured)
+   - **T3-S3**: SDA=18, SCL=17
+   - **T-Beam Supreme**: SDA=17, SCL=18
 3. Tool continues without display (graceful degradation)
-4. Check serial monitor for initialization messages
+4. Check that the OLED is powered (T-Beam Supreme requires AXP2101 PMIC to be initialized first)
 
 **See `docs/user-guides/TROUBLESHOOTING.md` for more solutions**
 

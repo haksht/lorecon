@@ -33,7 +33,7 @@ LoRaReconTool::LoRaReconTool()
     , buttonPressStart(0)
     , shutdownInitiated(false)
     , menuModeEnteredAt(0)
-
+    , lastDisplayUpdateMs(0)
 {
     g_reconTool = this;
 }
@@ -242,8 +242,9 @@ void LoRaReconTool::update() {
     }
 #endif
 
-    // Update display
-    if (oledDisplay && oledDisplay->isOn()) {
+    // Update display — rate-limited to 10 Hz to prevent I2C flooding
+    if (oledDisplay && oledDisplay->isOn() && (now - lastDisplayUpdateMs >= 100)) {
+        lastDisplayUpdateMs = now;
         oledDisplay->update();
     }
     
@@ -653,8 +654,14 @@ void LoRaReconTool::showReplayMenu() {
 }
 
 void LoRaReconTool::replayPacket(uint8_t slotIndex) {
+    if (slotIndex >= reconState.getNumCapturedPackets()) {
+        Serial.printf("❌ Slot index %d out of range (have %d packets)\n",
+                      slotIndex, reconState.getNumCapturedPackets());
+        return;
+    }
+
     const CapturedPacket& pkt = reconState.getReplayPacket(slotIndex);
-    
+
     if (!pkt.valid) {
         Serial.println("❌ Invalid packet slot");
         return;

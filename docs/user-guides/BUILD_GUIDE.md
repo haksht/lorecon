@@ -19,7 +19,7 @@ This project is a **production-ready LoRa reconnaissance platform** using Platfo
 
 | Component | Price | Notes | Where to Buy |
 |-----------|-------|-------|-------------|
-| **Heltec WiFi LoRa 32 V3** | $22-28 | ESP32-S3 + SX1262 + 0.96" OLED | [Amazon](https://www.amazon.com/dp/B0B697NLJ5) / [AliExpress](https://www.aliexpress.com/item/1005005967763162.html) / [Heltec Store](https://heltec.org/project/wifi-lora-32-v3/) |
+| **Heltec WiFi LoRa 32 V3 / V4** | $22-32 | ESP32-S3 + SX1262 + 0.96" OLED | [Amazon](https://www.amazon.com/dp/B0B697NLJ5) / [AliExpress](https://www.aliexpress.com/item/1005005967763162.html) / [Heltec Store](https://heltec.org/project/wifi-lora-32-v3/) |
 | 915MHz LoRa Antenna | $0-8 | Usually included with board; RP-SMA connector | [Amazon](https://www.amazon.com/dp/B09K3WMCVN) |
 | USB-C Data Cable | $0 | For programming and power | Any data-capable USB-C cable |
 
@@ -230,8 +230,10 @@ pio --version
 ### **⚠️ Build System Requirements**
 - **PlatformIO Core**: This system requires PlatformIO (not Arduino IDE)
 - **Supported Hardware**:
-  - ✅ **Heltec WiFi LoRa 32 V3** (ESP32-S3 + SX1262 + OLED) - ONLY supported board
-  - ⚠️ **T-Deck variants** - Not supported. No implementation exists. See `../hardware/TDECK_PLUS_INVESTIGATION.md` for investigation findings.
+  - ✅ **Heltec WiFi LoRa 32 V3 / V4** — build env: `heltec_v3` (V3 and V4 use identical firmware)
+  - ✅ **LilyGO T3-S3 V1.2/V1.3** — build env: `t3_s3`
+  - ✅ **LilyGO T-Beam Supreme** — build env: `tbeam_supreme`
+  - ⚠️ **T-Deck variants** - Not supported. See `../hardware/TDECK_PLUS_INVESTIGATION.md`.
   - ℹ️ **Other boards** - Would require porting (display drivers, pin configs, etc.)
 - **RadioLib 6.4.2**: Specific version required for SX1262 support
 - **ArduinoJson 7.0.4**: For data serialization

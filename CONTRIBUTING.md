@@ -4,7 +4,7 @@ Thank you for your interest in contributing! This document provides guidelines a
 
 ## Quick Start
 
-1. **Hardware Required**: Heltec WiFi LoRa 32 V3 (SX1262 + OLED)
+1. **Hardware Required**: Heltec WiFi LoRa 32 V3 or V4 (SX1262 + OLED), LilyGO T3-S3, or T-Beam Supreme
 2. **Build System**: PlatformIO (not Arduino IDE)
 3. **No Unit Tests**: Validation via PSK boot tests and real hardware testing
 
@@ -138,7 +138,7 @@ No unit test framework. Validate via:
 ## Pull Request Checklist
 
 - [ ] Code compiles without warnings (`-Werror` is enabled)
-- [ ] Tested on real Heltec V3 hardware
+- [ ] Tested on real hardware (Heltec V3/V4, T3-S3, or T-Beam Supreme)
 - [ ] No new inline styles in JavaScript
 - [ ] All user data escaped with `escapeHtml()`
 - [ ] Console.log calls use DEBUG system

@@ -118,9 +118,10 @@ namespace Hardware {
 
     #elif defined(BOARD_HELTEC_V3)
         // ========================================================================
-        // Heltec WiFi LoRa 32 V3 Pin Configuration
+        // Heltec WiFi LoRa 32 V3 / V4 Pin Configuration
         // ========================================================================
         // Board: ESP32-S3 + SX1262 + SSD1306 OLED (I2C)
+        // Note: V3 and V4 share identical pin mapping — both use this config block
         // Display: 0.96" OLED on I2C
         // Note: SD card requires external module (not natively supported)
 
@@ -157,7 +158,7 @@ namespace Hardware {
         constexpr float VBAT_SCALE = 4.9f;   // Voltage divider scaling factor
 
     #else
-        #error "No board type defined! Define BOARD_T3_S3, BOARD_HELTEC_V3, or BOARD_TBEAM_SUPREME in platformio.ini"
+        #error "No board type defined! Define BOARD_HELTEC_V3 (V3 or V4), BOARD_T3_S3, or BOARD_TBEAM_SUPREME in platformio.ini"
     #endif
 
 }

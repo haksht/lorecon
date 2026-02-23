@@ -20,7 +20,7 @@ A production-ready LoRa packet capture and analysis platform for security resear
 **Files**: `oled_display.cpp/.h`, `user_interface.cpp/.h`, `ui_components.cpp/.h`
 
 #### Hardware Requirements
-- **Heltec WiFi LoRa 32 V3** with 128x64 SSD1306 OLED (I2C address 0x3C)
+- **Heltec WiFi LoRa 32 V3/V4** with 128x64 SSD1306 OLED (I2C address 0x3C)
 - **User button** on GPIO 0 (PRG button, active low with internal pullup)
 
 #### Pin Configuration
