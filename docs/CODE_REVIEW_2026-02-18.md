@@ -1,7 +1,7 @@
 # Code Review — 2026-02-18
 
 **Scope:** Full repo — documentation, code, structure, suitability for purpose
-**Reviewer:** Claude Sonnet 4.6 (assisted)
+**Reviewer:** Tim Arney
 **Branch:** `main` (commit `df928df`)
 
 ---
