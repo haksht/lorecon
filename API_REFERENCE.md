@@ -111,7 +111,7 @@ curl http://192.168.4.1/api/devices
 | `/api/replay/clear` | POST | Clears replay slots |
 | `/api/wifi/configure` | POST | Sets WiFi credentials |
 | `/api/wifi/clear` | POST | Clears credentials, reboots |
-| `/api/command` | POST | System commands (reboot) |
+| `/api/command` | POST | System commands (reboot, power off) |
 | `/api/firmware/upload` | POST | OTA firmware updates |
 
 ### **Auth Info Endpoint**
@@ -230,7 +230,7 @@ All successful responses follow this structure:
 | `/api/wifi/status` | GET | No | WiFi connection status |
 | `/api/wifi/configure` | POST | **Yes** | Set WiFi credentials |
 | `/api/wifi/clear` | POST | **Yes** | Clear credentials, reboot |
-| `/api/command` | POST | **Yes** | Execute system command |
+| `/api/command` | POST | **Yes** | Execute system command (reboot, power off) |
 | `/api/firmware/upload` | POST | **Yes** | OTA firmware update |
 | `/api/health` | GET | No | Simple health check |
 | `/api/auth/info` | GET | No | Authentication info |
@@ -1152,6 +1152,8 @@ Host: 192.168.4.1
 | `freeHeap` | number | Free RAM (bytes) |
 | `heapSize` | number | Total RAM (bytes) |
 | `clientCount` | number | Active WebSocket clients connected to the UI |
+| `batteryVoltage` | string | Battery voltage in volts (e.g. `"3.85"`). Read from AXP2101 coulomb counter on T-Beam Supreme; ADC on other boards. |
+| `batteryPercent` | number | Estimated battery level 0–100%. |
 | `scan.currentConfig` | number | Current frequency config |
 | `scan.totalConfigs` | number | Total configs to scan |
 | `scan.cyclesCompleted` | number | Full scan cycles completed |
@@ -1758,6 +1760,50 @@ Host: 192.168.4.1
 **cURL Example:**
 ```bash
 curl -X POST http://192.168.4.1/api/scan/stop
+```
+
+---
+
+### **POST /api/command**
+
+Execute a system command on the device. Requires authentication.
+
+**Request:**
+```http
+POST /api/command HTTP/1.1
+Host: 192.168.4.1
+Content-Type: application/x-www-form-urlencoded
+
+command=b
+```
+
+**Commands:**
+
+| Command | Value | Description |
+|---------|-------|-------------|
+| Reboot | `b` | Restart the device (equivalent to power cycle) |
+| Power Off | `s` | Safe shutdown — stops radio, blanks display, then cuts PMIC power rails (T-Beam Supreme) or enters deep sleep (all other boards) |
+
+**Response (success):**
+```json
+{ "status": "success", "message": "Rebooting device..." }
+```
+```json
+{ "status": "success", "message": "Shutting down device..." }
+```
+
+**Notes:**
+- The HTTP response is sent before the device acts, so the connection will drop immediately after.
+- On T-Beam Supreme, Power Off cuts all AXP2101 rails — the device will not restart until the button is pressed or USB power is toggled.
+- On Heltec V3/V4 and T3-S3, Power Off enters ESP32 deep sleep (no PMIC to cut power entirely).
+
+**cURL Example:**
+```bash
+# Reboot
+curl -X POST http://192.168.4.1/api/command -d "command=b" -H "Authorization: Bearer <token>"
+
+# Power off
+curl -X POST http://192.168.4.1/api/command -d "command=s" -H "Authorization: Bearer <token>"
 ```
 
 ---

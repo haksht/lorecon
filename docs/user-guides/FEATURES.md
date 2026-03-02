@@ -34,7 +34,7 @@ A production-ready LoRa packet capture and analysis platform for security resear
 - **6 display modes** (Welcome, Idle, Device Info, Signal Info, Stats, Summary)
 - **Button control**:
   - **Short press** (< 3 seconds): Toggle display mode
-  - **Long press** (≥ 3 seconds): Initiate shutdown sequence
+  - **Long press** (≥ 3 seconds): Safe shutdown — stops radio, blanks display, then cuts PMIC power rails (T-Beam Supreme) or enters deep sleep (all other boards)
 - **Auto-cycle timer** (configurable display rotation)
 - **IP + mDNS footer**: Scanning and targeting modes show both IP address and `hostname.local` on two footer lines for easy device identification
 - **Robust initialization** (reset pulse + retry logic)
@@ -315,7 +315,7 @@ curl "http://<device-ip>/api/files/download?name=snf_12345.csv" -o snf_12345.csv
 4. **Frequency Tab** - 26 scan configuration targeting with activity indicators
 5. **Network Tab** - Interactive topology map with RSSI-based node positioning
 6. **Stats Tab** - Protocol statistics with war room dashboard (pie/bar charts)
-7. **Settings Tab** - WiFi configuration, diagnostics, OTA updates, system controls
+7. **Settings Tab** - WiFi configuration, diagnostics, OTA updates, system controls (Reboot + Power Off)
 
 **Audio Feedback System** ("Geiger Counter for LoRa"):
 - **Protocol-specific tones**: Meshtastic (800 Hz), LoRaWAN (600 Hz), Helium (500 Hz)

@@ -18,6 +18,7 @@
 #include "utils/channel_hash.h"
 #include "config.h"
 #include "web_server.h"  // For g_webServer->getClientCount()
+#include "utils/pmu_controller.h"
 #include "logger.h"
 
 namespace JsonBuilders {
@@ -148,15 +149,22 @@ String buildStatusJson(ReconState& reconState) {
     ModeManager modeManager;
     doc["modeChangeCount"] = modeManager.getModeChangeCount();
 
-    // Battery voltage reading (Heltec V3: GPIO 37 control, GPIO 1 ADC)
+    // Battery reading: AXP2101 boards use PMIC coulomb counter; others use ADC
+    float batteryVoltage;
+    int batteryPercent;
+#ifdef HAS_AXP2101
+    batteryVoltage = PMUController::getBatteryVoltage();
+    batteryPercent = PMUController::getBatteryPercent();
+#else
     if (Config::Hardware::VBAT_CTRL_PIN != Config::Hardware::PIN_UNUSED) {
         pinMode(Config::Hardware::VBAT_CTRL_PIN, OUTPUT);
         digitalWrite(Config::Hardware::VBAT_CTRL_PIN, HIGH);
     }
     analogReadResolution(12);
-    float batteryVoltage = (analogReadMilliVolts(Config::Hardware::VBAT_ADC_PIN) * Config::Hardware::VBAT_SCALE) / 1000.0f;
+    batteryVoltage = (analogReadMilliVolts(Config::Hardware::VBAT_ADC_PIN) * Config::Hardware::VBAT_SCALE) / 1000.0f;
     // Map 3.2V (empty) to 4.2V (full) -> 0-100%
-    int batteryPercent = constrain((int)((batteryVoltage - 3.2f) / (4.2f - 3.2f) * 100.0f), 0, 100);
+    batteryPercent = constrain((int)((batteryVoltage - 3.2f) / (4.2f - 3.2f) * 100.0f), 0, 100);
+#endif
     doc["batteryVoltage"] = serialized(String(batteryVoltage, 2));
     doc["batteryPercent"] = batteryPercent;
 

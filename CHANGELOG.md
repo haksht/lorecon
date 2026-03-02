@@ -2,6 +2,17 @@
 
 All notable changes to the ESP32 LoRa Sniffer project.
 
+## [2.3.1] - 2026-03-02
+
+### Fixed
+- **T-Beam Supreme battery reading**: `/api/status` was reporting 0% for all T-Beam Supreme boards because `batteryPercent`/`batteryVoltage` used the ADC path with `VBAT_ADC_PIN = PIN_UNUSED`. Now branches on `HAS_AXP2101` and reads directly from the AXP2101 coulomb counter via `PMUController`.
+- **T-Beam Supreme incomplete shutdown**: Button long-press called `esp_deep_sleep_start()` only, leaving the AXP2101 running with all power rails live (blue LED visible after shutdown). Now calls `PMUController::shutdown()` which cuts all PMIC rails before falling through to deep sleep as a safety net.
+
+### Added
+- **Web UI Power Off**: New "Power Off" button in the Quick Tools card (Info tab) alongside the existing Reboot button. Posts `command: 's'` to `/api/command` with a confirmation dialog. Works on all boards — T-Beam Supreme performs a hard PMIC power-off; Heltec V3/V4 and T3-S3 enter deep sleep.
+- **`/api/command` shutdown command**: New `s` command shuts down the device safely (radio standby → display off → PMIC power-off or deep sleep).
+- **`PMUController::shutdown()`**: New function in `pmu_controller.h` calls `pmu.shutdown()` to cut all AXP2101 rails. No-op stub provided for non-AXP2101 boards.
+
 ## [2.3.0] - 2026-02-22
 
 ### Added

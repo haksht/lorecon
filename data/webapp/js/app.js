@@ -1756,6 +1756,7 @@ class ReconApp {
             'show-security': () => this.actionShowSecurity(),
             'diagnostics': () => this.actionDiagnostics(),
             'reboot': () => this.actionReboot(),
+            'shutdown': () => this.actionShutdown(),
             'center-map': () => {}, // Handled by network-map.js
             'toggle-labels': () => {},
             'zoom-in': () => {},
@@ -2055,7 +2056,19 @@ class ReconApp {
             showToast('Device rebooting...', 'warning');
         }
     }
-    
+
+    async actionShutdown() {
+        const confirmed = await ModalRenderer.confirm(
+            'Power Off',
+            'Power off the device? You will need to press the button to turn it back on.',
+            'Power Off'
+        );
+        if (confirmed) {
+            await this.post('/api/command', { command: 's' });
+            showToast('Device powering off...', 'warning');
+        }
+    }
+
     async actionTargetDevice(nodeId) {
         await this.post('/api/capture/start', { nodeId });
         showToast(`Targeting device 0x${nodeId}`, 'success');

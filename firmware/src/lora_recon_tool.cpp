@@ -849,6 +849,38 @@ void LoRaReconTool::replayPacket(uint8_t slotIndex) {
     radioController->startReceive();
 }
 
+void LoRaReconTool::performShutdown() {
+    if (oledDisplay) {
+        oledDisplay->showShutdown();
+        delay(100);
+    }
+
+    LOG_INFO("Stopping radio...");
+    radioController->getRadio().standby();
+    radioController->getRadio().sleep();
+    LOG_INFO("Radio stopped");
+
+    Serial.flush();
+    delay(Config::UI::SHUTDOWN_WARNING_MS);
+
+    // Blank OLED — SSD1306 retains last frame on its own charge pump otherwise
+    if (oledDisplay) {
+        oledDisplay->clearAndOff();
+    }
+
+#ifdef HAS_AXP2101
+    // Hard power-off via PMIC — cuts all rails including the CPU supply
+    LOG_INFO("Cutting PMIC power rails");
+    Serial.flush();
+    PMUController::shutdown();
+    // Should not reach here; fall through to deep sleep as a safety net
+#endif
+
+    LOG_INFO("Entering deep sleep");
+    Serial.flush();
+    esp_deep_sleep_start();
+}
+
 // Handle button press for display toggle and power off
 void LoRaReconTool::handleButtonPress(uint32_t now) {
     bool currentButtonState = (digitalRead(Config::Hardware::USER_BUTTON) == LOW);  // Active low
@@ -880,37 +912,8 @@ void LoRaReconTool::handleButtonPress(uint32_t now) {
         // Long press = shutdown
         if (pressDuration >= Config::UI::BUTTON_LONG_PRESS_MS && !shutdownInitiated) {
             shutdownInitiated = true;
-            LOG_INFO("🔴 SHUTDOWN INITIATED (long press detected)");
-            
-            // Show shutdown on display
-            if (oledDisplay) {
-                oledDisplay->showShutdown();
-                delay(100);  // Ensure display updates
-            }
-            
-            // Stop radio safely
-            LOG_INFO("Stopping radio...");
-            radioController->getRadio().standby();
-            radioController->getRadio().sleep();
-            LOG_INFO("Radio stopped");
-            
-            LOG_INFO("✅ Safe to remove power");
-            LOG_INFO("Device will enter deep sleep in %dms...", Config::UI::SHUTDOWN_WARNING_MS);
-            Serial.flush();
-            
-            delay(Config::UI::SHUTDOWN_WARNING_MS);
-
-            // Blank OLED before deep sleep — SSD1306 retains last frame
-            // on its own charge pump otherwise. Use clearAndOff() instead of
-            // turnOff() to avoid showing misleading "Device running" message.
-            if (oledDisplay) {
-                oledDisplay->clearAndOff();
-            }
-
-            // Enter deep sleep (effectively powered off until reset)
-            LOG_INFO("Entering deep sleep mode");
-            Serial.flush();
-            esp_deep_sleep_start();
+            LOG_INFO("SHUTDOWN INITIATED (long press detected)");
+            performShutdown();
         }
     }
     

@@ -506,7 +506,22 @@ void handleCommand(AsyncWebServerRequest* request) {
         ESP.restart();
         return;
     }
-    
+
+    // Handle shutdown command
+    if (cmd == "s") {
+        AsyncWebServerResponse *resp = request->beginResponse(200, "application/json",
+            JsonUtils::success("Shutting down device..."));
+        resp->addHeader("Connection", "close");
+        request->send(resp);
+
+        LOG_INFO("Shutdown command received via web API");
+        delay(500);  // Let the HTTP response flush before cutting power
+        if (g_reconTool) {
+            g_reconTool->performShutdown();
+        }
+        return;
+    }
+
     // Unknown command
     request->send(400, "application/json", JsonUtils::error("Unknown command"));
 }

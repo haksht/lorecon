@@ -123,6 +123,16 @@ inline uint8_t getBatteryPercent() {
     return static_cast<uint8_t>(pmu.getBatteryPercent());
 }
 
+/**
+ * Cut all PMIC power rails and power off the board.
+ * This is a hard power-off — the device will not restart until
+ * the PMIC wakes it (e.g. button press or USB insertion).
+ */
+inline void shutdown() {
+    if (!_initialized) return;
+    pmu.shutdown();
+}
+
 } // namespace PMUController
 
 #else // !HAS_AXP2101
@@ -133,6 +143,7 @@ namespace PMUController {
     inline float getBatteryVoltage() { return 0.0f; }
     inline bool isCharging() { return false; }
     inline uint8_t getBatteryPercent() { return 0; }
+    inline void shutdown() {}
 } // namespace PMUController
 
 #endif // HAS_AXP2101
