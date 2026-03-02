@@ -19,6 +19,7 @@
 #include "config.h"
 #include "web_server.h"  // For g_webServer->getClientCount()
 #include "utils/pmu_controller.h"
+#include "gps_controller.h"
 #include "logger.h"
 
 namespace JsonBuilders {
@@ -167,6 +168,21 @@ String buildStatusJson(ReconState& reconState) {
 #endif
     doc["batteryVoltage"] = serialized(String(batteryVoltage, 2));
     doc["batteryPercent"] = batteryPercent;
+
+    // Sniffer GPS position (only when HAS_GPS board has a valid fix)
+#ifdef HAS_GPS
+    if (g_gpsController) {
+        JsonObject gps = doc["gps"].to<JsonObject>();
+        bool fix = g_gpsController->hasFix();
+        gps["hasFix"] = fix;
+        gps["satellites"] = g_gpsController->getSatellites();
+        if (fix) {
+            gps["lat"] = serialized(String(g_gpsController->getLatitude(), 6));
+            gps["lon"] = serialized(String(g_gpsController->getLongitude(), 6));
+            gps["alt"] = serialized(String(g_gpsController->getAltitude(), 1));
+        }
+    }
+#endif
 
     if (g_webServer) {
         doc["clientCount"] = g_webServer->getClientCount();

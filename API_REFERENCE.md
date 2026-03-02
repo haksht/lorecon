@@ -1167,6 +1167,12 @@ Host: 192.168.4.1
 | `target.deviceType` | string | **Optional** - Device type classification |
 | `target.rssi` | number | **Optional** - Current RSSI in dBm |
 | `target.packetCount` | number | **Optional** - Packets received from target |
+| `gps` | object | **Optional** - Only present on boards with `HAS_GPS` (T-Beam Supreme). Sniffer's own GPS position. |
+| `gps.hasFix` | boolean | True if a valid location fix is available |
+| `gps.satellites` | number | Number of satellites in view |
+| `gps.lat` | string | **Optional** - Latitude in decimal degrees (present when `hasFix` is true) |
+| `gps.lon` | string | **Optional** - Longitude in decimal degrees (present when `hasFix` is true) |
+| `gps.alt` | string | **Optional** - Altitude in metres (present when `hasFix` is true) |
 
 **cURL Example:**
 ```bash

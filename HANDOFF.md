@@ -22,12 +22,18 @@
 - All boards supported: T-Beam Supreme = hard PMIC power-off; Heltec V3/V4 + T3-S3 = deep sleep.
 - New `cmd == "s"` handler in `api_handlers.cpp` calls `g_reconTool->performShutdown()`.
 
+### Feature: Sniffer GPS Position in Webapp (Issue #11)
+
+- `buildStatusJson()` in `json_builders.cpp` now includes a `gps` object when `HAS_GPS` is defined: `hasFix`, `satellites`, and (when fixed) `lat`/`lon`/`alt`.
+- Info tab System Status card gains a "📍 GPS" row: hidden on non-GPS boards, shows coordinates + satellite count when fixed, "No fix (N sats)" while acquiring.
+- Updates every status poll cycle (10 s) via existing `handleStatusUpdate()`.
+
 ## Current State
 
 - **All three boards**: build clean (heltec_v3, t3_s3, tbeam_supreme all SUCCESS)
 - **Branch**: `main`, all changes committed and pushed
 - **T3-S3 flash**: 89.1% — monitor before adding features
-- **Outstanding issues**: #6 (recon mode scan settings), #8 (packets seen but not captured), #11 (sniffer GPS on map), #12 (Heltec V4 GPS)
+- **Outstanding issues**: #6 (recon mode scan settings), #8 (packets seen but not captured), #12 (Heltec V4 GPS)
 
 ## What's Blocked
 
@@ -36,8 +42,7 @@ Nothing.
 ## Next Steps (if desired)
 
 1. **Flash all boards** with the new firmware (battery fix + shutdown fix are T-Beam Supreme critical)
-2. **Issue #11** — Sniffer GPS on map: `lat`/`lon` already in WebSocket `packet` events, JS in `app.js`/`network-map.js` doesn't consume them yet
-3. **Issue #12** — Heltec V4 GPS: needs board config + GPS controller wiring (new feature)
+2. **Issue #12** — Heltec V4 GPS: needs board config + GPS controller wiring (new feature)
 4. **Issue #8** — Packets seen but not captured: investigate whether non-Meshtastic packets are being filtered in `packet_processor.cpp` before reaching the capture list
 5. **Token UX for AP clients**: Replace browser `prompt()` with a nicer HTML login page
 
@@ -60,11 +65,11 @@ Nothing.
 - `firmware/src/api_handlers.cpp` — `cmd == "s"` shutdown handler
 
 **Web UI:**
-- `data/webapp/index.html` — Power Off button in Quick Tools card
-- `data/webapp/js/app.js` — `'shutdown'` action, `actionShutdown()` method
+- `data/webapp/index.html` — Power Off button in Quick Tools card; GPS row in System Status card
+- `data/webapp/js/app.js` — `'shutdown'` action, `actionShutdown()` method; GPS row update in `handleStatusUpdate()`
 
 **Documentation:**
-- `CHANGELOG.md` — added [2.3.1] entry
+- `CHANGELOG.md` — added [2.3.1] and [2.3.2] entries
 - `HANDOFF.md` — this file
-- `API_REFERENCE.md` — `/api/command` full section, battery fields in `/api/status`
+- `API_REFERENCE.md` — `/api/command` full section, battery fields and `gps` object in `/api/status`
 - `docs/user-guides/FEATURES.md` — button description, Settings tab description

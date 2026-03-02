@@ -2,6 +2,11 @@
 
 All notable changes to the ESP32 LoRa Sniffer project.
 
+## [2.3.2] - 2026-03-02
+
+### Added
+- **Sniffer GPS in webapp** (issue #11): `/api/status` now includes a `gps` object (`hasFix`, `lat`, `lon`, `alt`, `satellites`) when `HAS_GPS` is defined. The Info tab System Status card shows a GPS row: coordinates + satellite count with a fix, "No fix (N sats)" while acquiring. Row hidden on boards without GPS hardware.
+
 ## [2.3.1] - 2026-03-02
 
 ### Fixed

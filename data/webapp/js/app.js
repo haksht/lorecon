@@ -408,6 +408,8 @@ class ReconApp {
             infoPackets: document.getElementById('info-packets'),
             infoDevices: document.getElementById('info-devices'),
             infoHeap: document.getElementById('info-heap'),
+            infoGpsRow: document.getElementById('info-gps-row'),
+            infoGps: document.getElementById('info-gps'),
             mobileMenuToggle: document.getElementById('mobile-menu-toggle'),
             mobileMenuOverlay: document.getElementById('mobile-menu-overlay'),
             targetInfo: document.getElementById('target-info'),
@@ -538,6 +540,25 @@ class ReconApp {
             if (this.el.infoPackets) this.el.infoPackets.textContent = data.totalPackets || 0;
             if (this.el.infoDevices) this.el.infoDevices.textContent = data.devices || 0;
             if (this.el.infoHeap) this.el.infoHeap.textContent = this.formatBytes(data.freeHeap || 0);
+            if (this.el.infoGpsRow && this.el.infoGps) {
+                if (data.gps) {
+                    this.el.infoGpsRow.style.display = '';
+                    if (data.gps.hasFix) {
+                        const lat = parseFloat(data.gps.lat).toFixed(5);
+                        const lon = parseFloat(data.gps.lon).toFixed(5);
+                        const alt = data.gps.alt !== undefined ? ` ${parseFloat(data.gps.alt).toFixed(0)}m` : '';
+                        const sats = data.gps.satellites ? ` (${data.gps.satellites} sats)` : '';
+                        this.el.infoGps.textContent = `${lat}, ${lon}${alt}${sats}`;
+                        this.el.infoGps.className = 'status-value text-success';
+                    } else {
+                        const sats = data.gps.satellites ? ` — ${data.gps.satellites} sats` : '';
+                        this.el.infoGps.textContent = `No fix${sats}`;
+                        this.el.infoGps.className = 'status-value text-warning';
+                    }
+                } else {
+                    this.el.infoGpsRow.style.display = 'none';
+                }
+            }
         }
         
         // Update Resume Scan button based on mode
