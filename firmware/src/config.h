@@ -100,6 +100,7 @@ namespace Hardware {
         constexpr uint8_t GPS_RX = 9;        // GPS TX → ESP32 RX
         constexpr uint8_t GPS_TX = 8;        // ESP32 TX → GPS RX
         constexpr uint8_t GPS_EN = 7;        // Pull HIGH to enable GPS module
+        constexpr uint8_t GPS_EN_LEVEL = HIGH; // Active HIGH on T-Beam Supreme
 
         // AXP2101 PMIC (separate I2C bus from display)
         constexpr uint8_t PMU_SDA = 42;      // PMU I2C data
@@ -121,7 +122,9 @@ namespace Hardware {
         // Heltec WiFi LoRa 32 V3 / V4 Pin Configuration
         // ========================================================================
         // Board: ESP32-S3 + SX1262 + SSD1306 OLED (I2C)
-        // Note: V3 and V4 share identical pin mapping — both use this config block
+        // V3 and V4 share identical LoRa/OLED/button pins — both use this block.
+        // V4 adds a dedicated SH1.25-8P GPS connector (L76K module); use the
+        // heltec_v4 PlatformIO environment to enable GPS support.
         // Display: 0.96" OLED on I2C
         // Note: SD card requires external module (not natively supported)
 
@@ -152,13 +155,20 @@ namespace Hardware {
         constexpr uint8_t USER_BUTTON = 0;   // PRG button (active low)
         constexpr uint8_t USER_LED = 35;     // Onboard LED (if present)
 
+        // GPS UART — V4 only (dedicated SH1.25-8P connector; not present on V3)
+        // Enable this block by building with the heltec_v4 environment.
+        constexpr uint8_t GPS_RX = 38;       // GPS TX → ESP32 RX
+        constexpr uint8_t GPS_TX = 39;       // ESP32 TX → GPS RX
+        constexpr uint8_t GPS_EN = 34;       // Pull LOW to enable L76K module (active low)
+        constexpr uint8_t GPS_EN_LEVEL = LOW; // Active LOW on Heltec V4
+
         // Battery Monitoring
         constexpr uint8_t VBAT_ADC_PIN = 1;  // GPIO 1 - battery voltage ADC
         constexpr uint8_t VBAT_CTRL_PIN = 37; // GPIO 37 - ADC control (set HIGH to enable)
         constexpr float VBAT_SCALE = 4.9f;   // Voltage divider scaling factor
 
     #else
-        #error "No board type defined! Define BOARD_HELTEC_V3 (V3 or V4), BOARD_T3_S3, or BOARD_TBEAM_SUPREME in platformio.ini"
+        #error "No board type defined! Define BOARD_HELTEC_V3 (V3/V4 no GPS), BOARD_T3_S3, or BOARD_TBEAM_SUPREME in platformio.ini. For Heltec V4 with GPS use the heltec_v4 environment (which defines BOARD_HELTEC_V3 + HAS_GPS)."
     #endif
 
 }

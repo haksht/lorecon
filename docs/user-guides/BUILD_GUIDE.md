@@ -230,7 +230,8 @@ pio --version
 ### **⚠️ Build System Requirements**
 - **PlatformIO Core**: This system requires PlatformIO (not Arduino IDE)
 - **Supported Hardware**:
-  - ✅ **Heltec WiFi LoRa 32 V3 / V4** — build env: `heltec_v3` (V3 and V4 use identical firmware)
+  - ✅ **Heltec WiFi LoRa 32 V3 / V4** — build env: `heltec_v3` (V3 and V4 without GPS module use identical firmware)
+  - ✅ **Heltec WiFi LoRa 32 V4 + L76K GNSS** — build env: `heltec_v4` (V4 with the optional L76K GPS module attached)
   - ✅ **LilyGO T3-S3 V1.2/V1.3** — build env: `t3_s3`
   - ✅ **LilyGO T-Beam Supreme** — build env: `tbeam_supreme`
   - ⚠️ **T-Deck variants** - Not supported. See `../hardware/TDECK_PLUS_INVESTIGATION.md`.

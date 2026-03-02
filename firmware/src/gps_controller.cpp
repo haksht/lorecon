@@ -22,11 +22,12 @@ GpsController::GpsController()
 bool GpsController::initialize() {
     if (_initialized) return true;
 
-    // Assert GPS_EN HIGH to power the GPS module.
-    // On T-Beam Supreme, this controls the L76K enable line.
-    // The AXP2101 ALDO4 must already be on (done by PMUController::initialize()).
+    // Assert GPS enable to power the GPS module.
+    // Polarity is board-specific: T-Beam Supreme is active HIGH; Heltec V4 is active LOW.
+    // GPS_EN_LEVEL in config.h encodes the correct logic level for each board.
+    // On T-Beam Supreme, AXP2101 ALDO4 must already be on (done by PMUController::initialize()).
     pinMode(Config::Hardware::GPS_EN, OUTPUT);
-    digitalWrite(Config::Hardware::GPS_EN, HIGH);
+    digitalWrite(Config::Hardware::GPS_EN, Config::Hardware::GPS_EN_LEVEL);
 
     // Brief settle time for GPS module power-on
     delay(100);

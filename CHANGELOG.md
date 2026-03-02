@@ -2,6 +2,15 @@
 
 All notable changes to the ESP32 LoRa Sniffer project.
 
+## [2.3.3] - 2026-03-02
+
+### Added
+- **Heltec V4 GPS support** (issue #12): New `heltec_v4` PlatformIO environment for Heltec WiFi LoRa 32 V4 with the optional L76K GNSS module attached. Enables `HAS_GPS`, adds TinyGPSPlus, and configures UART pins (RX=38, TX=39) with active-LOW enable on GPIO 34. GPS data flows through the existing GPS pipeline: fix status, coordinates, and satellite count visible in the webapp Status card. Use `heltec_v3` if you have a V4 without the GPS module — hardware is otherwise identical.
+- **`GPS_EN_LEVEL` board constant**: `Config::Hardware::GPS_EN_LEVEL` encodes the correct enable polarity per board (T-Beam Supreme = `HIGH`, Heltec V4 = `LOW`). `gps_controller.cpp` uses this constant instead of a hardcoded level.
+
+### Improved
+- **Captured Packets subtitle** (issue #8): Clarified that the packet list is a 10-slot replay buffer (oldest entries overwritten) and that the full history is in the SD card CSV log.
+
 ## [2.3.2] - 2026-03-02
 
 ### Added
