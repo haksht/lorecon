@@ -140,12 +140,32 @@ bool RadioController::initialize() {
             LOG_INFO("DIO2 RF switch enabled");
         }
     #else
-        // Non-TCXO boards (Heltec V3): just call begin()
+        // Heltec V3: crystal oscillator, no TCXO voltage argument.
         int state = radio->begin();
         if (state != RADIOLIB_ERR_NONE) {
             LOG_ERROR("SX1262 initialization failed (error: %d)", state);
             return false;
         }
+
+        #if defined(BOARD_HELTEC_V4)
+            // V4 has an external FEM (GC1109 on V4.2, KCT8103L on V4.3).
+            // GPIO 2:  FEM chip enable — must be HIGH or LNA/PA are unpowered.
+            //          Without this, the RF path is open and nothing is received.
+            // GPIO 5:  KCT8103L (V4.3) PA_CTX — LOW = LNA/RX mode
+            // GPIO 46: GC1109 (V4.2) PA_TX_EN — LOW = RX mode; left as INPUT
+            //          because GPIO 46 is a strapping pin (defaults LOW on ESP32-S3)
+            pinMode(2, OUTPUT); digitalWrite(2, HIGH);  // Enable FEM
+            pinMode(5, OUTPUT); digitalWrite(5, LOW);   // LNA/RX mode (KCT8103L V4.3)
+            LOG_INFO("V4 FEM enabled (GPIO2=HIGH GPIO5=LOW)");
+
+            // V4 uses DIO2 as RF switch control (confirmed by Heltec hardware design).
+            state = radio->setDio2AsRfSwitch(true);
+            if (state != RADIOLIB_ERR_NONE) {
+                LOG_WARN("setDio2AsRfSwitch: %d", state);
+            } else {
+                LOG_INFO("V4 DIO2 RF switch enabled");
+            }
+        #endif
     #endif
     
     LOG_INFO("SX1262 initialized successfully");
@@ -208,8 +228,15 @@ void RadioController::runDiagnostics() {
                 radio->setDio2AsRfSwitch(true);
             }
         #else
-            // Heltec V3: crystal oscillator, no DIO2 RF switch
+            // Heltec V3/V4: crystal oscillator
             state = radio->begin();
+            #if defined(BOARD_HELTEC_V4)
+                if (state == RADIOLIB_ERR_NONE) {
+                    pinMode(2, OUTPUT); digitalWrite(2, HIGH);
+                    pinMode(5, OUTPUT); digitalWrite(5, LOW);
+                    radio->setDio2AsRfSwitch(true);
+                }
+            #endif
         #endif
         LOG_INFO("Re-init after reset: %d", state);
     }
@@ -293,9 +320,28 @@ bool RadioController::setSyncWord(uint8_t sw) {
     return (state == RADIOLIB_ERR_NONE);
 }
 
+// Poll SX1262 IRQ status register directly (fallback for DIO1 pin issues).
+// If the RxDone flag is set, marks a packet as available and clears the flag.
+void RadioController::pollIrqStatus() {
+    if (!radio) return;
+    // Skip if a packet is already pending — readData() will clear the IRQ when consumed.
+    if (packetAvailable.load(std::memory_order_acquire)) return;
+    uint16_t irq = radio->getIrqStatus();
+    if (irq & RADIOLIB_SX126X_IRQ_RX_DONE) {
+        irqPollCount.fetch_add(1, std::memory_order_relaxed);
+        packetAvailable.store(true, std::memory_order_release);
+    }
+}
+
 // Start receiving packets
 bool RadioController::startReceive() {
     int state = radio->startReceive();
+    lastRxError = state;
+    if (state == RADIOLIB_ERR_NONE) {
+        LOG_INFO("startReceive() OK — radio in continuous RX mode");
+    } else {
+        LOG_ERROR("startReceive() FAILED (error: %d)", state);
+    }
     return (state == RADIOLIB_ERR_NONE);
 }
 

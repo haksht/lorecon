@@ -21,6 +21,7 @@
 #include "utils/pmu_controller.h"
 #include "gps_controller.h"
 #include "logger.h"
+#include "radio_controller.h"
 
 namespace JsonBuilders {
 
@@ -145,6 +146,11 @@ String buildStatusJson(ReconState& reconState) {
     doc["capturedPackets"] = reconState.getNumCapturedPackets();
     doc["freeHeap"] = ESP.getFreeHeap();
     doc["heapSize"] = ESP.getHeapSize();
+    if (g_radioController) {
+        doc["isrCount"] = g_radioController->getISRCount();
+        doc["irqPollCount"] = g_radioController->getIrqPollCount();
+        doc["lastRxError"] = g_radioController->getLastRxError();
+    }
     
     // Mode change counter for debugging long-duration tests
     ModeManager modeManager;

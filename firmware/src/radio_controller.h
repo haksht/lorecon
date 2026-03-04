@@ -59,9 +59,23 @@ public:
     void setOutputPower(int dBm);
     
     // Interrupt handling (public for ISR access)
-    void markPacketReceived() { 
-        packetAvailable.store(true, std::memory_order_release); 
+    void markPacketReceived() {
+        isrCount.fetch_add(1, std::memory_order_relaxed);
+        packetAvailable.store(true, std::memory_order_release);
     }
+
+    // Diagnostic: total number of times the DIO1 ISR has fired since boot
+    uint32_t getISRCount() const { return isrCount.load(std::memory_order_relaxed); }
+
+    // Diagnostic: RadioLib error code from last startReceive() call (0 = success)
+    int getLastRxError() const { return lastRxError; }
+
+    // Polling fallback: read SX1262 IRQ status register directly via SPI.
+    // Sets packetAvailable if RxDone is set. Increments irqPollCount each time
+    // a packet is detected this way (vs via DIO1 interrupt). Used to diagnose
+    // DIO1 pin mapping issues: irqPollCount>0 + isrCount==0 = DIO1 not on GPIO 14.
+    void pollIrqStatus();
+    uint32_t getIrqPollCount() const { return irqPollCount.load(std::memory_order_relaxed); }
     
     // Radio access (for advanced operations like packet replay)
     SX1262& getRadio() { return *radio; }
@@ -69,6 +83,9 @@ public:
 private:
     SX1262* radio;  // Constructed after SPI.begin() in initialize()
     std::atomic<bool> packetAvailable;
+    std::atomic<uint32_t> isrCount{0};     // Total DIO1 ISR firings since boot
+    std::atomic<uint32_t> irqPollCount{0}; // Packets detected via SPI IRQ polling (not DIO1)
+    int lastRxError{1};  // Result of last startReceive() call; 1 = never called, 0 = success
     
     // Cached signal metrics (avoid repeated SPI reads)
     float cachedRSSI;

@@ -170,6 +170,7 @@ void CommandHandler::showCommands() {
     Serial.println("  p   : Packet replay menu");
     Serial.println("  l   : Clear all captured packets");
     Serial.println("  n   : Clear all discovered devices");
+    Serial.println("  e   : Exit menu (resume current mode)");
     Serial.println("  r   : Resume reconnaissance (keep devices)");
     Serial.println("  q   : Toggle quiet/verbose mode");
     Serial.println("  t   : Show API token (for mobile)");
@@ -460,5 +461,38 @@ void CommandHandler::cmdLoRaWANStats(IReconTool* tool) {
 
 void CommandHandler::cmdResetInfo(IReconTool* tool) {
     CrashContext::printResetInfo();
+}
+
+void CommandHandler::cmdExitMenu(IReconTool* tool) {
+    // Restore to whichever mode was active before the menu opened,
+    // without touching NVS (unlike 'r' which clears persisted targeting).
+    ModeManager modeManager;
+    OperationMode resumeMode = MODE_RECONNAISSANCE;
+    uint8_t resumeConfig = 0;
+    bool resumeByDevice = false;
+
+    if (modeManager.loadPersistedMode(resumeMode, resumeConfig, resumeByDevice)) {
+        reconState.scanState.targetConfig = resumeConfig;
+        reconState.scanState.currentConfig = resumeConfig;
+        reconState.scanState.targetedByDevice = resumeByDevice;
+        Serial.printf("\n▶  Returning to %s mode (config %d)\n\n",
+                      resumeMode == MODE_TARGETED_CAPTURE ? "TARGETING" : "RECONNAISSANCE",
+                      resumeConfig);
+    } else {
+        Serial.println("\n▶  Returning to RECONNAISSANCE mode\n");
+    }
+
+    modeManager.logModeTransition(MODE_INTERACTIVE_MENU, resumeMode, "Serial:exitMenu");
+    reconState.scanState.mode = resumeMode;
+
+    if (tool) {
+        tool->clearMenuTimeout();
+    }
+    reconState.scanState.packetPending = false;
+    reconState.scanState.waitingForUserInput = false;
+
+    const ScanConfig& cfg = reconState.getScanConfig(reconState.scanState.currentConfig);
+    tool->getRadioController()->applyConfig(cfg);
+    tool->getRadioController()->startReceive();
 }
 

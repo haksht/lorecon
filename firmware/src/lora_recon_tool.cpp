@@ -259,6 +259,11 @@ void LoRaReconTool::update() {
         return;
     }
     
+    // Poll SX1262 IRQ register directly — fallback for boards where DIO1 interrupt
+    // does not fire (e.g. V4 pin mapping mismatch). Harmless on boards where DIO1
+    // works: the IRQ flag will already be cleared by the time we poll.
+    if (radioController) radioController->pollIrqStatus();
+
     // Mode-specific operations
     switch (reconState.scanState.mode) {
         case MODE_RECONNAISSANCE:

@@ -327,8 +327,14 @@ String APIController::getSystemConfig() {
     hardware["hasSD"] = false;
     #endif
     
+    // Radio diagnostics — tells us whether DIO1 ISR has ever fired
+    JsonObject radio = doc["radio"].to<JsonObject>();
+    if (g_reconTool && g_reconTool->getRadioController()) {
+        radio["isrCount"] = g_reconTool->getRadioController()->getISRCount();
+    }
+
     doc["status"] = "success";
-    
+
     String response;
     serializeJson(doc, response);
     return response;

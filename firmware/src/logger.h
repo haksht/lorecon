@@ -65,18 +65,22 @@ private:
 class SerialLogger : public Logger {
 public:
     SerialLogger(LogLevel minLevel = LogLevel::INFO);
-    
+
     void debug(const char* format, ...) override;
     void info(const char* format, ...) override;
     void warning(const char* format, ...) override;
     void error(const char* format, ...) override;
-    
+
     void setLevel(LogLevel level) override { minLevel = level; }
     LogLevel getLevel() const override { return minLevel; }
-    
+
+    // Redirect output to a different stream (e.g. USBSerial for late USB CDC init)
+    void setStream(Stream* s) { _stream = s; }
+
 private:
     LogLevel minLevel;
-    
+    Stream* _stream = &Serial;
+
     // Helper to format and print with level prefix
     void log(LogLevel level, const char* prefix, const char* format, va_list args);
 };

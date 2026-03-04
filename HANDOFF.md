@@ -1,96 +1,86 @@
 # Session Handoff
 
-## Session Date: 2026-03-02
+## Session Date: 2026-03-04
 
 ## What Was Done
 
-### Bug Fixes: T-Beam Supreme Battery + Shutdown (Issues #7, #9)
+### Heltec V4 Radio Fix — Root Cause: External FEM Not Enabled
 
-**#7 — Battery showing 0% in webapp**
-- Root cause: `json_builders.cpp` used `analogReadMilliVolts(VBAT_ADC_PIN)` for all boards. On T-Beam Supreme, `VBAT_ADC_PIN = PIN_UNUSED = 0xFF` → reads garbage → 0V → 0%.
-- Fix: Branch on `HAS_AXP2101` in `json_builders.cpp`. T-Beam Supreme now reads voltage and percent from `PMUController::getBatteryVoltage()` / `PMUController::getBatteryPercent()` (AXP2101 coulomb counter). Heltec/T3-S3 unchanged (ADC path).
+V4 (`heltec_v4` env, COM12) had `isrCount:0` — radio initialized (startReceive succeeded,
+`lastRxError:0`) but received zero packets. Swapping antennas and removing USB had no effect.
 
-**#9 — T-Beam Supreme not fully powering down**
-- Root cause: Button long-press only called `esp_deep_sleep_start()`, which suspends the CPU but leaves AXP2101 running with all rails live (blue LED visible after shutdown).
-- Fix: Added `PMUController::shutdown()` which calls `pmu.shutdown()` to cut all PMIC rails. Extracted shutdown sequence into `LoRaReconTool::performShutdown()`. On AXP2101 boards, PMIC cuts power before deep sleep fallback.
+**Diagnostic added: IRQ polling fallback**
+- `pollIrqStatus()` reads SX1262 IRQ status register directly via SPI every main loop tick
+- If `RxDone` bit set, marks packet available and increments `irqPollCount`
+- `irqPollCount:0` confirmed: SX1262 itself never saw any RF — not a DIO1/GPIO issue
+- Both counters exposed in `/api/status`
 
-### Feature: Web UI Power Off (Issue #10)
+**Root cause: Heltec V4 external FEM not enabled**
 
-- New "Power Off" button in Quick Tools card (Info tab) alongside Reboot.
-- Confirmation dialog before acting.
-- Posts `command: 's'` to `/api/command`.
-- All boards supported: T-Beam Supreme = hard PMIC power-off; Heltec V3/V4 + T3-S3 = deep sleep.
-- New `cmd == "s"` handler in `api_handlers.cpp` calls `g_reconTool->performShutdown()`.
+Heltec V4 (unlike V3) has an external FEM (GC1109 on V4.2, KCT8103L on V4.3) between
+the SX1262 and the antenna. The FEM requires:
+- **GPIO 2 HIGH** — chip enable (powers the entire FEM; without this, LNA is off)
+- **GPIO 5 LOW** — KCT8103L PA_CTX, selects LNA/RX mode (V4.3)
+- **GPIO 46** — GC1109 PA_TX_EN, strapping pin defaults LOW = RX mode (V4.2 — leave as INPUT)
+- **`setDio2AsRfSwitch(true)`** — DIO2 controls the internal RF path switch (confirmed by Meshtastic)
 
-### Feature: Sniffer GPS Position in Webapp (Issue #11)
+Our firmware never drove GPIO 2 HIGH → LNA always unpowered → zero RF reaching SX1262.
 
-- `buildStatusJson()` in `json_builders.cpp` now includes a `gps` object when `HAS_GPS` is defined: `hasFix`, `satellites`, and (when fixed) `lat`/`lon`/`alt`.
-- Info tab System Status card gains a "📍 GPS" row: hidden on non-GPS boards, shows coordinates + satellite count when fixed, "No fix (N sats)" while acquiring.
-- Updates every status poll cycle (10 s) via existing `handleStatusUpdate()`.
+**Fix:**
+- Added `-DBOARD_HELTEC_V4` to `heltec_v4` env `build_flags` in `platformio.ini`
+- Added `#if defined(BOARD_HELTEC_V4)` block in `radio_controller.cpp` (Heltec `#else` branch):
+  `pinMode(2, OUTPUT); digitalWrite(2, HIGH);` — enable FEM
+  `pinMode(5, OUTPUT); digitalWrite(5, LOW);`  — LNA/RX mode
+  `radio->setDio2AsRfSwitch(true);` — RF switch via DIO2
+- Same block added to `runDiagnostics()` recovery path
 
-### Feature: Heltec V4 GPS Support (Issue #12)
+**Result:** `isrCount:1, devices:1, totalPackets:1` — V4 confirmed receiving LoRa packets.
 
-- New `heltec_v4` PlatformIO environment for Heltec WiFi LoRa 32 V4 with the optional L76K GNSS module.
-- GPS pins from Meshtastic firmware (authoritative): RX=38, TX=39, EN=34 (active LOW — differs from T-Beam Supreme which is active HIGH).
-- New `Config::Hardware::GPS_EN_LEVEL` constant (LOW for Heltec V4, HIGH for T-Beam Supreme). `gps_controller.cpp` uses this instead of hardcoded polarity.
-- `heltec_v4` env adds `HAS_GPS` flag + TinyGPSPlus library. All other config is identical to `heltec_v3`.
-- Use `heltec_v3` for V3 or V4 without the GPS module; use `heltec_v4` only when the L76K module is physically attached.
-- CI matrix updated to build `heltec_v4` on every push.
+### Other Session Changes
 
-### UX Fix: Captured Packets Subtitle (Issue #8)
+**Serial menu exit command (`e`/`E`)**
+- `e`/`E` exits interactive menu and resumes prior mode (targeting or recon) without clearing NVS
 
-- Issue #8 ("packets seen but not captured") is working as designed — the webapp shows a 10-slot circular replay buffer, not all captured packets. Full history is on the SD card CSV log.
-- Clarified the subtitle text in the Captured Packets card to explain replay buffer behavior and SD card logging.
+**Logger: configurable output stream**
+- `SerialLogger` now uses `Stream* _stream` (default `&Serial`) with `setStream()` method
+- Allows runtime redirect of log output (e.g., to USBSerial)
+
+**Radio diagnostics in `/api/status`**
+- `isrCount` — total DIO1 ISR firings since boot
+- `lastRxError` — RadioLib error code from last `startReceive()` call (0=success)
+- `irqPollCount` — packets detected via SPI IRQ poll (not DIO1 interrupt)
 
 ## Current State
 
-- **All four environments**: build clean (heltec_v3, heltec_v4, t3_s3, tbeam_supreme all SUCCESS)
 - **Branch**: `main`, all changes committed and pushed
-- **T3-S3 flash**: 89.1% — monitor before adding features
-- **Outstanding issues**: #6 (recon mode scan settings)
+- **V4 status**: WORKING — FEM fix confirmed, receives LoRa packets
+- **V3 status**: Working (no DIO2 or FEM for V3 — unchanged)
+- **T3-S3, T-Beam Supreme**: Unchanged, working
 
-## What's Blocked
+## Next Steps
 
-Nothing.
-
-## Next Steps (if desired)
-
-1. **Flash boards** with new firmware as needed
-2. **Issue #6** — Recon mode scan settings: allow user to configure frequency/SF/BW/CR from webapp (large feature, touches radio controller + UI)
-3. **Token UX for AP clients**: Replace browser `prompt()` with a nicer HTML login page
-4. **GPS track in webapp**: WebSocket `packet` events include `lat`/`lon` when `HAS_GPS` + fix — JS does not yet consume these to plot sniffer track on map
+1. Field test V4 GPS outdoors for a fix (needs clear sky)
+2. Issue #6 — Recon mode scan settings
+3. Issue #8 — 20-byte capture threshold (waiting on The-Foe's decision)
 
 ## Key Parameters / Settings
 
-- Heltec V3/V4: COM3 (CP210x, VID:PID=10C4:EA60) / COM12
+- Heltec V3: COM3 (CP210x, VID:PID=10C4:EA60)
+- Heltec V4: COM12 (native USB, no serial monitor — webapp only, USB PHY kills radio)
 - T3-S3: COM9 (native USB, 303A:1001)
 - T-Beam Supreme: running = COM10, download mode = COM11
 - API token: `f71056e1899557b5d191b18ce42ce5be` (in NVS, survives reboot)
-- T-Beam Supreme WiFi: SSID `LoRa-5A8248` / Password `recon-5A8248`
-- PlatformIO CI version: 6.1.19 (pinned)
+- PlatformIO: `c:/Users/tim/.platformio/penv/Scripts/pio.exe`
 
 ## Files Changed This Session
 
-**Firmware:**
-- `firmware/src/utils/pmu_controller.h` — added `PMUController::shutdown()`
-- `firmware/src/lora_recon_tool.cpp` — extracted `performShutdown()`, button handler now calls it
-- `firmware/src/lora_recon_tool.h` — added `performShutdown()` public method
-- `firmware/src/json_builders.cpp` — `HAS_AXP2101` branch for battery reading; `gps` object in `/api/status`
-- `firmware/src/api_handlers.cpp` — `cmd == "s"` shutdown handler
-- `firmware/src/config.h` — GPS pins + `GPS_EN_LEVEL` for Heltec V4 (`BOARD_HELTEC_V3` block); `GPS_EN_LEVEL=HIGH` for T-Beam Supreme
-- `firmware/src/gps_controller.cpp` — use `Config::Hardware::GPS_EN_LEVEL` instead of hardcoded `HIGH`
-
-**Build:**
-- `platformio.ini` — new `[env:heltec_v4]` environment with `HAS_GPS` + TinyGPSPlus
-- `.github/workflows/build.yml` — added `heltec_v4` to CI matrix
-
-**Web UI:**
-- `data/webapp/index.html` — Power Off button in Quick Tools card; GPS row in System Status card; Captured Packets subtitle clarified
-- `data/webapp/js/app.js` — `'shutdown'` action, `actionShutdown()` method; GPS row update in `handleStatusUpdate()`
-
-**Documentation:**
-- `CHANGELOG.md` — added [2.3.1], [2.3.2], [2.3.3] entries
-- `HANDOFF.md` — this file
-- `API_REFERENCE.md` — `/api/command` full section, battery fields and `gps` object in `/api/status`
-- `docs/user-guides/FEATURES.md` — button description, Settings tab description
-- `docs/user-guides/BUILD_GUIDE.md` — `heltec_v4` environment added to supported hardware list
+- `platformio.ini` — added `-DBOARD_HELTEC_V4` to heltec_v4 env
+- `firmware/src/radio_controller.h` — added `irqPollCount` atomic, `pollIrqStatus()`,
+  `getIrqPollCount()`; also `isrCount`, `getISRCount()`, `lastRxError`, `getLastRxError()`
+- `firmware/src/radio_controller.cpp` — V4 FEM init (GPIO 2 HIGH, GPIO 5 LOW, DIO2 switch);
+  `pollIrqStatus()` implementation; `startReceive()` logs result and stores `lastRxError`
+- `firmware/src/lora_recon_tool.cpp` — `pollIrqStatus()` call in main loop
+- `firmware/src/json_builders.cpp` — `isrCount`, `irqPollCount`, `lastRxError` in `/api/status`
+- `firmware/src/api_controller.cpp` — `isrCount` added to config endpoint
+- `firmware/src/command_handler.h/.cpp` — `cmdExitMenu` (`e`/`E` key)
+- `firmware/src/logger.h/.cpp` — configurable `Stream* _stream`

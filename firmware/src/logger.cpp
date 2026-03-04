@@ -59,12 +59,9 @@ void SerialLogger::error(const char* format, ...) {
 }
 
 void SerialLogger::log(LogLevel level, const char* prefix, const char* format, va_list args) {
-    // Print prefix
-    Serial.print(prefix);
-    Serial.print(" ");
-    
-    // Format and print message
+    _stream->print(prefix);
+    _stream->print(" ");
     char buffer[256];
     vsnprintf(buffer, sizeof(buffer), format, args);
-    Serial.println(buffer);
+    _stream->println(buffer);
 }

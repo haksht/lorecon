@@ -69,6 +69,7 @@ private:
     static void cmdShowToken(IReconTool* tool);
     static void cmdLoRaWANStats(IReconTool* tool);
     static void cmdResetInfo(IReconTool* tool);
+    static void cmdExitMenu(IReconTool* tool);
 
     // Command table entry
     struct CommandEntry {
@@ -119,6 +120,8 @@ private:
         {'W', cmdLoRaWANStats,        "LoRaWAN key testing stats",     false},
         {'i', cmdResetInfo,           "Reset reason & health info",    false},
         {'I', cmdResetInfo,           "Reset reason & health info",    false},
+        {'e', cmdExitMenu,            "Exit menu / resume current mode", false},
+        {'E', cmdExitMenu,            "Exit menu / resume current mode", false},
     };
     
     static constexpr uint8_t numCommands = sizeof(commands) / sizeof(CommandEntry);
