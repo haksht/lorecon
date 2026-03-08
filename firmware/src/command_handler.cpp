@@ -33,6 +33,12 @@
 constexpr CommandHandler::CommandEntry CommandHandler::commands[];
 constexpr uint8_t CommandHandler::numCommands;
 
+// Pre-menu snapshot: captured when 'm' is pressed so 'e' can restore exactly
+static OperationMode s_preMenuMode = MODE_RECONNAISSANCE;
+static uint8_t       s_preMenuConfig = 0;
+static bool          s_preMenuByDevice = false;
+static bool          s_hasPreMenuSnapshot = false;
+
 CommandHandler::CommandHandler(IReconTool* tool) 
     : reconTool(tool) 
 {
@@ -185,6 +191,12 @@ void CommandHandler::showCommands() {
 // ============================================================================
 
 void CommandHandler::cmdShowMenu(IReconTool* tool) {
+    // Snapshot the current mode before switching to menu so 'e' can restore it exactly
+    s_preMenuMode = reconState.scanState.mode;
+    s_preMenuConfig = reconState.scanState.targetConfig;
+    s_preMenuByDevice = reconState.scanState.targetedByDevice;
+    s_hasPreMenuSnapshot = true;
+
     ModeManager modeManager;
     modeManager.logModeTransition(reconState.scanState.mode, MODE_INTERACTIVE_MENU, "Serial:showMenu");
     reconState.scanState.mode = MODE_INTERACTIVE_MENU;
@@ -471,7 +483,17 @@ void CommandHandler::cmdExitMenu(IReconTool* tool) {
     uint8_t resumeConfig = 0;
     bool resumeByDevice = false;
 
-    if (modeManager.loadPersistedMode(resumeMode, resumeConfig, resumeByDevice)) {
+    if (s_hasPreMenuSnapshot && s_preMenuMode == MODE_TARGETED_CAPTURE) {
+        // In-memory snapshot is the most accurate: captured at the moment 'm' was pressed
+        resumeMode = s_preMenuMode;
+        resumeConfig = s_preMenuConfig;
+        resumeByDevice = s_preMenuByDevice;
+        reconState.scanState.targetConfig = resumeConfig;
+        reconState.scanState.currentConfig = resumeConfig;
+        reconState.scanState.targetedByDevice = resumeByDevice;
+        Serial.printf("\n▶  Returning to TARGETING mode (config %d)\n\n", resumeConfig);
+    } else if (modeManager.loadPersistedMode(resumeMode, resumeConfig, resumeByDevice)) {
+        // Fall back to NVS (menu entered via webapp stopScan, not serial 'm')
         reconState.scanState.targetConfig = resumeConfig;
         reconState.scanState.currentConfig = resumeConfig;
         reconState.scanState.targetedByDevice = resumeByDevice;
@@ -482,6 +504,8 @@ void CommandHandler::cmdExitMenu(IReconTool* tool) {
         Serial.println("\n▶  Returning to RECONNAISSANCE mode\n");
     }
 
+    s_hasPreMenuSnapshot = false;
+
     modeManager.logModeTransition(MODE_INTERACTIVE_MENU, resumeMode, "Serial:exitMenu");
     reconState.scanState.mode = resumeMode;
 
@@ -490,6 +514,8 @@ void CommandHandler::cmdExitMenu(IReconTool* tool) {
     }
     reconState.scanState.packetPending = false;
     reconState.scanState.waitingForUserInput = false;
+
+    while (Serial.available()) Serial.read();  // discard buffered noise before resuming
 
     const ScanConfig& cfg = reconState.getScanConfig(reconState.scanState.currentConfig);
     tool->getRadioController()->applyConfig(cfg);

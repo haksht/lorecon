@@ -420,6 +420,7 @@ void showReconResults() {
   Serial.println("k   : Export KML (Google Earth format)");
   Serial.println("j   : Export GeoJSON (web mapping)");
   Serial.println("p   : Packet replay menu");
+  Serial.println("e   : Exit menu (resume previous mode)");
   Serial.println("r   : Resume reconnaissance (keep devices)");
   Serial.println("b   : Reboot device (clears all data)");
   Serial.println("s   : Show summary again");
