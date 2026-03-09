@@ -20,14 +20,21 @@
 - Packet count still lower than device total — remaining gap is packets <20 bytes (no serial print at all) and `[CAPTURE]` packets where PSK line has no node ID
 
 ## What's Blocked
-- **T3-S3 PCAP**: still waiting on ≤32GB FAT32 microSD card
+- **T3-S3 PCAP**: still waiting on ≤32GB FAT32 microSD card — most tools in tools/ blocked on this
 - **#8**: waiting on The-Foe's LoraTap short-packet testing before deciding on 20-byte threshold
-- **#12 V4 GPS**: waiting on The-Foe field test
+- **#12 V4 GPS**: no satellite fix after 24hrs + driving — diagnosed as antenna placement issue (ceramic patch needs sky-facing orientation); commented on issue; firmware init is correct
 
 ## Next Steps
-1. When SD card arrives — verify T3-S3 PCAP end-to-end
-2. Wait for The-Foe feedback on #7, #8, #12
-3. **#6** (recon scan settings) — backlog
+1. When SD card arrives — verify T3-S3 PCAP end-to-end; then test session_analyzer, timeline_replay, recon_report, pcap_analyzer, wireshark_exporter
+2. Test ws_monitor.py and api_client.py (work now, just need device on WiFi)
+3. Wait for The-Foe feedback on #7, #8, #12
+4. **#6** (recon scan settings) — backlog
+
+## Tools Status
+**Tested:** enhanced_live_visualizer.py (serial, recon+targeted modes, GPS panel, folium map, audio, demo mode)
+**Ready to test now:** ws_monitor.py, api_client.py
+**Blocked on SD card:** session_analyzer.py, timeline_replay.py, recon_report.py, pcap_analyzer.py, wireshark_exporter.py, duty_cycle_monitor.py, mesh_topology_analyzer.py
+**Offline/standalone (can test anytime):** packet_differ.py, psk_decrypt.py, psk_auditor.py, meshtastic_decoder.py, lorawan_join_analyzer.py, abp_detector.py, position_tracker.py
 
 ## Key Parameters
 - T3-S3: COM9 (running), COM11 (download mode); upload: `pio run -e t3_s3 -t upload --upload-port COM9`
