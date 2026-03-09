@@ -580,11 +580,14 @@ class EnhancedLoRaVisualizer:
             self.ax_packets.yaxis.set_major_locator(MaxNLocator(integer=True))
         
         # Panel 5: GPS Map
-        has_gps = any(d['lat'] is not None for d in self.devices.values())
-        
+        def has_valid_gps(d):
+            return d['lat'] is not None and not (d['lat'] == 0.0 and d['lon'] == 0.0)
+
+        has_gps = any(has_valid_gps(d) for d in self.devices.values())
+
         if has_gps:
             for node_id, data in self.devices.items():
-                if data['lat'] is not None:
+                if has_valid_gps(data):
                     color = PROTOCOL_COLORS.get(data['device_type'], '#95a5a6')
                     self.ax_map.scatter(data['lon'], data['lat'], 
                                       c=color, s=100, alpha=0.7, 
@@ -631,9 +634,9 @@ class EnhancedLoRaVisualizer:
             print("[!] Folium not available - install with: pip install folium")
             return False
         
-        # Check if we have GPS data
-        devices_with_gps = {nid: data for nid, data in self.devices.items() 
-                           if data['lat'] is not None}
+        # Check if we have GPS data (exclude 0,0 — no valid fix)
+        devices_with_gps = {nid: data for nid, data in self.devices.items()
+                           if data['lat'] is not None and not (data['lat'] == 0.0 and data['lon'] == 0.0)}
         
         if not devices_with_gps:
             print("[!] No GPS data to export")
@@ -731,7 +734,8 @@ class EnhancedLoRaVisualizer:
             if not FOLIUM_AVAILABLE:
                 print("[!] Install folium: pip install folium")
                 return
-            devices_with_gps = {nid: d for nid, d in self.devices.items() if d['lat'] is not None}
+            devices_with_gps = {nid: d for nid, d in self.devices.items()
+                                if d['lat'] is not None and not (d['lat'] == 0.0 and d['lon'] == 0.0)}
             if not devices_with_gps:
                 print("[!] No GPS data yet")
                 return
@@ -749,7 +753,7 @@ class EnhancedLoRaVisualizer:
                            interval=UPDATE_INTERVAL,
                            cache_frame_data=False)
         self.fig.canvas.mpl_connect('key_press_event', self.on_key)
-        print("[*] Press 'm' at any time to export GPS map to browser")
+        print("[*] Press 'm' in the plot window (not terminal) to export GPS map to browser")
 
         try:
             plt.show()
