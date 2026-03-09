@@ -286,9 +286,9 @@ class EnhancedLoRaVisualizer:
                 return json.loads(line)
             
             # Fall back to regex parsing
-            # Pattern with node ID: [RECON] Packet #42: Meshtastic, 0x401ACD4E, 123 bytes, -68.5 dBm, 8.2 dB SNR
+            # Pattern with node ID: [RECON] or [SMALL] Packet #42: Meshtastic, 0x401ACD4E, 123 bytes, -68.5 dBm, 8.2 dB SNR
             match = re.search(
-                r'\[(RECON|CAPTURE)\]\s*Packet\s*#(\d+):\s*(\w+),\s*0x([0-9A-Fa-f]+),\s*(\d+)\s*bytes,\s*(-?\d+\.?\d*)\s*dBm,\s*(-?\d+\.?\d*)\s*dB',
+                r'\[(RECON|CAPTURE|SMALL)\]\s*Packet\s*#(\d+):\s*(\w+),\s*0x([0-9A-Fa-f]+),\s*(\d+)\s*bytes,\s*(-?\d+\.?\d*)\s*dBm,\s*(-?\d+\.?\d*)\s*dB',
                 line
             )
             
@@ -565,7 +565,12 @@ class EnhancedLoRaVisualizer:
                                       color=colors_list, alpha=0.8)
             self.ax_packets.set_xlabel('Device', fontsize=9)
             self.ax_packets.set_ylabel('Packets', fontsize=9)
-            self.ax_packets.set_title('Packet Captures', fontweight='bold', fontsize=10)
+            shown = len(sorted_indices)
+            total = len(self.devices)
+            title = 'Packet Captures'
+            if total > shown:
+                title += f' (top {shown} of {total} devices)'
+            self.ax_packets.set_title(title, fontweight='bold', fontsize=10)
             self.ax_packets.set_xticks(range(len(node_ids)))
             self.ax_packets.set_xticklabels(node_ids, rotation=45, ha='right', fontsize=7)
             self.ax_packets.grid(True, alpha=0.3, axis='y')
@@ -719,12 +724,33 @@ class EnhancedLoRaVisualizer:
         
         return True
     
+    def on_key(self, event):
+        """Handle keypress events"""
+        if event.key == 'm':
+            print("\n[*] Exporting map...")
+            if not FOLIUM_AVAILABLE:
+                print("[!] Install folium: pip install folium")
+                return
+            devices_with_gps = {nid: d for nid, d in self.devices.items() if d['lat'] is not None}
+            if not devices_with_gps:
+                print("[!] No GPS data yet")
+                return
+            # Temporarily enable record path so export_interactive_map works
+            orig_record = self.record
+            orig_dir = self.screenshot_dir
+            self.record = False
+            self.export_interactive_map(filename='lora_map.html')
+            self.record = orig_record
+            self.screenshot_dir = orig_dir
+
     def run(self):
         """Start the live visualization"""
         ani = FuncAnimation(self.fig, self.update_plots,
                            interval=UPDATE_INTERVAL,
                            cache_frame_data=False)
-        
+        self.fig.canvas.mpl_connect('key_press_event', self.on_key)
+        print("[*] Press 'm' at any time to export GPS map to browser")
+
         try:
             plt.show()
         except KeyboardInterrupt:

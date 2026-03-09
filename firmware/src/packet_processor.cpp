@@ -278,6 +278,8 @@ void PacketProcessor::handleReconPacket(const PacketInfo& info, const uint8_t* d
                                         float rssi, float snr, OLEDDisplay* display) {
     LOG_INFO("Packet #%d: %s, 0x%08X, %d bytes, %.1f dBm, %.1f dB SNR",
              reconState.scanState.totalPackets.load(), info.protocol, info.nodeId, length, rssi, snr);
+    Serial.printf("\n[RECON] Packet #%d: %s, 0x%08X, %d bytes, %.1f dBm, %.1f dB SNR\n",
+                  reconState.scanState.totalPackets.load(), info.protocol, info.nodeId, length, rssi, snr);
 
     // Update display with packet info
     if (display && display->isOn()) {
@@ -304,7 +306,8 @@ void PacketProcessor::handleTargetedPacket(const PacketInfo& info, const uint8_t
                                            float rssi, float snr, OLEDDisplay* display) {
     // Show ALL packets with full decryption to find text messages
     if (length < 40) {
-        Serial.printf("\n[SMALL %d bytes] ", length);
+        Serial.printf("\n[SMALL] Packet #%d: %s, 0x%08X, %d bytes, %.1f dBm, %.1f dB SNR\n",
+                      reconState.scanState.totalPackets.load(), info.protocol, info.nodeId, length, rssi, snr);
     } else {
         Serial.printf("\n🎯 [CAPTURE] Packet #%d: %s, %d bytes, %.1f dBm, %.1f dB SNR\n",
                       reconState.scanState.totalPackets.load(), info.protocol, length, rssi, snr);

@@ -58,7 +58,12 @@ bool GeoIntelligence::storePoint(const GeoPoint& point) {
              fabsf(point.latitude), point.latitude >= 0 ? "N" : "S",
              fabsf(point.longitude), point.longitude >= 0 ? "E" : "W",
              point.altitude);
-    
+
+    Serial.printf("\n📍 GPS POSITION EXTRACTED!\n");
+    Serial.printf("   Node: 0x%08X\n", point.nodeId);
+    Serial.printf("   Lat:  %.6f° %s\n", fabsf(point.latitude), point.latitude >= 0 ? "N" : "S");
+    Serial.printf("   Lon:  %.6f° %s\n", fabsf(point.longitude), point.longitude >= 0 ? "E" : "W");
+
     return true;
 }
 
