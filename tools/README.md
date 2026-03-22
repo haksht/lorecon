@@ -750,6 +750,54 @@ python session_analyzer.py capture.csv --bin-seconds 30
 
 ---
 
+## 🦈 Wireshark Exporter
+
+**Convert ESP32 sniffer PCAPs to standard LoRaTap format** for native Wireshark LoRaWAN dissector support with full RF metadata (RSSI, SNR, frequency, SF, BW).
+
+### Why Convert?
+
+The ESP32 sniffer writes PCAP files with a custom pseudo-header (`DLT_USER0`, link type 147) that Wireshark doesn't recognize. The exporter converts to **LoRaTap format** (`DLT 270`), which Wireshark's built-in LoRaWAN dissector parses natively — no plugins required.
+
+### Workflow
+
+```
+ESP32 capture.pcap  ──→  wireshark_exporter.py  ──→  capture_loratap.pcap  ──→  Wireshark
+(DLT_USER0 / 147)                                    (DLT_LORATAP / 270)        (native dissector)
+```
+
+### Usage
+
+```bash
+# Convert to LoRaTap format
+python export/wireshark_exporter.py capture.pcap -o capture_loratap.pcap
+
+# Convert with statistics summary
+python export/wireshark_exporter.py capture.pcap --stats
+
+# Convert and open directly in Wireshark
+python export/wireshark_exporter.py capture.pcap --open
+
+# Export Meshtastic PSK reference file (for custom dissector)
+python export/wireshark_exporter.py --export-keys meshtastic_keys.txt
+
+# Create LoRaWAN session key template (for Wireshark decryption)
+python export/wireshark_exporter.py --export-uat lorawan_keys.txt
+```
+
+### Adding Decryption Keys in Wireshark
+
+**LoRaWAN**: Generate a UAT template, fill in your session keys, then import in Wireshark:
+
+```bash
+python export/wireshark_exporter.py --export-uat lorawan_keys.txt
+```
+
+In Wireshark: **Edit > Preferences > Protocols > LoRaWAN > Session Keys** — import the file.
+
+**Meshtastic**: Wireshark has no native Meshtastic dissector. Use `meshtastic/meshtastic_decoder.py` or `meshtastic/psk_decrypt.py` for offline decryption instead.
+
+---
+
 ## 📦 PCAP Analyzer
 
 **Parse and analyze PCAP files** with custom LoRa pseudo-header. This tool understands the ESP32 sniffer's custom PCAP format and extracts all LoRa-specific metadata (RSSI, SNR, frequency, spreading factor, bandwidth, coding rate).
@@ -859,11 +907,12 @@ Link type: 147 (USER0/Custom)
 
 ### Opening in Wireshark
 
-Wireshark will show the packets but won't decode the LoRa pseudo-header by default. Options:
+Wireshark won't decode the custom LoRa pseudo-header by default. Options (best first):
 
-1. **Use pcap_analyzer.py first** - Extract metadata to CSV, then view raw packets in Wireshark
-2. **Write a Lua dissector** - Place in Wireshark plugins folder (see below)
-3. **View raw bytes** - Wireshark shows hex, you mentally skip first 20 bytes
+1. **Convert to LoRaTap format** - Use `wireshark_exporter.py` (see [Wireshark Exporter](#-wireshark-exporter) section below) for native Wireshark LoRaWAN dissector support with full RF metadata
+2. **Install the Lua dissector** - Drop `lora_sniffer.lua` in Wireshark's plugin folder (see below) to parse the custom pseudo-header directly
+3. **Use pcap_analyzer.py** - Extract metadata to CSV/JSON without Wireshark
+4. **View raw bytes** - Wireshark shows hex, manually skip first 20 bytes
 
 #### Wireshark Lua Dissector (Optional)
 
