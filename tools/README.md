@@ -55,6 +55,9 @@ tools/
 ├── lorawan/                       # LoRaWAN-specific analysis
 │   ├── abp_detector.py           # ABP vs OTAA device detection
 │   └── lorawan_join_analyzer.py  # Join sequence security analysis
+├── demo/                           # Conference presentation tools
+│   ├── make_reveal.py             # Generate decrypt reveal page from PCAP
+│   └── decrypt_reveal.html        # Example reveal page (hardcoded data)
 ├── meshtastic/                    # Meshtastic-specific analysis
 │   ├── meshtastic_decoder.py     # Offline packet decryption
 │   ├── mesh_topology_analyzer.py # Network structure mapping
@@ -82,6 +85,30 @@ tools/
 ---
 
 ## 🎯 Quick Start for Conference Demos
+
+### Decrypt Reveal Page (PCAP → Presentation)
+
+**Generate a dramatic presentation page from a capture file:**
+
+```bash
+# Capture traffic, download PCAP from webapp, then:
+python demo/make_reveal.py capture.pcap -o reveal.html
+
+# Include GPS positions alongside text messages
+python demo/make_reveal.py capture.pcap --all-ports -o reveal.html
+```
+
+Opens in any browser — completely self-contained, no network needed.
+
+**Presentation flow:**
+1. SPACE/click to show each encrypted packet (hex glitch animation)
+2. SPACE/click again to decrypt and reveal plaintext full-screen
+3. After all messages: summary screen with capture stats
+4. Arrow keys to navigate back
+
+Shows real intercepted text messages decrypted with factory default PSKs.
+
+---
 
 ### Attack Dashboard (Standalone HTML) 🔥
 

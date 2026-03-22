@@ -196,10 +196,13 @@ docs/
   hardware/           -> TDECK_STATUS.md, TDECK_PLUS_INVESTIGATION.md
 
 tools/
-  enhanced_live_visualizer.py  -> 5-panel matplotlib dashboard
-  psk_auditor.py, recon_report.py, position_tracker.py
-  api_client.py, ws_monitor.py
-  visualization/  -> network_topology.html, live_map.html, network_dashboard.html
+  demo/make_reveal.py           -> generate decrypt reveal page from PCAP
+  meshtastic/meshtastic_decoder.py -> offline Meshtastic packet decryption
+  meshtastic/psk_auditor.py     -> PSK vulnerability scanning
+  pcap_analyzer.py              -> PCAP capture file analysis
+  enhanced_live_visualizer.py   -> 5-panel matplotlib dashboard
+  recon_report.py, position_tracker.py, api_client.py, ws_monitor.py
+  visualization/                -> network_topology.html, live_map.html, attack_dashboard.html
 ```
 
 ## ⚠️ Legal & Ethical Use Disclaimer
