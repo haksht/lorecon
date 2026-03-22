@@ -104,9 +104,7 @@ All code is MIT-licensed open source. Attendees leave with a shopping list (~$30
 
 Tim Arnold is a retired software developer, Python programmer, and statistician who co-authored the 2nd edition of *Black Hat Python* (No Starch Press). These days he spends his time building security tools, breaking things for fun, and teaching others how to do the same. When not sniffing LoRa packets in the wild, he's probably writing Python code that probably shouldn't exist.
 
-**Contact:** [email]  
-**GitHub:** [profile]  
-**Twitter/Mastodon:** [handle]
+**GitHub:** https://github.com/tiarno
 
 ---
 

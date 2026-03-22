@@ -2,34 +2,23 @@
 
 All notable changes to the ESP32 LoRa Sniffer project.
 
-## [2.3.3] - 2026-03-02
-
-### Added
-- **Heltec V4 GPS support** (issue #12): New `heltec_v4` PlatformIO environment for Heltec WiFi LoRa 32 V4 with the optional L76K GNSS module attached. Enables `HAS_GPS`, adds TinyGPSPlus, and configures UART pins (RX=38, TX=39) with active-LOW enable on GPIO 34. GPS data flows through the existing GPS pipeline: fix status, coordinates, and satellite count visible in the webapp Status card. Use `heltec_v3` if you have a V4 without the GPS module — hardware is otherwise identical.
-- **`GPS_EN_LEVEL` board constant**: `Config::Hardware::GPS_EN_LEVEL` encodes the correct enable polarity per board (T-Beam Supreme = `HIGH`, Heltec V4 = `LOW`). `gps_controller.cpp` uses this constant instead of a hardcoded level.
-
-### Improved
-- **Captured Packets subtitle** (issue #8): Clarified that the packet list is a 10-slot replay buffer (oldest entries overwritten) and that the full history is in the SD card CSV log.
-
-## [2.3.2] - 2026-03-02
-
-### Added
-- **Sniffer GPS in webapp** (issue #11): `/api/status` now includes a `gps` object (`hasFix`, `lat`, `lon`, `alt`, `satellites`) when `HAS_GPS` is defined. The Info tab System Status card shows a GPS row: coordinates + satellite count with a fix, "No fix (N sats)" while acquiring. Row hidden on boards without GPS hardware.
-
-## [2.3.1] - 2026-03-02
+## [2.3.0] - 2026-03-22
 
 ### Fixed
-- **T-Beam Supreme battery reading**: `/api/status` was reporting 0% for all T-Beam Supreme boards because `batteryPercent`/`batteryVoltage` used the ADC path with `VBAT_ADC_PIN = PIN_UNUSED`. Now branches on `HAS_AXP2101` and reads directly from the AXP2101 coulomb counter via `PMUController`.
-- **T-Beam Supreme incomplete shutdown**: Button long-press called `esp_deep_sleep_start()` only, leaving the AXP2101 running with all power rails live (blue LED visible after shutdown). Now calls `PMUController::shutdown()` which cuts all PMIC rails before falling through to deep sleep as a safety net.
+- **Meshtastic device type detection**: `identifyDeviceType` and `estimateFirmwareVersion` were reading byte 8 (packet ID) instead of byte 12 (flags). Caused false "Meshtastic Router" labels based on random packet ID bits.
+- **Consolidated report version**: `buildConsolidatedReportJson` had hardcoded `"2.2.1"` instead of using `Config::VERSION`.
+- **MAX_PACKET_SIZE off-by-one**: Was 256 (accepted 256-byte packets that immediately triggered anomaly). LoRa PHY max is 255 bytes; corrected constant and static_assert.
+- **Scan config static_assert**: Used `<=` which allowed adding configs without updating `NUM_CONFIGURATIONS`; changed to `==`.
+- **PMU controller header-only ODR bug**: Anonymous namespace in `pmu_controller.h` gave each translation unit its own `pmu` and `_initialized`. Battery always read 0V/0% on T-Beam Supreme. Split into header + `.cpp` file.
+- **T-Beam Supreme battery reading**: `/api/status` was reporting 0% because `batteryPercent`/`batteryVoltage` used the ADC path with `VBAT_ADC_PIN = PIN_UNUSED`. Now branches on `HAS_AXP2101` and reads from the AXP2101 coulomb counter via `PMUController`.
+- **T-Beam Supreme incomplete shutdown**: `esp_deep_sleep_start()` left AXP2101 running with all power rails live. Now calls `PMUController::shutdown()` to cut all PMIC rails.
 
 ### Added
-- **Web UI Power Off**: New "Power Off" button in the Quick Tools card (Info tab) alongside the existing Reboot button. Posts `command: 's'` to `/api/command` with a confirmation dialog. Works on all boards — T-Beam Supreme performs a hard PMIC power-off; Heltec V3/V4 and T3-S3 enter deep sleep.
-- **`/api/command` shutdown command**: New `s` command shuts down the device safely (radio standby → display off → PMIC power-off or deep sleep).
-- **`PMUController::shutdown()`**: New function in `pmu_controller.h` calls `pmu.shutdown()` to cut all AXP2101 rails. No-op stub provided for non-AXP2101 boards.
-
-## [2.3.0] - 2026-02-22
-
-### Added
+- **Heltec V4 GPS support** (issue #12): New `heltec_v4` PlatformIO environment with L76K GNSS module (RX=38, TX=39, EN=34 active-LOW). Use `heltec_v3` env if your V4 has no GPS module.
+- **`GPS_EN_LEVEL` board constant**: Encodes correct enable polarity per board (T-Beam Supreme = `HIGH`, Heltec V4 = `LOW`).
+- **Sniffer GPS in webapp** (issue #11): `/api/status` includes `gps` object when `HAS_GPS` is defined. Status card shows coordinates + satellite count.
+- **Web UI Power Off**: New button posts `command: 's'` to `/api/command`. T-Beam Supreme = hard PMIC power-off; others = deep sleep.
+- **`/api/command` shutdown command**: `s` command for safe device shutdown (radio standby, display off, PMIC power-off or deep sleep).
 - **T-Beam Supreme board support**: Full firmware port for LilyGO T-Beam Supreme (ESP32-S3FN8, 8MB flash/PSRAM)
   - AXP2101 PMIC driver (XPowersLib) — mandatory init before all other peripherals
   - SH1106 128×64 OLED via dedicated I2C bus (SDA=17, SCL=18)
@@ -56,6 +45,7 @@ All notable changes to the ESP32 LoRa Sniffer project.
 - **Error handling**: All four download actions (`actionExportCSV`, `actionExportPCAP`, `actionExportKML`, `actionExportGeoJSON`) wrapped in try/catch for network errors
 
 ### Improved
+- **Captured Packets subtitle** (issue #8): Clarified that the packet list is a 10-slot replay buffer (oldest entries overwritten) and that the full history is in the SD card CSV log.
 - **OLED scanning mode**: Shows IP address and mDNS hostname (`hostname.local`) on two footer lines instead of cramming both on one line
 - **OLED targeting mode**: Now also shows mDNS hostname alongside IP address
 

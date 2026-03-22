@@ -84,3 +84,9 @@ nul
 # Release build artifacts (binaries committed via GitHub Releases, not git)
 releases/v*/
 releases/*.zip
+
+# Internal session notes (not for public repo)
+HANDOFF.md
+
+# Generated map exports
+lora_map.html

@@ -19,9 +19,10 @@ if "%VERSION%"=="" (
 
 set REPO_ROOT=%~dp0..
 set RELEASE_DIR=%REPO_ROOT%\releases\%VERSION%
-set PIO=c:\Users\tim\.platformio\penv\Scripts\pio.exe
-set PIO_PYTHON=c:\Users\tim\.platformio\penv\Scripts\python.exe
-set PIO_ESPTOOL=c:\Users\tim\.platformio\packages\tool-esptoolpy\esptool.py
+set PIO_BASE=%USERPROFILE%\.platformio
+set PIO=%PIO_BASE%\penv\Scripts\pio.exe
+set PIO_PYTHON=%PIO_BASE%\penv\Scripts\python.exe
+set PIO_ESPTOOL=%PIO_BASE%\packages\tool-esptoolpy\esptool.py
 set ESPTOOL=%PIO_PYTHON% %PIO_ESPTOOL%
 
 if not exist "%PIO%" (

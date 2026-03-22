@@ -21,19 +21,32 @@ RELEASE_DIR="$REPO_ROOT/releases/$VERSION"
 
 # ---- Auto-detect pio --------------------------------------------------------
 if [ -z "${PIO:-}" ]; then
-    if [ -f "c:/Users/tim/.platformio/penv/Scripts/pio.exe" ]; then
-        PIO="c:/Users/tim/.platformio/penv/Scripts/pio.exe"
-    elif command -v pio &>/dev/null; then
-        PIO="pio"
-    else
-        echo "ERROR: pio not found. Set PIO env var or install PlatformIO."
-        exit 1
+    # Check common PlatformIO install locations
+    for _pio_candidate in \
+        "$HOME/.platformio/penv/Scripts/pio.exe" \
+        "$HOME/.platformio/penv/bin/pio" \
+        "$USERPROFILE/.platformio/penv/Scripts/pio.exe"; do
+        if [ -f "$_pio_candidate" ]; then
+            PIO="$_pio_candidate"
+            break
+        fi
+    done
+    if [ -z "${PIO:-}" ]; then
+        if command -v pio &>/dev/null; then
+            PIO="pio"
+        else
+            echo "ERROR: pio not found. Set PIO env var or install PlatformIO."
+            exit 1
+        fi
     fi
 fi
 
 # ---- Auto-detect esptool ----------------------------------------------------
-PIO_ESPTOOL="c:/Users/tim/.platformio/packages/tool-esptoolpy/esptool.py"
-PIO_PYTHON="c:/Users/tim/.platformio/penv/Scripts/python.exe"
+PIO_BASE="${PLATFORMIO_CORE_DIR:-${HOME}/.platformio}"
+PIO_ESPTOOL="$PIO_BASE/packages/tool-esptoolpy/esptool.py"
+PIO_PYTHON="$PIO_BASE/penv/Scripts/python.exe"
+# Also check Unix path
+[ ! -f "$PIO_PYTHON" ] && PIO_PYTHON="$PIO_BASE/penv/bin/python"
 if [ -z "${ESPTOOL:-}" ]; then
     if [ -f "$PIO_ESPTOOL" ] && [ -f "$PIO_PYTHON" ]; then
         ESPTOOL="$PIO_PYTHON $PIO_ESPTOOL"

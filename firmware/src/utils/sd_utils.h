@@ -54,7 +54,7 @@ inline SPIClass& getSDSPI() {
     }
     return sdSPI;
 }
-#endif
+#endif // BOARD_T3_S3 || BOARD_TBEAM_SUPREME
 
 /**
  * Initialize SD card (safe to call multiple times)
@@ -79,7 +79,7 @@ inline bool initialize(int csPin = Config::Hardware::SD_CS) {
     state.initialized = true;
     state.available = false;
     return false;
-#endif
+#endif // !HAS_SD_CARD
 
     // Try to initialize
 #if defined(BOARD_T3_S3) || defined(BOARD_TBEAM_SUPREME)
@@ -88,7 +88,7 @@ inline bool initialize(int csPin = Config::Hardware::SD_CS) {
 #else
     // Heltec V3: SD shares LoRa SPI bus (if external module connected)
     if (!SD.begin(csPin)) {
-#endif
+#endif // BOARD_T3_S3 || BOARD_TBEAM_SUPREME
         state.initialized = true;
         state.available = false;
         return false;
