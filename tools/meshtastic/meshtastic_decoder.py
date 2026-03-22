@@ -350,10 +350,15 @@ class MeshtasticDecoder:
                 print(f"   📬 Port: {result['portnum']} ({result['port_name']})")
             
             if result.get('text_message'):
+                msg = result['text_message']
+                width = max(48, min(len(msg), 72))
                 print(f"\n   💬 TEXT MESSAGE:")
-                print(f"   ╔{'═'*50}╗")
-                print(f"   ║ {result['text_message'][:48]:<48} ║")
-                print(f"   ╚{'═'*50}╝")
+                print(f"   ╔{'═'*(width+2)}╗")
+                # Wrap long messages across multiple lines
+                for i in range(0, len(msg), width):
+                    line = msg[i:i+width]
+                    print(f"   ║ {line:<{width}} ║")
+                print(f"   ╚{'═'*(width+2)}╝")
             
             if result.get('position'):
                 pos = result['position']
