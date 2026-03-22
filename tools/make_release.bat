@@ -23,7 +23,6 @@ set PIO_BASE=%USERPROFILE%\.platformio
 set PIO=%PIO_BASE%\penv\Scripts\pio.exe
 set PIO_PYTHON=%PIO_BASE%\penv\Scripts\python.exe
 set PIO_ESPTOOL=%PIO_BASE%\packages\tool-esptoolpy\esptool.py
-set ESPTOOL=%PIO_PYTHON% %PIO_ESPTOOL%
 
 if not exist "%PIO%" (
     set PIO=pio
@@ -63,7 +62,7 @@ copy "%REPO_ROOT%\.pio\build\heltec_v3\bootloader.bin" "%RELEASE_DIR%\heltec_v3\
 copy "%REPO_ROOT%\.pio\build\heltec_v3\partitions.bin"  "%RELEASE_DIR%\heltec_v3\" >nul
 copy "%REPO_ROOT%\.pio\build\heltec_v3\firmware.bin"    "%RELEASE_DIR%\heltec_v3\" >nul
 copy "%REPO_ROOT%\.pio\build\heltec_v3\littlefs.bin"    "%RELEASE_DIR%\heltec_v3\" >nul
-"%ESPTOOL%" --chip esp32s3 merge_bin --flash_size 8MB ^
+"%PIO_PYTHON%" "%PIO_ESPTOOL%" --chip esp32s3 merge_bin --flash_size 8MB ^
     -o "%RELEASE_DIR%\heltec_v3\full.bin" ^
     0x0      "%RELEASE_DIR%\heltec_v3\bootloader.bin" ^
     0x8000   "%RELEASE_DIR%\heltec_v3\partitions.bin" ^
@@ -79,7 +78,7 @@ copy "%REPO_ROOT%\.pio\build\t3_s3\bootloader.bin" "%RELEASE_DIR%\t3_s3\" >nul
 copy "%REPO_ROOT%\.pio\build\t3_s3\partitions.bin"  "%RELEASE_DIR%\t3_s3\" >nul
 copy "%REPO_ROOT%\.pio\build\t3_s3\firmware.bin"    "%RELEASE_DIR%\t3_s3\" >nul
 copy "%REPO_ROOT%\.pio\build\t3_s3\littlefs.bin"    "%RELEASE_DIR%\t3_s3\" >nul
-"%ESPTOOL%" --chip esp32s3 merge_bin --flash_size 4MB ^
+"%PIO_PYTHON%" "%PIO_ESPTOOL%" --chip esp32s3 merge_bin --flash_size 4MB ^
     -o "%RELEASE_DIR%\t3_s3\full.bin" ^
     0x0      "%RELEASE_DIR%\t3_s3\bootloader.bin" ^
     0x8000   "%RELEASE_DIR%\t3_s3\partitions.bin" ^
@@ -95,7 +94,7 @@ copy "%REPO_ROOT%\.pio\build\tbeam_supreme\bootloader.bin" "%RELEASE_DIR%\tbeam_
 copy "%REPO_ROOT%\.pio\build\tbeam_supreme\partitions.bin"  "%RELEASE_DIR%\tbeam_supreme\" >nul
 copy "%REPO_ROOT%\.pio\build\tbeam_supreme\firmware.bin"    "%RELEASE_DIR%\tbeam_supreme\" >nul
 copy "%REPO_ROOT%\.pio\build\tbeam_supreme\littlefs.bin"    "%RELEASE_DIR%\tbeam_supreme\" >nul
-"%ESPTOOL%" --chip esp32s3 merge_bin --flash_size 8MB ^
+"%PIO_PYTHON%" "%PIO_ESPTOOL%" --chip esp32s3 merge_bin --flash_size 8MB ^
     -o "%RELEASE_DIR%\tbeam_supreme\full.bin" ^
     0x0      "%RELEASE_DIR%\tbeam_supreme\bootloader.bin" ^
     0x8000   "%RELEASE_DIR%\tbeam_supreme\partitions.bin" ^
