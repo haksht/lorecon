@@ -15,7 +15,7 @@ namespace Config {
 // ============================================================================
 // VERSION
 // ============================================================================
-constexpr const char* VERSION = "2.3.0-dev";
+constexpr const char* VERSION = "2.3.0";
 
 // ============================================================================
 // HARDWARE CONFIGURATION
@@ -199,7 +199,7 @@ namespace PacketProcessing {
     constexpr size_t QUEUE_SIZE = 100;
     
     // Maximum packet size (LoRa protocol limit)
-    constexpr size_t MAX_PACKET_SIZE = 256;
+    constexpr size_t MAX_PACKET_SIZE = 255;
     
     // Signal quality metric cache duration (milliseconds)
     // Avoid repeated SPI reads for RSSI/SNR
@@ -432,8 +432,8 @@ namespace Anomaly {
 // ============================================================================
 
 // Verify LoRa protocol limits
-static_assert(Config::PacketProcessing::MAX_PACKET_SIZE == 256,
-              "LoRa protocol maximum packet size is 256 bytes");
+static_assert(Config::PacketProcessing::MAX_PACKET_SIZE == 255,
+              "LoRa protocol maximum packet size is 255 bytes");
 
 // Verify index types can hold maximum values
 static_assert(Config::Tracking::MAX_DEVICES <= 255,

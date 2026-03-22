@@ -168,7 +168,7 @@ const char* ProtocolAnalyzer::identifyDeviceType(const uint8_t* data, size_t len
         
         // Check for routing patterns in payload
         if (length >= 16) {
-            uint8_t hopCount = data[8] & 0x07;  // Hop count in routing header
+            uint8_t hopCount = data[12] & 0x07;  // Hop count in routing header (byte 12)
             if (hopCount > 0) return "Meshtastic Router";
         }
         
@@ -225,8 +225,8 @@ const char* ProtocolAnalyzer::estimateFirmwareVersion(const uint8_t* data, size_
     if (strcmp(protocol, "Meshtastic") == 0 && length >= 12) {
         // Analyze packet structure for version clues
 
-        // Firmware 2.2+ uses encryption flag in byte 8, bit 7
-        if (length >= 9 && (data[8] & 0x80)) {
+        // Firmware 2.2+ uses encryption flag in byte 12, bit 7
+        if (length >= 13 && (data[12] & 0x80)) {
             return "~v2.2+ (est: encryption flag)";
         }
 
@@ -236,9 +236,9 @@ const char* ProtocolAnalyzer::estimateFirmwareVersion(const uint8_t* data, size_
         }
 
         // Firmware 2.0.x has specific hop count patterns
-        if (length >= 9) {
-            uint8_t hopCount = data[8] & 0x07;
-            uint8_t flags = data[9];
+        if (length >= 13) {
+            uint8_t hopCount = data[12] & 0x07;
+            uint8_t flags = data[13];
 
             // v2.0 uses specific flag patterns
             if (hopCount <= 3 && (flags & 0xF0) == 0) {

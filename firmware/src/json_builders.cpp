@@ -833,7 +833,7 @@ String buildConsolidatedReportJson(ReconState& reconState, GeoIntelligence& geoI
     // Report metadata
     JsonObject meta = doc["metadata"].to<JsonObject>();
     meta["generatedAt"] = millis();
-    meta["firmwareVersion"] = "2.2.1";
+    meta["firmwareVersion"] = Config::VERSION;
     meta["reportVersion"] = "1.0";
     
     // Use scoped lock for consistent snapshot

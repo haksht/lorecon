@@ -60,7 +60,7 @@ ReconState reconState;
 
 ReconState::ReconState() : repoMutex_(nullptr) {
     // Verify scanConfigs matches NUM_CONFIGURATIONS (catches adding configs without updating config.h)
-    static_assert(sizeof(scanConfigs) / sizeof(ScanConfig) <= Config::Scanning::NUM_CONFIGURATIONS,
+    static_assert(sizeof(scanConfigs) / sizeof(ScanConfig) == Config::Scanning::NUM_CONFIGURATIONS,
                   "More scanConfigs entries than NUM_CONFIGURATIONS - increase it in config.h");
 
     // Create mutex for thread-safe repository access
@@ -314,7 +314,7 @@ const char* ReconState::identifyDeviceType(const uint8_t* data, size_t length,
         if (rssi > -50) return "Meshtastic Base/Solar";
         
         if (length >= 16) {
-            uint8_t hopCount = data[8] & 0x07;
+            uint8_t hopCount = data[12] & 0x07;
             if (hopCount > 0) return "Meshtastic Router";
         }
         
