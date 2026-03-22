@@ -416,12 +416,13 @@ def load_pcap(filepath):
             if len(pkt_data) < incl_len:
                 break
             
-            # Skip custom LoRa pseudo-header (16 bytes) if present
-            if len(pkt_data) > 16:
-                # Check if first 4 bytes look like pseudo-header (timestamp)
-                # vs Meshtastic magic (0xFFFFFFFF)
+            # Skip custom LoRa pseudo-header (20 bytes) if present
+            # The ESP32 sniffer writes a 20-byte pseudo-header per packet:
+            #   float freq(4) + float rssi(4) + float snr(4) + u8 sf(1)
+            #   + u32 bw(4) + u8 cr(1) + u16 reserved(2) = 20 bytes
+            if len(pkt_data) > 20:
                 if pkt_data[:4] != b'\xff\xff\xff\xff':
-                    pkt_data = pkt_data[16:]  # Skip pseudo-header
+                    pkt_data = pkt_data[20:]  # Skip pseudo-header
             
             packets.append(pkt_data)
     

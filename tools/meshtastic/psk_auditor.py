@@ -349,9 +349,9 @@ def load_pcap(filepath):
             ts_sec, ts_usec, incl_len, _ = struct.unpack('<IIII', pkt_header)
             pkt_data = f.read(incl_len)
             
-            # Skip pseudo-header if present
-            if len(pkt_data) > 16 and pkt_data[:4] != b'\xff\xff\xff\xff':
-                pkt_data = pkt_data[16:]
+            # Skip custom LoRa pseudo-header (20 bytes) if present
+            if len(pkt_data) > 20 and pkt_data[:4] != b'\xff\xff\xff\xff':
+                pkt_data = pkt_data[20:]
             
             packets.append((pkt_data, ts_sec + ts_usec/1e6))
     

@@ -883,9 +883,9 @@ def load_csv(filepath: Path, try_decrypt: bool = True) -> List[Dict]:
 
 def load_pcap(filepath: Path, try_decrypt: bool = True) -> List[Dict]:
     """Load packets from PCAP file using our custom format with Meshtastic parsing"""
-    # Import from sibling module
+    # Import from parent tools/ directory
     import sys
-    sys.path.insert(0, str(filepath.parent.parent))
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
     from pcap_analyzer import parse_pcap_native
     
     raw_packets = parse_pcap_native(str(filepath))
