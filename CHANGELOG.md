@@ -2,6 +2,20 @@
 
 All notable changes to the ESP32 LoRa Sniffer project.
 
+## [2.3.1] - 2026-03-22
+
+### Fixed
+- **PCAP pseudo-header size**: Meshtastic tools were using 16-byte header instead of the correct 20-byte pseudo-header, causing payload misalignment
+- **Message truncation**: Decrypt reveal page truncated long messages
+
+### Added
+- **Decrypt reveal page generator**: `tools/demo/make_reveal.py` auto-generates a dramatic presentation page from a PCAP capture file with encrypted-to-decrypted reveal animations
+- **Wireshark exporter documentation**: Dedicated section in tools README documenting the LoRaTap conversion workflow
+
+### Documentation
+- Added demo tools (make_reveal, decrypt_reveal) to README and tools documentation
+- Conference-readiness cleanup for v2.3.0 release
+
 ## [2.3.0] - 2026-03-22
 
 ### Fixed
