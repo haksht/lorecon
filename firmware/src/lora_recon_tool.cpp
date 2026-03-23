@@ -413,19 +413,19 @@ void LoRaReconTool::handlePacketReception() {
     packetProcessor->processQueue(oledDisplay);
 }
 
-// Start targeted capture mode on specific device
+// Lock radio on the frequency where a specific device was last seen
 void LoRaReconTool::startTargetedCapture(uint8_t deviceIndex) {
     const TargetableDevice& target = reconState.getTargetableDevice(deviceIndex);
-    
-    LOG_INFO("Starting targeted capture on device 0x%08X (device targeting)", target.nodeId);
-    
+
+    LOG_INFO("Locking frequency for device 0x%08X (config %d)", target.nodeId, target.configIndex);
+
     // Log the mode transition with source
     OperationMode previousMode = reconState.scanState.mode;
     reconState.scanState.mode = MODE_TARGETED_CAPTURE;
     modeManager.logModeTransition(previousMode, MODE_TARGETED_CAPTURE, "Serial:targetDevice");
-    
+
     reconState.scanState.targetConfig = target.configIndex;
-    reconState.scanState.targetedByDevice = true;  // Device targeting
+    reconState.scanState.targetedByDevice = true;  // Freq chosen via device lookup
     reconState.scanState.currentConfig = target.configIndex;
     
     // Persist mode to NVS so it survives reboots

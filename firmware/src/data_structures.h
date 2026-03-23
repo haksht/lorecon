@@ -107,7 +107,7 @@ struct ScanState {
   std::atomic<OperationMode> mode;
   std::atomic<uint8_t> currentConfig;
   std::atomic<uint8_t> targetConfig;    // For targeted capture mode
-  std::atomic<bool> targetedByDevice;   // true = device targeting, false = frequency targeting
+  std::atomic<bool> targetedByDevice;   // true = freq chosen via device lookup, false = freq chosen directly
   uint32_t lastScanSwitch;
   std::atomic<uint32_t> totalPackets;
   uint32_t totalDetections;

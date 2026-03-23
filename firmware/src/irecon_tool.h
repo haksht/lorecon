@@ -34,9 +34,9 @@ public:
     virtual RadioController* getRadioController() = 0;
     virtual OLEDDisplay* getDisplay() = 0;
     
-    // Device targeting operations
-    virtual void startTargetedCapture(uint8_t deviceIndex) = 0;
-    virtual void startFrequencyTargeting(uint8_t configIndex) = 0;
+    // Frequency lock operations (both lock the radio on a single config)
+    virtual void startTargetedCapture(uint8_t deviceIndex) = 0;   // Lock freq via device lookup
+    virtual void startFrequencyTargeting(uint8_t configIndex) = 0; // Lock freq directly
     
     // Packet replay operations
     virtual void showReplayMenu() = 0;
