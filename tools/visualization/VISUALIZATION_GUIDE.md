@@ -256,22 +256,14 @@ sudo usermod -a -G dialout $USER
 - Increase DPI in code: `plt.savefig(..., dpi=300)`
 - Export to vector format: `.pdf` or `.svg`
 
-## Future Enhancements (TODO)
+## Ideas for Contributors
 
-### Planned Features
-- [ ] **Real map tiles** - Use folium/plotly for proper basemap
-- [ ] **Export to video** - Record matplotlib animation as MP4
-- [ ] **Session replay** - Playback CSV at original speed
-- [ ] **Network graph** - Show mesh topology (node connections)
-- [ ] **Spectrogram** - Waterfall display of frequency activity
-- [ ] **AI summary** - GPT-based analysis of captured traffic
-
-### Community Contributions Welcome
 - Multi-ESP32 aggregation (combine multiple sniffers)
-- Integration with TheThingsNetwork APIs
-- Helium blockchain explorer integration
+- Export to video (record matplotlib animation as MP4)
+- Waterfall/spectrogram display of frequency activity
+- Integration with TheThingsNetwork or Helium APIs
 - Real-time alerting (webhook on interesting packets)
 
 ---
 
-**Questions? Open an issue or PR on GitHub!**
+**Questions? Open an issue or PR on GitHub.**

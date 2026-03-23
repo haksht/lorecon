@@ -234,19 +234,10 @@ gfx->begin();  // Succeeds, shows test colors
 
 ### Recommended Hardware
 
-**Best Choice: Heltec WiFi LoRa 32 V3**
-- Independent power control for display (Vext)
-- Display uses I2C (no SPI conflicts)
-- Proven stable operation
-- User button for interaction
-- Comprehensive documentation
-
-**Acceptable Alternative: T-Deck (Standard, NOT Plus)**
-- ST7789 rectangular display (may have better SPI behavior than GC9A01)
-- Same shared power/SPI issues but potentially less severe
-- Full keyboard and trackball for advanced UI
-- Larger display for more information density
-- **Note**: Not tested in this investigation, may have similar issues
+See the main [BUILD_GUIDE](../user-guides/BUILD_GUIDE.md) for the full list of supported boards:
+- **Heltec WiFi LoRa 32 V3 / V4** — lowest cost, proven stable, I2C display (no SPI conflicts)
+- **LilyGO T3-S3** — native SD card, separate SPI buses
+- **LilyGO T-Beam Supreme** — onboard GPS + PMIC + SD
 
 ### For Future Hardware Selection
 
@@ -291,6 +282,6 @@ When evaluating hardware platforms for multi-peripheral projects:
 
 ---
 
-**Investigation Status:** Completed November 2025  
-**Decision:** Do not support T-Deck Plus hardware  
-**Recommendation:** Use Heltec WiFi LoRa 32 V3 for best results
+**Investigation Status:** Completed November 2025
+**Decision:** Do not support T-Deck Plus hardware
+**Recommendation:** Use any of the supported boards (Heltec V3/V4, T3-S3, T-Beam Supreme)

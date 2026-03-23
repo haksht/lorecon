@@ -1,7 +1,7 @@
 # Meshtastic Detection & PSK Decryption Troubleshooting
 
-**Last Updated:** January 2026  
-**Version:** 2.2.2 Production  
+**Last Updated:** March 2026
+**Version:** 2.3.1
 **Status:** Packet capture ✅ | PSK decryption ✅ (23 default keys including legacy admin defaults)
 
 ---
@@ -25,24 +25,6 @@ USB cables can pick up electrical interference that appears as random characters
 
 ---
 
-## 🎯 Current Project Status
-
-### What's Working
-- ✅ **Packet Capture**: Successfully capturing Meshtastic packets from 3+ nodes
-- ✅ **AES-CTR Decryption**: 100% functional with 23 default PSKs
-- ✅ **Node Detection**: Identifying unique device IDs (0x401ACD4E, 0x44D7A39E, 0xBE438E37)
-- ✅ **OLED Display**: Full display code with 6 modes (if hardware present)
-- ✅ **Button Control**: Toggle/shutdown via GPIO 0 button
-
-### What's Blocked
-- ❌ **Text Message Extraction**: No protobuf portnum field (0x08) found in decrypted packets
-- ❌ **Message Type Detection**: Cannot identify app type without portnum field
-- ❌ **Encrypted Text Recovery**: Protocol mismatch between code and device firmware
-
-**Root Cause**: Decrypted packets don't match documented Meshtastic protobuf structure. Likely firmware version or format differences.
-
----
-
 ## ✅ **Pre-Flight Checklist**
 
 ### ESP32 Hardware
@@ -51,11 +33,10 @@ USB cables can pick up electrical interference that appears as random characters
 - [ ] ESP32 powered on and running firmware
 - [ ] Serial monitor showing scan messages
 
-### T-Deck Configuration
-- [ ] T-Deck powered on
-- [ ] Meshtastic firmware installed and running
-- [ ] Can see Meshtastic main screen
-- [ ] WiFi/Bluetooth enabled for app connection
+### Test Transmitter (any Meshtastic device)
+- [ ] Meshtastic device powered on and running
+- [ ] Can see Meshtastic main screen or app connection
+- [ ] Configured for the same frequency region as sniffer
 
 ### Physical Setup
 - [ ] Devices within 5 meters of each other
@@ -66,11 +47,11 @@ USB cables can pick up electrical interference that appears as random characters
 
 ## 🔍 **Diagnostic Steps**
 
-### **Step 1: Verify T-Deck is Transmitting**
+### **Step 1: Verify Your Test Device is Transmitting**
 
 **Method A: Using Meshtastic App**
 ```
-1. Connect phone to T-Deck via Bluetooth
+1. Connect phone to your Meshtastic device via Bluetooth
 2. Open Meshtastic app
 3. Go to: Radio Configuration → LoRa
 4. Note these values:
@@ -86,7 +67,7 @@ USB cables can pick up electrical interference that appears as random characters
 # Install if not already
 pip install meshtastic
 
-# Connect to T-Deck
+# Connect to your device
 meshtastic --info
 
 # Look for:
@@ -104,8 +85,8 @@ meshtastic --sendtext "Test"
 ```
 1. Start ESP32: pio device monitor
 2. Wait for "[RECON] Started" message
-3. Hold T-Deck VERY CLOSE to ESP32 (< 1 foot)
-4. Send message from T-Deck
+3. Hold test device VERY CLOSE to ESP32 (< 1 foot)
+4. Send message from test device
 5. Look for ANY [PACKET] messages in serial output
 ```
 
@@ -161,9 +142,9 @@ or
 meshtastic --set lora.region US
 ```
 
-### Issue 3: T-Deck Not Actually Transmitting
-**Symptom**: T-Deck seems on but no TX activity  
-**Check**: 
+### Issue 3: Test Device Not Actually Transmitting
+**Symptom**: Meshtastic device seems on but no TX activity
+**Check**:
 - Battery charged?
 - Stuck in boot loop?
 - Error messages on screen?
@@ -268,25 +249,13 @@ Backpressure (pausing radio when queue fills) would eliminate drops but create c
 - Both units work within SX1262 specifications
 - Antenna quality also affects sensitivity (check connections)
 
-- Try power cycle
-
-**Solution**:
-```
-Power off T-Deck completely
-Remove battery if possible
-Wait 10 seconds
-Power back on
-Wait for full boot (30-60 seconds)
-Try sending message again
-```
-
-### Issue 4: Frequency Hop Mismatch
-**Symptom**: ESP32 scanning frequency A, T-Deck transmitting on frequency B  
+### Issue 7: Frequency Hop Mismatch
+**Symptom**: ESP32 scanning frequency A, test device transmitting on frequency B
 **Why**: Meshtastic can use different frequency slots
 
 **Solution - Lock Both to Known Frequency:**
 
-**T-Deck:**
+**Meshtastic device:**
 ```
 Meshtastic app → Channels → Primary
 Set to: "Long Fast" preset
@@ -302,7 +271,7 @@ Press 'f' → Select "Meshtastic_LF_902"
 Try both!
 ```
 
-### Issue 5: Interference or Bad Antenna
+### Issue 8: Interference or Bad Antenna
 **Symptom**: Intermittent detection, weak RSSI  
 **Solution**:
 - Move away from computers/USB hubs
@@ -363,26 +332,26 @@ meshtastic --sendtext "TEST 123"
 
 ---
 
-## 📞 **Next Steps Based on Results**
+## **Interpreting Results**
 
 ### If you see routing packets (14 bytes):
-✅ **Hardware working!** Now need to:
-1. Generate actual user messages (not just routing)
-2. Target correct frequency for user data
+**Hardware working.** Next:
+1. Generate user messages (not just routing) from a test device
+2. Target the correct frequency for user data
 3. Wait for longer packets (encrypted content)
 
 ### If you see nothing at all:
-❌ **Configuration mismatch.** Check:
+**Configuration mismatch.** Check:
 1. Antenna connected?
 2. Right frequency range (US vs EU)?
-3. T-Deck actually transmitting?
+3. Test device actually transmitting?
 4. Both devices in same room?
 
 ### If you see packets but no PSK success:
-⚠️ **Partial success.** Investigate:
-1. Are packets long enough? (Need >20 bytes)
-2. Is T-Deck using default PSK?
-3. Are you capturing routing vs user messages?
+**Partial success.** Investigate:
+1. Are packets long enough? (Need >20 bytes for decryption)
+2. Is the test device using a default PSK?
+3. Are you capturing routing packets vs user messages?
 
 ---
 
@@ -390,20 +359,21 @@ meshtastic --sendtext "TEST 123"
 
 ### Problem: "No OLED detected on I2C bus"
 
-#### Identify Board Version
-Different Heltec board versions use different pins:
+#### Supported Board Pins
 
-**V3 (ESP32-S3)** - Current default:
+**Heltec V3/V4 (ESP32-S3)**:
 - SDA: GPIO 17, SCL: GPIO 18, RST: GPIO 21
 - Vext: GPIO 36 (active LOW)
 
-**V2 (ESP32)** - Older boards:
-- SDA: GPIO 4, SCL: GPIO 15, RST: GPIO 16
-- Vext: GPIO 21
+**LilyGO T3-S3**:
+- SDA: GPIO 18, SCL: GPIO 17 (note: swapped vs Heltec)
+- No Vext control (always powered)
 
-**V1 (Original ESP32)**:
-- SDA: GPIO 4, SCL: GPIO 15, RST: GPIO 16
-- No Vext power control
+**LilyGO T-Beam Supreme**:
+- SDA: GPIO 17, SCL: GPIO 18 (SH1106 display)
+- No Vext control
+
+**Note:** Heltec V1/V2 (non-S3) boards are not supported.
 
 #### Diagnostic Steps
 
@@ -534,15 +504,11 @@ or
    Press 'f' → Select #1 (Meshtastic_LF_906)
    ```
 
-2. **T-Deck**: Hold 1 foot from ESP32
+2. **Meshtastic device**: Hold 1 foot from ESP32
 
-3. **T-Deck App**: Send message "HELLO WORLD"
+3. **Meshtastic app**: Send message "HELLO WORLD"
 
 4. **ESP32**: Watch serial output for **any** [PACKET] message
 
 **If you see a packet** → Hardware works, just need config tweaks  
 **If you see nothing** → Deeper hardware/config issue
-
----
-
-**Let me know what you find at each step!** 🔍

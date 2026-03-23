@@ -874,7 +874,7 @@ Content-Disposition: attachment; filename="lora-recon-report.json"
   "status": "success",
   "metadata": {
     "generatedAt": 1234567,
-    "firmwareVersion": "2.2.1",
+    "firmwareVersion": "2.3.1",
     "reportVersion": "1.0"
   },
   "security": {

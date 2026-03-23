@@ -1,0 +1,734 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ESP32 LoRa Sniffer — Architecture Overview</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --card: #161b22;
+    --border: #30363d;
+    --text: #c9d1d9;
+    --muted: #8b949e;
+    --accent: #58a6ff;
+    --green: #3fb950;
+    --orange: #d29922;
+    --red: #f85149;
+    --purple: #bc8cff;
+    --cyan: #39d353;
+    --pink: #f778ba;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, sans-serif; padding: 24px; line-height: 1.5; }
+  h1 { text-align: center; color: var(--accent); font-size: 28px; margin-bottom: 4px; }
+  .subtitle { text-align: center; color: var(--muted); font-size: 14px; margin-bottom: 32px; }
+
+  /* Section headers */
+  .section-title {
+    font-size: 20px; font-weight: 700; color: var(--accent);
+    border-bottom: 2px solid var(--border); padding-bottom: 8px; margin: 40px 0 20px;
+  }
+  .section-title span { color: var(--muted); font-weight: 400; font-size: 14px; margin-left: 8px; }
+
+  /* Card grid */
+  .grid { display: grid; gap: 16px; }
+  .grid-2 { grid-template-columns: 1fr 1fr; }
+  .grid-3 { grid-template-columns: 1fr 1fr 1fr; }
+  .grid-4 { grid-template-columns: 1fr 1fr 1fr 1fr; }
+  @media (max-width: 900px) { .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; } }
+
+  .card {
+    background: var(--card); border: 1px solid var(--border); border-radius: 8px;
+    padding: 16px; position: relative;
+  }
+  .card h3 { font-size: 15px; margin-bottom: 8px; display: flex; align-items: center; gap: 8px; }
+  .card h3 .tag {
+    font-size: 10px; padding: 2px 6px; border-radius: 4px; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.5px;
+  }
+  .tag-core { background: #1f6feb33; color: var(--accent); }
+  .tag-hw { background: #3fb95033; color: var(--green); }
+  .tag-web { background: #d2992233; color: var(--orange); }
+  .tag-data { background: #bc8cff33; color: var(--purple); }
+  .tag-ui { background: #f778ba33; color: var(--pink); }
+  .tag-util { background: #8b949e33; color: var(--muted); }
+
+  .card ul { list-style: none; padding: 0; }
+  .card li { font-size: 13px; color: var(--muted); padding: 2px 0; padding-left: 16px; position: relative; }
+  .card li::before { content: '›'; position: absolute; left: 4px; color: var(--border); }
+  .card .file { font-family: 'Cascadia Code', 'Fira Code', monospace; font-size: 12px; color: var(--accent); }
+
+  /* Flow diagram */
+  .flow-container { overflow-x: auto; padding: 16px 0; }
+  .flow {
+    display: flex; align-items: stretch; gap: 0; min-width: 900px; justify-content: center;
+  }
+  .flow-step {
+    background: var(--card); border: 1px solid var(--border); border-radius: 8px;
+    padding: 14px 16px; min-width: 140px; max-width: 180px; text-align: center;
+    position: relative; flex-shrink: 0;
+  }
+  .flow-step .step-title { font-size: 13px; font-weight: 700; margin-bottom: 4px; }
+  .flow-step .step-detail { font-size: 11px; color: var(--muted); }
+  .flow-step .step-file { font-size: 10px; color: var(--accent); font-family: monospace; margin-top: 4px; }
+  .flow-arrow {
+    display: flex; align-items: center; color: var(--border); font-size: 24px;
+    padding: 0 4px; flex-shrink: 0; user-select: none;
+  }
+  .flow-step.highlight { border-color: var(--accent); box-shadow: 0 0 12px #58a6ff22; }
+  .flow-step.hw { border-color: var(--green); }
+  .flow-step.web { border-color: var(--orange); }
+  .flow-step.data { border-color: var(--purple); }
+
+  /* Init sequence */
+  .init-seq {
+    display: flex; flex-wrap: wrap; gap: 8px; padding: 8px 0;
+  }
+  .init-item {
+    background: var(--card); border: 1px solid var(--border); border-radius: 6px;
+    padding: 8px 12px; font-size: 12px; display: flex; align-items: center; gap: 6px;
+  }
+  .init-num {
+    background: var(--accent); color: var(--bg); width: 20px; height: 20px;
+    border-radius: 50%; display: flex; align-items: center; justify-content: center;
+    font-size: 10px; font-weight: 700; flex-shrink: 0;
+  }
+  .init-item.critical { border-color: var(--red); }
+  .init-item.critical .init-num { background: var(--red); }
+
+  /* Board comparison table */
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { text-align: left; padding: 8px 12px; background: #21262d; color: var(--accent); border-bottom: 2px solid var(--border); }
+  td { padding: 8px 12px; border-bottom: 1px solid var(--border); }
+  tr:hover td { background: #1c2128; }
+  .yes { color: var(--green); font-weight: 600; }
+  .no { color: var(--muted); }
+  .warn { color: var(--orange); }
+
+  /* API endpoint list */
+  .endpoint { display: flex; align-items: baseline; gap: 8px; padding: 4px 0; font-size: 13px; }
+  .method {
+    font-family: monospace; font-size: 11px; font-weight: 700; padding: 2px 6px;
+    border-radius: 3px; min-width: 40px; text-align: center; flex-shrink: 0;
+  }
+  .method-get { background: #3fb95022; color: var(--green); }
+  .method-post { background: #d2992222; color: var(--orange); }
+  .method-put { background: #58a6ff22; color: var(--accent); }
+  .endpoint .path { font-family: monospace; color: var(--text); }
+  .endpoint .desc { color: var(--muted); }
+
+  /* Legend */
+  .legend { display: flex; gap: 16px; flex-wrap: wrap; padding: 12px 0; }
+  .legend-item { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
+  .legend-dot { width: 10px; height: 10px; border-radius: 50%; }
+
+  /* Directory tree */
+  .tree { font-family: 'Cascadia Code', 'Fira Code', monospace; font-size: 13px; line-height: 1.8; }
+  .tree .dir { color: var(--accent); font-weight: 600; }
+  .tree .comment { color: var(--muted); font-style: italic; }
+
+  /* Mode state diagram */
+  .modes { display: flex; gap: 24px; justify-content: center; flex-wrap: wrap; padding: 16px 0; }
+  .mode-box {
+    background: var(--card); border: 2px solid var(--border); border-radius: 12px;
+    padding: 16px 20px; text-align: center; min-width: 160px;
+  }
+  .mode-box.active { border-color: var(--green); }
+  .mode-box h4 { font-size: 14px; margin-bottom: 4px; }
+  .mode-box p { font-size: 11px; color: var(--muted); }
+  .mode-arrow { display: flex; align-items: center; color: var(--muted); font-size: 12px; gap: 4px; }
+  .mode-arrow span { font-size: 18px; }
+
+  /* Webapp layers */
+  .webapp-stack {
+    display: flex; flex-direction: column; gap: 2px; max-width: 700px; margin: 0 auto;
+  }
+  .webapp-layer {
+    background: var(--card); border: 1px solid var(--border); border-radius: 6px;
+    padding: 12px 16px; display: flex; justify-content: space-between; align-items: center;
+  }
+  .webapp-layer .layer-name { font-weight: 600; font-size: 14px; }
+  .webapp-layer .layer-files { font-size: 12px; color: var(--muted); font-family: monospace; }
+
+  .spacer { height: 24px; }
+  .note { font-size: 12px; color: var(--muted); font-style: italic; padding: 8px 0; }
+  .callout {
+    background: #1f6feb15; border-left: 3px solid var(--accent); padding: 12px 16px;
+    border-radius: 0 6px 6px 0; margin: 12px 0; font-size: 13px;
+  }
+</style>
+</head>
+<body>
+
+<h1>ESP32 LoRa Sniffer</h1>
+<p class="subtitle">v2.3.1 &mdash; Passive LoRa reconnaissance tool for security research &mdash; Architecture Overview</p>
+
+<!-- ============================================================ -->
+<div class="section-title">1. High-Level System Diagram</div>
+
+<div class="callout">
+  The device passively captures LoRa packets, identifies protocols (Meshtastic, LoRaWAN, generic),
+  attempts PSK decryption, catalogs devices, and serves everything via a web app over WiFi.
+</div>
+
+<div class="flow-container">
+<div class="flow">
+  <div class="flow-step hw">
+    <div class="step-title" style="color:var(--green)">SX1262 Radio</div>
+    <div class="step-detail">DIO1 ISR fires on RX</div>
+    <div class="step-file">radio_controller.*</div>
+  </div>
+  <div class="flow-arrow">&rarr;</div>
+  <div class="flow-step highlight">
+    <div class="step-title">Packet Queue</div>
+    <div class="step-detail">Static ring buffer (100 slots, zero-alloc)</div>
+    <div class="step-file">packet_processor.*</div>
+  </div>
+  <div class="flow-arrow">&rarr;</div>
+  <div class="flow-step">
+    <div class="step-title">Protocol Analyzer</div>
+    <div class="step-detail">Meshtastic / LoRaWAN / Generic ID</div>
+    <div class="step-file">protocol_analyzer.*</div>
+  </div>
+  <div class="flow-arrow">&rarr;</div>
+  <div class="flow-step data">
+    <div class="step-title" style="color:var(--purple)">State &amp; Storage</div>
+    <div class="step-detail">DeviceRepo, PacketStore, NVS, SD card</div>
+    <div class="step-file">recon_state.*</div>
+  </div>
+  <div class="flow-arrow">&rarr;</div>
+  <div class="flow-step web">
+    <div class="step-title" style="color:var(--orange)">Web Server</div>
+    <div class="step-detail">REST API + WebSocket broadcast</div>
+    <div class="step-file">web_server.*</div>
+  </div>
+  <div class="flow-arrow">&rarr;</div>
+  <div class="flow-step web">
+    <div class="step-title" style="color:var(--orange)">PWA Client</div>
+    <div class="step-detail">Dashboard, map, war room</div>
+    <div class="step-file">data/webapp/</div>
+  </div>
+</div>
+</div>
+
+<!-- ============================================================ -->
+<div class="section-title">2. Initialization Sequence <span>lora_recon_tool.cpp::initialize()</span></div>
+
+<div class="init-seq">
+  <div class="init-item critical"><div class="init-num">1</div> PMU init (T-Beam only &mdash; powers all rails)</div>
+  <div class="init-item"><div class="init-num">2</div> LittleFS mount</div>
+  <div class="init-item"><div class="init-num">3</div> RadioController &mdash; SPI + SX1262</div>
+  <div class="init-item"><div class="init-num">4</div> PacketProcessor + ReconState</div>
+  <div class="init-item"><div class="init-num">5</div> Load persisted mode (NVS)</div>
+  <div class="init-item"><div class="init-num">6</div> OLED Display init</div>
+  <div class="init-item"><div class="init-num">7</div> applyConfig() + startReceive()</div>
+  <div class="init-item"><div class="init-num">8</div> SD card init (T3-S3 / T-Beam)</div>
+  <div class="init-item"><div class="init-num">9</div> GPS init (T-Beam / V4)</div>
+  <div class="init-item"><div class="init-num">10</div> PSK decryption module</div>
+  <div class="init-item"><div class="init-num">11</div> WiFi + WebServer startup</div>
+  <div class="init-item"><div class="init-num">12</div> Watchdog (30s timeout)</div>
+</div>
+
+<!-- ============================================================ -->
+<div class="section-title">3. Operation Modes <span>State machine driven by user commands &amp; API</span></div>
+
+<div class="modes">
+  <div class="mode-box active">
+    <h4 style="color:var(--green)">RECONNAISSANCE</h4>
+    <p>Sweep 26 freq/SF/BW configs<br>Dwell 3s each, catalog devices</p>
+  </div>
+  <div class="mode-arrow"><span>&harr;</span> API / serial</div>
+  <div class="mode-box">
+    <h4 style="color:var(--accent)">TARGETED CAPTURE</h4>
+    <p>Lock on one device or frequency<br>Deep capture, replay candidates</p>
+  </div>
+  <div class="mode-arrow"><span>&harr;</span> serial 'm'</div>
+  <div class="mode-box">
+    <h4 style="color:var(--orange)">INTERACTIVE MENU</h4>
+    <p>Serial command dispatch<br>Auto-resume after 5 min</p>
+  </div>
+  <div class="mode-arrow"><span>&harr;</span> serial 'p'</div>
+  <div class="mode-box">
+    <h4 style="color:var(--pink)">PACKET REPLAY</h4>
+    <p>Transmit captured packets<br>Configurable repeat &amp; delay</p>
+  </div>
+</div>
+<p class="note" style="text-align:center">Mode persists across reboots via NVS (ModeManager). Targeting state survives power cycles.</p>
+
+<!-- ============================================================ -->
+<div class="section-title">4. Packet RX Pipeline <span>Interrupt &rarr; Queue &rarr; Analyze &rarr; Broadcast</span></div>
+
+<div class="flow-container">
+<div class="flow">
+  <div class="flow-step hw">
+    <div class="step-title" style="color:var(--green)">DIO1 ISR</div>
+    <div class="step-detail">Atomic flag set<br>isrCount++</div>
+  </div>
+  <div class="flow-arrow">&rarr;</div>
+  <div class="flow-step">
+    <div class="step-title">readPacket()</div>
+    <div class="step-detail">SPI read from SX1262<br>RSSI + SNR metrics</div>
+  </div>
+  <div class="flow-arrow">&rarr;</div>
+  <div class="flow-step highlight">
+    <div class="step-title">queuePacket()</div>
+    <div class="step-detail">StaticRingBuffer<br>Zero heap allocation</div>
+  </div>
+  <div class="flow-arrow">&rarr;</div>
+  <div class="flow-step">
+    <div class="step-title">processQueue()</div>
+    <div class="step-detail">ProtocolAnalyzer<br>+ PSK decrypt attempt</div>
+  </div>
+  <div class="flow-arrow">&rarr;</div>
+  <div class="flow-step data">
+    <div class="step-title" style="color:var(--purple)">addTargetableDevice()</div>
+    <div class="step-detail">DeviceRepository<br>+ PacketLogger (SD)</div>
+  </div>
+  <div class="flow-arrow">&rarr;</div>
+  <div class="flow-step web">
+    <div class="step-title" style="color:var(--orange)">packetCallback()</div>
+    <div class="step-detail">WebSocket JSON<br>broadcast (2 Hz)</div>
+  </div>
+</div>
+</div>
+
+<div class="callout">
+  <strong>Thread safety:</strong> Main loop (core 0) writes state; AsyncWebServer handlers (core 1) read.
+  Protected by <code>std::atomic&lt;T&gt;</code> for scalars and <code>ReconState::ScopedLock</code> (mutex) for repositories.
+</div>
+
+<!-- ============================================================ -->
+<div class="section-title">5. Module Map <span>firmware/src/ &mdash; Key files and responsibilities</span></div>
+
+<div class="grid grid-3">
+  <div class="card">
+    <h3>Orchestrator <span class="tag tag-core">CORE</span></h3>
+    <ul>
+      <li><span class="file">main.cpp</span> &mdash; setup() / loop() entry point</li>
+      <li><span class="file">lora_recon_tool.*</span> &mdash; Init sequence, mode dispatch, update loop</li>
+      <li><span class="file">recon_state.*</span> &mdash; Global state singleton, thread-safe access</li>
+      <li><span class="file">recon_service.*</span> &mdash; Service layer (API &harr; tool actions)</li>
+      <li><span class="file">config.h</span> &mdash; All board pin maps, constants, scan configs</li>
+      <li><span class="file">data_structures.h</span> &mdash; PacketInfo, PacketEvent, ScanConfig, etc.</li>
+    </ul>
+  </div>
+  <div class="card">
+    <h3>Radio &amp; Analysis <span class="tag tag-hw">HW</span></h3>
+    <ul>
+      <li><span class="file">radio_controller.*</span> &mdash; SX1262: SPI init, ISR, TX/RX, diagnostics</li>
+      <li><span class="file">packet_processor.*</span> &mdash; Ring buffer queue, process loop, callback</li>
+      <li><span class="file">processing/protocol_analyzer.*</span> &mdash; Meshtastic/LoRaWAN/Generic ID</li>
+      <li><span class="file">processing/psk_decryption_simple.*</span> &mdash; AES-256-CTR decryption (23 default keys)</li>
+      <li><span class="file">processing/packet_logger.*</span> &mdash; SD card CSV/JSON logging</li>
+      <li><span class="file">processing/pcap_logger.*</span> &mdash; PCAP file format export</li>
+    </ul>
+  </div>
+  <div class="card">
+    <h3>Web &amp; API <span class="tag tag-web">WEB</span></h3>
+    <ul>
+      <li><span class="file">web/web_server.*</span> &mdash; ESPAsyncWebServer, WebSocket, static files</li>
+      <li><span class="file">web/api_controller.*</span> &mdash; Route registration, endpoint dispatch</li>
+      <li><span class="file">web/api_handlers.*</span> &mdash; Request handler implementations</li>
+      <li><span class="file">web/api_security.*</span> &mdash; Token auth, auto-trust logic</li>
+      <li><span class="file">web/wifi_manager.*</span> &mdash; AP/STA modes, credentials, mDNS</li>
+    </ul>
+  </div>
+  <div class="card">
+    <h3>Data Layer <span class="tag tag-data">DATA</span></h3>
+    <ul>
+      <li><span class="file">repositories/device_repository.*</span> &mdash; TargetableDevice[50] array</li>
+      <li><span class="file">repositories/packet_store.*</span> &mdash; CapturedPacket[10] replay ring</li>
+      <li><span class="file">peripherals/mode_manager.*</span> &mdash; NVS persistence (survives reboot)</li>
+      <li><span class="file">crash_context.*</span> &mdash; Diagnostic NVS, reboot recovery</li>
+      <li><span class="file">json_builders.cpp</span> &mdash; Build JSON for all API responses</li>
+    </ul>
+  </div>
+  <div class="card">
+    <h3>User Interface <span class="tag tag-ui">UI</span></h3>
+    <ul>
+      <li><span class="file">ui/oled_display.*</span> &mdash; U8g2 128x64 OLED, rate-limited 10 Hz</li>
+      <li><span class="file">ui/command_handler.*</span> &mdash; Serial menu, 30+ commands dispatch</li>
+      <li><span class="file">ui/user_interface.*</span> &mdash; Button handler (short/long press)</li>
+      <li><span class="file">ui/ui_components.*</span> &mdash; Display layout helpers</li>
+    </ul>
+  </div>
+  <div class="card">
+    <h3>Peripherals &amp; Utils <span class="tag tag-util">UTIL</span></h3>
+    <ul>
+      <li><span class="file">peripherals/gps_controller.*</span> &mdash; TinyGPS++, UART (T-Beam/V4)</li>
+      <li><span class="file">peripherals/geo_intelligence.*</span> &mdash; Location analytics</li>
+      <li><span class="file">utils/pmu_controller.*</span> &mdash; AXP2101 PMIC (T-Beam only)</li>
+      <li><span class="file">utils/sd_utils.h</span> &mdash; Board-specific SPI bus selection</li>
+      <li><span class="file">utils/channel_hash.*</span> &mdash; Frequency hashing</li>
+      <li><span class="file">utils/security_scorer.h</span> &mdash; Threat scoring</li>
+    </ul>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<div class="section-title">6. Board Variants <span>4 boards, conditional compilation</span></div>
+
+<table>
+  <thead>
+    <tr>
+      <th>Feature</th>
+      <th>Heltec V3</th>
+      <th>Heltec V4</th>
+      <th>LilyGO T3-S3</th>
+      <th>T-Beam Supreme</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>MCU</td>
+      <td>ESP32-S3</td>
+      <td>ESP32-S3</td>
+      <td>ESP32-S3FH4R2</td>
+      <td>ESP32-S3FN8</td>
+    </tr>
+    <tr>
+      <td>Flash / PSRAM</td>
+      <td>8MB / 2MB</td>
+      <td>8MB / 2MB</td>
+      <td>4MB / 2MB</td>
+      <td>8MB / 8MB</td>
+    </tr>
+    <tr>
+      <td>LoRa Radio</td>
+      <td class="yes">SX1262</td>
+      <td class="yes">SX1262 + FEM</td>
+      <td class="yes">SX1262 (TCXO)</td>
+      <td class="yes">SX1262 (TCXO)</td>
+    </tr>
+    <tr>
+      <td>OLED Display</td>
+      <td class="yes">SSD1306</td>
+      <td class="yes">SSD1306</td>
+      <td class="yes">SSD1306</td>
+      <td class="yes">SH1106</td>
+    </tr>
+    <tr>
+      <td>SD Card</td>
+      <td class="no">No</td>
+      <td class="no">No</td>
+      <td class="yes">HSPI (separate bus)</td>
+      <td class="yes">HSPI (separate bus)</td>
+    </tr>
+    <tr>
+      <td>GPS</td>
+      <td class="no">No</td>
+      <td class="yes">L76K (UART)</td>
+      <td class="no">No</td>
+      <td class="yes">L76K/MAX-M10S</td>
+    </tr>
+    <tr>
+      <td>PMIC</td>
+      <td class="no">No</td>
+      <td class="no">No</td>
+      <td class="no">No</td>
+      <td class="yes">AXP2101</td>
+    </tr>
+    <tr>
+      <td>USB Serial</td>
+      <td class="yes">CP210x (isolated)</td>
+      <td class="warn">Native CDC (kills RX!)</td>
+      <td class="yes">Native CDC</td>
+      <td class="yes">Native CDC</td>
+    </tr>
+    <tr>
+      <td>PIO Environment</td>
+      <td><code>heltec_v3</code></td>
+      <td><code>heltec_v4</code></td>
+      <td><code>t3_s3</code></td>
+      <td><code>tbeam_supreme</code></td>
+    </tr>
+    <tr>
+      <td>Key Defines</td>
+      <td><code>BOARD_HELTEC_V3</code></td>
+      <td><code>BOARD_HELTEC_V3</code><br><code>BOARD_HELTEC_V4</code><br><code>HAS_GPS</code></td>
+      <td><code>BOARD_T3_S3</code><br><code>HAS_SD_CARD</code></td>
+      <td><code>BOARD_TBEAM_SUPREME</code><br><code>HAS_GPS, HAS_SD_CARD</code><br><code>HAS_AXP2101</code></td>
+    </tr>
+  </tbody>
+</table>
+
+<!-- ============================================================ -->
+<div class="section-title">7. Web Application Stack <span>data/webapp/ &mdash; LittleFS-served PWA</span></div>
+
+<div class="webapp-stack">
+  <div class="webapp-layer" style="border-color: var(--orange);">
+    <div class="layer-name" style="color:var(--orange)">Browser (Phone / Laptop)</div>
+    <div class="layer-files">Any device on WiFi</div>
+  </div>
+  <div style="text-align:center; color: var(--muted); font-size: 20px;">&#x25BC;</div>
+  <div class="webapp-layer">
+    <div class="layer-name">Progressive Web App</div>
+    <div class="layer-files">index.html + manifest.json</div>
+  </div>
+  <div style="text-align:center; color: var(--muted); font-size: 20px;">&#x25BC;</div>
+  <div class="webapp-layer">
+    <div class="layer-name">App Controller</div>
+    <div class="layer-files">js/app.js &mdash; REST fetch + WebSocket + DOM</div>
+  </div>
+  <div class="grid grid-3" style="gap: 2px;">
+    <div class="webapp-layer">
+      <div class="layer-name">War Room</div>
+      <div class="layer-files">js/war-room.js</div>
+    </div>
+    <div class="webapp-layer">
+      <div class="layer-name">Network Map</div>
+      <div class="layer-files">js/network-map.js</div>
+    </div>
+    <div class="webapp-layer">
+      <div class="layer-name">Notifications</div>
+      <div class="layer-files">js/toast.js</div>
+    </div>
+  </div>
+  <div style="text-align:center; color: var(--muted); font-size: 20px;">&#x25BC;</div>
+  <div class="webapp-layer" style="border-color: var(--accent);">
+    <div class="layer-name" style="color:var(--accent)">REST API + WebSocket</div>
+    <div class="layer-files">ESPAsyncWebServer on port 80</div>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<div class="section-title">8. REST API Endpoints <span>Token-authenticated, served from device</span></div>
+
+<div class="grid grid-2">
+  <div class="card">
+    <h3>Devices &amp; Capture</h3>
+    <div class="endpoint"><span class="method method-get">GET</span><span class="path">/api/devices</span><span class="desc">&mdash; All discovered devices</span></div>
+    <div class="endpoint"><span class="method method-get">GET</span><span class="path">/api/devices/:id</span><span class="desc">&mdash; Single device detail</span></div>
+    <div class="endpoint"><span class="method method-get">GET</span><span class="path">/api/devices/summary</span><span class="desc">&mdash; Type breakdown</span></div>
+    <div class="endpoint"><span class="method method-post">POST</span><span class="path">/api/capture/start/:id</span><span class="desc">&mdash; Target device</span></div>
+    <div class="endpoint"><span class="method method-post">POST</span><span class="path">/api/capture/stop</span><span class="desc">&mdash; Stop capture</span></div>
+    <div class="endpoint"><span class="method method-post">POST</span><span class="path">/api/frequency-targeting/:idx</span><span class="desc">&mdash; Lock frequency</span></div>
+  </div>
+  <div class="card">
+    <h3>Status &amp; Data</h3>
+    <div class="endpoint"><span class="method method-get">GET</span><span class="path">/api/status</span><span class="desc">&mdash; System state</span></div>
+    <div class="endpoint"><span class="method method-get">GET</span><span class="path">/api/statistics</span><span class="desc">&mdash; Packet counts</span></div>
+    <div class="endpoint"><span class="method method-get">GET</span><span class="path">/api/rf-activity</span><span class="desc">&mdash; Signal by freq</span></div>
+    <div class="endpoint"><span class="method method-get">GET</span><span class="path">/api/packets</span><span class="desc">&mdash; Packet history</span></div>
+    <div class="endpoint"><span class="method method-get">GET</span><span class="path">/api/positions</span><span class="desc">&mdash; GPS coordinates</span></div>
+    <div class="endpoint"><span class="method method-get">GET</span><span class="path">/api/diagnostics</span><span class="desc">&mdash; Hardware health</span></div>
+  </div>
+  <div class="card">
+    <h3>Export Formats</h3>
+    <div class="endpoint"><span class="method method-get">GET</span><span class="path">/api/export/csv</span><span class="desc">&mdash; Spreadsheet</span></div>
+    <div class="endpoint"><span class="method method-get">GET</span><span class="path">/api/export/geojson</span><span class="desc">&mdash; Web maps</span></div>
+    <div class="endpoint"><span class="method method-get">GET</span><span class="path">/api/export/kml</span><span class="desc">&mdash; Google Earth</span></div>
+    <div class="endpoint"><span class="method method-get">GET</span><span class="path">/api/export/pcap</span><span class="desc">&mdash; Wireshark</span></div>
+  </div>
+  <div class="card">
+    <h3>Replay &amp; Config</h3>
+    <div class="endpoint"><span class="method method-get">GET</span><span class="path">/api/replay/slots</span><span class="desc">&mdash; Captured packets</span></div>
+    <div class="endpoint"><span class="method method-post">POST</span><span class="path">/api/replay/:slot</span><span class="desc">&mdash; Transmit packet</span></div>
+    <div class="endpoint"><span class="method method-get">GET</span><span class="path">/api/config</span><span class="desc">&mdash; Radio config</span></div>
+    <div class="endpoint"><span class="method method-put">PUT</span><span class="path">/api/config</span><span class="desc">&mdash; Update config</span></div>
+    <div class="endpoint"><span class="method method-post">POST</span><span class="path">/api/command/:cmd</span><span class="desc">&mdash; Device command</span></div>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<div class="section-title">9. Key Data Structures <span>data_structures.h + repositories</span></div>
+
+<div class="grid grid-2">
+  <div class="card">
+    <h3>TargetableDevice <span class="tag tag-data">REPO</span></h3>
+    <ul>
+      <li><code>nodeId</code> &mdash; uint32 unique ID (from packet)</li>
+      <li><code>configIndex</code> &mdash; best freq/SF/BW combo</li>
+      <li><code>bestRSSI, avgRSSI, rssiStdDev</code> &mdash; signal metrics</li>
+      <li><code>packetCount</code> &mdash; total packets seen</li>
+      <li><code>originatedPackets / relayedPackets</code> &mdash; traffic direction</li>
+      <li><code>protocol[16]</code> &mdash; "Meshtastic", "LoRaWAN", etc.</li>
+      <li><code>deviceType[24]</code> &mdash; hardware identification</li>
+      <li><code>powerClass</code> &mdash; 0=low, 1=med, 2=high</li>
+      <li><code>periodicityScore</code> &mdash; 0-100 beacon confidence</li>
+      <li><code>isRouter</code> &mdash; relaying detected</li>
+      <li>Max 50 devices, LRU eviction of oldest inactive</li>
+    </ul>
+  </div>
+  <div class="card">
+    <h3>CapturedPacket <span class="tag tag-data">REPLAY</span></h3>
+    <ul>
+      <li><code>data[256]</code> &mdash; raw packet bytes</li>
+      <li><code>length, configIndex</code> &mdash; for TX config</li>
+      <li><code>originalRSSI, snr</code> &mdash; capture metrics</li>
+      <li><code>nodeId, destId, packetId</code> &mdash; parsed fields</li>
+      <li><code>hopCount, channel, priority</code> &mdash; Meshtastic fields</li>
+      <li><code>decryptedText[256]</code> &mdash; if PSK succeeded</li>
+      <li>Circular buffer of 10 slots</li>
+    </ul>
+  </div>
+  <div class="card">
+    <h3>ScanConfig <span class="tag tag-core">CORE</span></h3>
+    <ul>
+      <li><code>frequency</code> &mdash; MHz (e.g., 906.875)</li>
+      <li><code>bandwidth</code> &mdash; kHz (125, 250, 500)</li>
+      <li><code>spreadingFactor</code> &mdash; 7-12</li>
+      <li><code>codingRate</code> &mdash; 5-8</li>
+      <li><code>syncWord</code> &mdash; protocol sync</li>
+      <li>26 configurations swept in RECON mode</li>
+    </ul>
+  </div>
+  <div class="card">
+    <h3>PacketInfo <span class="tag tag-core">CORE</span></h3>
+    <ul>
+      <li><code>protocol</code> &mdash; identified type</li>
+      <li><code>nodeId, destId</code> &mdash; source/dest</li>
+      <li><code>rssi, snr</code> &mdash; RF metrics</li>
+      <li><code>hopCount, channel</code> &mdash; mesh fields</li>
+      <li><code>isEncrypted, decryptedText</code> &mdash; PSK result</li>
+      <li><code>deviceType, firmwareVersion</code> &mdash; ID</li>
+    </ul>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<div class="section-title">10. Concurrency &amp; Safety Model</div>
+
+<div class="grid grid-2">
+  <div class="card">
+    <h3>Dual-Core ESP32-S3</h3>
+    <ul>
+      <li><strong>Core 0:</strong> Main loop &mdash; radio RX, packet processing, display, GPS</li>
+      <li><strong>Core 1:</strong> AsyncWebServer &mdash; HTTP handlers, WebSocket</li>
+      <li><strong>ISR context:</strong> DIO1 interrupt &mdash; sets atomic flag only</li>
+    </ul>
+  </div>
+  <div class="card">
+    <h3>Protection Mechanisms</h3>
+    <ul>
+      <li><code>std::atomic&lt;T&gt;</code> for totalPackets, droppedPackets, mode</li>
+      <li><code>ScopedLock</code> (FreeRTOS mutex, 100ms timeout) for DeviceRepository</li>
+      <li><code>StaticRingBuffer</code> &mdash; lock-free single-producer queue</li>
+      <li>Watchdog timer (30s) auto-reboots on hang</li>
+    </ul>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<div class="section-title">11. Persistence Layers</div>
+
+<div class="grid grid-3">
+  <div class="card">
+    <h3>NVS (Non-Volatile Storage)</h3>
+    <ul>
+      <li>Operation mode + target config</li>
+      <li>Crash context (last action, heap, uptime)</li>
+      <li>WiFi credentials (encrypted)</li>
+      <li>API token</li>
+      <li>Device unique ID</li>
+      <li>Saved every 5 min (flash wear limit)</li>
+    </ul>
+  </div>
+  <div class="card">
+    <h3>SD Card (T3-S3 / T-Beam)</h3>
+    <ul>
+      <li>PacketLogger &mdash; CSV per session</li>
+      <li>PCAP export files</li>
+      <li>GPS track logs</li>
+      <li>Session metadata</li>
+    </ul>
+  </div>
+  <div class="card">
+    <h3>LittleFS</h3>
+    <ul>
+      <li>Web app files (HTML/CSS/JS)</li>
+      <li>WiFi credentials JSON</li>
+      <li>Served by ESPAsyncWebServer</li>
+      <li>Uploaded via <code>pio uploadfs</code></li>
+    </ul>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<div class="section-title">12. Directory Structure <span>Reading guide for your code dive</span></div>
+
+<div class="card">
+<pre class="tree">
+<span class="dir">firmware/src/</span>                         <span class="comment">Start here</span>
+  main.cpp                              <span class="comment">Entry: setup() calls initialize(), loop() calls update()</span>
+  lora_recon_tool.h / .cpp              <span class="comment">THE orchestrator — mode dispatch, init sequence, update loop</span>
+  radio_controller.h / .cpp             <span class="comment">SX1262 hardware — SPI, ISR, readPacket(), startReceive()</span>
+  packet_processor.h / .cpp             <span class="comment">Queue + process loop + callback to WebSocket</span>
+  recon_state.h / .cpp                  <span class="comment">Global state singleton with mutex-protected repos</span>
+  recon_service.h / .cpp                <span class="comment">Service layer bridging API requests → tool actions</span>
+  config.h                              <span class="comment">ALL board pin maps, scan configs, constants</span>
+  data_structures.h                     <span class="comment">Every struct: PacketInfo, ScanConfig, TargetableDevice, etc.</span>
+  json_builders.h / .cpp                <span class="comment">JSON serialization for all API responses</span>
+
+  <span class="dir">web/</span>                                  <span class="comment">HTTP + WebSocket server</span>
+    web_server.h / .cpp                 <span class="comment">ESPAsyncWebServer, WebSocket broadcast, static file serving</span>
+    api_controller.h / .cpp             <span class="comment">Route registration → handler dispatch</span>
+    api_handlers.h / .cpp               <span class="comment">Each endpoint's implementation</span>
+    api_security.h / .cpp               <span class="comment">Token generation, auth check, auto-trust logic</span>
+    wifi_manager.h / .cpp               <span class="comment">AP/STA mode, credential storage, mDNS</span>
+
+  <span class="dir">processing/</span>                           <span class="comment">Packet analysis pipeline</span>
+    protocol_analyzer.h / .cpp          <span class="comment">Meshtastic / LoRaWAN / Generic identification</span>
+    psk_decryption_simple.h / .cpp      <span class="comment">AES-256-CTR PSK decryption (23 default Meshtastic keys)</span>
+    packet_logger.h / .cpp              <span class="comment">SD card CSV/JSON session logging</span>
+    pcap_logger.h / .cpp                <span class="comment">PCAP file format for Wireshark</span>
+
+  <span class="dir">repositories/</span>                         <span class="comment">In-memory data stores</span>
+    device_repository.h / .cpp          <span class="comment">TargetableDevice[50] — add/update/evict</span>
+    packet_store.h / .cpp               <span class="comment">CapturedPacket[10] — replay ring buffer</span>
+
+  <span class="dir">ui/</span>                                   <span class="comment">Display + serial interface</span>
+    oled_display.h / .cpp               <span class="comment">U8g2 OLED: scanning, packet info, targeting, shutdown</span>
+    command_handler.h / .cpp            <span class="comment">30+ serial commands, dispatch table</span>
+
+  <span class="dir">peripherals/</span>                          <span class="comment">Optional hardware modules</span>
+    gps_controller.h / .cpp             <span class="comment">TinyGPS++ UART (T-Beam / V4 only)</span>
+    mode_manager.h / .cpp               <span class="comment">NVS read/write of operation mode</span>
+
+  <span class="dir">utils/</span>                                <span class="comment">Support code</span>
+    pmu_controller.h / .cpp             <span class="comment">AXP2101 PMIC (T-Beam only)</span>
+    sd_utils.h                          <span class="comment">Board-specific SPI bus selection for SD</span>
+
+<span class="dir">data/webapp/</span>                            <span class="comment">LittleFS web app</span>
+  index.html                            <span class="comment">SPA shell — sidebar + tabs</span>
+  js/app.js                             <span class="comment">Main controller: fetch, WebSocket, DOM rendering</span>
+  js/war-room.js                        <span class="comment">Tactical dashboard tab</span>
+  js/network-map.js                     <span class="comment">Device map visualization</span>
+
+<span class="dir">tools/</span>                                  <span class="comment">Post-capture analysis (Python)</span>
+  export/                               <span class="comment">CSV/JSON/KML converters</span>
+  visualization/                        <span class="comment">Map generation (Folium)</span>
+  meshtastic/                           <span class="comment">Meshtastic-specific analysis</span>
+  lorawan/                              <span class="comment">LoRaWAN key testing</span>
+
+<span class="dir">test/native/</span>                            <span class="comment">Unity unit tests (PC, not hardware)</span>
+  stubs/                                <span class="comment">Arduino API mocks (SPI, Serial, etc.)</span>
+  test_protocol_analyzer/               <span class="comment">Packet identification tests</span>
+  test_ring_buffer/                     <span class="comment">Queue behavior tests</span>
+  test_sd_guard/                        <span class="comment">SPI init guard regression test</span>
+</pre>
+</div>
+
+<div class="spacer"></div>
+
+<div class="callout">
+  <strong>Suggested reading order for your code dive:</strong><br>
+  1. <code>config.h</code> &mdash; understand board defines and pin maps<br>
+  2. <code>data_structures.h</code> &mdash; all the structs that flow through the system<br>
+  3. <code>main.cpp</code> &mdash; entry point (tiny &mdash; just calls lora_recon_tool)<br>
+  4. <code>lora_recon_tool.cpp</code> &mdash; the orchestrator (init + mode dispatch)<br>
+  5. <code>radio_controller.cpp</code> &mdash; hardware layer (SPI, ISR, RX/TX)<br>
+  6. <code>packet_processor.cpp</code> &mdash; queue + analysis pipeline<br>
+  7. <code>protocol_analyzer.cpp</code> &mdash; how packets get identified<br>
+  8. <code>web_server.cpp</code> + <code>api_handlers.cpp</code> &mdash; API surface<br>
+  9. <code>data/webapp/js/app.js</code> &mdash; client-side logic
+</div>
+
+<div class="spacer"></div>
+<p style="text-align:center; color: var(--muted); font-size: 12px;">
+  Generated for code dive reference &mdash; ESP32 LoRa Sniffer project
+</p>
+
+</body>
+</html>

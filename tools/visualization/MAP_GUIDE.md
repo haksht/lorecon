@@ -180,5 +180,4 @@ The map is a single HTML file - you can:
 
 ---
 
-**Example Maps Available:**
-See `examples/maps/` directory for sample outputs (if you create this directory and add examples later)
+Maps are generated as self-contained HTML files that can be shared, embedded in presentations, or hosted on any web server.

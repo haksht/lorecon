@@ -305,7 +305,7 @@ curl "http://<device-ip>/api/files/download?name=snf_12345.csv" -o snf_12345.csv
 - **Device type analysis** (breakdown by device type, power class)
 - **Real-time statistics** (packet counts, uptime, error rates)
 
-#### Web Interface (v2.1 - November 2025)
+#### Web Interface
 **Files**: `data/webapp/index.html`, `js/app.js`, `js/network-map.js`, `js/war-room.js`, `js/toast.js`
 
 **7-Tab Interface:**
@@ -358,12 +358,8 @@ curl "http://<device-ip>/api/files/download?name=snf_12345.csv" -o snf_12345.csv
 ```
 
 ### Removed Flags (v2.0)
-```ini
--DENABLE_STRESS_TESTING          # Removed - hardware stress testing
--DENABLE_OFFENSIVE_TESTING       # Removed - attack framework  
--DENABLE_INTELLIGENCE_STORAGE    # Never fully implemented
--DENABLE_TRAFFIC_ANALYSIS        # Redundant with existing analysis
-```
+The v2.0 refactor removed several experimental build flags that are no longer part of the codebase:
+`ENABLE_STRESS_TESTING`, `ENABLE_OFFENSIVE_TESTING`, `ENABLE_INTELLIGENCE_STORAGE`, `ENABLE_TRAFFIC_ANALYSIS`.
 
 ---
 
@@ -409,7 +405,7 @@ curl "http://<device-ip>/api/files/download?name=snf_12345.csv" -o snf_12345.csv
 9. **Geographic Intelligence** - Show GPS positions extracted from decrypted POSITION_APP packets
 10. **Multi-Network Detection** - Demonstrate coverage of Meshtastic, TTN/LoRaWAN, and Helium Network
 
-⭐ = New visualization features added November 2025 for maximum audience impact
+⭐ = High visual impact for conference presentations
 
 ### What We Won't Demonstrate
 - Session management (not implemented)
@@ -427,11 +423,10 @@ curl "http://<device-ip>/api/files/download?name=snf_12345.csv" -o snf_12345.csv
 | Packet Replay | ~200 | ✅ Production | Always |
 | PSK Decryption | ~300 | ✅ Code Complete | Optional |
 | Geo Intelligence | ~400 | ✅ Production | Always |
-| Stress Testing | ~600 | ✅ Production | Optional |
 | Error Handler | ~400 | ✅ Production | Optional |
 | User Interface | ~800 | ✅ Production | Always |
 | Protocol Analyzer | ~300 | ✅ Production | Always |
-| **Total** | **~4,200** | **Production** | - |
+| **Total** | **~3,600** | **Production** | - |
 
 ---
 
@@ -464,6 +459,6 @@ curl "http://<device-ip>/api/files/download?name=snf_12345.csv" -o snf_12345.csv
 
 ---
 
-**Last Updated**: December 21, 2025  
-**Version**: 2.2.1 Production  
-**Status**: Ready for security research and RF experimentation
+**Last Updated**: March 2026
+**Version**: 2.3.1
+**Status**: Production — ready for security research and RF experimentation

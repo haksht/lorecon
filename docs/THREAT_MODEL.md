@@ -2,7 +2,7 @@
 
 **Document Version:** 1.0  
 **Last Updated:** December 2025  
-**Applies to:** ESP32 LoRa Sniffer v2.2.x
+**Applies to:** ESP32 LoRa Sniffer v2.3.x
 
 ---
 

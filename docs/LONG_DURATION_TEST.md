@@ -1,7 +1,7 @@
 # Long-Duration Test Guide (Week+)
 
-**Last Updated:** December 21, 2025  
-**Firmware Version:** 2.2.1
+**Last Updated:** March 2026
+**Firmware Version:** 2.3.1
 
 ---
 
@@ -130,7 +130,7 @@ After the test, check:
 
 ```
 Start Date/Time: _______________
-Firmware Version: 2.2.1
+Firmware Version: 2.3.1
 Mode: □ Reconnaissance  □ Frequency Targeting (config #___)
 Power Source: □ USB Wall  □ USB Battery  □ Battery
 

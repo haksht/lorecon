@@ -26,15 +26,15 @@ pio run --target uploadfs
 
 You need USB cable **once** to get OTA capability on the device:
 
-```powershell
+```bash
 # Build firmware
-C:\Users\tim\.platformio\penv\Scripts\pio.exe run
+pio run
 
 # Upload web UI to LittleFS
-C:\Users\tim\.platformio\penv\Scripts\pio.exe run --target uploadfs
+pio run --target uploadfs
 
 # Flash firmware via USB (includes OTA code)
-C:\Users\tim\.platformio\penv\Scripts\pio.exe run --target upload
+pio run --target upload
 ```
 
 **Result:** Device now has OTA capability. No USB needed for future updates!
@@ -56,8 +56,8 @@ pio run
 
 #### **Step 2: Connect to Device WiFi**
 
-- **Network Name:** ESP32-LoRa-Sniffer
-- **Password:** (from your config, default: `meshtastic`)
+- **Network Name:** `LoRa-XXYYZZ` (unique per device, based on MAC)
+- **Password:** `recon-XXYYZZ` (same suffix as SSID — check serial output for exact credentials)
 - **Device IP:** 192.168.4.1 (fixed)
 
 #### **Step 3: Open Web Interface**
@@ -71,7 +71,7 @@ Using phone, tablet, or laptop browser:
 1. Click **Settings** tab (⚙️ icon at top)
 2. Scroll to **"Firmware Update (OTA)"** section
 3. Click **"Choose File"** button
-4. Navigate to project folder: `C:\Users\tim\lora\esp32-sniffer\.pio\build\default\`
+4. Navigate to the PlatformIO build output folder: `.pio/build/<env>/`
 5. Select `firmware.bin` file
 6. Click **"Upload Firmware"** button
 
@@ -177,8 +177,9 @@ ESP32 has **2 firmware partitions**:
 
 **File Location:**
 ```
-C:\Users\tim\lora\esp32-sniffer\.pio\build\default\firmware.bin
+<project-root>/.pio/build/<env>/firmware.bin
 ```
+Where `<env>` is your board environment (e.g., `heltec_v3`, `t3_s3`, `tbeam_supreme`).
 
 **If Missing:**
 - Run `pio run` first to build firmware
@@ -273,21 +274,19 @@ A: Yes, but ensure battery is charged (>50%). Low battery during upload can caus
 ## File Locations Quick Reference
 
 ```
-Project Root: C:\Users\tim\lora\esp32-sniffer\
-
 Firmware Binary:
-├─ .pio\build\default\firmware.bin          # Upload this via OTA
+  .pio/build/<env>/firmware.bin              # Upload this via OTA
 
 Web UI Source:
-├─ data\webapp\                             # Edit these files
-│  ├─ index.html
-│  ├─ css\style.css
-│  └─ js\app.js
+  data/webapp/                               # Edit these files
+    index.html
+    css/style.css
+    js/app.js
 
 Build Commands:
-├─ pio run                                  # Build firmware
-├─ pio run --target uploadfs                # Upload web UI
-├─ pio run --target upload                  # Flash via USB
+  pio run                                    # Build firmware
+  pio run --target uploadfs                  # Upload web UI
+  pio run --target upload                    # Flash via USB
 ```
 
 ---
@@ -300,4 +299,4 @@ Build Commands:
 4. **Fast:** 30 seconds, no cables needed
 5. **Works anywhere:** Phone, laptop, field deployment
 
-**You now have wireless firmware updates! 🎉**
+**You now have wireless firmware updates.**

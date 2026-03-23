@@ -14,12 +14,12 @@ Passive LoRa reconnaissance firmware for ESP32-S3 + SX1262 hardware. The ESP32 h
 ## Current Status
 
 - **Branch:** `main`
-- **Version:** 2.3.0
+- **Version:** 2.3.1
 - **Hardware:** ESP32-S3 + SX1262 + OLED. Native or optional SD card.
   - ✅ **Fully Supported:**
-    - **Heltec WiFi LoRa 32 V3 / V4** (tested, production-ready, SD requires external module; V3 and V4 use identical firmware)
+    - **Heltec WiFi LoRa 32 V3 / V4** (tested, production-ready; SD requires external module; V4 with L76K GPS module uses separate `heltec_v4` build env)
     - **LilyGO T3-S3 V1.2/V1.3** (ESP32-S3 + SX1262 + OLED + native SD card slot)
-    - **LilyGO T-Beam Supreme** (ESP32-S3 + SX1262 + SH1106 OLED + SD + GPS + AXP2101 PMIC) - New in v2.3.0!
+    - **LilyGO T-Beam Supreme** (ESP32-S3 + SX1262 + SH1106 OLED + SD + GPS + AXP2101 PMIC)
   - ⚠️ **Not Supported:** T-Deck variants (hardware incompatibilities - see `docs/hardware/TDECK_PLUS_INVESTIGATION.md`)
   - ℹ️ **Note:** All three boards use ESP32-S3 + SX1262 architecture, differing in pin mappings and peripherals
 - **Focus:** Passive reconnaissance (scan, target, capture, replay, export).
@@ -54,7 +54,7 @@ Passive LoRa reconnaissance firmware for ESP32-S3 + SX1262 hardware. The ESP32 h
 
 | Component | Price | Notes | Link |
 |-----------|-------|-------|------|
-| **Heltec WiFi LoRa 32 V3 or V4** | $22-32 | ESP32-S3 + SX1262 + OLED; V3 and V4 use identical firmware | [Amazon (V3)](https://www.amazon.com/dp/B0B697NLJ5) / [Heltec Store](https://heltec.org/project/wifi-lora-32-v3/) |
+| **Heltec WiFi LoRa 32 V3 or V4** | $22-32 | ESP32-S3 + SX1262 + OLED; use `heltec_v3` env (or `heltec_v4` if V4 has L76K GPS) | [Amazon (V3)](https://www.amazon.com/dp/B0B697NLJ5) / [Heltec Store](https://heltec.org/project/wifi-lora-32-v3/) |
 | 915MHz Antenna (RP-SMA) | $0-8 | Often included with board | [Amazon](https://www.amazon.com/dp/B09K3WMCVN) |
 | USB-C Cable | $0 | You have one | — |
 | **Optional:** 3D Printed Case | $5-10 | Search "Heltec V3 case" | [Printables](https://www.printables.com/search/models?q=heltec%20v3) |
@@ -193,7 +193,7 @@ data/webapp/
 docs/
   user-guides/        -> BUILD_GUIDE.md, FEATURES.md, TROUBLESHOOTING.md
   technical/          -> ARCHITECTURE.md, ENCRYPTION.md, NETWORK_HUNTING_GUIDE.md
-  hardware/           -> TDECK_STATUS.md, TDECK_PLUS_INVESTIGATION.md
+  hardware/           -> T3_S3_GUIDE.md, TDECK_PLUS_INVESTIGATION.md
 
 tools/
   demo/make_reveal.py           -> generate decrypt reveal page from PCAP
@@ -202,7 +202,7 @@ tools/
   pcap_analyzer.py              -> PCAP capture file analysis
   enhanced_live_visualizer.py   -> 5-panel matplotlib dashboard
   recon_report.py, position_tracker.py, api_client.py, ws_monitor.py
-  visualization/                -> network_topology.html, live_map.html, attack_dashboard.html
+  visualization/                -> network_topology.html, live_map.html, network_dashboard.html
 ```
 
 ## ⚠️ Legal & Ethical Use Disclaimer

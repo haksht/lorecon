@@ -14,9 +14,9 @@ For generated filenames on Windows, avoid colons (:) and unicode characters like
 
 - Default board: Heltec V3 (`pio run -e heltec_v3`)
 - T3-S3 board: `pio run -e t3_s3`
-- Upload T3-S3: `pio run -e t3_s3 -t upload --upload-port COM9`
-- Monitor: `pio device monitor --port COM9 --baud 115200`
+- Upload T3-S3: `pio run -e t3_s3 -t upload --upload-port COMx`
+- T-Beam Supreme: `pio run -e tbeam_supreme`
+- Heltec V4 (with GPS): `pio run -e heltec_v4`
+- Monitor: `pio device monitor --port COMx --baud 115200`
 - Source is C++ (Arduino framework) in `firmware/src/`
 - Board configs in `firmware/src/config.h` under `Config::Hardware` namespace
-- always use the full path to pio related commands
-- alway use the venv python (not the system level python executables.)

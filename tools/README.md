@@ -13,7 +13,7 @@ You **must** be connected via **Serial (USB)** or **WiFi (WebSocket/API)** to ac
 | Connection | How to Use | Data Access |
 |------------|------------|-------------|
 | **Serial/USB** | `pio device monitor` | View live output, use 'k'/'j' for KML/GeoJSON |
-| **WiFi (AP)** | Connect to `lora-recon-XXXXXX`, browse `192.168.4.1` | Web UI, API, WebSocket |
+| **WiFi (AP)** | Connect to `LoRa-XXYYZZ`, browse `192.168.4.1` | Web UI, API, WebSocket |
 | **WiFi (Hotspot)** | Device joins your network | Same as AP, use assigned IP |
 
 **Tools that work (real-time):**
@@ -64,7 +64,7 @@ tools/
 │   ├── psk_auditor.py            # PSK vulnerability scanning
 │   └── psk_decrypt.py            # PSK decryption library (23 keys)
 ├── visualization/                 # Dashboards and visualization
-│   ├── attack_dashboard.html     # Live attack surface dashboard
+│   ├── network_dashboard.html    # Live network reconnaissance dashboard
 │   ├── live_map.html             # Real-time GPS mapping
 │   ├── network_topology.html     # D3.js force-directed graph
 │   ├── MAP_GUIDE.md              # Map customization guide
@@ -110,21 +110,21 @@ Shows real intercepted text messages decrypted with factory default PSKs.
 
 ---
 
-### Attack Dashboard (Standalone HTML) 🔥
+### Network Dashboard (Standalone HTML)
 
 **Zero-dependency dashboard for live presentations:**
 ```bash
 # Just open in your browser - no Python needed!
-start visualization/attack_dashboard.html   # Windows
-open visualization/attack_dashboard.html    # macOS
+start visualization/network_dashboard.html   # Windows
+open visualization/network_dashboard.html    # macOS
 ```
 
 Features:
-- ⚔️ **Attack Surface Stats** - Devices found, networks cracked, replay slots ready
-- 🔓 **PSK Decryption Panel** - Live success rate, per-key hit counts
-- 📡 **Replay Attack Slots** - One-click packet replay with decrypted text
-- 📍 **Live GPS Map** - Real Leaflet/OpenStreetMap with movement trails
-- ⚠️ **Anomaly Feed** - Real-time security alerts overlay
+- **Recon Stats** - Devices found, PSK decryption hits, replay slots ready
+- **PSK Decryption Panel** - Live success rate, per-key hit counts
+- **Replay Slots** - Captured packets with decrypted text
+- **Live GPS Map** - Leaflet/OpenStreetMap with movement trails
+- **Anomaly Feed** - Real-time security alerts overlay
 
 Enter your ESP32's IP (e.g., `172.20.10.3`) and click Connect.
 
@@ -196,7 +196,7 @@ python timeline_replay.py capture.csv --speed 10 --interactive
 
 | Tool | Purpose | Live/Offline | Demo Mode | Output |
 |------|---------|--------------|-----------|--------|
-| `visualization/attack_dashboard.html` | Full attack surface dashboard | Live (WiFi) | N/A | Browser UI |
+| `visualization/network_dashboard.html` | Live recon dashboard | Live (WiFi) | N/A | Browser UI |
 | `visualization/network_topology.html` | D3.js force-directed graph | Both | N/A | Browser UI, SVG |
 | `timeline_replay.py` | DVR-style session replay | Offline | ❌ | Terminal UI |
 | `enhanced_live_visualizer.py` | 5-panel real-time dashboard | Both | ✅ `--demo` | PNG, HTML map |
@@ -219,7 +219,7 @@ python timeline_replay.py capture.csv --speed 10 --interactive
 
 ---
 
-## 🕸️ Network Topology Visualizer ⭐ NEW
+## 🕸️ Network Topology Visualizer ⭐
 
 **D3.js force-directed graph** showing device relationships and network structure.
 
@@ -243,7 +243,7 @@ open visualization/network_topology.html    # macOS
 
 ---
 
-## 🗺️ Mesh Topology Analyzer ⭐ NEW
+## 🗺️ Mesh Topology Analyzer ⭐
 
 **Parse traceroute and neighborinfo packets** to build mesh network structure.
 
@@ -294,7 +294,7 @@ TRACEROUTE PATHS:
 
 ---
 
-## 🔐 LoRaWAN Join Analyzer ⭐ NEW
+## 🔐 LoRaWAN Join Analyzer ⭐
 
 **Analyze LoRaWAN join sequences** for security vulnerabilities.
 
@@ -341,7 +341,7 @@ SECURITY ASSESSMENT:
 
 ---
 
-## 🔍 Packet Differ ⭐ NEW
+## 🔍 Packet Differ ⭐
 
 **Side-by-side hex diff** for reverse engineering and protocol analysis.
 
@@ -389,7 +389,7 @@ Diff positions: 0x02
 
 ---
 
-## 🎬 Timeline Replay (DVR Mode) ⭐ NEW
+## 🎬 Timeline Replay (DVR Mode) ⭐
 
 **Replay captured sessions** at configurable speeds for demos without live hardware.
 
@@ -506,7 +506,7 @@ python meshtastic/psk_auditor.py capture.csv --output audit_results.json
 
 ---
 
-## � PSK Decryption Library ⭐ NEW
+## � PSK Decryption Library ⭐
 
 **Standalone PSK decryption module** - Tests Meshtastic packets against 23 known keys.
 
@@ -545,7 +545,7 @@ if result:
 
 ---
 
-## �📋 Security Report Generator ⭐ NEW
+## �📋 Security Report Generator ⭐
 
 **Generates professional security assessment reports** from capture data.
 
@@ -585,7 +585,7 @@ python recon_report.py capture.csv --title "DEF CON Site Survey"
 
 ---
 
-## 📍 Position Tracker ⭐ NEW
+## 📍 Position Tracker ⭐
 
 **Dedicated GPS tracking and visualization** with animated timelines and movement trails.
 

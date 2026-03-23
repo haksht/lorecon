@@ -16,7 +16,7 @@ Your ESP32 sniffer is now configured to detect **three major LoRa network types*
 **Why important**: Powers thousands of IoT sensors worldwide  
 **You'll find it**: Cities with TTN gateways, universities, smart buildings
 
-### 3. **Helium Network** (4 configs - NEW!)
+### 3. **Helium Network** (4 configs)
 **What it is**: Blockchain-based LoRaWAN network where people mine crypto by running hotspots  
 **Frequencies**: 923.3 MHz, 923.9 MHz, 924.5 MHz, 925.1 MHz (downlink bands)  
 **Why to hunt**: Huge deployment (millions of hotspots), active in urban/suburban areas  
@@ -107,7 +107,7 @@ Your ESP32 sniffer is now configured to detect **three major LoRa network types*
 
 **Setup**:
 1. Power on your sniffer
-2. Start reconnaissance mode (scans all 20 frequencies)
+2. Start reconnaissance mode (scans all 26 frequencies)
 3. Let it run for **at least one full cycle** (4 minutes)
 4. Watch the OLED display for detections
 5. Check web interface Network tab for devices
@@ -208,29 +208,12 @@ Your device now scans **26 frequency configurations**:
 
 ---
 
-## Next Steps
+## Getting Started
 
-### Immediate
-1. **Flash updated firmware**: Includes new Helium configs
-   ```bash
-   pio run -t upload
-   ```
-
-2. **Check local coverage**: Visit TTN and Helium maps for your area
-
-3. **Plan hunting trip**: Pick a location with confirmed gateway coverage
-
-### For Conference Demo
-1. **Bring backup Meshtastic device**: Guaranteed to show activity
-2. **Check venue beforehand**: See if hotel has IoT sensors
-3. **Audience participation**: Ask attendees to turn on their Meshtastic nodes
-4. **Live capture**: Show network map populating in real-time
-
-### Long Term
-- **Contribute data**: Share findings with LoRaWAN security researchers
-- **Build gateway**: Set up your own TTN gateway to understand the other side
-- **Experiment with transmission**: Get proper license and test TX capabilities
-- **Community engagement**: Join local TTN/Meshtastic communities
+1. **Check local coverage**: Visit TTN and Helium maps for your area
+2. **Pick a location** with confirmed gateway coverage
+3. **Bring a backup Meshtastic device** for guaranteed activity during demos
+4. **Use the Python tools** for post-capture analysis: `tools/session_analyzer.py`, `tools/recon_report.py`
 
 ---
 

@@ -6,7 +6,7 @@ No development environment needed! Flash the ESP32 LoRa Sniffer using just your 
 
 Use [ESP Web Tools](https://esphome.github.io/esp-web-tools/) or [Adafruit ESPTool](https://adafruit.github.io/Adafruit_WebSerial_ESPTool/) directly in Chrome/Edge:
 
-1. Connect your Heltec WiFi LoRa 32 V3 via USB
+1. Connect your ESP32-S3 board (Heltec V3/V4, T3-S3, or T-Beam Supreme) via USB
 2. Go to the web flasher site
 3. Click "Connect" and select your device's COM port
 4. Flash each file at the correct address:

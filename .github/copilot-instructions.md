@@ -25,16 +25,16 @@ ReconState updates + WebSocket broadcast
 
 ```powershell
 # Flash firmware to ESP32 (use full path on Windows)
-C:\Users\tim\.platformio\penv\Scripts\pio.exe run --target upload
+pio run --target upload
 
 # Upload web UI files to LittleFS (required for browser interface)
-C:\Users\tim\.platformio\penv\Scripts\pio.exe run --target uploadfs
+pio run --target uploadfs
 
 # Monitor serial output (115200 baud)
-C:\Users\tim\.platformio\penv\Scripts\pio.exe device monitor
+pio device monitor
 
 # All-in-one: flash + upload filesystem + monitor
-C:\Users\tim\.platformio\penv\Scripts\pio.exe run --target upload --target uploadfs --target monitor
+pio run --target upload --target uploadfs --target monitor
 ```
 
 **Key:** `uploadfs` uploads `data/webapp/` to LittleFS. Run once or when web assets change. SD card optional but needed for PCAP export.
