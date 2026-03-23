@@ -72,10 +72,10 @@ class WarRoom {
             // In targeted mode - show target info
             this.metrics.scanProgress = 100; // Always 100% when targeting
             const freq = data.target.frequency ? `${data.target.frequency} MHz` : 'Unknown';
-            this.updateCurrentFrequency(`Targeting: ${freq}`);
-            
+            this.updateCurrentFrequency(`Locked: ${freq}`);
+
             if (this.recentEvents.length === 0) {
-                this.addEvent('mode', `Targeting device 0x${data.target.nodeId || 'Unknown'}`);
+                this.addEvent('mode', `Frequency locked for device 0x${data.target.nodeId || 'Unknown'}`);
             }
         } else {
             // In reconnaissance mode - show scan progress

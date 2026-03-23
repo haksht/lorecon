@@ -580,7 +580,7 @@ class ReconApp {
             scanBtn.classList.add('btn-disabled');
             scanBtn.title = 'Stop targeted capture first';
             const textEl = scanBtn.querySelector('span:last-child');
-            if (textEl) textEl.textContent = 'Targeting Active';
+            if (textEl) textEl.textContent = 'Frequency Locked';
         } else {
             scanBtn.classList.remove('btn-disabled');
             scanBtn.title = '';
@@ -601,16 +601,18 @@ class ReconApp {
             
             let html = '';
             if (isDeviceTarget) {
-                // Device targeting - show device info prominently
-                html = `<div class="target-type">📡 Device Lock</div>`;
-                html += `<strong>Node:</strong> <code>${escapeHtml(String(data.target.nodeId))}</code>`;
+                // Device targeting - locks on the device's frequency, captures all traffic there
+                html = `<div class="target-type">📻 Frequency Lock</div>`;
+                html += `<strong>${data.target.frequency.toFixed(3)} MHz</strong>`;
+                html += ` <span class="text-muted">(frequency of <code>${escapeHtml(String(data.target.nodeId))}</code>`;
                 if (data.target.deviceType) {
-                    html += ` <span class="text-muted">(${escapeHtml(data.target.deviceType)})</span>`;
+                    html += ` — ${escapeHtml(data.target.deviceType)}`;
                 }
-                html += `<br><span class="text-muted">Freq: ${data.target.frequency.toFixed(3)} MHz</span>`;
+                html += `)</span>`;
                 if (data.target.rssi) {
-                    html += ` • ${formatRSSI(data.target.rssi)}`;
+                    html += `<br><span class="text-muted">${formatRSSI(data.target.rssi)}</span>`;
                 }
+                html += `<br><span class="text-muted">Capturing all traffic on this channel</span>`;
             } else {
                 // Frequency targeting - show frequency info prominently
                 html = `<div class="target-type">📻 Frequency Lock</div>`;
@@ -850,7 +852,7 @@ class ReconApp {
                 html += `<td>${(device.frequency || 0).toFixed(3)} MHz</td>`;
                 html += `<td>${this.formatDuration(device.firstSeenSecondsAgo || 0)} ago</td>`;
                 html += `<td>${this.formatLastSeen(device.lastSeenSecondsAgo)}</td>`;
-                html += `<td><button data-action="target-device" data-value="${safeNodeId}" class="btn btn-primary btn-small">🎯 Target</button></td>`;
+                html += `<td><button data-action="target-device" data-value="${safeNodeId}" class="btn btn-primary btn-small" title="Lock radio on this device's frequency">🎯 Lock Freq</button></td>`;
                 html += '</tr>';
             });
             
@@ -878,7 +880,7 @@ class ReconApp {
                         <div class="empty-icon">📦</div>
                         <h3>No Packets Captured</h3>
                         <p>Packets are stored here when you <strong>target</strong> a specific device or frequency.</p>
-                        <p class="text-muted">Go to <a href="#" onclick="app.switchTab('devices'); return false;">Targets</a> and click "🎯 Target" on a device to start capturing.</p>
+                        <p class="text-muted">Go to <a href="#" onclick="app.switchTab('devices'); return false;">Devices</a> and click "🎯 Lock Freq" on a device to lock the radio on its frequency.</p>
                     </div>`;
                 return;
             }
@@ -2092,7 +2094,7 @@ class ReconApp {
 
     async actionTargetDevice(nodeId) {
         await this.post('/api/capture/start', { nodeId });
-        showToast(`Targeting device 0x${nodeId}`, 'success');
+        showToast(`Locked on frequency for device 0x${nodeId} — capturing all traffic on that channel`, 'success');
         await this.updateStatus();
     }
     
