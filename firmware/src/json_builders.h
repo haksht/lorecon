@@ -102,7 +102,7 @@ const char* modeToString(uint8_t mode);
 /**
  * Fill a JsonObject with device data
  */
-void fillDevice(JsonObject& obj, const TargetableDevice& dev, uint8_t index);
+void fillDevice(JsonObject& obj, const TargetableDevice& dev, uint8_t index, ReconState& reconState);
 
 } // namespace Internal
 

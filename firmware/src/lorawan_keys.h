@@ -90,11 +90,6 @@ bool analyzePacket(const uint8_t* data, size_t length);
 const LoRaWANStats& getStats();
 
 /**
- * Reset statistics
- */
-void resetStats();
-
-/**
  * Get number of default keys
  */
 uint8_t getKeyCount();

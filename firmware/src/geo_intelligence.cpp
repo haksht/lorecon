@@ -203,6 +203,10 @@ bool GeoIntelligence::parseProtobufPosition(const uint8_t* payload, size_t lengt
             point.latitude = convertCoordinate(latitudeRaw);
             point.longitude = convertCoordinate(longitudeRaw);
         }
+        // Filter out 0,0 — means device has no GPS fix yet
+        if (point.latitude == 0.0f && point.longitude == 0.0f) {
+            return false;
+        }
         point.valid = true;
         return true;
     }

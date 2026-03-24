@@ -481,10 +481,6 @@ String buildReconSummaryJson(ReconState& reconState, GeoIntelligence& geoIntel) 
         JsonObject deviceObj = devices.add<JsonObject>();
         TargetableDevice dev = reconState.getTargetableDevice(i);  // Copy for thread safety
         Internal::fillDevice(deviceObj, dev, i, reconState);
-        // fillDevice now includes lastSeenSecondsAgo, add firstSeenSecondsAgo here
-        uint32_t firstSeenAge = (dev.firstSeen > 0 && dev.firstSeen <= now) ?
-            (now - dev.firstSeen) : 0;
-        deviceObj["firstSeenSecondsAgo"] = firstSeenAge / 1000;
     }
 
     doc["rfActivityCount"] = activity.size();

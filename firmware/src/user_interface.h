@@ -38,9 +38,4 @@ void printStats();
 void displayWelcomeMessage();
 void displayReconStartMessage();
 
-// State management - now using ReconState class instead of globals
-#include "recon_state.h"
-extern ReconState reconState;
-extern PSKStats pskStats;
-
 #endif // USER_INTERFACE_H

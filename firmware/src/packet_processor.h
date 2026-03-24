@@ -137,10 +137,8 @@ private:
 
     // Processing helpers
     void processSinglePacket(const QueuedPacket& qp, OLEDDisplay* display);
-    void handleReconPacket(const PacketInfo& info, const uint8_t* data, size_t length,
-                          float rssi, float snr, OLEDDisplay* display);
-    void handleTargetedPacket(const PacketInfo& info, const uint8_t* data, size_t length,
-                             float rssi, float snr, OLEDDisplay* display);
+    void handlePacket(const PacketInfo& info, const uint8_t* data, size_t length,
+                     float rssi, float snr, OLEDDisplay* display);
 };
 
 #endif // PACKET_PROCESSOR_H

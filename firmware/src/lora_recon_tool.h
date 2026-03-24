@@ -75,7 +75,8 @@ private:
     // Mode handlers
     void handleReconnaissanceMode(uint32_t now);
     void handleTargetedCaptureMode(uint32_t now);
-    
+    void refreshDisplayForMode(uint32_t now);
+
     // Packet reception
     void handlePacketReception();
 };

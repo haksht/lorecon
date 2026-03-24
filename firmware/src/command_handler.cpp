@@ -33,7 +33,9 @@
 constexpr CommandHandler::CommandEntry CommandHandler::commands[];
 constexpr uint8_t CommandHandler::numCommands;
 
-// Pre-menu snapshot: captured when 'm' is pressed so 'e' can restore exactly
+// Pre-menu snapshot: captured when 'm' is pressed so 'e' can restore exactly.
+// Overwritten on every menu entry, cleared on exit. If menu times out instead
+// of explicit 'e', the stale snapshot is harmless — next 'm' overwrites it.
 static OperationMode s_preMenuMode = MODE_RECONNAISSANCE;
 static uint8_t       s_preMenuConfig = 0;
 static bool          s_preMenuByDevice = false;

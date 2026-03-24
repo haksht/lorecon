@@ -329,10 +329,6 @@ const LoRaWANStats& getStats() {
     return stats;
 }
 
-void resetStats() {
-    stats = LoRaWANStats();
-}
-
 uint8_t getKeyCount() {
     return NUM_KEYS;
 }

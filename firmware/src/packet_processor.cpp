@@ -125,12 +125,8 @@ void PacketProcessor::processSinglePacket(const QueuedPacket& qp, OLEDDisplay* d
         reconState.checkForAnomalies(qp.data, qp.length, info.nodeId, qp.rssi);
     }
     
-    // Mode-specific handling
-    if (reconState.scanState.mode == MODE_RECONNAISSANCE) {
-        handleReconPacket(info, qp.data, qp.length, qp.rssi, qp.snr, display);
-    } else if (reconState.scanState.mode == MODE_TARGETED_CAPTURE) {
-        handleTargetedPacket(info, qp.data, qp.length, qp.rssi, qp.snr, display);
-    }
+    // Process packet (same pipeline regardless of mode)
+    handlePacket(info, qp.data, qp.length, qp.rssi, qp.snr, display);
     
     // Capture sniffer GPS fix once — used for both SD log and PacketEvent below.
     // On boards without GPS (Heltec V3, T3-S3) this is always false.
@@ -273,20 +269,19 @@ void PacketProcessor::tryDecryptAndCapture(const uint8_t* data, size_t length, f
     }
 }
 
-// Handle packet in reconnaissance mode
-void PacketProcessor::handleReconPacket(const PacketInfo& info, const uint8_t* data, size_t length,
-                                        float rssi, float snr, OLEDDisplay* display) {
-    LOG_INFO("Packet #%d: %s, 0x%08X, %d bytes, %.1f dBm, %.1f dB SNR",
-             reconState.scanState.totalPackets.load(), info.protocol, info.nodeId, length, rssi, snr);
-    Serial.printf("\n[RECON] Packet #%d: %s, 0x%08X, %d bytes, %.1f dBm, %.1f dB SNR\n",
-                  reconState.scanState.totalPackets.load(), info.protocol, info.nodeId, length, rssi, snr);
+// Handle a captured packet (same pipeline for recon and targeted modes)
+void PacketProcessor::handlePacket(const PacketInfo& info, const uint8_t* data, size_t length,
+                                   float rssi, float snr, OLEDDisplay* display) {
+    const char* modeTag = (reconState.scanState.mode == MODE_TARGETED_CAPTURE) ? "CAPTURE" : "RECON";
+    Serial.printf("\n[%s] Packet #%d: %s, 0x%08X, %d bytes, %.1f dBm, %.1f dB SNR\n",
+                  modeTag, reconState.scanState.totalPackets.load(), info.protocol, info.nodeId, length, rssi, snr);
 
     // Update display with packet info
     if (display && display->isOn()) {
         display->showPacketReceived(rssi, snr, info.protocol, info.nodeId);
     }
 
-    // Track RF activity (for situational awareness)
+    // Track RF activity
     reconState.updateRFActivity(reconState.scanState.currentConfig, rssi);
 
     // Protocol-specific key testing
@@ -298,42 +293,5 @@ void PacketProcessor::handleReconPacket(const PacketInfo& info, const uint8_t* d
     if (length >= 20) {
         MeshtasticHeader hdr = findAndExtractMeshtasticHeader(data, length);
         tryDecryptAndCapture(data, length, rssi, snr, info.protocol, hdr);
-    }
-}
-
-// Handle packet in targeted capture mode
-void PacketProcessor::handleTargetedPacket(const PacketInfo& info, const uint8_t* data, size_t length,
-                                           float rssi, float snr, OLEDDisplay* display) {
-    // Show ALL packets with full decryption to find text messages
-    if (length < 40) {
-        Serial.printf("\n[SMALL] Packet #%d: %s, 0x%08X, %d bytes, %.1f dBm, %.1f dB SNR\n",
-                      reconState.scanState.totalPackets.load(), info.protocol, info.nodeId, length, rssi, snr);
-    } else {
-        Serial.printf("\n🎯 [CAPTURE] Packet #%d: %s, %d bytes, %.1f dBm, %.1f dB SNR\n",
-                      reconState.scanState.totalPackets.load(), info.protocol, length, rssi, snr);
-    }
-
-    // Update display silently
-    if (display && display->isOn()) {
-        display->showPacketReceived(rssi, snr, info.protocol, info.nodeId);
-    }
-
-    // Track RF activity in targeted mode too
-    reconState.updateRFActivity(reconState.scanState.currentConfig, rssi);
-
-    // Try decryption on ALL packets to find text messages
-    if (length >= 20) {
-        if (length >= 40) {
-            LOG_DEBUG("Analyzing %d-byte packet (text message size)", length);
-        }
-
-        MeshtasticHeader hdr = findAndExtractMeshtasticHeader(data, length);
-        tryDecryptAndCapture(data, length, rssi, snr, info.protocol, hdr);
-
-        // Check if decryption failed on small packets
-        const char* decryptedText = PSKDecryption::getLastMessage();
-        if ((!decryptedText || decryptedText[0] == '\0') && length < 40) {
-            Serial.println("(no readable content found)");
-        }
     }
 }

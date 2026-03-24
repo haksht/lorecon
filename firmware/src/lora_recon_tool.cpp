@@ -337,21 +337,8 @@ void LoRaReconTool::handleReconnaissanceMode(uint32_t now) {
         }
     }
 
-    // Restore scanning status every 2 seconds so MODE_PACKET_INFO (set by
-    // showPacketReceived) doesn't hold the display between config switches.
-    if (oledDisplay && oledDisplay->isOn()) {
-        static uint32_t lastScanningDisplayTime = 0;
-        constexpr uint32_t SCANNING_REFRESH_MS  = 2000;
-        if ((now - lastScanningDisplayTime) >= SCANNING_REFRESH_MS) {
-            lastScanningDisplayTime = now;
-            const ScanConfig& cfg = reconState.getScanConfig(reconState.scanState.currentConfig);
-            static char freqStr[16];
-            snprintf(freqStr, sizeof(freqStr), "%.3f", cfg.frequency);
-            oledDisplay->showScanningStatus(freqStr, cfg.spreadingFactor,
-                                            reconState.scanState.currentConfig,
-                                            reconState.getNumConfigs());
-        }
-    }
+    // Periodic display refresh (shared with targeted mode)
+    refreshDisplayForMode(now);
 
     // Handle packets in recon mode
     handlePacketReception();
@@ -359,29 +346,46 @@ void LoRaReconTool::handleReconnaissanceMode(uint32_t now) {
 
 // Handle targeted capture mode operations
 void LoRaReconTool::handleTargetedCaptureMode(uint32_t now) {
-    // Refresh targeting display when config changes OR every 2 seconds.
-    // The 2-second fallback returns to targeting status after packet RX info
-    // is shown, keeping it as the "home screen".  Unconditional every-loop
-    // calls are still avoided to keep I2C traffic low.
-    if (oledDisplay && oledDisplay->isOn()) {
-        static uint8_t  lastDisplayedTargetConfig = 0xFF;
-        static uint32_t lastTargetingDisplayTime   = 0;
-        constexpr uint32_t TARGETING_REFRESH_MS    = 2000;
-
-        bool configChanged   = reconState.scanState.targetConfig != lastDisplayedTargetConfig;
-        bool periodicRefresh = (now - lastTargetingDisplayTime) >= TARGETING_REFRESH_MS;
-
-        if (configChanged || periodicRefresh) {
-            lastDisplayedTargetConfig = reconState.scanState.targetConfig;
-            lastTargetingDisplayTime  = now;
-            const ScanConfig& cfg = reconState.getScanConfig(reconState.scanState.targetConfig);
-            static char targetInfo[32];
-            snprintf(targetInfo, sizeof(targetInfo), "%.3f MHz", cfg.frequency);
-            oledDisplay->showTargetingMode(targetInfo);
-        }
-    }
+    // Periodic display refresh (shared with recon mode)
+    refreshDisplayForMode(now);
 
     handlePacketReception();
+}
+
+// Refresh OLED every 2 seconds so MODE_PACKET_INFO (set by showPacketReceived)
+// doesn't hold the display permanently. Also triggers on config change in
+// targeted mode. Keeps I2C traffic low by avoiding every-loop updates.
+void LoRaReconTool::refreshDisplayForMode(uint32_t now) {
+    if (!oledDisplay || !oledDisplay->isOn()) return;
+
+    static uint32_t lastDisplayRefresh = 0;
+    static uint8_t  lastDisplayedConfig = 0xFF;
+    constexpr uint32_t DISPLAY_REFRESH_MS = 2000;
+
+    uint8_t activeConfig = (reconState.scanState.mode == MODE_TARGETED_CAPTURE)
+        ? reconState.scanState.targetConfig.load()
+        : reconState.scanState.currentConfig.load();
+
+    bool configChanged   = activeConfig != lastDisplayedConfig;
+    bool periodicRefresh = (now - lastDisplayRefresh) >= DISPLAY_REFRESH_MS;
+
+    if (!configChanged && !periodicRefresh) return;
+
+    lastDisplayedConfig = activeConfig;
+    lastDisplayRefresh  = now;
+
+    const ScanConfig& cfg = reconState.getScanConfig(activeConfig);
+
+    if (reconState.scanState.mode == MODE_TARGETED_CAPTURE) {
+        static char targetInfo[32];
+        snprintf(targetInfo, sizeof(targetInfo), "%.3f MHz", cfg.frequency);
+        oledDisplay->showTargetingMode(targetInfo);
+    } else {
+        static char freqStr[16];
+        snprintf(freqStr, sizeof(freqStr), "%.3f", cfg.frequency);
+        oledDisplay->showScanningStatus(freqStr, cfg.spreadingFactor,
+                                        activeConfig, reconState.getNumConfigs());
+    }
 }
 
 // Unified packet reception handler
