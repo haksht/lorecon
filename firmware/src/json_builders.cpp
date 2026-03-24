@@ -22,6 +22,7 @@
 #include "gps_controller.h"
 #include "logger.h"
 #include "radio_controller.h"
+#include "utils/sd_utils.h"
 
 namespace JsonBuilders {
 
@@ -189,6 +190,18 @@ String buildStatusJson(ReconState& reconState) {
         }
     }
 #endif
+
+    // SD card storage
+    {
+        JsonObject storage = doc["storage"].to<JsonObject>();
+        storage["available"] = SDUtils::isAvailable();
+        if (SDUtils::isAvailable()) {
+            storage["totalMB"] = SDUtils::getCardSizeMB();
+            storage["usedMB"] = SDUtils::getUsedMB();
+            storage["freeMB"] = SDUtils::getFreeMB();
+            storage["type"] = SDUtils::getCardTypeString();
+        }
+    }
 
     if (g_webServer) {
         doc["clientCount"] = g_webServer->getClientCount();

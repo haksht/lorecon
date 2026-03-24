@@ -140,6 +140,25 @@ inline uint64_t getCardSizeMB() {
 }
 
 /**
+ * Get used space in MB (requires SD to be available)
+ */
+inline uint64_t getUsedMB() {
+    if (!isAvailable()) return 0;
+    uint64_t used = SD.usedBytes() / (1024 * 1024);
+    return used;
+}
+
+/**
+ * Get free space in MB
+ */
+inline uint64_t getFreeMB() {
+    if (!isAvailable()) return 0;
+    uint64_t total = SD.totalBytes() / (1024 * 1024);
+    uint64_t used = SD.usedBytes() / (1024 * 1024);
+    return (total > used) ? (total - used) : 0;
+}
+
+/**
  * Ensure directory exists (creates recursively if needed)
  */
 inline bool ensureDirectory(const char* path) {

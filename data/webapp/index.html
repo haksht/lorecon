@@ -484,6 +484,35 @@
                         </div>
                     </div>
                     
+                    <!-- SD Card Storage Section -->
+                    <div class="info-section" id="sd-storage-section" style="display: none;">
+                        <h3>💾 SD Card Storage</h3>
+                        <div class="content-area">
+                            <div class="status-row">
+                                <span>Card Type</span>
+                                <span class="status-value" id="sd-type">—</span>
+                            </div>
+                            <div class="status-row">
+                                <span>Total</span>
+                                <span class="status-value" id="sd-total">—</span>
+                            </div>
+                            <div class="status-row">
+                                <span>Used</span>
+                                <span class="status-value" id="sd-used">—</span>
+                            </div>
+                            <div class="status-row">
+                                <span>Free</span>
+                                <span class="status-value" id="sd-free">—</span>
+                            </div>
+                            <div style="margin-top: 10px;">
+                                <div style="background: var(--bg-secondary); border-radius: 4px; height: 8px; overflow: hidden;">
+                                    <div id="sd-usage-bar" style="height: 100%; background: var(--accent-primary); transition: width 0.3s; width: 0%;"></div>
+                                </div>
+                                <p class="smaller-text text-secondary" style="margin-top: 4px;" id="sd-usage-text">—</p>
+                            </div>
+                        </div>
+                    </div>
+
                     <div class="results-content" id="settings-content">
                         <div class="loading-container">
                             <div class="loading-spinner"></div>

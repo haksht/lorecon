@@ -5,6 +5,8 @@
 .pio/build/
 .pio/libdeps/
 
+pcaps/
+
 # VS Code
 .vscode/
 *.code-workspace

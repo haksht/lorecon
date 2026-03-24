@@ -1205,6 +1205,9 @@ class ReconApp {
             
             try {
                 const temporal = await this.get('/api/temporal');
+                if (temporal && temporal.histogram) {
+                    this.showHistogram(temporal.histogram);
+                }
                 if (temporal && temporal.beacons && temporal.beacons.length > 0) {
                     this.showBeacons(temporal);
                 }
@@ -1243,6 +1246,32 @@ class ReconApp {
         if (warRoom) warRoom.insertAdjacentHTML('afterbegin', html);
     }
     
+    showHistogram(histogram) {
+        const maxPkts = Math.max(...histogram.map(h => h.packets), 1);
+        const totalPkts = histogram.reduce((sum, h) => sum + h.packets, 0);
+        if (totalPkts === 0) return;
+
+        let html = '<div class="alert-box" style="margin-bottom: 15px;">';
+        html += '<h4>📊 24-Hour Traffic (' + totalPkts + ' packets)</h4>';
+        html += '<div style="display:flex; align-items:flex-end; gap:2px; height:60px; margin-top:8px;">';
+        histogram.forEach(h => {
+            const pct = (h.packets / maxPkts * 100).toFixed(0);
+            const barH = Math.max(h.packets > 0 ? 4 : 1, pct * 0.6);
+            const opacity = h.packets > 0 ? '1' : '0.2';
+            const label = String(h.hour).padStart(2, '0') + ':00';
+            html += `<div title="${label}: ${h.packets} pkts" style="flex:1; height:${barH}px; background:var(--accent-primary); opacity:${opacity}; border-radius:2px 2px 0 0; min-width:4px;"></div>`;
+        });
+        html += '</div>';
+        html += '<div style="display:flex; justify-content:space-between; margin-top:2px;">';
+        html += '<span class="smaller-text text-secondary">00:00</span>';
+        html += '<span class="smaller-text text-secondary">12:00</span>';
+        html += '<span class="smaller-text text-secondary">23:00</span>';
+        html += '</div></div>';
+
+        const warRoom = document.getElementById('war-room-container');
+        if (warRoom) warRoom.insertAdjacentHTML('afterbegin', html);
+    }
+
     showBeacons(data) {
         if (!data.beacons || data.beacons.length === 0) return;
         
@@ -1479,9 +1508,10 @@ class ReconApp {
     async showSettings() {
         // Show loading state
         this.el.settingsContent.innerHTML = renderLoadingState('Loading configuration...');
-        
-        // Load WiFi status
+
+        // Load WiFi status and SD storage in parallel
         await this.loadWiFiStatus();
+        await this.loadSDStorage();
         
         try {
             const response = await this.get('/api/config');
@@ -1516,6 +1546,38 @@ class ReconApp {
         this.setupOTAUpload();
     }
     
+    async loadSDStorage() {
+        try {
+            const data = await this.get('/api/status');
+            const section = document.getElementById('sd-storage-section');
+            if (!data || !data.storage || !data.storage.available) {
+                if (section) section.style.display = 'none';
+                return;
+            }
+            if (section) section.style.display = '';
+            const s = data.storage;
+            const setEl = (id, text) => { const el = document.getElementById(id); if (el) el.textContent = text; };
+            setEl('sd-type', s.type);
+            setEl('sd-total', this.formatStorageMB(s.totalMB));
+            setEl('sd-used', this.formatStorageMB(s.usedMB));
+            setEl('sd-free', this.formatStorageMB(s.freeMB));
+            const pct = s.totalMB > 0 ? ((s.usedMB / s.totalMB) * 100).toFixed(1) : 0;
+            const bar = document.getElementById('sd-usage-bar');
+            if (bar) {
+                bar.style.width = pct + '%';
+                bar.style.background = pct > 90 ? 'var(--danger)' : pct > 75 ? 'var(--warning)' : 'var(--accent-primary)';
+            }
+            setEl('sd-usage-text', pct + '% used');
+        } catch (error) {
+            DEBUG.warn('Failed to load SD storage:', error);
+        }
+    }
+
+    formatStorageMB(mb) {
+        if (mb >= 1024) return (mb / 1024).toFixed(1) + ' GB';
+        return mb + ' MB';
+    }
+
     async loadWiFiStatus() {
         try {
             const wifi = await this.get('/api/wifi/status');
