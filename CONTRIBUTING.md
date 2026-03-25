@@ -6,7 +6,7 @@ Thank you for your interest in contributing! This document provides guidelines a
 
 1. **Hardware Required**: Heltec WiFi LoRa 32 V3 or V4 (SX1262 + OLED), LilyGO T3-S3, or T-Beam Supreme
 2. **Build System**: PlatformIO (not Arduino IDE)
-3. **No Unit Tests**: Validation via PSK boot tests and real hardware testing
+3. **Testing**: Native Unity tests in `test/native/` (run by CI), plus PSK boot tests and real hardware validation
 
 ## Code Style
 
@@ -27,8 +27,7 @@ Thank you for your interest in contributing! This document provides guidelines a
 
 #### Memory Safety
 - Use `strncpy` with explicit null termination
-- Prefer `std::string` over Arduino `String` (fragmentation)
-- Use `std::vector::reserve()` to minimize allocations
+- Use fixed-size arrays (no `std::vector`) — the codebase avoids heap fragmentation
 - When using Arduino `String` with printf, always call `.c_str()`
 
 #### Config Constants
@@ -36,7 +35,7 @@ All magic numbers belong in `config.h` namespaces:
 ```cpp
 namespace Config {
     namespace Hardware {
-        constexpr uint8_t LORA_NSS = 8;
+        constexpr uint8_t LORA_NSS = 7;  // Board-specific, see config.h
     }
     namespace Scanning {
         constexpr uint32_t DWELL_TIME_MS = 12000;
@@ -118,22 +117,22 @@ If a file exceeds limits, extract new components.
 
 ## Commit Messages
 
-Format: `[area] Brief description`
+Format: `type: brief description`
 
-Areas: `firmware`, `webapp`, `docs`, `tools`, `config`
+Types: `feat`, `fix`, `refactor`, `docs`, `test`, `chore`
 
 Examples:
-- `[firmware] Add PSK key rotation support`
-- `[webapp] Fix XSS in packet table`
-- `[docs] Update API reference for v2.3`
+- `feat: add PSK key rotation support`
+- `fix: XSS in packet table`
+- `docs: update API reference for v2.3`
 
 ## Testing
 
-No unit test framework. Validate via:
-1. **PSK Boot Tests**: `PSKTests::runAll()` runs automatically
-2. **Serial Monitor**: Watch for errors during operation
-3. **Web UI Testing**: Check all tabs, actions, error states
-4. **Python Tools**: Use `tools/enhanced_live_visualizer.py` for visualizer testing
+1. **Native Unit Tests**: `pio test -e native` runs Unity tests in `test/native/` (also runs in CI on every push)
+2. **PSK Boot Tests**: `PSKTests::runAll()` runs automatically on device boot
+3. **Serial Monitor**: Watch for errors during operation
+4. **Web UI Testing**: Check all tabs, actions, error states
+5. **Python Tools**: Use `tools/enhanced_live_visualizer.py` for visualizer testing
 
 ## Pull Request Checklist
 
