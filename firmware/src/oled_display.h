@@ -94,7 +94,9 @@ private:
     DisplayDriver display;
     bool displayOn;
     uint32_t lastActivityTime;
-    uint32_t autoOffTimeout;  // Milliseconds (0 = disabled)
+    uint32_t autoOffTimeout;      // Milliseconds (0 = disabled)
+    bool needsRedraw_;            // Set true whenever content changes; cleared after sendBuffer()
+    uint32_t lastRenderedPackets_; // Tracks reconState packet count to detect live-data changes
 
     // Display state
     enum DisplayMode {

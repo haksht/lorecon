@@ -108,16 +108,18 @@ struct ScanState {
   std::atomic<uint8_t> currentConfig;
   std::atomic<uint8_t> targetConfig;    // For targeted capture mode
   std::atomic<bool> targetedByDevice;   // true = freq chosen via device lookup, false = freq chosen directly
-  uint32_t lastScanSwitch;
+  std::atomic<uint32_t> lastScanSwitch; // Written by main loop + API task (different cores)
   std::atomic<uint32_t> totalPackets;
-  uint32_t totalDetections;
+  std::atomic<uint32_t> totalDetections; // Written under ReconState mutex; read by API without lock
   std::atomic<uint32_t> droppedPackets;
   std::atomic<uint32_t> peakQueueSize;
-  bool packetPending;
+  std::atomic<bool> packetPending;       // Written by API task, read by main loop
   uint8_t lastPacket[Config::PacketProcessing::MAX_PACKET_SIZE];  // Raw binary packet bytes
   size_t lastPacketLength;           // Track actual length
-  uint32_t reconStartTime;
-  bool waitingForUserInput;
+  // NOTE: lastPacket/lastPacketLength are NOT atomic — all readers AND writers must
+  // hold ReconState::ScopedLock. See packet_processor.cpp and command_handler.cpp.
+  uint32_t reconStartTime;           // Set once before tasks start — no race
+  std::atomic<bool> waitingForUserInput; // Written by API task, read by main loop
 };
 
 // PSK decryption statistics

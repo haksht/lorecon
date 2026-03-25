@@ -406,7 +406,7 @@ String buildReconSummaryJson(ReconState& reconState, GeoIntelligence& geoIntel) 
     summary["uptimeSeconds"] = millis() / 1000;
     summary["reconDurationSeconds"] = reconState.getReconDuration();
     summary["totalPackets"] = reconState.scanState.totalPackets.load();
-    summary["totalDetections"] = reconState.scanState.totalDetections;
+    summary["totalDetections"] = reconState.scanState.totalDetections.load();
     summary["targetableDevices"] = reconState.getNumTargetableDevices();
     summary["capturedPackets"] = reconState.getNumCapturedPackets();
     summary["verboseDiagnostics"] = TextPacketDiagnostic::isVerbose();

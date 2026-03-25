@@ -9,6 +9,8 @@ OLEDDisplay::OLEDDisplay()
     , displayOn(false)
     , lastActivityTime(0)
     , autoOffTimeout(0)  // 0 = disabled (display stays on)
+    , needsRedraw_(true)
+    , lastRenderedPackets_(0)
     , currentMode(MODE_WELCOME)
 {
     clearInfo();
@@ -161,9 +163,20 @@ void OLEDDisplay::update() {
         }
     }
     
+    // For modes that show live packet count, mark dirty when count advances.
+    // Other modes rely on showXxx()/setXxx() setting needsRedraw_ directly.
+    if (currentMode == MODE_SCANNING || currentMode == MODE_TARGETING) {
+        uint32_t current = reconState.scanState.totalPackets.load();
+        if (current != lastRenderedPackets_) {
+            needsRedraw_ = true;
+        }
+    }
+
+    if (!needsRedraw_) return;
+
     // Render current mode
     display.clearBuffer();
-    
+
     switch (currentMode) {
         case MODE_WELCOME:
             renderWelcome();
@@ -187,8 +200,10 @@ void OLEDDisplay::update() {
             renderShutdown();
             break;
     }
-    
+
     display.sendBuffer();
+    needsRedraw_ = false;
+    lastRenderedPackets_ = reconState.scanState.totalPackets.load();
 }
 
 bool OLEDDisplay::reinitialize() {
@@ -305,6 +320,7 @@ void OLEDDisplay::showScanningStatus(const char* frequency, uint8_t sf, uint8_t 
     info.sf = sf;
     info.configIndex = configIndex;
     info.totalConfigs = totalConfigs;
+    needsRedraw_ = true;
     resetAutoOffTimer();
 }
 
@@ -315,6 +331,7 @@ void OLEDDisplay::showPacketReceived(float rssi, float snr, const char* protocol
     strncpy(info.lastProtocol, protocol, sizeof(info.lastProtocol) - 1);
     info.lastProtocol[sizeof(info.lastProtocol) - 1] = '\0';
     info.lastNodeId = nodeId;
+    needsRedraw_ = true;
     resetAutoOffTimer();
 }
 
@@ -323,6 +340,7 @@ void OLEDDisplay::showDeviceCount(uint8_t rfActivity, uint8_t trackedNodes, uint
     info.rfActivityCount = rfActivity;
     info.trackedNodeCount = trackedNodes;
     info.targetableDeviceCount = targetableDevices;
+    needsRedraw_ = true;
     resetAutoOffTimer();
 }
 
@@ -330,6 +348,7 @@ void OLEDDisplay::showTargetingMode(const char* targetInfo) {
     currentMode = MODE_TARGETING;
     strncpy(info.targetInfo, targetInfo, sizeof(info.targetInfo) - 1);
     info.targetInfo[sizeof(info.targetInfo) - 1] = '\0';
+    needsRedraw_ = true;
     resetAutoOffTimer();
 }
 
@@ -368,8 +387,11 @@ void OLEDDisplay::clearInfo() {
 }
 
 void OLEDDisplay::setGpsStatus(bool hasFix, uint32_t satellites) {
-    info.gpsHasFix = hasFix;
-    info.gpsSatellites = satellites;
+    if (info.gpsHasFix != hasFix || info.gpsSatellites != satellites) {
+        info.gpsHasFix = hasFix;
+        info.gpsSatellites = satellites;
+        needsRedraw_ = true;
+    }
 }
 
 void OLEDDisplay::setNetworkInfo(const char* ipAddr, const char* mdnsName) {
@@ -381,6 +403,7 @@ void OLEDDisplay::setNetworkInfo(const char* ipAddr, const char* mdnsName) {
         strncpy(info.mdnsName, mdnsName, sizeof(info.mdnsName) - 1);
         info.mdnsName[sizeof(info.mdnsName) - 1] = '\0';
     }
+    needsRedraw_ = true;
 }
 
 // Display rendering helpers

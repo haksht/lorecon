@@ -316,11 +316,21 @@ void CommandHandler::cmdSecurityAssessment(IReconTool* tool) {
 }
 
 void CommandHandler::cmdCapturePacket(IReconTool* tool) {
-    if (reconState.scanState.lastPacketLength > 0 && 
-        reconState.scanState.mode == MODE_TARGETED_CAPTURE) {
-        
-        const uint8_t* data = reconState.scanState.lastPacket;
-        size_t length = reconState.scanState.lastPacketLength;
+    // Copy lastPacket under lock to avoid race with packet_processor writer
+    uint8_t localPacket[Config::PacketProcessing::MAX_PACKET_SIZE];
+    size_t length = 0;
+    bool inTargetedMode = false;
+    {
+        ReconState::ScopedLock lock(reconState);
+        length = reconState.scanState.lastPacketLength;
+        inTargetedMode = (reconState.scanState.mode == MODE_TARGETED_CAPTURE);
+        if (length > 0 && length <= sizeof(localPacket)) {
+            memcpy(localPacket, reconState.scanState.lastPacket, length);
+        }
+    }
+
+    if (length > 0 && inTargetedMode) {
+        const uint8_t* data = localPacket;
         float rssi = tool->getRadioController()->getRSSI();
         
         // Analyze packet

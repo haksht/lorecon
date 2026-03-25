@@ -88,9 +88,12 @@ void PacketProcessor::processSinglePacket(const QueuedPacket& qp, OLEDDisplay* d
         memcpy(lastPacketData, qp.data, qp.length);
         lastPacketLength = qp.length;
 
-        // Also update recon state for backward compatibility
-        memcpy(reconState.scanState.lastPacket, qp.data, qp.length);
-        reconState.scanState.lastPacketLength = qp.length;
+        // Also update recon state (locked — read by serial command handler)
+        {
+            ReconState::ScopedLock lock(reconState);
+            memcpy(reconState.scanState.lastPacket, qp.data, qp.length);
+            reconState.scanState.lastPacketLength = qp.length;
+        }
     }
     reconState.scanState.totalPackets++;
     
@@ -253,13 +256,17 @@ void PacketProcessor::tryDecryptAndCapture(const uint8_t* data, size_t length, f
     // Attempt decryption
     bool decrypted = PSKDecryption::testDefaultPSKs(hdr.payload, hdr.payloadLen);
 
-    // Auto-capture packet for replay with all header fields
-    const char* decryptedText = PSKDecryption::getLastMessage();
+    // Auto-capture packet for replay with all header fields.
+    // Use getLastMessageSafe() to copy under mutex — getLastMessage() returns a raw
+    // pointer with no lock, creating a race with setLastMessage() on another core.
+    char decryptedTextBuf[256];
+    PSKDecryption::getLastMessageSafe(decryptedTextBuf, sizeof(decryptedTextBuf));
+    const char* decryptedText = decryptedTextBuf;
     if (reconState.capturePacketForReplay(data, length, reconState.scanState.currentConfig,
                                            rssi, snr, protocol, decryptedText,
                                            hdr.nodeId, hdr.packetId, hdr.hopCount,
                                            hdr.destId, hdr.channel, hdr.wantAck, hdr.viaMqtt, hdr.priority)) {
-        if (decrypted && decryptedText && decryptedText[0] != '\0') {
+        if (decrypted && decryptedText[0] != '\0') {
             Serial.printf("   ✅ Packet auto-captured with text: \"%s\"\n", decryptedText);
         } else if (decrypted) {
             Serial.println("   ✅ Packet auto-captured");

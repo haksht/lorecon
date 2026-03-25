@@ -73,7 +73,16 @@ ReconState::ReconState() : repoMutex_(nullptr) {
 }
 
 bool ReconState::lock(uint32_t timeoutMs) const {
-    if (!repoMutex_) return false;
+    if (!repoMutex_) {
+        // Mutex creation failed at construction time (OOM).  State is completely
+        // unprotected — report once so the problem is visible in serial output.
+        static bool reported = false;
+        if (!reported) {
+            Serial.println("[CRITICAL] ReconState mutex was never created — all state unprotected!");
+            reported = true;
+        }
+        return false;
+    }
     return xSemaphoreTake(repoMutex_, pdMS_TO_TICKS(timeoutMs)) == pdTRUE;
 }
 
@@ -285,7 +294,7 @@ void ReconState::printStateSummary() const {
     Serial.printf("Mode: %d, Current Config: %d/%d\n",
                   (int)scanState.mode.load(), (int)scanState.currentConfig.load(), NUM_CONFIGS);
     Serial.printf("Total packets: %d, Total detections: %d\n",
-                  scanState.totalPackets.load(), scanState.totalDetections);
+                  scanState.totalPackets.load(), scanState.totalDetections.load());
     Serial.printf("Targetable devices: %d\n", deviceRepo_.count());
     Serial.printf("Recon duration: %u seconds\n", (unsigned int)getReconDuration());
     

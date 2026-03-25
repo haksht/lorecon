@@ -353,7 +353,7 @@ void showReconResults() {
   
   uint32_t reconTime = reconState.getReconDuration();
   Serial.printf("Scan Duration: %u seconds\n", (unsigned int)reconTime);
-  Serial.printf("Total Detections: %d\n", reconState.scanState.totalDetections);
+  Serial.printf("Total Detections: %d\n", reconState.scanState.totalDetections.load());
   Serial.printf("Targetable Devices: %d\n", reconState.getNumTargetableDevices());
   Serial.println();
   

@@ -10,6 +10,47 @@
 // Global pointer for ISR access
 RadioController* g_radioController = nullptr;
 
+// ── Board-specific radio init helpers ────────────────────────────────────────
+
+// T3-S3 and T-Beam Supreme both use SX1262 with an external TCXO at 1.8 V and
+// DIO2 as the RF-switch control line.  The only difference is the log tag.
+static int initTcxoRadio(SX1262* radio, const char* boardName) {
+    LOG_INFO("%s: Initializing SX1262 (TCXO 1.8V via DIO3)...", boardName);
+    int state = radio->begin(
+        868.0,   // initial freq — overridden by applyConfig()
+        125.0,   // bw kHz
+        9,       // sf
+        7,       // cr
+        RADIOLIB_SX126X_SYNC_WORD_PRIVATE,
+        10,      // power dBm
+        8,       // preamble length
+        1.8,     // TCXO voltage — must be passed to begin() so calibration uses it
+        false    // useRegulatorLDO (false = DCDC)
+    );
+    if (state != RADIOLIB_ERR_NONE) {
+        LOG_ERROR("%s: SX1262 begin() failed (error: %d)", boardName, state);
+        return state;
+    }
+    LOG_INFO("%s: begin() succeeded", boardName);
+    state = radio->setDio2AsRfSwitch(true);
+    if (state != RADIOLIB_ERR_NONE) LOG_WARN("setDio2AsRfSwitch: %d", state);
+    else                             LOG_INFO("DIO2 RF switch enabled");
+    return RADIOLIB_ERR_NONE;
+}
+
+// Heltec V4 adds an external FEM (GC1109 on V4.2, KCT8103L on V4.3) that must
+// be explicitly enabled via GPIO, plus DIO2 RF-switch control.
+static void enableHeltecV4Fem(SX1262* radio) {
+    pinMode(2, OUTPUT); digitalWrite(2, HIGH);  // FEM chip enable (both variants)
+    pinMode(5, OUTPUT); digitalWrite(5, LOW);   // KCT8103L PA_CTX: LOW = LNA/RX mode
+    LOG_INFO("V4 FEM enabled (GPIO2=HIGH GPIO5=LOW)");
+    int state = radio->setDio2AsRfSwitch(true);
+    if (state != RADIOLIB_ERR_NONE) LOG_WARN("setDio2AsRfSwitch: %d", state);
+    else                             LOG_INFO("V4 DIO2 RF switch enabled");
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 // Interrupt service routine
 void IRAM_ATTR radioISR() {
     if (g_radioController) {
@@ -77,94 +118,26 @@ bool RadioController::initialize() {
     }
     
     #if defined(BOARD_T3_S3)
-        // T3-S3: SX1262 with TCXO on DIO3 at 1.8V
-        // CRITICAL: tcxoVoltage MUST be passed to begin() so it's configured
-        // BEFORE the internal "calibrate all blocks" step. Setting TCXO after
-        // begin() causes PLL lock failures (-2) on setFrequency().
-        // Ref: Meshtastic variant.h uses SX126X_DIO3_TCXO_VOLTAGE = 1.8
-        LOG_INFO("T3-S3: Initializing SX1262 (TCXO 1.8V via DIO3)...");
-        int state = radio->begin(
-            868.0,    // freq (initial, changed later by applyConfig)
-            125.0,    // bw (kHz)
-            9,        // sf
-            7,        // cr
-            RADIOLIB_SX126X_SYNC_WORD_PRIVATE,  // syncWord
-            10,       // power (dBm)
-            8,        // preambleLength
-            1.8,      // tcxoVoltage - set here so calibration uses correct reference
-            false     // useRegulatorLDO (false = DCDC)
-        );
-        if (state != RADIOLIB_ERR_NONE) {
-            LOG_ERROR("SX1262 begin failed (error: %d)", state);
-            return false;
-        }
-
-        LOG_INFO("T3-S3: begin() succeeded");
-
-        // Enable DIO2 as RF switch control (required for T3-S3 antenna switching)
-        state = radio->setDio2AsRfSwitch(true);
-        if (state != RADIOLIB_ERR_NONE) {
-            LOG_WARN("setDio2AsRfSwitch: %d", state);
-        } else {
-            LOG_INFO("DIO2 RF switch enabled");
-        }
+        // T3-S3: TCXO on DIO3 at 1.8V.  tcxoVoltage MUST be in begin() so
+        // calibration uses the correct oscillator reference (not crystal mode).
+        if (initTcxoRadio(radio, "T3-S3") != RADIOLIB_ERR_NONE) return false;
     #elif defined(BOARD_TBEAM_SUPREME)
-        // T-Beam Supreme: SX1262 with TCXO continuously powered by AXP2101 ALDO3.
-        // Unlike T3-S3, DIO3 does NOT control TCXO power — the PMIC supplies 3.3V
-        // constantly. We still pass tcxoVoltage=1.8 so RadioLib configures the
-        // SX1262 into TCXO mode (vs crystal mode) for calibration.
-        LOG_INFO("T-Beam Supreme: Initializing SX1262 (TCXO via AXP2101 ALDO3)...");
-        int state = radio->begin(
-            868.0,    // freq (initial, changed later by applyConfig)
-            125.0,    // bw (kHz)
-            9,        // sf
-            7,        // cr
-            RADIOLIB_SX126X_SYNC_WORD_PRIVATE,  // syncWord
-            10,       // power (dBm)
-            8,        // preambleLength
-            1.8,      // tcxoVoltage - tells RadioLib to use TCXO mode
-            false     // useRegulatorLDO (false = DCDC)
-        );
-        if (state != RADIOLIB_ERR_NONE) {
-            LOG_ERROR("SX1262 begin failed (error: %d)", state);
-            return false;
-        }
-
-        LOG_INFO("T-Beam Supreme: begin() succeeded");
-
-        // Enable DIO2 as RF switch control
-        state = radio->setDio2AsRfSwitch(true);
-        if (state != RADIOLIB_ERR_NONE) {
-            LOG_WARN("setDio2AsRfSwitch: %d", state);
-        } else {
-            LOG_INFO("DIO2 RF switch enabled");
-        }
+        // T-Beam Supreme: TCXO powered continuously by AXP2101 ALDO3.
+        // DIO3 does not switch TCXO power; we still pass tcxoVoltage=1.8 so
+        // RadioLib puts the SX1262 in TCXO mode (not crystal mode) for calibration.
+        if (initTcxoRadio(radio, "T-Beam Supreme") != RADIOLIB_ERR_NONE) return false;
     #else
-        // Heltec V3: crystal oscillator, no TCXO voltage argument.
+        // Heltec V3/V4: crystal oscillator — no tcxoVoltage argument.
         int state = radio->begin();
         if (state != RADIOLIB_ERR_NONE) {
             LOG_ERROR("SX1262 initialization failed (error: %d)", state);
             return false;
         }
-
         #if defined(BOARD_HELTEC_V4)
-            // V4 has an external FEM (GC1109 on V4.2, KCT8103L on V4.3).
-            // GPIO 2:  FEM chip enable — must be HIGH or LNA/PA are unpowered.
-            //          Without this, the RF path is open and nothing is received.
-            // GPIO 5:  KCT8103L (V4.3) PA_CTX — LOW = LNA/RX mode
-            // GPIO 46: GC1109 (V4.2) PA_TX_EN — LOW = RX mode; left as INPUT
-            //          because GPIO 46 is a strapping pin (defaults LOW on ESP32-S3)
-            pinMode(2, OUTPUT); digitalWrite(2, HIGH);  // Enable FEM
-            pinMode(5, OUTPUT); digitalWrite(5, LOW);   // LNA/RX mode (KCT8103L V4.3)
-            LOG_INFO("V4 FEM enabled (GPIO2=HIGH GPIO5=LOW)");
-
-            // V4 uses DIO2 as RF switch control (confirmed by Heltec hardware design).
-            state = radio->setDio2AsRfSwitch(true);
-            if (state != RADIOLIB_ERR_NONE) {
-                LOG_WARN("setDio2AsRfSwitch: %d", state);
-            } else {
-                LOG_INFO("V4 DIO2 RF switch enabled");
-            }
+            // V4 has an external FEM that gates the LNA/PA — must be enabled
+            // before reception is possible.  GPIO 46 is a strapping pin that
+            // defaults LOW (GC1109 RX mode) so it is left as INPUT.
+            enableHeltecV4Fem(radio);
         #endif
     #endif
     
@@ -220,22 +193,11 @@ void RadioController::runDiagnostics() {
         delay(50);
 
         #if defined(BOARD_T3_S3) || defined(BOARD_TBEAM_SUPREME)
-            // Both boards use TCXO (1.8V) and DIO2 as RF switch
-            state = radio->begin(906.875, 125.0, 9, 7,
-                                 RADIOLIB_SX126X_SYNC_WORD_PRIVATE,
-                                 10, 8, 1.8, false);
-            if (state == RADIOLIB_ERR_NONE) {
-                radio->setDio2AsRfSwitch(true);
-            }
+            state = initTcxoRadio(radio, "recovery");
         #else
-            // Heltec V3/V4: crystal oscillator
             state = radio->begin();
             #if defined(BOARD_HELTEC_V4)
-                if (state == RADIOLIB_ERR_NONE) {
-                    pinMode(2, OUTPUT); digitalWrite(2, HIGH);
-                    pinMode(5, OUTPUT); digitalWrite(5, LOW);
-                    radio->setDio2AsRfSwitch(true);
-                }
+                if (state == RADIOLIB_ERR_NONE) enableHeltecV4Fem(radio);
             #endif
         #endif
         LOG_INFO("Re-init after reset: %d", state);
