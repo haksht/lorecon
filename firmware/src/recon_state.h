@@ -72,8 +72,6 @@ public:
                             const char* protocol, const uint8_t* packetData = nullptr, 
                             size_t packetLength = 0, uint8_t hopCount = 0xFF);
     TargetableDevice getTargetableDevice(uint8_t index) const;  // Returns copy for thread safety
-    TargetableDevice* getTargetableDeviceMutable(uint8_t index);
-    TargetableDevice* findTargetableDevice(uint32_t nodeId);
     void clearTargetableDevices();
     uint8_t getNumTargetableDevices() const { return deviceRepo_.count(); }
     

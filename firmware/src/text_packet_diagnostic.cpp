@@ -101,8 +101,8 @@ void analyzePacket(const uint8_t* data, size_t length, float rssi, float snr) {
     }
     
     // Extract node ID
-    uint32_t nodeId = (uint32_t(data[4]) << 24) | (uint32_t(data[5]) << 16) | 
-                      (uint32_t(data[6]) << 8) | uint32_t(data[7]);
+    uint32_t nodeId = ((uint32_t)data[4]) | ((uint32_t)data[5] << 8) |
+                      ((uint32_t)data[6] << 16) | ((uint32_t)data[7] << 24);
     Serial.printf("[DIAG] Node ID: 0x%08X\n", nodeId);
     
     // Analyze payload area (after header)

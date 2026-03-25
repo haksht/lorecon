@@ -18,7 +18,7 @@ SemaphoreHandle_t PSKDecryption::messageMutex = nullptr;
 
 // Thread-safe setter for lastMessage
 void PSKDecryption::setLastMessage(const char* msg) {
-    if (!messageMutex) messageMutex = xSemaphoreCreateMutex();
+    if (!messageMutex) return;
     if (xSemaphoreTake(messageMutex, pdMS_TO_TICKS(10)) == pdTRUE) {
         strncpy(lastMessage, msg, MAX_MESSAGE_LEN - 1);
         lastMessage[MAX_MESSAGE_LEN - 1] = '\0';
@@ -30,7 +30,7 @@ void PSKDecryption::setLastMessage(const char* msg) {
 void PSKDecryption::getLastMessageSafe(char* buffer, size_t bufferSize) {
     if (!buffer || bufferSize == 0) return;
     buffer[0] = '\0';
-    if (!messageMutex) messageMutex = xSemaphoreCreateMutex();
+    if (!messageMutex) return;
     if (xSemaphoreTake(messageMutex, pdMS_TO_TICKS(10)) == pdTRUE) {
         strncpy(buffer, lastMessage, bufferSize - 1);
         buffer[bufferSize - 1] = '\0';
@@ -39,7 +39,7 @@ void PSKDecryption::getLastMessageSafe(char* buffer, size_t bufferSize) {
 }
 
 void PSKDecryption::clearLastMessage() {
-    if (!messageMutex) messageMutex = xSemaphoreCreateMutex();
+    if (!messageMutex) return;
     if (xSemaphoreTake(messageMutex, pdMS_TO_TICKS(10)) == pdTRUE) {
         lastMessage[0] = '\0';
         xSemaphoreGive(messageMutex);
@@ -215,6 +215,7 @@ static bool extractMessage(const uint8_t* data, size_t len, String& text) {
 // ============================================================================
 
 void PSKDecryption::initialize() {
+    if (!messageMutex) messageMutex = xSemaphoreCreateMutex();
     pskStats = PSKStats();
     Serial.println("🔐 PSK Testing initialized");
     Serial.printf("📊 Testing %d default keys\n", NUM_PSKS);

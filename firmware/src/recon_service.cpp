@@ -13,6 +13,7 @@
 #include "text_packet_diagnostic.h"
 #include "config.h"
 #include "logger.h"
+#include <esp_task_wdt.h>
 #include "utils/format_utils.h"
 
 IReconTool* ReconService::reconTool = nullptr;
@@ -157,8 +158,10 @@ bool ReconService::replayPacket(uint8_t slotIndex, uint8_t repeatCount, uint16_t
     int failCount = 0;
 
     for (int i = 0; i < repeatCount; i++) {
+        esp_task_wdt_reset();
         int state = radioController->getRadio().transmit(txBuffer, pkt.length);
-        
+        esp_task_wdt_reset();
+
         if (state == RADIOLIB_ERR_NONE) {
             successCount++;
         } else {

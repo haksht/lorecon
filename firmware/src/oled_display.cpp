@@ -313,6 +313,7 @@ void OLEDDisplay::showPacketReceived(float rssi, float snr, const char* protocol
     info.lastRSSI = rssi;
     info.lastSNR = snr;
     strncpy(info.lastProtocol, protocol, sizeof(info.lastProtocol) - 1);
+    info.lastProtocol[sizeof(info.lastProtocol) - 1] = '\0';
     info.lastNodeId = nodeId;
     resetAutoOffTimer();
 }
@@ -328,6 +329,7 @@ void OLEDDisplay::showDeviceCount(uint8_t rfActivity, uint8_t trackedNodes, uint
 void OLEDDisplay::showTargetingMode(const char* targetInfo) {
     currentMode = MODE_TARGETING;
     strncpy(info.targetInfo, targetInfo, sizeof(info.targetInfo) - 1);
+    info.targetInfo[sizeof(info.targetInfo) - 1] = '\0';
     resetAutoOffTimer();
 }
 

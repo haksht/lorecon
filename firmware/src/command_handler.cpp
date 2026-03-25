@@ -364,14 +364,16 @@ void CommandHandler::cmdCapturePacket(IReconTool* tool) {
             }
         }
         
-        // Get decrypted text if available
-        const char* decryptedText = PSKDecryption::getLastMessage();
-        
-        if (reconState.capturePacketForReplay(data, length, reconState.scanState.currentConfig, 
+        // Get decrypted text if available (thread-safe copy)
+        char decryptedBuf[256];
+        PSKDecryption::getLastMessageSafe(decryptedBuf, sizeof(decryptedBuf));
+        const char* decryptedText = decryptedBuf[0] != '\0' ? decryptedBuf : nullptr;
+
+        if (reconState.capturePacketForReplay(data, length, reconState.scanState.currentConfig,
                                                rssi, 0.0f, info.protocol, decryptedText, nodeId, packetId, hopCount,
                                                destId, channel, wantAck, viaMqtt, priority)) {
             Serial.println("✅ Packet saved to replay slot!");
-            if (decryptedText && decryptedText[0] != '\0') {
+            if (decryptedText) {
                 Serial.printf("   📧 Decrypted text: \"%s\"\n", decryptedText);
             }
         } else {

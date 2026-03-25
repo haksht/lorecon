@@ -1184,7 +1184,13 @@ class ReconApp {
                 this.warRoom.update(data);
                 DEBUG.log('War room updated');
             }
-            
+
+            // Remove previously inserted alert boxes to prevent duplication
+            const container = document.getElementById('war-room-container');
+            if (container) {
+                container.querySelectorAll(':scope > .alert-box').forEach(el => el.remove());
+            }
+
             // Load anomalies and temporal data
             try {
                 const anomalies = await this.get('/api/anomalies');
@@ -1251,7 +1257,7 @@ class ReconApp {
             const barH = Math.max(h.packets > 0 ? 4 : 1, pct * 0.6);
             const opacity = h.packets > 0 ? '1' : '0.2';
             const label = String(h.hour).padStart(2, '0') + ':00';
-            html += `<div title="${label}: ${h.packets} pkts" style="flex:1; height:${barH}px; background:var(--accent-primary); opacity:${opacity}; border-radius:2px 2px 0 0; min-width:4px;"></div>`;
+            html += `<div title="${label}: ${h.packets} pkts" style="flex:1; height:${barH}px; background:var(--primary); opacity:${opacity}; border-radius:2px 2px 0 0; min-width:4px;"></div>`;
         });
         html += '</div>';
         html += '<div style="display:flex; justify-content:space-between; margin-top:2px;">';
@@ -1718,8 +1724,9 @@ class ReconApp {
 
     setupOTAUpload() {
         const otaForm = document.getElementById('ota-form');
-        if (!otaForm) return;
-        
+        if (!otaForm || otaForm.dataset.initialized) return;
+        otaForm.dataset.initialized = 'true';
+
         otaForm.addEventListener('submit', async (e) => {
             e.preventDefault();
             

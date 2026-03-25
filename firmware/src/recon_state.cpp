@@ -254,36 +254,6 @@ TargetableDevice ReconState::getTargetableDevice(uint8_t index) const {
 }
 
 // Thread-safe: Protected by mutex
-// WARNING: Returns mutable pointer - caller MUST NOT hold reference across yield points
-// Safe in current design because ESP32 main loop is single-threaded (ISR only sets atomic flag)
-TargetableDevice* ReconState::getTargetableDeviceMutable(uint8_t index) {
-    if (!lock(100)) {
-        LOG_WARN("getTargetableDeviceMutable: Failed to acquire lock");
-        return nullptr;
-    }
-    TargetableDevice* dev = deviceRepo_.getByIndexMutable(index);
-    unlock();
-    return dev;
-}
-
-// Thread-safe: Protected by mutex
-// WARNING: Returns pointer that could become stale if repository is modified after unlock.
-// This is safe in current ESP32 architecture because:
-// 1. Main loop is single-threaded (no preemption between lock/unlock and pointer use)
-// 2. ISR only sets atomic flag, never modifies repository directly
-// 3. All repository mutations happen in main loop context
-// If multi-threading is added, change to return copy or use RAII lock guard pattern.
-TargetableDevice* ReconState::findTargetableDevice(uint32_t nodeId) {
-    if (!lock(100)) {
-        Serial.println("[WARN] findTargetableDevice: Failed to acquire lock");
-        return nullptr;
-    }
-    TargetableDevice* dev = deviceRepo_.findByNodeId(nodeId);
-    unlock();
-    return dev;
-}
-
-// Thread-safe: Protected by mutex
 void ReconState::clearTargetableDevices() {
     if (!lock(100)) {
         Serial.println("[WARN] clearTargetableDevices: Failed to acquire lock");
@@ -350,9 +320,9 @@ const char* ReconState::identifyDeviceType(const uint8_t* data, size_t length,
 // estimatePowerClass moved to utils/format_utils.h as FormatUtils::estimatePowerClass()
 
 bool ReconState::isRoutingDevice(const uint8_t* data, size_t length, const char* protocol) const {
-    if (strcmp(protocol, "Meshtastic") == 0 && length >= 12) {
-        uint8_t hopCount = data[8] & 0x07;
-        uint8_t routingFlags = data[9];
+    if (strcmp(protocol, "Meshtastic") == 0 && length >= 16) {
+        uint8_t hopCount = data[12] & 0x07;
+        uint8_t routingFlags = data[13];
         return (hopCount > 0 || (routingFlags & 0x01));
     }
     return false;
