@@ -318,20 +318,21 @@
     <ul>
       <li><span class="file">radio_controller.*</span> &mdash; SX1262: SPI init, ISR, TX/RX, diagnostics</li>
       <li><span class="file">packet_processor.*</span> &mdash; Ring buffer queue, process loop, callback</li>
-      <li><span class="file">processing/protocol_analyzer.*</span> &mdash; Meshtastic/LoRaWAN/Generic ID</li>
-      <li><span class="file">processing/psk_decryption_simple.*</span> &mdash; AES-256-CTR decryption (23 default keys)</li>
-      <li><span class="file">processing/packet_logger.*</span> &mdash; SD card CSV/JSON logging</li>
-      <li><span class="file">processing/pcap_logger.*</span> &mdash; PCAP file format export</li>
+      <li><span class="file">protocol_analyzer.*</span> &mdash; Meshtastic/LoRaWAN/Generic ID</li>
+      <li><span class="file">psk_decryption_simple.*</span> &mdash; AES-256-CTR decryption (23 default keys)</li>
+      <li><span class="file">packet_logger.*</span> &mdash; SD card CSV + PCAP logging</li>
+      <li><span class="file">pcap_logger.*</span> &mdash; PCAP file format export</li>
     </ul>
   </div>
   <div class="card">
     <h3>Web &amp; API <span class="tag tag-web">WEB</span></h3>
     <ul>
-      <li><span class="file">web/web_server.*</span> &mdash; ESPAsyncWebServer, WebSocket, static files</li>
-      <li><span class="file">web/api_controller.*</span> &mdash; Route registration, endpoint dispatch</li>
-      <li><span class="file">web/api_handlers.*</span> &mdash; Request handler implementations</li>
-      <li><span class="file">web/api_security.*</span> &mdash; Token auth, auto-trust logic</li>
-      <li><span class="file">web/wifi_manager.*</span> &mdash; AP/STA modes, credentials, mDNS</li>
+      <li><span class="file">web_server.*</span> &mdash; ESPAsyncWebServer, WebSocket, static files</li>
+      <li><span class="file">api_controller.*</span> &mdash; Route registration, endpoint dispatch</li>
+      <li><span class="file">api_handlers.*</span> &mdash; Request handler implementations</li>
+      <li><span class="file">api_security.*</span> &mdash; Token auth, auto-trust, REQUIRE_AUTH macro</li>
+      <li><span class="file">wifi_manager.*</span> &mdash; AP/STA modes, credentials, mDNS</li>
+      <li><span class="file">wifi_handlers.*</span> &mdash; WiFi configuration REST endpoints</li>
     </ul>
   </div>
   <div class="card">
@@ -339,7 +340,7 @@
     <ul>
       <li><span class="file">repositories/device_repository.*</span> &mdash; TargetableDevice[50] array</li>
       <li><span class="file">repositories/packet_store.*</span> &mdash; CapturedPacket[10] replay ring</li>
-      <li><span class="file">peripherals/mode_manager.*</span> &mdash; NVS persistence (survives reboot)</li>
+      <li><span class="file">mode_manager.*</span> &mdash; NVS persistence (survives reboot)</li>
       <li><span class="file">crash_context.*</span> &mdash; Diagnostic NVS, reboot recovery</li>
       <li><span class="file">json_builders.cpp</span> &mdash; Build JSON for all API responses</li>
     </ul>
@@ -347,20 +348,22 @@
   <div class="card">
     <h3>User Interface <span class="tag tag-ui">UI</span></h3>
     <ul>
-      <li><span class="file">ui/oled_display.*</span> &mdash; U8g2 128x64 OLED, rate-limited 10 Hz</li>
-      <li><span class="file">ui/command_handler.*</span> &mdash; Serial menu, 30+ commands dispatch</li>
-      <li><span class="file">ui/user_interface.*</span> &mdash; Button handler (short/long press)</li>
-      <li><span class="file">ui/ui_components.*</span> &mdash; Display layout helpers</li>
+      <li><span class="file">oled_display.*</span> &mdash; U8g2 128x64 OLED, rate-limited 10 Hz</li>
+      <li><span class="file">command_handler.*</span> &mdash; Serial menu, 30+ commands dispatch</li>
+      <li><span class="file">user_interface.*</span> &mdash; Button handler (short/long press)</li>
+      <li><span class="file">ui_components.*</span> &mdash; Display layout helpers</li>
     </ul>
   </div>
   <div class="card">
     <h3>Peripherals &amp; Utils <span class="tag tag-util">UTIL</span></h3>
     <ul>
-      <li><span class="file">peripherals/gps_controller.*</span> &mdash; TinyGPS++, UART (T-Beam/V4)</li>
-      <li><span class="file">peripherals/geo_intelligence.*</span> &mdash; Location analytics</li>
+      <li><span class="file">gps_controller.*</span> &mdash; TinyGPS++, UART (T-Beam/V4)</li>
+      <li><span class="file">geo_intelligence.*</span> &mdash; Location analytics</li>
       <li><span class="file">utils/pmu_controller.*</span> &mdash; AXP2101 PMIC (T-Beam only)</li>
       <li><span class="file">utils/sd_utils.h</span> &mdash; Board-specific SPI bus selection</li>
-      <li><span class="file">utils/channel_hash.*</span> &mdash; Frequency hashing</li>
+      <li><span class="file">utils/json_utils.h</span> &mdash; JSON response helpers</li>
+      <li><span class="file">utils/format_utils.h</span> &mdash; Node ID, RSSI, duration formatting</li>
+      <li><span class="file">utils/channel_hash.*</span> &mdash; Meshtastic channel name lookup</li>
       <li><span class="file">utils/security_scorer.h</span> &mdash; Threat scoring</li>
     </ul>
   </div>
@@ -650,48 +653,60 @@
 
 <div class="card">
 <pre class="tree">
-<span class="dir">firmware/src/</span>                         <span class="comment">Start here</span>
+<span class="dir">firmware/src/</span>                         <span class="comment">All source files are flat in src/ (no sub-packages)</span>
+
+  <span class="comment">— Core orchestration —</span>
   main.cpp                              <span class="comment">Entry: setup() calls initialize(), loop() calls update()</span>
   lora_recon_tool.h / .cpp              <span class="comment">THE orchestrator — mode dispatch, init sequence, update loop</span>
-  radio_controller.h / .cpp             <span class="comment">SX1262 hardware — SPI, ISR, readPacket(), startReceive()</span>
-  packet_processor.h / .cpp             <span class="comment">Queue + process loop + callback to WebSocket</span>
   recon_state.h / .cpp                  <span class="comment">Global state singleton with mutex-protected repos</span>
   recon_service.h / .cpp                <span class="comment">Service layer bridging API requests → tool actions</span>
   config.h                              <span class="comment">ALL board pin maps, scan configs, constants</span>
   data_structures.h                     <span class="comment">Every struct: PacketInfo, ScanConfig, TargetableDevice, etc.</span>
+
+  <span class="comment">— Radio + packet pipeline —</span>
+  radio_controller.h / .cpp             <span class="comment">SX1262 hardware — SPI, ISR, readPacket(), startReceive()</span>
+  packet_processor.h / .cpp             <span class="comment">Queue + process loop + callback to WebSocket</span>
+  protocol_analyzer.h / .cpp            <span class="comment">Meshtastic / LoRaWAN / Generic identification</span>
+  psk_decryption_simple.h / .cpp        <span class="comment">AES-256-CTR PSK decryption (23 default Meshtastic keys)</span>
+  packet_logger.h / .cpp                <span class="comment">SD card CSV + PCAP session logging</span>
+  pcap_logger.h / .cpp                  <span class="comment">PCAP file format for Wireshark</span>
+
+  <span class="comment">— Web + API —</span>
+  web_server.h / .cpp                   <span class="comment">ESPAsyncWebServer, WebSocket broadcast, static file serving</span>
+  api_controller.h / .cpp               <span class="comment">Route registration → handler dispatch</span>
+  api_handlers.h / .cpp                 <span class="comment">Each endpoint's implementation</span>
+  api_security.h / .cpp                 <span class="comment">Token generation, auth check, auto-trust, REQUIRE_AUTH macro</span>
+  wifi_manager.h / .cpp                 <span class="comment">AP/STA mode, credential storage, mDNS</span>
+  wifi_handlers.h / .cpp                <span class="comment">WiFi configuration REST endpoints</span>
   json_builders.h / .cpp                <span class="comment">JSON serialization for all API responses</span>
 
-  <span class="dir">web/</span>                                  <span class="comment">HTTP + WebSocket server</span>
-    web_server.h / .cpp                 <span class="comment">ESPAsyncWebServer, WebSocket broadcast, static file serving</span>
-    api_controller.h / .cpp             <span class="comment">Route registration → handler dispatch</span>
-    api_handlers.h / .cpp               <span class="comment">Each endpoint's implementation</span>
-    api_security.h / .cpp               <span class="comment">Token generation, auth check, auto-trust logic</span>
-    wifi_manager.h / .cpp               <span class="comment">AP/STA mode, credential storage, mDNS</span>
+  <span class="comment">— Display + serial interface —</span>
+  oled_display.h / .cpp                 <span class="comment">U8g2 OLED: scanning, packet info, targeting, shutdown</span>
+  command_handler.h / .cpp              <span class="comment">30+ serial commands, dispatch table</span>
+  user_interface.h / .cpp               <span class="comment">Button handler (short/long press)</span>
+  ui_components.h / .cpp                <span class="comment">Display layout helpers</span>
 
-  <span class="dir">processing/</span>                           <span class="comment">Packet analysis pipeline</span>
-    protocol_analyzer.h / .cpp          <span class="comment">Meshtastic / LoRaWAN / Generic identification</span>
-    psk_decryption_simple.h / .cpp      <span class="comment">AES-256-CTR PSK decryption (23 default Meshtastic keys)</span>
-    packet_logger.h / .cpp              <span class="comment">SD card CSV/JSON session logging</span>
-    pcap_logger.h / .cpp                <span class="comment">PCAP file format for Wireshark</span>
+  <span class="comment">— Peripherals —</span>
+  gps_controller.h / .cpp               <span class="comment">TinyGPS++ UART (T-Beam / V4 only)</span>
+  geo_intelligence.h / .cpp             <span class="comment">Location analytics and position tracking</span>
+  mode_manager.h / .cpp                 <span class="comment">NVS read/write of operation mode</span>
+  crash_context.h / .cpp                <span class="comment">Diagnostic NVS, reboot recovery</span>
 
-  <span class="dir">repositories/</span>                         <span class="comment">In-memory data stores</span>
+  <span class="dir">utils/</span>                                <span class="comment">Support code (actual subdirectory)</span>
+    pmu_controller.h / .cpp             <span class="comment">AXP2101 PMIC (T-Beam only)</span>
+    sd_utils.h                          <span class="comment">Board-specific SPI bus selection for SD</span>
+    json_utils.h                        <span class="comment">JSON response helpers (successDoc, serialize, error)</span>
+    format_utils.h                      <span class="comment">Node ID, RSSI, duration formatting</span>
+    security_scorer.h                   <span class="comment">Device threat scoring</span>
+    channel_hash.h / .cpp               <span class="comment">Meshtastic channel name lookup</span>
+
+  <span class="dir">repositories/</span>                         <span class="comment">In-memory data stores (actual subdirectory)</span>
     device_repository.h / .cpp          <span class="comment">TargetableDevice[50] — add/update/evict</span>
     packet_store.h / .cpp               <span class="comment">CapturedPacket[10] — replay ring buffer</span>
 
-  <span class="dir">ui/</span>                                   <span class="comment">Display + serial interface</span>
-    oled_display.h / .cpp               <span class="comment">U8g2 OLED: scanning, packet info, targeting, shutdown</span>
-    command_handler.h / .cpp            <span class="comment">30+ serial commands, dispatch table</span>
-
-  <span class="dir">peripherals/</span>                          <span class="comment">Optional hardware modules</span>
-    gps_controller.h / .cpp             <span class="comment">TinyGPS++ UART (T-Beam / V4 only)</span>
-    mode_manager.h / .cpp               <span class="comment">NVS read/write of operation mode</span>
-
-  <span class="dir">utils/</span>                                <span class="comment">Support code</span>
-    pmu_controller.h / .cpp             <span class="comment">AXP2101 PMIC (T-Beam only)</span>
-    sd_utils.h                          <span class="comment">Board-specific SPI bus selection for SD</span>
-
 <span class="dir">data/webapp/</span>                            <span class="comment">LittleFS web app</span>
   index.html                            <span class="comment">SPA shell — sidebar + tabs</span>
+  js/toast.js                           <span class="comment">Notifications + shared escapeHtml (loaded first)</span>
   js/app.js                             <span class="comment">Main controller: fetch, WebSocket, DOM rendering</span>
   js/war-room.js                        <span class="comment">Tactical dashboard tab</span>
   js/network-map.js                     <span class="comment">Device map visualization</span>
