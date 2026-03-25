@@ -6,6 +6,7 @@
  */
 
 #include "json_builders.h"
+#include "utils/json_utils.h"
 #include <ArduinoJson.h>
 #include "recon_state.h"
 #include "geo_intelligence.h"
@@ -86,21 +87,16 @@ void fillDevice(ArduinoJson::JsonObject& obj, const TargetableDevice& dev, uint8
 // =============================================================================
 
 String buildDevicesJson(ReconState& reconState) {
-    JsonDocument doc;
-    doc["status"] = "success";
-    
+    JsonDocument doc = JsonUtils::successDoc();
+
     // Use scoped lock to ensure consistent view during iteration
     ReconState::ScopedLock lock(reconState);
     if (!lock) {
-        doc["status"] = "error";
-        doc["message"] = "Failed to acquire lock";
-        String response;
-        serializeJson(doc, response);
-        return response;
+        return JsonUtils::errorResponse("Failed to acquire lock");
     }
-    
+
     doc["count"] = reconState.getNumTargetableDevices();
-    
+
     JsonArray devices = doc["devices"].to<JsonArray>();
     for (uint8_t i = 0; i < reconState.getNumTargetableDevices(); i++) {
         JsonObject deviceObj = devices.add<JsonObject>();
@@ -109,26 +105,20 @@ String buildDevicesJson(ReconState& reconState) {
         Internal::fillDevice(deviceObj, dev, i, reconState);
     }
 
-    String response;
-    serializeJson(doc, response);
-    return response;
+    return JsonUtils::serialize(doc);
 }
 
 String buildDeviceJson(ReconState& reconState, uint8_t deviceIndex) {
     if (deviceIndex >= reconState.getNumTargetableDevices()) {
         return "";
     }
-    
-    JsonDocument doc;
-    doc["status"] = "success";
-    
+
+    JsonDocument doc = JsonUtils::successDoc();
     JsonObject deviceObj = doc["device"].to<JsonObject>();
     TargetableDevice dev = reconState.getTargetableDevice(deviceIndex);  // Copy for thread safety
     Internal::fillDevice(deviceObj, dev, deviceIndex, reconState);
 
-    String response;
-    serializeJson(doc, response);
-    return response;
+    return JsonUtils::serialize(doc);
 }
 
 // =============================================================================
@@ -136,8 +126,7 @@ String buildDeviceJson(ReconState& reconState, uint8_t deviceIndex) {
 // =============================================================================
 
 String buildStatusJson(ReconState& reconState) {
-    JsonDocument doc;
-    doc["status"] = "success";
+    JsonDocument doc = JsonUtils::successDoc();
     doc["mode"] = Internal::modeToString(reconState.scanState.mode);
     doc["uptime"] = millis() / 1000;
     doc["devices"] = reconState.getNumTargetableDevices();
@@ -240,14 +229,11 @@ String buildStatusJson(ReconState& reconState) {
         }
     }
 
-    String response;
-    serializeJson(doc, response);
-    return response;
+    return JsonUtils::serialize(doc);
 }
 
 String buildStatisticsJson(ReconState& reconState) {
-    JsonDocument doc;
-    doc["status"] = "success";
+    JsonDocument doc = JsonUtils::successDoc();
 
     JsonObject stats = doc["statistics"].to<JsonObject>();
     stats["totalPackets"] = reconState.scanState.totalPackets.load();
@@ -278,14 +264,11 @@ String buildStatisticsJson(ReconState& reconState) {
     JsonObject capture = stats["captureRate"].to<JsonObject>();
     capture["total"] = reconState.scanState.totalPackets.load();
 
-    String response;
-    serializeJson(doc, response);
-    return response;
+    return JsonUtils::serialize(doc);
 }
 
 String buildActivityJson(ReconState& reconState) {
-    JsonDocument doc;
-    doc["status"] = "success";
+    JsonDocument doc = JsonUtils::successDoc();
 
     JsonArray activities = doc["activities"].to<JsonArray>();
     for (uint8_t i = 0; i < reconState.getNumConfigs(); i++) {
@@ -315,9 +298,7 @@ String buildActivityJson(ReconState& reconState) {
 
     doc["totalConfigs"] = activities.size();
 
-    String response;
-    serializeJson(doc, response);
-    return response;
+    return JsonUtils::serialize(doc);
 }
 
 // =============================================================================
@@ -325,8 +306,7 @@ String buildActivityJson(ReconState& reconState) {
 // =============================================================================
 
 String buildPositionsJson(GeoIntelligence& geoIntel) {
-    JsonDocument doc;
-    doc["status"] = "success";
+    JsonDocument doc = JsonUtils::successDoc();
 
     JsonArray positions = doc["positions"].to<JsonArray>();
     uint8_t pointCount = geoIntel.getPointCount();
@@ -346,9 +326,7 @@ String buildPositionsJson(GeoIntelligence& geoIntel) {
 
     doc["totalPositions"] = positions.size();
 
-    String response;
-    serializeJson(doc, response);
-    return response;
+    return JsonUtils::serialize(doc);
 }
 
 String buildGeoJson(GeoIntelligence& geoIntel) {
@@ -380,9 +358,7 @@ String buildGeoJson(GeoIntelligence& geoIntel) {
         coordinates.add(point.altitude);
     }
 
-    String response;
-    serializeJson(doc, response);
-    return response;
+    return JsonUtils::serialize(doc);
 }
 
 String buildKml(GeoIntelligence& geoIntel) {
@@ -423,8 +399,7 @@ String buildKml(GeoIntelligence& geoIntel) {
 // =============================================================================
 
 String buildReconSummaryJson(ReconState& reconState, GeoIntelligence& geoIntel) {
-    JsonDocument doc;
-    doc["status"] = "success";
+    JsonDocument doc = JsonUtils::successDoc();
 
     JsonObject summary = doc["summary"].to<JsonObject>();
     summary["mode"] = Internal::modeToString(reconState.scanState.mode);
@@ -498,14 +473,11 @@ String buildReconSummaryJson(ReconState& reconState, GeoIntelligence& geoIntel) 
 
     doc["rfActivityCount"] = activity.size();
 
-    String response;
-    serializeJson(doc, response);
-    return response;
+    return JsonUtils::serialize(doc);
 }
 
 String buildDeviceTypeSummaryJson(ReconState& reconState) {
-    JsonDocument doc;
-    doc["status"] = "success";
+    JsonDocument doc = JsonUtils::successDoc();
 
     struct DeviceTypeStats {
         char type[24];
@@ -579,14 +551,11 @@ String buildDeviceTypeSummaryJson(ReconState& reconState) {
     summary["routersDetected"] = totalRouters;
     summary["hasDevices"] = reconState.getNumTargetableDevices() > 0;
 
-    String response;
-    serializeJson(doc, response);
-    return response;
+    return JsonUtils::serialize(doc);
 }
 
 String buildSecurityAssessmentJson(ReconState& reconState) {
-    JsonDocument doc;
-    doc["status"] = "success";
+    JsonDocument doc = JsonUtils::successDoc();
 
     JsonArray devices = doc["devices"].to<JsonArray>();
     uint8_t vulnerableCount = 0;
@@ -676,9 +645,7 @@ String buildSecurityAssessmentJson(ReconState& reconState) {
         recommendations.add("Maintain watch for newly joining devices");
     }
 
-    String response;
-    serializeJson(doc, response);
-    return response;
+    return JsonUtils::serialize(doc);
 }
 
 // =============================================================================
@@ -686,19 +653,14 @@ String buildSecurityAssessmentJson(ReconState& reconState) {
 // =============================================================================
 
 String buildReplaySlotsJson(ReconState& reconState) {
-    JsonDocument doc;
-    doc["status"] = "success";
+    JsonDocument doc = JsonUtils::successDoc();
     doc["capacity"] = Config::Replay::MAX_SLOTS;
     
     // Use scoped lock to ensure consistent view during iteration
     ReconState::ScopedLock lock(reconState);
     if (!lock) {
-        doc["status"] = "error";
-        doc["message"] = "Failed to acquire lock";
         LOG_WARN("buildReplaySlotsJson: Failed to acquire lock");
-        String response;
-        serializeJson(doc, response);
-        return response;
+        return JsonUtils::errorResponse("Failed to acquire lock");
     }
     
     // Direct access to packet store while holding lock
@@ -776,14 +738,11 @@ String buildReplaySlotsJson(ReconState& reconState) {
     
     LOG_DEBUG("buildReplaySlotsJson: returned %d valid slots", validCount);
 
-    String response;
-    serializeJson(doc, response);
-    return response;
+    return JsonUtils::serialize(doc);
 }
 
 String buildDiagnosticsJson() {
-    JsonDocument doc;
-    doc["status"] = "success";
+    JsonDocument doc = JsonUtils::successDoc();
 
     TextPacketDiagnostic::DiagnosticStats stats;
     TextPacketDiagnostic::getStats(stats);
@@ -826,9 +785,7 @@ String buildDiagnosticsJson() {
         recommendations.add("Diagnostics nominal; continue monitoring");
     }
 
-    String response;
-    serializeJson(doc, response);
-    return response;
+    return JsonUtils::serialize(doc);
 }
 
 // =============================================================================
@@ -836,8 +793,7 @@ String buildDiagnosticsJson() {
 // =============================================================================
 
 String buildConsolidatedReportJson(ReconState& reconState, GeoIntelligence& geoIntel) {
-    JsonDocument doc;
-    doc["status"] = "success";
+    JsonDocument doc = JsonUtils::successDoc();
     
     // Report metadata
     JsonObject meta = doc["metadata"].to<JsonObject>();
@@ -848,11 +804,7 @@ String buildConsolidatedReportJson(ReconState& reconState, GeoIntelligence& geoI
     // Use scoped lock for consistent snapshot
     ReconState::ScopedLock lock(reconState);
     if (!lock) {
-        doc["status"] = "error";
-        doc["message"] = "Failed to acquire lock";
-        String response;
-        serializeJson(doc, response);
-        return response;
+        return JsonUtils::errorResponse("Failed to acquire lock");
     }
     
     uint8_t numDevices = reconState.getNumTargetableDevices();
@@ -975,9 +927,7 @@ String buildConsolidatedReportJson(ReconState& reconState, GeoIntelligence& geoI
     }
     gps["count"] = positions.size();
 
-    String response;
-    serializeJson(doc, response);
-    return response;
+    return JsonUtils::serialize(doc);
 }
 
 } // namespace JsonBuilders

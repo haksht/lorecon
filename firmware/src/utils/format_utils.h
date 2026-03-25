@@ -58,9 +58,11 @@ inline String formatNodeIdPadded(uint32_t nodeId) {
 
 /**
  * Estimate power class based on RSSI
- * 
+ *
  * Used consistently for device classification.
- * 
+ * Thresholds: -70 dBm (high/medium) and -90 dBm (medium/low)
+ * Keep in sync with formatRSSI() in data/webapp/js/app.js
+ *
  * @param rssi Signal strength in dBm
  * @return 0=low (<10mW), 1=medium (10-100mW), 2=high (>100mW)
  */

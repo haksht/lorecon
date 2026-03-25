@@ -47,16 +47,8 @@ void handleGetWiFiStatus(AsyncWebServerRequest* request) {
 }
 
 void handleSetWiFiCredentials(AsyncWebServerRequest* request) {
-    // Authentication and rate limiting required - credentials are sensitive
-    if (!APISecurity::checkRateLimit(request)) {
-        APISecurity::sendRateLimited(request);
-        return;
-    }
-    if (!APISecurity::isAuthenticated(request)) {
-        APISecurity::sendUnauthorized(request);
-        return;
-    }
-    
+    REQUIRE_AUTH(request);
+
     if (!request->hasParam("ssid", true)) {
         request->send(400, "application/json", JsonUtils::error("Missing 'ssid' parameter"));
         return;
@@ -104,16 +96,8 @@ void handleSetWiFiCredentials(AsyncWebServerRequest* request) {
 }
 
 void handleClearWiFiCredentials(AsyncWebServerRequest* request) {
-    // Authentication and rate limiting required - clears credentials and reboots
-    if (!APISecurity::checkRateLimit(request)) {
-        APISecurity::sendRateLimited(request);
-        return;
-    }
-    if (!APISecurity::isAuthenticated(request)) {
-        APISecurity::sendUnauthorized(request);
-        return;
-    }
-    
+    REQUIRE_AUTH(request);
+
     if (!wifiManager.clearCredentials()) {
         request->send(500, "application/json", JsonUtils::error("Failed to clear credentials"));
         return;

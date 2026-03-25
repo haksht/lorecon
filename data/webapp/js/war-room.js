@@ -11,14 +11,7 @@ const WAR_DEBUG = {
     error: (...args) => console.error('[WarRoom]', ...args)
 };
 
-// Use shared escapeHtml from app.js (loaded first)
-// Falls back to local implementation if not available
-const warRoomEscapeHtml = window.escapeHtml || function(text) {
-    if (!text) return '';
-    const div = document.createElement('div');
-    div.textContent = String(text);
-    return div.innerHTML;
-};
+// escapeHtml is defined in toast.js (loaded first) and exported as window.escapeHtml
 
 class WarRoom {
     constructor(containerId) {
@@ -160,7 +153,7 @@ class WarRoom {
                         ${this.renderFrequencyBars()}
                     </div>
                     <div class="frequency-legend">
-                        <span class="freq-current">Current: ${warRoomEscapeHtml(this.metrics.currentFreq)}</span>
+                        <span class="freq-current">Current: ${escapeHtml(this.metrics.currentFreq)}</span>
                     </div>
                 </div>
                 
@@ -203,10 +196,10 @@ class WarRoom {
         return this.recentEvents.map(event => {
             const icon = this.getEventIcon(event.type);
             return `
-                <div class="event-item event-${warRoomEscapeHtml(event.type)}">
+                <div class="event-item event-${escapeHtml(event.type)}">
                     <span class="event-icon">${icon}</span>
-                    <span class="event-message">${warRoomEscapeHtml(event.message)}</span>
-                    <span class="event-time">${warRoomEscapeHtml(event.timestamp)}</span>
+                    <span class="event-message">${escapeHtml(event.message)}</span>
+                    <span class="event-time">${escapeHtml(event.timestamp)}</span>
                 </div>
             `;
         }).join('');

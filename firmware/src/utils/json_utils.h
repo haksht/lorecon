@@ -80,6 +80,29 @@ inline String successWithData(F populateData) {
 }
 
 /**
+ * Create a JsonDocument pre-seeded with "status":"success".
+ * Use when the caller needs to add more fields before serializing.
+ */
+inline JsonDocument successDoc() {
+    JsonDocument doc;
+    doc["status"] = "success";
+    return doc;
+}
+
+/**
+ * Create and serialize an error response with "status":"error".
+ * Convenience for lock-failure and similar early-return paths.
+ */
+inline String errorResponse(const char* message) {
+    JsonDocument doc;
+    doc["status"] = "error";
+    doc["message"] = message;
+    String response;
+    serializeJson(doc, response);
+    return response;
+}
+
+/**
  * Serialize a JsonDocument to String (convenience wrapper)
  */
 inline String serialize(JsonDocument& doc) {

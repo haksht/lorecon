@@ -214,8 +214,7 @@ String APIController::stopScan() {
  * Combined data for initial page load
  */
 String APIController::getDashboard() {
-    JsonDocument doc;
-    doc["status"] = "success";
+    JsonDocument doc = JsonUtils::successDoc();
     
     // Status data
     JsonDocument statusDoc;
@@ -334,10 +333,7 @@ String APIController::getSystemConfig() {
     }
 
     doc["status"] = "success";
-
-    String response;
-    serializeJson(doc, response);
-    return response;
+    return JsonUtils::serialize(doc);
 }
 
 /**
@@ -385,10 +381,7 @@ String APIController::getAnomalies(bool unacknowledgedOnly) {
     doc["totalDetected"] = reconState.numAnomalies;  // Total anomalies detected (may exceed buffer)
     doc["unacknowledged"] = reconState.getUnacknowledgedAnomalies();
     doc["status"] = "success";
-    
-    String response;
-    serializeJson(doc, response);
-    return response;
+    return JsonUtils::serialize(doc);
 }
 
 /**
@@ -443,10 +436,7 @@ String APIController::getTemporalData() {
     
     doc["beaconCount"] = beaconCount;
     doc["status"] = "success";
-    
-    String response;
-    serializeJson(doc, response);
-    return response;
+    return JsonUtils::serialize(doc);
 }
 /**
  * GET /api/psk/stats
@@ -480,10 +470,6 @@ String APIController::getPSKStats() {
         }
     }
     doc["networksCracked"] = networksCracked;
-    
     doc["status"] = "success";
-    
-    String response;
-    serializeJson(doc, response);
-    return response;
+    return JsonUtils::serialize(doc);
 }

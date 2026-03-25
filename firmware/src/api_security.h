@@ -108,4 +108,20 @@ private:
     static uint32_t hashIP(IPAddress ip);
 };
 
+/**
+ * Macro: enforce rate limiting + authentication in a handler.
+ * Returns 429 or 401 as appropriate and exits the calling function.
+ */
+#define REQUIRE_AUTH(request) \
+    do { \
+        if (!APISecurity::checkRateLimit(request)) { \
+            APISecurity::sendRateLimited(request); \
+            return; \
+        } \
+        if (!APISecurity::isAuthenticated(request)) { \
+            APISecurity::sendUnauthorized(request); \
+            return; \
+        } \
+    } while (0)
+
 #endif // API_SECURITY_H

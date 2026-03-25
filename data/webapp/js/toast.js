@@ -3,6 +3,18 @@
  * Lightweight, mobile-friendly notifications
  */
 
+// ===== Shared Security Utility =====
+// Loaded first (before war-room.js, network-map.js, app.js) so all modules
+// can reference window.escapeHtml without fallback implementations.
+function escapeHtml(text) {
+    if (text === null || text === undefined) return '';
+    const str = String(text);
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+}
+window.escapeHtml = escapeHtml;
+
 class ToastManager {
     constructor() {
         this.container = this.createContainer();

@@ -94,10 +94,6 @@ public:
     bool logGPSPosition(uint32_t nodeId, double latitude, double longitude, 
                         uint16_t altitude, uint8_t satsInView);
     
-    // Export methods (for end of session)
-    bool exportDeviceSummaryJSON();
-    bool exportGPSTracksKML();
-    
     // Flush all buffered data to FAT (call before reading files via a second handle)
     void flush();
 

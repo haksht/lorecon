@@ -10,8 +10,24 @@
 #include "config.h"
 #include "logger.h"
 #include "utils/sd_utils.h"
+#include "utils/format_utils.h"
 #include <SPI.h>
 #include <time.h>
+
+/**
+ * Open a CSV file for appending, creating it with a header line if new.
+ * Returns an open File handle on success, or a falsy File on failure.
+ */
+static File openCSVForAppend(const char* path, const char* headerLine) {
+    if (!SD.exists(path)) {
+        File f = SD.open(path, FILE_WRITE);
+        if (f) {
+            f.println(headerLine);
+            f.close();
+        }
+    }
+    return SD.open(path, FILE_APPEND);
+}
 
 // Global instance
 PacketLogger packetLogger;
@@ -134,69 +150,46 @@ bool PacketLogger::logPacket(const PacketLogRecord& record, const uint8_t* data,
     if (!sessionFile) {
         return false;
     }
-    
-    sessionFile.print(record.timestampMs);
-    sessionFile.print(",");
-    sessionFile.print(currentSessionId);
-    sessionFile.print(",");
-    if (record.nodeId != 0) {
-        char nodeStr[9];
-        snprintf(nodeStr, sizeof(nodeStr), "%08X", record.nodeId);
-        sessionFile.print(nodeStr);
-    }
-    sessionFile.print(",");
-    sessionFile.print(record.protocol ? record.protocol : "Unknown");
-    sessionFile.print(",");
-    sessionFile.print(record.frequencyMHz, 3);
-    sessionFile.print(",");
-    sessionFile.print(record.configIndex);
-    sessionFile.print(",");
-    sessionFile.print(record.rssiDbm, 1);
-    sessionFile.print(",");
-    sessionFile.print(record.snrDb, 1);
-    sessionFile.print(",");
-    sessionFile.print(record.lengthBytes);
-    sessionFile.print(",");
-    sessionFile.print(record.packetType ? record.packetType : "unknown");
-    sessionFile.print(",");
-    sessionFile.print(record.encrypted ? 1 : 0);
-    sessionFile.print(",");
-    sessionFile.print(record.pskResult ? record.pskResult : "none");
-    sessionFile.print(",");
+
+    // Fixed fields: timestamp, session, nodeId, protocol, freq, config, rssi, snr, len, type, encrypted, psk_result
+    sessionFile.printf("%llu,%s,%s,%s,%.3f,%u,%.1f,%.1f,%u,%s,%d,%s,",
+        record.timestampMs,
+        currentSessionId.c_str(),
+        record.nodeId ? FormatUtils::formatNodeIdPadded(record.nodeId).c_str() : "",
+        record.protocol ? record.protocol : "Unknown",
+        record.frequencyMHz,
+        record.configIndex,
+        record.rssiDbm,
+        record.snrDb,
+        (unsigned)record.lengthBytes,
+        record.packetType ? record.packetType : "unknown",
+        record.encrypted ? 1 : 0,
+        record.pskResult ? record.pskResult : "none");
+
+    // psk_id (optional)
     if (record.pskId && record.pskId[0] != '\0') {
         sessionFile.print(record.pskId);
     }
-    sessionFile.print(",");
+    sessionFile.print(',');
+
+    // lat, lon, alt (3 columns — empty when no position)
     if (record.hasPosition) {
-        sessionFile.print(record.latitudeDeg, 6);
-        sessionFile.print(",");
-        sessionFile.print(record.longitudeDeg, 6);
-        sessionFile.print(",");
-        sessionFile.print(record.altitudeM, 1);
+        sessionFile.printf("%.6f,%.6f,%.1f,", record.latitudeDeg, record.longitudeDeg, record.altitudeM);
     } else {
-        sessionFile.print(",,");
+        sessionFile.print(",,,");
     }
-    sessionFile.print(",");
-    if (record.hopCount >= 0) {
-        sessionFile.print(record.hopCount);
-    }
-    sessionFile.print(",");
-    sessionFile.print(record.isRouter ? 1 : 0);
-    sessionFile.print(",");
-    if (record.powerClass >= 0) {
-        sessionFile.print(record.powerClass);
-    }
-    sessionFile.print(",");
-    // Write hex directly to file — avoids String allocation for up to 256-byte packets
-    {
-        // Guard against malformed length values exceeding physical LoRa max
-        size_t safeLen = (length <= Config::PacketProcessing::MAX_PACKET_SIZE)
-                         ? length : Config::PacketProcessing::MAX_PACKET_SIZE;
-        char hexBuf[3];
-        for (size_t i = 0; i < safeLen; i++) {
-            snprintf(hexBuf, sizeof(hexBuf), "%02X", data[i]);
-            sessionFile.print(hexBuf);
-        }
+
+    // hop_count (optional), is_router, power_class (optional)
+    if (record.hopCount >= 0) sessionFile.print(record.hopCount);
+    sessionFile.printf(",%d,", record.isRouter ? 1 : 0);
+    if (record.powerClass >= 0) sessionFile.print(record.powerClass);
+    sessionFile.print(',');
+
+    // Raw hex — write directly to avoid String allocation
+    size_t safeLen = (length <= Config::PacketProcessing::MAX_PACKET_SIZE)
+                     ? length : Config::PacketProcessing::MAX_PACKET_SIZE;
+    for (size_t i = 0; i < safeLen; i++) {
+        sessionFile.printf("%02X", data[i]);
     }
     sessionFile.println();
     
@@ -215,105 +208,50 @@ bool PacketLogger::logPacket(const PacketLogRecord& record, const uint8_t* data,
     return true;
 }
 
-bool PacketLogger::logDevice(uint32_t nodeId, const char* deviceType, 
-                             const char* protocol, float avgRSSI, 
+bool PacketLogger::logDevice(uint32_t nodeId, const char* deviceType,
+                             const char* protocol, float avgRSSI,
                              float bestRSSI, uint8_t configIndex) {
     if (!sdAvailable) {
         return false;
     }
-    
-    // Append to devices summary file
-    String devicesFile = "/logs/devices_summary.csv";
-    
-    // Create file with header if it doesn't exist
-    if (!SD.exists(devicesFile.c_str())) {
-        File f = SD.open(devicesFile.c_str(), FILE_WRITE);
-        if (f) {
-            f.println("timestamp,nodeId,deviceType,protocol,avgRSSI,bestRSSI,configIndex");
-            f.close();
-        }
-    }
-    
-    File f = SD.open(devicesFile.c_str(), FILE_APPEND);
+
+    File f = openCSVForAppend("/logs/devices_summary.csv",
+                              "timestamp,nodeId,deviceType,protocol,avgRSSI,bestRSSI,configIndex");
     if (!f) {
-        LOG_ERROR("Failed to open devices summary for append: %s", devicesFile.c_str());
+        LOG_ERROR("Failed to open devices summary for append");
         return false;
     }
 
-    f.print(millis());
-    f.print(",");
-    f.printf("0x%08X", nodeId);
-    f.print(",");
-    f.print(deviceType);
-    f.print(",");
-    f.print(protocol);
-    f.print(",");
-    f.print(avgRSSI, 1);
-    f.print(",");
-    f.print(bestRSSI, 1);
-    f.print(",");
-    f.println(configIndex);
-    
+    f.printf("%lu,%s,%s,%s,%.1f,%.1f,%u\n",
+             (unsigned long)millis(),
+             FormatUtils::formatNodeIdPadded(nodeId).c_str(),
+             deviceType, protocol, avgRSSI, bestRSSI, configIndex);
     f.close();
     return true;
 }
 
-bool PacketLogger::logGPSPosition(uint32_t nodeId, double latitude, 
-                                 double longitude, uint16_t altitude, 
+bool PacketLogger::logGPSPosition(uint32_t nodeId, double latitude,
+                                 double longitude, uint16_t altitude,
                                  uint8_t satsInView) {
     if (!sdAvailable) {
         return false;
     }
-    
-    // Append to GPS tracks file
-    String gpsFile = "/logs/gps_tracks.csv";
-    
-    // Create file with header if it doesn't exist
-    if (!SD.exists(gpsFile.c_str())) {
-        File f = SD.open(gpsFile.c_str(), FILE_WRITE);
-        if (f) {
-            f.println("timestamp,nodeId,latitude,longitude,altitude,satsInView");
-            f.close();
-        }
-    }
-    
-    File f = SD.open(gpsFile.c_str(), FILE_APPEND);
+
+    File f = openCSVForAppend("/logs/gps_tracks.csv",
+                              "timestamp,nodeId,latitude,longitude,altitude,satsInView");
     if (!f) {
-        LOG_ERROR("Failed to open GPS tracks file for append: %s", gpsFile.c_str());
+        LOG_ERROR("Failed to open GPS tracks file for append");
         return false;
     }
 
-    f.print(millis());
-    f.print(",");
-    f.printf("0x%08X", nodeId);
-    f.print(",");
-    f.print(latitude, 6);
-    f.print(",");
-    f.print(longitude, 6);
-    f.print(",");
-    f.print(altitude);
-    f.print(",");
-    f.println(satsInView);
-    
+    f.printf("%lu,%s,%.6f,%.6f,%u,%u\n",
+             (unsigned long)millis(),
+             FormatUtils::formatNodeIdPadded(nodeId).c_str(),
+             latitude, longitude, altitude, satsInView);
     f.close();
     return true;
 }
 
-bool PacketLogger::exportDeviceSummaryJSON() {
-    // NOTE: JSON/KML export is handled by PC analysis tools
-    // See tools/pc_analyzer.py for conversion of CSV to JSON/KML formats
-    // Keeping CSV format allows easy Excel/pandas import and is more flexible
-    Serial.println("[SD] JSON export: Use PC tools (pc_analyzer.py) for format conversion");
-    return true;
-}
-
-bool PacketLogger::exportGPSTracksKML() {
-    // NOTE: KML export is handled by PC analysis tools
-    // See tools/pc_analyzer.py for conversion of CSV to KML/GeoJSON formats
-    // ESP32 CSV logging is simpler, more reliable, and doesn't require XML parsing
-    Serial.println("[SD] KML export: Use PC tools (pc_analyzer.py) for format conversion");
-    return true;
-}
 
 uint32_t PacketLogger::getSessionDuration() const {
     if (sessionStartTime == 0) {

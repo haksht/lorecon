@@ -1,8 +1,8 @@
 # Getting Started with ESP32 LoRa Sniffer
 
-**Version:** 2.3.0
+**Version:** 2.3.1
 **Status:** ✅ Ready to Use
-**Last Updated:** February 23, 2026
+**Last Updated:** March 25, 2026
 
 ---
 
@@ -10,7 +10,7 @@
 
 ### Prerequisites
 - One of the supported boards:
-  - **Heltec WiFi LoRa 32 V3 or V4** (ESP32-S3 + SX1262 + OLED; both use identical firmware under the `heltec_v3` build environment)
+  - **Heltec WiFi LoRa 32 V3 or V4** (ESP32-S3 + SX1262 + OLED; use `heltec_v3` env, or `heltec_v4` if your V4 has the L76K GPS module)
   - **LilyGO T3-S3 V1.2/V1.3** (ESP32-S3 + SX1262 + OLED + native SD slot)
   - **LilyGO T-Beam Supreme** (ESP32-S3 + SX1262 + SH1106 OLED + SD + GPS + AXP2101 PMIC)
 - USB cable
@@ -21,7 +21,7 @@
 **No PlatformIO required!**
 
 1. Download from [Releases](https://github.com/tiarno/esp32-sniffer/releases/latest)
-2. Extract `esp32-lora-sniffer-v2.3.0-binaries.zip`
+2. Extract `esp32-lora-sniffer-v2.3.1-binaries.zip`
 3. Install esptool: `pip install esptool`
 4. Run `flash.bat` (Windows) or `./flash.sh` (Linux/Mac)
 5. Done! Skip to "First Run - WiFi Setup" below.

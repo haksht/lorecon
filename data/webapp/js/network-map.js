@@ -13,14 +13,7 @@ const MAP_DEBUG = {
     error: (...args) => console.error('[NetworkMap]', ...args)
 };
 
-// Use shared escapeHtml from app.js (loaded first)
-// Falls back to local implementation if not available
-const mapEscapeHtml = window.escapeHtml || function(text) {
-    if (!text) return '';
-    const div = document.createElement('div');
-    div.textContent = String(text);
-    return div.innerHTML;
-};
+// escapeHtml is defined in toast.js (loaded first) and exported as window.escapeHtml
 
 /**
  * Configuration constants for network map visualization
@@ -730,11 +723,11 @@ class NetworkMap {
         }
         
         let html = '<div class="node-details-card" style="padding: 1.5rem; background: rgba(26, 26, 46, 0.95); border-radius: 8px; border: 2px solid rgba(74, 144, 226, 0.5); margin: 0.5rem 0;">';
-        html += `<h3 style="margin: 0 0 1rem 0; color: #4a90e2; font-size: 1.2rem; font-weight: 600;">📡 Device 0x${mapEscapeHtml(device.nodeId || 'Unknown')}</h3>`;
+        html += `<h3 style="margin: 0 0 1rem 0; color: #4a90e2; font-size: 1.2rem; font-weight: 600;">📡 Device 0x${escapeHtml(device.nodeId || 'Unknown')}</h3>`;
         
         html += '<div style="display: grid; gap: 0.75rem; font-size: 1rem;">';
-        html += `<div style="display: flex; justify-content: space-between; padding: 0.5rem; background: rgba(255,255,255,0.05); border-radius: 4px;"><span style="color: #a0a0a0;">Protocol:</span><strong style="color: #e0e0e0;">${mapEscapeHtml(device.protocol || 'Unknown')}</strong></div>`;
-        html += `<div style="display: flex; justify-content: space-between; padding: 0.5rem; background: rgba(255,255,255,0.05); border-radius: 4px;"><span style="color: #a0a0a0;">Device Type:</span><strong style="color: #e0e0e0;">${mapEscapeHtml(device.deviceType || 'Unknown')}</strong></div>`;
+        html += `<div style="display: flex; justify-content: space-between; padding: 0.5rem; background: rgba(255,255,255,0.05); border-radius: 4px;"><span style="color: #a0a0a0;">Protocol:</span><strong style="color: #e0e0e0;">${escapeHtml(device.protocol || 'Unknown')}</strong></div>`;
+        html += `<div style="display: flex; justify-content: space-between; padding: 0.5rem; background: rgba(255,255,255,0.05); border-radius: 4px;"><span style="color: #a0a0a0;">Device Type:</span><strong style="color: #e0e0e0;">${escapeHtml(device.deviceType || 'Unknown')}</strong></div>`;
         html += `<div style="display: flex; justify-content: space-between; padding: 0.5rem; background: rgba(255,255,255,0.05); border-radius: 4px;"><span style="color: #a0a0a0;">RSSI:</span><strong style="color: #e0e0e0;">${rssi.toFixed(1)} dBm</strong></div>`;
         html += `<div style="display: flex; justify-content: space-between; padding: 0.5rem; background: rgba(255,255,255,0.05); border-radius: 4px;"><span style="color: #a0a0a0;">Packets:</span><strong style="color: #e0e0e0;">${device.packetCount || 0}</strong></div>`;
         html += `<div style="display: flex; justify-content: space-between; padding: 0.5rem; background: rgba(255,255,255,0.05); border-radius: 4px;"><span style="color: #a0a0a0;">Last Seen:</span><strong style="color: #e0e0e0;">${lastSeen}</strong></div>`;

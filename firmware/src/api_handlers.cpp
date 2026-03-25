@@ -21,6 +21,79 @@
 namespace APIHandlers {
 
 // =============================================================================
+// LOCAL HELPERS
+// =============================================================================
+
+/**
+ * Get a parameter from POST body first, falling back to query string.
+ * Returns nullptr if not found in either.
+ */
+static AsyncWebParameter* getFlexParam(AsyncWebServerRequest* request, const char* name) {
+    if (request->hasParam(name, true)) return request->getParam(name, true);
+    if (request->hasParam(name))       return request->getParam(name);
+    return nullptr;
+}
+
+/**
+ * Parse an unsigned integer from a string with validation.
+ * Returns true on success, false if the string is empty, not a number,
+ * has trailing garbage, or exceeds maxVal.
+ */
+static bool parseUnsigned(const String& str, uint32_t& out, int base = 10, uint32_t maxVal = UINT32_MAX) {
+    char* endPtr = nullptr;
+    unsigned long val = strtoul(str.c_str(), &endPtr, base);
+    if (endPtr == str.c_str() || (*endPtr != '\0' && !isspace(*endPtr)) || val > maxVal) {
+        return false;
+    }
+    out = static_cast<uint32_t>(val);
+    return true;
+}
+
+/**
+ * Swap a filename's extension: "session_001.csv" → "session_001.pcap"
+ * If the filename has no extension, appends the new one.
+ */
+static String changeExtension(const String& filename, const char* newExt) {
+    int dot = filename.lastIndexOf('.');
+    String base = (dot >= 0) ? filename.substring(0, dot) : filename;
+    return base + "." + newExt;
+}
+
+/**
+ * Return the MIME type for a log file based on its extension.
+ */
+static const char* mimeForFilename(const String& filename) {
+    if (filename.endsWith(".csv"))  return "text/csv";
+    if (filename.endsWith(".pcap")) return "application/vnd.tcpdump.pcap";
+    if (filename.endsWith(".json")) return "application/json";
+    if (filename.endsWith(".kml"))  return "application/vnd.google-earth.kml+xml";
+    return "application/octet-stream";
+}
+
+/**
+ * Guard: verify SD card is available, send 404 if not.
+ * Returns true if available, false (and sends response) if not.
+ */
+static bool requireSD(AsyncWebServerRequest* request) {
+    if (packetLogger.isAvailable()) return true;
+    request->send(404, "application/json",
+        JsonUtils::error("SD card not available. Insert SD card and restart."));
+    return false;
+}
+
+/**
+ * Guard: verify an active logging session exists, send 404 if not.
+ * On success, writes the session filename into outFile and returns true.
+ */
+static bool requireActiveSession(AsyncWebServerRequest* request, String& outFile) {
+    outFile = packetLogger.getCurrentSessionFile();
+    if (!outFile.isEmpty()) return true;
+    request->send(404, "application/json",
+        JsonUtils::error("No active logging session. Wait for packet capture to start."));
+    return false;
+}
+
+// =============================================================================
 // DEVICE MANAGEMENT
 // =============================================================================
 
@@ -48,17 +121,13 @@ void handleGetDevice(AsyncWebServerRequest* request) {
         request->send(400, "application/json", JsonUtils::error("Missing nodeId parameter"));
         return;
     }
-    
-    String nodeIdStr = request->getParam("nodeId")->value();
-    char* endPtr = nullptr;
-    uint32_t nodeId = strtoul(nodeIdStr.c_str(), &endPtr, 16);
-    
-    // Validate parse succeeded (endPtr moved and no trailing garbage)
-    if (endPtr == nodeIdStr.c_str() || (*endPtr != '\0' && !isspace(*endPtr))) {
+
+    uint32_t nodeId;
+    if (!parseUnsigned(request->getParam("nodeId")->value(), nodeId, 16)) {
         request->send(400, "application/json", JsonUtils::error("Invalid nodeId format"));
         return;
     }
-    
+
     request->send(200, "application/json", APIController::getDevice(nodeId));
 }
 
@@ -67,17 +136,13 @@ void handleStartCapture(AsyncWebServerRequest* request) {
         request->send(400, "application/json", JsonUtils::error("Missing nodeId in body"));
         return;
     }
-    
-    String nodeIdStr = request->getParam("nodeId", true)->value();
-    char* endPtr = nullptr;
-    uint32_t nodeId = strtoul(nodeIdStr.c_str(), &endPtr, 16);
-    
-    // Validate parse succeeded
-    if (endPtr == nodeIdStr.c_str() || (*endPtr != '\0' && !isspace(*endPtr))) {
+
+    uint32_t nodeId;
+    if (!parseUnsigned(request->getParam("nodeId", true)->value(), nodeId, 16)) {
         request->send(400, "application/json", JsonUtils::error("Invalid nodeId format"));
         return;
     }
-    
+
     request->send(200, "application/json", APIController::startTargetedCapture(nodeId));
 }
 
@@ -114,37 +179,17 @@ void handleExportPCAP(AsyncWebServerRequest* request) {
         return;
     }
 
-    // Check if SD card is available
-    if (!packetLogger.isAvailable()) {
-        request->send(404, "application/json",
-            JsonUtils::error("SD card not available. Insert SD card and restart device to enable PCAP capture."));
-        LOG_WARN("PCAP download requested but SD card not available");
-        return;
-    }
-
-    String sessionFile = packetLogger.getCurrentSessionFile();
-
-    // Check if a session is active
-    if (sessionFile.isEmpty()) {
-        request->send(404, "application/json",
-            JsonUtils::error("No active logging session. Wait for packet capture to start."));
-        LOG_WARN("PCAP download requested but no active session");
-        return;
-    }
+    String sessionFile;
+    if (!requireSD(request) || !requireActiveSession(request, sessionFile)) return;
 
     // Build PCAP file path: /logs/<session>.pcap
-    String pcapFile = "/logs/";
-    if (sessionFile.endsWith(".csv")) {
-        pcapFile += sessionFile.substring(0, sessionFile.length() - 4) + ".pcap";
-    } else {
-        pcapFile += sessionFile + ".pcap";
-    }
+    String pcapFile = "/logs/" + changeExtension(sessionFile, "pcap");
 
     // Check if PCAP file exists
     if (SD.exists(pcapFile.c_str())) {
         // Flush to ensure the reader sees all buffered writes
         packetLogger.flush();
-        request->send(SD, pcapFile, "application/vnd.tcpdump.pcap", true);
+        request->send(SD, pcapFile, mimeForFilename(pcapFile), true);
         LOG_INFO("PCAP file downloaded: %s", pcapFile.c_str());
     } else {
         // PCAP file doesn't exist - provide helpful error message
@@ -165,20 +210,8 @@ void handleExportPCAP(AsyncWebServerRequest* request) {
 }
 
 void handleExportCSV(AsyncWebServerRequest* request) {
-    if (!packetLogger.isAvailable()) {
-        request->send(404, "application/json",
-            JsonUtils::error("SD card not available. Insert SD card and restart device to enable CSV logging."));
-        LOG_WARN("CSV download requested but SD card not available");
-        return;
-    }
-
-    String sessionFile = packetLogger.getCurrentSessionFile();
-    if (sessionFile.isEmpty()) {
-        request->send(404, "application/json",
-            JsonUtils::error("No active logging session. Wait for packet capture to start."));
-        LOG_WARN("CSV download requested but no active session");
-        return;
-    }
+    String sessionFile;
+    if (!requireSD(request) || !requireActiveSession(request, sessionFile)) return;
 
     String csvPath = "/logs/" + sessionFile;
     if (!SD.exists(csvPath.c_str())) {
@@ -269,19 +302,13 @@ void handleAcknowledgeAnomaly(AsyncWebServerRequest* request) {
         request->send(400, "application/json", JsonUtils::error("Missing index in body"));
         return;
     }
-    
-    String indexStr = request->getParam("index", true)->value();
-    
-    // Safe parsing with bounds checking
-    char* endPtr = nullptr;
-    unsigned long indexVal = strtoul(indexStr.c_str(), &endPtr, 10);
-    
-    // Validate: must be a valid number and within uint8_t range
-    if (endPtr == indexStr.c_str() || *endPtr != '\0' || indexVal > 255) {
+
+    uint32_t indexVal;
+    if (!parseUnsigned(request->getParam("index", true)->value(), indexVal, 10, 255)) {
         request->send(400, "application/json", JsonUtils::error("Invalid index (0-255)"));
         return;
     }
-    
+
     request->send(200, "application/json", APIController::acknowledgeAnomaly(static_cast<uint8_t>(indexVal)));
 }
 
@@ -307,68 +334,36 @@ void handleGetReplaySlots(AsyncWebServerRequest* request) {
 }
 
 void handleClearReplaySlots(AsyncWebServerRequest* request) {
-    // Protected endpoint - requires authentication and rate limiting
-    if (!APISecurity::checkRateLimit(request)) {
-        APISecurity::sendRateLimited(request);
-        return;
-    }
-    if (!APISecurity::isAuthenticated(request)) {
-        APISecurity::sendUnauthorized(request);
-        return;
-    }
-    
+    REQUIRE_AUTH(request);
     request->send(200, "application/json", APIController::clearReplaySlots());
 }
 
 void handleReplayPacket(AsyncWebServerRequest* request) {
-    // Protected endpoint - requires authentication and rate limiting (transmits RF)
-    if (!APISecurity::checkRateLimit(request)) {
-        APISecurity::sendRateLimited(request);
-        return;
-    }
-    if (!APISecurity::isAuthenticated(request)) {
-        APISecurity::sendUnauthorized(request);
-        return;
-    }
-    
-    // Get parameters from POST body
-    AsyncWebParameter* slotParam = nullptr;
-    AsyncWebParameter* repeatParam = nullptr;
-    AsyncWebParameter* delayParam = nullptr;
+    REQUIRE_AUTH(request);
 
-    if (request->hasParam("slotIndex", true)) {
-        slotParam = request->getParam("slotIndex", true);
-    } else if (request->hasParam("slotIndex")) {
-        slotParam = request->getParam("slotIndex");
-    }
-
-    if (request->hasParam("repeatCount", true)) {
-        repeatParam = request->getParam("repeatCount", true);
-    } else if (request->hasParam("repeatCount")) {
-        repeatParam = request->getParam("repeatCount");
-    }
-
-    if (request->hasParam("delayMs", true)) {
-        delayParam = request->getParam("delayMs", true);
-    } else if (request->hasParam("delayMs")) {
-        delayParam = request->getParam("delayMs");
-    }
+    AsyncWebParameter* slotParam  = getFlexParam(request, "slotIndex");
+    AsyncWebParameter* repeatParam = getFlexParam(request, "repeatCount");
+    AsyncWebParameter* delayParam  = getFlexParam(request, "delayMs");
 
     if (!slotParam) {
         request->send(400, "application/json", JsonUtils::error("Missing slotIndex"));
         return;
     }
 
-    uint8_t rawSlotIndex = strtoul(slotParam->value().c_str(), nullptr, 0);
-    uint8_t rawRepeatCount = repeatParam ? strtoul(repeatParam->value().c_str(), nullptr, 0) : 1;
-    uint16_t rawDelayMs = delayParam ? strtoul(delayParam->value().c_str(), nullptr, 0) : 1000;
-    
+    uint32_t slotVal, repeatVal, delayVal;
+    if (!parseUnsigned(slotParam->value(), slotVal, 0, 255)) {
+        request->send(400, "application/json", JsonUtils::error("Invalid slotIndex"));
+        return;
+    }
+    repeatVal = (repeatParam && parseUnsigned(repeatParam->value(), repeatVal, 0, 255)) ? repeatVal : 1;
+    delayVal  = (delayParam  && parseUnsigned(delayParam->value(), delayVal, 0, 65535)) ? delayVal : 1000;
+
     // Apply security bounds to prevent abuse
     uint8_t repeatCount;
     uint16_t delayMs;
-    APISecurity::boundReplayParams(rawRepeatCount, rawDelayMs, repeatCount, delayMs);
+    APISecurity::boundReplayParams(static_cast<uint8_t>(repeatVal), static_cast<uint16_t>(delayVal), repeatCount, delayMs);
 
-    request->send(200, "application/json", APIController::replayPacket(rawSlotIndex, repeatCount, delayMs));
+    request->send(200, "application/json", APIController::replayPacket(static_cast<uint8_t>(slotVal), repeatCount, delayMs));
 }
 
 // =============================================================================
@@ -376,36 +371,19 @@ void handleReplayPacket(AsyncWebServerRequest* request) {
 // =============================================================================
 
 void handleClearDevices(AsyncWebServerRequest* request) {
-    // Protected endpoint - requires authentication and rate limiting
-    if (!APISecurity::checkRateLimit(request)) {
-        APISecurity::sendRateLimited(request);
-        return;
-    }
-    if (!APISecurity::isAuthenticated(request)) {
-        APISecurity::sendUnauthorized(request);
-        return;
-    }
-    
+    REQUIRE_AUTH(request);
     request->send(200, "application/json", APIController::clearDevices());
 }
 
 void handleStartFrequencyTargeting(AsyncWebServerRequest* request) {
-    AsyncWebParameter* param = nullptr;
-    if (request->hasParam("configIndex", true)) {
-        param = request->getParam("configIndex", true);
-    } else if (request->hasParam("configIndex")) {
-        param = request->getParam("configIndex");
-    }
-
+    AsyncWebParameter* param = getFlexParam(request, "configIndex");
     if (!param) {
         request->send(400, "application/json", JsonUtils::error("Missing configIndex"));
         return;
     }
 
-    String indexStr = param->value();
-    uint32_t rawIndex = strtoul(indexStr.c_str(), nullptr, 0);
-
-    if (rawIndex > UINT8_MAX) {
+    uint32_t rawIndex;
+    if (!parseUnsigned(param->value(), rawIndex, 0, UINT8_MAX)) {
         request->send(400, "application/json", JsonUtils::error("configIndex out of range"));
         return;
     }
@@ -430,13 +408,7 @@ void handleGetDiagnostics(AsyncWebServerRequest* request) {
 }
 
 void handleSetVerboseMode(AsyncWebServerRequest* request) {
-    AsyncWebParameter* param = nullptr;
-    if (request->hasParam("enable", true)) {
-        param = request->getParam("enable", true);
-    } else if (request->hasParam("enable")) {
-        param = request->getParam("enable");
-    }
-
+    AsyncWebParameter* param = getFlexParam(request, "enable");
     if (!param) {
         request->send(400, "application/json", JsonUtils::error("Missing enable parameter"));
         return;
@@ -464,23 +436,9 @@ void handleSetVerboseMode(AsyncWebServerRequest* request) {
 // =============================================================================
 
 void handleCommand(AsyncWebServerRequest* request) {
-    // Authentication and rate limiting required - command can reboot device
-    if (!APISecurity::checkRateLimit(request)) {
-        APISecurity::sendRateLimited(request);
-        return;
-    }
-    if (!APISecurity::isAuthenticated(request)) {
-        APISecurity::sendUnauthorized(request);
-        return;
-    }
-    
-    AsyncWebParameter* param = nullptr;
-    if (request->hasParam("command", true)) {
-        param = request->getParam("command", true);
-    } else if (request->hasParam("command")) {
-        param = request->getParam("command");
-    }
+    REQUIRE_AUTH(request);
 
+    AsyncWebParameter* param = getFlexParam(request, "command");
     if (!param) {
         request->send(400, "application/json", JsonUtils::error("Missing command"));
         return;
@@ -539,10 +497,7 @@ void handleExportReport(AsyncWebServerRequest* request) {
 // =============================================================================
 
 void handleListFiles(AsyncWebServerRequest* request) {
-    if (!packetLogger.isAvailable()) {
-        request->send(404, "application/json", JsonUtils::error("SD card not available"));
-        return;
-    }
+    if (!requireSD(request)) return;
 
     File dir = SD.open("/logs");
     if (!dir) {
@@ -598,10 +553,7 @@ void handleDownloadFile(AsyncWebServerRequest* request) {
         return;
     }
 
-    if (!packetLogger.isAvailable()) {
-        request->send(404, "application/json", JsonUtils::error("SD card not available"));
-        return;
-    }
+    if (!requireSD(request)) return;
 
     String path = "/logs/" + filename;
     if (!SD.exists(path.c_str())) {
@@ -612,21 +564,12 @@ void handleDownloadFile(AsyncWebServerRequest* request) {
     // Flush if this is the active session file (or its PCAP counterpart)
     if (!packetLogger.getCurrentSessionFile().isEmpty()) {
         String active = packetLogger.getCurrentSessionFile();
-        String activePcap = active.endsWith(".csv")
-            ? active.substring(0, active.length() - 4) + ".pcap"
-            : active;
-        if (filename == active || filename == activePcap) {
+        if (filename == active || filename == changeExtension(active, "pcap")) {
             packetLogger.flush();
         }
     }
 
-    String mime = "application/octet-stream";
-    if (filename.endsWith(".csv"))  mime = "text/csv";
-    else if (filename.endsWith(".pcap")) mime = "application/vnd.tcpdump.pcap";
-    else if (filename.endsWith(".json")) mime = "application/json";
-    else if (filename.endsWith(".kml"))  mime = "application/vnd.google-earth.kml+xml";
-
-    request->send(SD, path, mime, true);
+    request->send(SD, path, mimeForFilename(filename), true);
     LOG_INFO("File downloaded via browser: %s", path.c_str());
 }
 

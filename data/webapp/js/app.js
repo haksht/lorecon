@@ -14,17 +14,7 @@ const DEBUG = {
     error: (...args) => console.error('[App]', ...args)
 };
 
-// ===== Security Utilities =====
-// HTML escape function to prevent XSS attacks
-// Exported globally for use by other modules (war-room.js, network-map.js)
-function escapeHtml(text) {
-    if (text === null || text === undefined) return '';
-    const str = String(text);
-    const div = document.createElement('div');
-    div.textContent = str;
-    return div.innerHTML;
-}
-window.escapeHtml = escapeHtml;  // Export globally
+// escapeHtml is defined in toast.js (loaded first) and exported as window.escapeHtml
 
 // ===== API Token Management =====
 const AUTH_TOKEN_KEY = 'esp32_lora_api_token';
@@ -56,7 +46,9 @@ function promptForToken() {
 }
 
 // ===== UI Helper Utilities =====
-// RSSI classification helper - eliminates 4+ duplicates across codebase
+// RSSI classification helper
+// Thresholds: -70 dBm (strong/medium) and -90 dBm (medium/weak)
+// Keep in sync with estimatePowerClass() in firmware/src/utils/format_utils.h
 function formatRSSI(rssi, includeValue = true) {
     const value = rssi || -100;
     const className = value > -70 ? 'rssi-strong' : value > -90 ? 'rssi-medium' : 'rssi-weak';
