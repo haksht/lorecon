@@ -63,11 +63,12 @@ fi
 # ---- Board config -----------------------------------------------------------
 # Format: "flash_size:littlefs_offset:label:usb_hint"
 declare -A BOARD_CFG=(
-    [heltec_v3]="8MB:0x670000:Heltec WiFi LoRa 32 V3/V4:COM3 or /dev/ttyUSB0 (CP210x)"
+    [heltec_v3]="8MB:0x670000:Heltec WiFi LoRa 32 V3:COM3 or /dev/ttyUSB0 (CP210x)"
+    [heltec_v4]="8MB:0x670000:Heltec WiFi LoRa 32 V4 (GPS):COM12 or /dev/ttyACM0 (native USB)"
     [t3_s3]="4MB:0x290000:LilyGO T3-S3 V1.2/V1.3:COM9 or /dev/ttyACM0 (native USB)"
     [tbeam_supreme]="8MB:0x300000:LilyGO T-Beam Supreme:COM11 or /dev/ttyACM0 (native USB)"
 )
-BOARDS=(heltec_v3 t3_s3 tbeam_supreme)
+BOARDS=(heltec_v3 heltec_v4 t3_s3 tbeam_supreme)
 
 echo "========================================"
 echo "  ESP32 LoRa Sniffer Release Builder"
@@ -77,11 +78,11 @@ echo ""
 
 # ---- Build firmware ---------------------------------------------------------
 echo "[1/3] Building firmware..."
-"$PIO" run -e heltec_v3 -e t3_s3 -e tbeam_supreme -d "$REPO_ROOT"
+"$PIO" run -e heltec_v3 -e heltec_v4 -e t3_s3 -e tbeam_supreme -d "$REPO_ROOT"
 
 echo ""
 echo "[2/3] Building filesystems..."
-"$PIO" run -t buildfs -e heltec_v3 -e t3_s3 -e tbeam_supreme -d "$REPO_ROOT"
+"$PIO" run -t buildfs -e heltec_v3 -e heltec_v4 -e t3_s3 -e tbeam_supreme -d "$REPO_ROOT"
 
 # ---- Package ----------------------------------------------------------------
 echo ""
@@ -143,9 +144,14 @@ PORT=${2:-}
 # Board validation
 case "$BOARD" in
     heltec_v3)
-        LABEL="Heltec WiFi LoRa 32 V3/V4"
+        LABEL="Heltec WiFi LoRa 32 V3"
         FLASH_SIZE="8MB"
         PORT_HINT="COM3 or /dev/ttyUSB0 (CP210x USB-Serial)"
+        ;;
+    heltec_v4)
+        LABEL="Heltec WiFi LoRa 32 V4 (GPS)"
+        FLASH_SIZE="8MB"
+        PORT_HINT="COM12 or /dev/ttyACM0 (native USB — hold BOOT if needed)"
         ;;
     t3_s3)
         LABEL="LilyGO T3-S3 V1.2/V1.3"
@@ -162,7 +168,8 @@ case "$BOARD" in
         echo ""
         echo "Usage: $0 <board> [port]"
         echo "Boards:"
-        echo "  heltec_v3      — Heltec WiFi LoRa 32 V3/V4"
+        echo "  heltec_v3      — Heltec WiFi LoRa 32 V3"
+        echo "  heltec_v4      — Heltec WiFi LoRa 32 V4 (GPS)"
         echo "  t3_s3          — LilyGO T3-S3 V1.2/V1.3"
         echo "  tbeam_supreme  — LilyGO T-Beam Supreme"
         exit 1
@@ -242,9 +249,13 @@ set BOARD=%1
 set PORT=%2
 
 if "%BOARD%"=="heltec_v3" (
-    set LABEL=Heltec WiFi LoRa 32 V3/V4
+    set LABEL=Heltec WiFi LoRa 32 V3
     set FLASH_SIZE=8MB
     set PORT_HINT=Usually COM3 (CP210x in Device Manager)
+) else if "%BOARD%"=="heltec_v4" (
+    set LABEL=Heltec WiFi LoRa 32 V4 (GPS)
+    set FLASH_SIZE=8MB
+    set PORT_HINT=Usually COM12 (native USB - hold BOOT button if needed)
 ) else if "%BOARD%"=="t3_s3" (
     set LABEL=LilyGO T3-S3 V1.2/V1.3
     set FLASH_SIZE=4MB
@@ -258,7 +269,8 @@ if "%BOARD%"=="heltec_v3" (
     echo.
     echo Usage: flash.bat ^<board^> [port]
     echo Boards:
-    echo   heltec_v3      - Heltec WiFi LoRa 32 V3/V4
+    echo   heltec_v3      - Heltec WiFi LoRa 32 V3
+    echo   heltec_v4      - Heltec WiFi LoRa 32 V4 (GPS)
     echo   t3_s3          - LilyGO T3-S3 V1.2/V1.3
     echo   tbeam_supreme  - LilyGO T-Beam Supreme
     exit /b 1
@@ -333,7 +345,8 @@ Pre-compiled binaries for **three boards**: Heltec WiFi LoRa 32 V3/V4, LilyGO T3
 
 | Board | Folder | Port (typical) | Flash |
 |-------|--------|----------------|-------|
-| Heltec WiFi LoRa 32 V3/V4 | \`heltec_v3/\` | COM3 / /dev/ttyUSB0 | 8 MB |
+| Heltec WiFi LoRa 32 V3 | \`heltec_v3/\` | COM3 / /dev/ttyUSB0 | 8 MB |
+| Heltec WiFi LoRa 32 V4 (GPS) | \`heltec_v4/\` | COM12 / /dev/ttyACM0 | 8 MB |
 | LilyGO T3-S3 V1.2/V1.3 | \`t3_s3/\` | COM9 / /dev/ttyACM0 | 4 MB |
 | LilyGO T-Beam Supreme | \`tbeam_supreme/\` | COM11 / /dev/ttyACM0 | 8 MB |
 
@@ -349,11 +362,13 @@ pip install esptool
 
 # Flash your board (port auto-detected)
 ./flash.sh heltec_v3
+./flash.sh heltec_v4
 ./flash.sh t3_s3
 ./flash.sh tbeam_supreme
 
 # Or specify port explicitly
 ./flash.sh heltec_v3 /dev/ttyUSB0
+./flash.sh heltec_v4 COM12
 ./flash.sh tbeam_supreme COM11
 \`\`\`
 
@@ -363,6 +378,7 @@ pip install esptool
 pip install esptool
 
 flash.bat heltec_v3
+flash.bat heltec_v4
 flash.bat t3_s3
 flash.bat tbeam_supreme COM11
 \`\`\`
@@ -377,6 +393,12 @@ Each board folder contains a \`full.bin\` — a merged image that flashes at off
 \`\`\`bash
 esptool.py --chip esp32s3 --port COM3 --baud 921600 \\
   write_flash --flash_size 8MB 0x0 heltec_v3/full.bin
+\`\`\`
+
+### Heltec V4
+\`\`\`bash
+esptool.py --chip esp32s3 --port COM12 --baud 921600 \\
+  write_flash --flash_size 8MB 0x0 heltec_v4/full.bin
 \`\`\`
 
 ### T3-S3
@@ -397,12 +419,12 @@ esptool.py --chip esp32s3 --port COM11 --baud 921600 \\
 
 Addresses for manual multi-file flash:
 
-| File | Heltec V3 | T3-S3 | T-Beam Supreme |
-|------|-----------|-------|----------------|
-| \`bootloader.bin\` | \`0x0\` | \`0x0\` | \`0x0\` |
-| \`partitions.bin\` | \`0x8000\` | \`0x8000\` | \`0x8000\` |
-| \`firmware.bin\` | \`0x10000\` | \`0x10000\` | \`0x10000\` |
-| \`littlefs.bin\` | \`0x670000\` | \`0x290000\` | \`0x300000\` |
+| File | Heltec V3 | Heltec V4 | T3-S3 | T-Beam Supreme |
+|------|-----------|-----------|-------|----------------|
+| \`bootloader.bin\` | \`0x0\` | \`0x0\` | \`0x0\` | \`0x0\` |
+| \`partitions.bin\` | \`0x8000\` | \`0x8000\` | \`0x8000\` | \`0x8000\` |
+| \`firmware.bin\` | \`0x10000\` | \`0x10000\` | \`0x10000\` | \`0x10000\` |
+| \`littlefs.bin\` | \`0x670000\` | \`0x670000\` | \`0x290000\` | \`0x300000\` |
 
 ---
 
@@ -438,7 +460,8 @@ Addresses for manual multi-file flash:
 
 | Board | Supported | Notes |
 |-------|-----------|-------|
-| Heltec WiFi LoRa 32 V3/V4 | ✅ | No SD card, no GPS |
+| Heltec WiFi LoRa 32 V3 | ✅ | No SD card, no GPS |
+| Heltec WiFi LoRa 32 V4 | ✅ | No SD card, GPS (L76K) — **must use heltec_v4 binary** |
 | LilyGO T3-S3 V1.2/V1.3 | ✅ | SD card logging |
 | LilyGO T-Beam Supreme | ✅ | SD card + GPS position logging |
 | Other ESP32 boards | ❌ | Requires recompilation |
