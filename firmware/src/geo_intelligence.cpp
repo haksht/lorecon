@@ -147,24 +147,18 @@ bool GeoIntelligence::parseProtobufPosition(const uint8_t* payload, size_t lengt
         
         if (wireType == 0) {  // Varint (old format: latitude_i, longitude_i)
             size_t bytesRead = 0;
-            int32_t value = decodeVarint(payload + offset, length - offset, bytesRead);
-            offset += bytesRead;
-            
-            switch (fieldNumber) {
-                case 1:  // latitude_i
-                    latitudeRaw = value;
-                    hasLat = true;
-                    break;
-                case 2:  // longitude_i
-                    longitudeRaw = value;
-                    hasLon = true;
-                    break;
-                case 3:  // altitude (in meters)
-                    point.altitude = (float)value;
-                    break;
-                case 4:  // precision (in bits)
-                    point.precision = (int8_t)value;
-                    break;
+            if (fieldNumber == 1 || fieldNumber == 2) {
+                // Lat/lon use zigzag encoding (signed)
+                int32_t value = ProtobufUtils::decodeSignedVarint(payload + offset, length - offset, bytesRead);
+                offset += bytesRead;
+                if (fieldNumber == 1) { latitudeRaw = value; hasLat = true; }
+                else { longitudeRaw = value; hasLon = true; }
+            } else {
+                // Altitude, precision are unsigned
+                int32_t value = ProtobufUtils::decodeVarintSimple(payload + offset, length - offset, bytesRead);
+                offset += bytesRead;
+                if (fieldNumber == 3) point.altitude = (float)value;
+                else if (fieldNumber == 4) point.precision = (int8_t)value;
             }
         } else if (wireType == 5) {  // Fixed32 (sfixed32 - signed 32-bit integer)
             if (offset + 4 > length) break;
@@ -188,7 +182,8 @@ bool GeoIntelligence::parseProtobufPosition(const uint8_t* payload, size_t lengt
             }
         } else if (wireType == 2) {  // Length-delimited (skip)
             size_t bytesRead = 0;
-            int32_t fieldLen = decodeVarint(payload + offset, length - offset, bytesRead);
+            int32_t fieldLen = ProtobufUtils::decodeVarintSimple(payload + offset, length - offset, bytesRead);
+            if (bytesRead == 0 || fieldLen < 0 || offset + bytesRead + fieldLen > length) break;
             offset += bytesRead + fieldLen;
         } else {
             // Unsupported wire type, skip
@@ -214,30 +209,7 @@ bool GeoIntelligence::parseProtobufPosition(const uint8_t* payload, size_t lengt
     return false;
 }
 
-int32_t GeoIntelligence::decodeVarint(const uint8_t* data, size_t maxLen, size_t& bytesRead) {
-    int32_t result = 0;
-    int shift = 0;
-    bytesRead = 0;
-    
-    for (size_t i = 0; i < maxLen && i < 5; i++) {
-        uint8_t byte = data[i];
-        result |= (int32_t)(byte & 0x7F) << shift;
-        bytesRead++;
-        
-        if (!(byte & 0x80)) {
-            // Handle zigzag encoding for signed integers
-            if (result & 1) {
-                result = -(result >> 1) - 1;
-            } else {
-                result = result >> 1;
-            }
-            return result;
-        }
-        shift += 7;
-    }
-    
-    return result;
-}
+// decodeVarint consolidated into ProtobufUtils::decodeSignedVarint / decodeVarintSimple
 
 float GeoIntelligence::convertCoordinate(int32_t raw) const {
     // Meshtastic uses 1e-7 degrees encoding

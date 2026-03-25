@@ -22,7 +22,6 @@ void displayActivitySummary();
 
 // Helper functions
 String formatRSSI(float rssi);
-String formatDuration(uint32_t seconds);
 String getSignalQuality(float rssi);
 
 #endif // UI_COMPONENTS_H

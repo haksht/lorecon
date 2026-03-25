@@ -44,7 +44,6 @@ private:
     
     // Meshtastic protobuf parsing helpers
     bool parseProtobufPosition(const uint8_t* payload, size_t length, GeoPoint& point);
-    int32_t decodeVarint(const uint8_t* data, size_t maxLen, size_t& bytesRead);
     
     // Coordinate conversion (Meshtastic uses integer lat/lon)
     float convertCoordinate(int32_t raw) const;

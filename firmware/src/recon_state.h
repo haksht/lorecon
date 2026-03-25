@@ -134,11 +134,6 @@ public:
 private:
     // Helper methods
     void initializeScanConfigs();
-    const char* identifyDeviceType(const uint8_t* data, size_t length, 
-                                   const char* protocol, float rssi) const;
-    uint8_t estimatePowerClass(float rssi) const;
-    bool isRoutingDevice(const uint8_t* data, size_t length, const char* protocol) const;
-    const char* estimateFirmwareVersion(const uint8_t* data, size_t length, const char* protocol) const;
 };
 
 // Global instance - eventually we'll pass this around instead of using globals

@@ -4,6 +4,7 @@
 
 #include "recon_state.h"
 #include "config.h"
+#include "protocol_analyzer.h"
 #include "utils/format_utils.h"
 #include "logger.h"
 #include <time.h>
@@ -216,9 +217,10 @@ void ReconState::addTargetableDevice(uint32_t nodeId, uint8_t configIndex, float
     id.powerClass = FormatUtils::estimatePowerClass(rssi);
     
     if (packetData && packetLength > 0) {
-        id.deviceType = identifyDeviceType(packetData, packetLength, protocol, rssi);
-        id.isRouter = isRoutingDevice(packetData, packetLength, protocol);
-        id.firmwareVersion = estimateFirmwareVersion(packetData, packetLength, protocol);
+        ProtocolAnalyzer analyzer;
+        id.deviceType = analyzer.identifyDeviceType(packetData, packetLength, protocol, rssi);
+        id.isRouter = analyzer.isRoutingDevice(packetData, packetLength, protocol);
+        id.firmwareVersion = analyzer.estimateFirmwareVersion(packetData, packetLength, protocol);
     }
     
     // Set up identifier callback with our computed values
@@ -276,84 +278,7 @@ uint32_t ReconState::getReconDuration() const {
     return (millis() - scanState.reconStartTime) / 1000;
 }
 
-// Helper methods
-const char* ReconState::identifyDeviceType(const uint8_t* data, size_t length, 
-                                          const char* protocol, float rssi) const {
-    // Meshtastic device type detection
-    if (strcmp(protocol, "Meshtastic") == 0) {
-        if (rssi > -50) return "Meshtastic Base/Solar";
-        
-        if (length >= 16) {
-            uint8_t hopCount = data[12] & 0x07;
-            if (hopCount > 0) return "Meshtastic Router";
-        }
-        
-        if (rssi > -80) return "Meshtastic Mobile";
-        if (rssi > -110) return "Meshtastic Handheld";
-        return "Meshtastic Low-Power";
-    }
-    
-    // LoRaWAN device classification
-    if (strcmp(protocol, "LoRaWAN") == 0) {
-        uint8_t mtype = (data[0] >> 5) & 0x07;
-        
-        switch (mtype) {
-            case 0x00: return "LoRaWAN Join Request";
-            case 0x01: return "LoRaWAN Join Accept";
-            case 0x02: return "LoRaWAN Unconfirmed Up";
-            case 0x03: return "LoRaWAN Unconfirmed Down";
-            case 0x04: return "LoRaWAN Confirmed Up";
-            case 0x05: return "LoRaWAN Confirmed Down";
-            case 0x06: return "LoRaWAN RejoinReq";
-            case 0x07: return "LoRaWAN Proprietary";
-        }
-    }
-    
-    if (strcmp(protocol, "Beacon") == 0) {
-        if (rssi > -60) return "Beacon High-Power";
-        return "Beacon Standard";
-    }
-    
-    return "Unknown Device";
-}
-
-// estimatePowerClass moved to utils/format_utils.h as FormatUtils::estimatePowerClass()
-
-bool ReconState::isRoutingDevice(const uint8_t* data, size_t length, const char* protocol) const {
-    if (strcmp(protocol, "Meshtastic") == 0 && length >= 16) {
-        uint8_t hopCount = data[12] & 0x07;
-        uint8_t routingFlags = data[13];
-        return (hopCount > 0 || (routingFlags & 0x01));
-    }
-    return false;
-}
-
-const char* ReconState::estimateFirmwareVersion(const uint8_t* data, size_t length, const char* protocol) const {
-    if (strcmp(protocol, "Meshtastic") == 0 && length >= 12) {
-        // Firmware 2.2+ uses encryption flag
-        if (length >= 9 && (data[8] & 0x80)) {
-            return "~v2.2+ (est)";
-        }
-
-        // Firmware 2.1+ has longer packets
-        if (length > 50) {
-            return "~v2.1+ (est)";
-        }
-
-        // Short packets = older firmware or beacons
-        if (length <= 16) {
-            return "~v1.x/beacon (est)";
-        }
-
-        return "~v2.0-2.2 (est)";
-    }
-
-    if (strcmp(protocol, "LoRaWAN") == 0) {
-        return "~LoRaWAN 1.0.x (est)";
-    }
-
-    return "Unknown";
-}
+// identifyDeviceType, isRoutingDevice, estimateFirmwareVersion consolidated into ProtocolAnalyzer
 
 void ReconState::printStateSummary() const {
     Serial.println("\n=== RECONNAISSANCE STATE SUMMARY ===");

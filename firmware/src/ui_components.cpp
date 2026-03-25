@@ -7,6 +7,7 @@
 
 #include "ui_components.h"
 #include "geo_intelligence.h"
+#include "utils/format_utils.h"
 
 // Display list of discovered devices
 void displayDeviceList() {
@@ -73,7 +74,7 @@ void displayActivitySummary() {
     uint32_t reconTime = reconState.getReconDuration();
     
     Serial.println("RECONNAISSANCE SUMMARY:");
-    Serial.printf("  Duration: %s\n", formatDuration(reconTime).c_str());
+    Serial.printf("  Duration: %s\n", FormatUtils::formatDuration(reconTime).c_str());
     Serial.printf("  Total Packets: %d\n", reconState.scanState.totalPackets.load());
     Serial.printf("  Devices Found: %d\n", reconState.getNumTargetableDevices());
     Serial.println();
@@ -86,18 +87,7 @@ String formatRSSI(float rssi) {
     return result;
 }
 
-// Format duration in human-readable form
-String formatDuration(uint32_t seconds) {
-    if (seconds < 60) {
-        return String(seconds) + "s";
-    } else if (seconds < 3600) {
-        return String(seconds / 60) + "m " + String(seconds % 60) + "s";
-    } else {
-        uint32_t hours = seconds / 3600;
-        uint32_t mins = (seconds % 3600) / 60;
-        return String(hours) + "h " + String(mins) + "m";
-    }
-}
+// formatDuration consolidated into FormatUtils::formatDuration()
 
 // Get signal quality description
 String getSignalQuality(float rssi) {
