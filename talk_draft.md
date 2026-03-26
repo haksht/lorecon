@@ -139,7 +139,8 @@ distance right now."
 - Open-source firmware that turns cheap LoRa boards into encrypted mesh nodes
 - Off-grid communication: hiking, events, emergency response, disaster areas
 - Encrypted with AES — in theory
-- Around 200,000 active users, growing after every major storm or outage
+- Around 40,000 active nodes globally; 10,000+ visible on public MQTT maps at any moment
+- 100,000+ Reddit community members, growing after every major storm or outage
 - No central infrastructure. Peer-to-peer. Each node relays for its neighbors.
 
 **[FIELD]:**
@@ -293,8 +294,8 @@ The 26 configs cover (US 902–928 MHz band):
 | **Meshtastic** | 902.125, 903.875, 904.375, 906.875 MHz | SF8–SF11, BW250 — multiple SF variants per freq |
 | **Meshtastic LongSlow** | 906.875 MHz | SF12, BW125 — max range mode |
 | **TTN / LoRaWAN US915** | 902.3–904.5, 911.9 MHz | SF7–SF10, BW125 — uplink channels |
-| **Helium US (uplink)** | 904.3, 904.5 MHz | SF9–SF10, BW125 — sensor transmissions |
-| **Helium US (downlink)** | 923.3–925.1 MHz | SF8–SF10, BW500 — hotspot transmissions |
+| **Helium / private LoRaWAN** | 904.3, 904.5 MHz | SF9–SF10, BW125 — sensor transmissions |
+| **Helium / private LoRaWAN DL** | 923.3–925.1 MHz | SF8–SF10, BW500 — gateway transmissions |
 | **Generic ISM** | 915.0, 920.0 MHz | SF7–SF8 — assorted sensors and beacons |
 
 12 seconds per config. Full sweep takes 5 minutes. Repeats continuously.
@@ -321,7 +322,7 @@ Even before attempting any decryption, each captured packet tells us:
 - **Which LoRa config it's on**: Frequency, spreading factor, bandwidth
 - **Transmission pattern**: How often does this device send?
 - **Is it a router?**: Is it relaying traffic for other nodes?
-- **Estimated firmware version**: Inferred from packet structure
+- **Estimated firmware version**: Inferred from packet structure — field layouts and portnum values changed across Meshtastic major versions in detectable ways
 
 **[FIELD]:**
 "The router detection is a particularly useful piece of intelligence. A
@@ -376,7 +377,7 @@ Every device gets a score from 0 to 100. Higher is better for the device owner.
 Deductions:
 - **Default PSK in use** → −25 points *(messages are readable)*
 - **Outdated firmware** → −20 points *(known unpatched issues)*
-- **Very strong signal** → −15 points *(physically close, locatable)*
+- **Very strong signal** → −15 points *(node is physically close to a public vantage point — locatable by RSSI triangulation)*
 - **High traffic volume** → −15 points *(metadata exposure)*
 - **Router role** → −10 points *(critical infrastructure, higher exposure)*
 
@@ -436,8 +437,8 @@ Cycles all 26 configs, builds a picture of everything in range. Passive.
 You learn who's out there.
 
 **Targeted capture** — operator-triggered:
-Locks onto one device or frequency. Captures payloads. Tracks over time.
-You learn everything about one target.
+Locks onto one frequency configuration. Captures every packet on that channel.
+You learn everything transmitting on that config — including your target.
 
 **[CODE]:**
 "The transition is intentional. Recon gives you the map. Targeted gives
@@ -445,33 +446,44 @@ you the detail. You don't lock onto something you haven't found yet."
 
 ---
 
-**SLIDE: Two Things That Would Have Crashed It**
+**SLIDE: The Hardware Lied to Us**
 
-*[Pick two war stories — keep them short here, they're the hardware/field ones.
-Full stories belong to [FIELD] later in Q&A or as backup slides.]*
+*[FIELD and CODE trade off this one.]*
 
-**Problem 1: Heap fragmentation**
-The packet queue was using a standard library data structure that allocates
-and frees memory constantly. After 24 to 48 hours of operation, the
-memory was fragmented enough to crash the device.
+**[FIELD]:**
+"The V4 was supposed to be the better board. Same price as the V3, adds GPS.
+I flashed the firmware and got nothing. Zero packets received. Display running.
+Web UI up. Radio completely silent."
 
-Fix: pre-allocate 100 packet slots at boot. Zero memory operations at runtime.
-The device can now run for weeks.
-
-**Problem 2: Dual-core data races**
-The web server runs on a different processor core than the radio. Without
-explicit locking, reading packet data from a browser request while the radio
-was writing new packets produced garbage — or a crash.
-
-Fix: atomic operations for counters, locks for complex structures, a pattern
-that makes it hard to forget.
+"We tested everything. Antenna swap — no change. RF switch configuration —
+no change. Fresh flash — no change."
 
 **[CODE]:**
-"Embedded development is unforgiving about these. A race condition that
-corrupts a string in a web app produces a bad response. A race condition
-on an ESP32 crashes the device and loses everything in the buffer.
-And if it crashes at 3am while you're asleep and it's sitting on a rooftop,
-you've lost your capture window."
+"The V3 uses a dedicated USB bridge chip — a CP2102 — electrically isolated
+from the ESP32. The V4 uses the ESP32's built-in USB controller, which shares
+silicon and power rails with the rest of the chip. When the USB controller is
+active, it generates enough noise to disrupt the radio's crystal oscillator."
+
+"The radio initializes correctly. SPI communication works fine. It just
+never receives anything. 'Radio initialized successfully' does not mean
+the radio is working."
+
+**[FIELD]:**
+"The fix was disabling USB serial entirely. No serial monitor, ever, on
+this board. Everything goes through the web UI."
+
+**[CODE]:**
+"The lesson generalizes: your diagnostics lie. A system can report nominal
+while the RF side is completely broken. The only way to know is actual RF
+measurement."
+
+*[NOTE: Keep this tight — 90 seconds. It earns credibility with the hardware
+people in the room and sets up the 'deploy and forget' theme. The longer
+version with full debugging timeline is in Appendix A if Q&A goes there.]*
+
+*[Backup slides: heap fragmentation (pre-allocate 100 slots at boot, device
+now runs for weeks) and dual-core data races (atomic counters, locks). Cut
+if time is short — these are less surprising than the V4 story.]*
 
 ---
 
@@ -561,9 +573,10 @@ settings. Their traffic was coming to us. We didn't go to them."
 
 *[Run this live or show pre-recorded. This is the centerpiece of the demo.]*
 
-We built a presentation tool specifically for this talk.
+`make_reveal.py` takes a PCAP capture and generates a self-contained
+HTML presentation. Load it in any browser — no server, no dependencies.
 
-It takes a captured packet and plays it out in three stages:
+It plays out in three stages:
 
 1. **Raw bytes**: looks like noise on screen
 2. **Key match**: which of the 23 defaults unlocked it
@@ -684,26 +697,27 @@ attack them."
 
 **SLIDE: Duty Cycle Violations (`duty_cycle_monitor`)**
 
-LoRa operates in license-free spectrum, but that spectrum comes with
-regulatory limits on how much any device can transmit:
+LoRa operates in license-free spectrum under FCC Part 15. There's no
+simple duty cycle percentage limit in the US, but the rules impose channel
+dwell time constraints — and more practically, a device that transmits
+abnormally often stands out in ways that matter:
 
-- **European Union (868 MHz)**: 1% duty cycle — transmit no more than
-  36 seconds per hour per sub-band
-- **United States (915 MHz)**: FCC dwell time limits per channel
-- **Australia, Asia**: Similar regional constraints
+- It starves neighboring nodes of airtime (LoRa is a shared medium)
+- It's far more visible to passive observers — including this device
+- It's a strong indicator of misconfiguration or malfunction
 
 This tool analyzes captures and reports per-device:
 
 - Actual airtime, calculated from packet length and spreading factor
-- Average and peak-hour duty cycle percentages
-- Which transmitters exceed regulatory limits
-- Violation timestamps
+- Transmit frequency and inter-packet timing
+- Outlier nodes whose transmission rate significantly exceeds neighbors
+- Timestamps of burst activity
 
 **[CODE]:**
-"A device violating duty cycle limits is either misconfigured or
-malfunctioning. Either way it's a regulatory problem and a network
-health problem — a chatty rogue node can starve its neighbors of
-airtime. This tool makes it a reportable finding."
+"A device transmitting five times more often than its neighbors is either
+broken or misconfigured. Either way it's a network health problem — and
+it's the first node any passive observer will fingerprint. This tool
+makes it a reportable finding with data behind it."
 
 ---
 
@@ -758,7 +772,7 @@ OTAA, with the evidence to support the finding."
 |---|---|---|
 | Architecture | Peer-to-peer mesh | Star: devices → gateways → cloud |
 | Encryption | Shared PSK per channel | Per-device session keys |
-| Default key problem | 23 known defaults tested | 16 TTN/Helium defaults tested |
+| Default key problem | 23 known defaults tested | 16 TTN/private LoRaWAN defaults tested |
 | Key rotation | Manual | OTAA rotates automatically |
 | Primary vulnerability | Default PSK deployment | ABP static keys, DevNonce reuse |
 
@@ -809,7 +823,7 @@ report."
 Show sequence:
 1. Boot — OLED cycling through recon configs
 2. Devices tab — pre-seeded nodes or any live captures from the venue
-3. Switch one node to targeted capture
+3. Switch to targeted capture on that node's frequency config
 
 **[CODE]** runs on laptop simultaneously:
 1. `timeline_replay.py` against the pre-captured stationary session at 10× speed
