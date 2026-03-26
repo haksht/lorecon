@@ -286,11 +286,16 @@ cycling through 26 different LoRa configurations.
 spreading factor, bandwidth, and coding rate defines what you can hear. If
 you're only listening on one config, you're deaf to everything else.
 
-The 26 configs cover:
-- Meshtastic US, EU, Australian, and Asian variants
-- LoRaWAN / The Things Network frequencies
-- Helium Network channels
-- Generic ISM band beacons
+The 26 configs cover (US 902–928 MHz band):
+
+| Traffic type | Frequencies | Notes |
+|---|---|---|
+| **Meshtastic** | 902.125, 903.875, 904.375, 906.875 MHz | SF8–SF11, BW250 — multiple SF variants per freq |
+| **Meshtastic LongSlow** | 906.875 MHz | SF12, BW125 — max range mode |
+| **TTN / LoRaWAN US915** | 902.3–904.5, 911.9 MHz | SF7–SF10, BW125 — uplink channels |
+| **Helium US (uplink)** | 904.3, 904.5 MHz | SF9–SF10, BW125 — sensor transmissions |
+| **Helium US (downlink)** | 923.3–925.1 MHz | SF8–SF10, BW500 — hotspot transmissions |
+| **Generic ISM** | 915.0, 920.0 MHz | SF7–SF8 — assorted sensors and beacons |
 
 12 seconds per config. Full sweep takes 5 minutes. Repeats continuously.
 
@@ -338,7 +343,8 @@ across the neighborhood. You're just close enough to hear."
 "This is what you see from your phone after a few hours of passive capture.
 Every device that transmitted in range, ranked by packet count. You can see
 their signal profile, their encryption status, and their vulnerability score.
-Tap any one of them to switch into targeted mode."
+When you find something worth watching, you lock onto its frequency config
+and capture everything on that channel."
 
 ---
 
@@ -346,10 +352,15 @@ Tap any one of them to switch into targeted mode."
 
 Once something interesting appears, switch to **targeted capture**:
 
-- Lock onto a specific device or frequency configuration
-- Watch one node indefinitely
-- Capture payloads into a replay buffer
-- Track RSSI trend — is the transmitter moving?
+- Lock onto the frequency configuration that target uses
+- Capture every packet on that config indefinitely
+- Build a payload buffer for post-analysis
+- Track RSSI trend over time — is the transmitter moving?
+
+*[NOTE: Targeted mode locks onto a frequency configuration — not a specific
+device. Everything transmitting on that config gets captured. If a high-value
+node shares a channel with other traffic, you get all of it. That's usually
+a feature, not a problem.]*
 
 **[FIELD]:**
 "The workflow is the same as any other kind of surveillance: wide-area scan
