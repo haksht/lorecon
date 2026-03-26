@@ -2,7 +2,7 @@
 ## Passive LoRa Reconnaissance on $30 of Hardware
 
 **A 50-Minute Conference Talk**
-Draft 1.0
+Draft 2.0
 
 ---
 
@@ -26,7 +26,7 @@ loop: real-world need → technical implementation → real-world result.*
 
 | Segment | Who | Opens At | Duration |
 |---|---|---|---|
-| Hook — The Walk | Both | 0:00 | 4 min |
+| Hook — The Window Ledge | Both | 0:00 | 4 min |
 | Why LoRa, Why Now | FIELD | 4:00 | 6 min |
 | The Hardware | FIELD | 10:00 | 5 min |
 | What the Sniffer Sees | FIELD | 15:00 | 7 min |
@@ -41,48 +41,52 @@ loop: real-world need → technical implementation → real-world result.*
 
 ---
 
-# SEGMENT 1 — Hook: The Walk
+# SEGMENT 1 — Hook: The Window Ledge
 *Both presenters. 4 minutes.*
 
 ---
 
-**SLIDE: [Single photo — an ordinary neighborhood street or city block at dusk]**
+**SLIDE: [Single photo — an ordinary window ledge, desk, or hotel nightstand. The device sitting on it. Nothing else.]*
 
 ---
 
 **[FIELD]:**
-"A few weeks ago I went for a walk. About 45 minutes, maybe a mile and a half.
-Nothing special — just a neighborhood. I had a device in my jacket pocket.
-About the size of a deck of cards, ran on a battery, no laptop."
+"Before this talk I set this device on the windowsill of my hotel room.
+Plugged it into a USB charger. Left it there for a few hours while I got
+ready. I didn't go anywhere."
 
-"When I got back I handed the SD card to [CODE]."
+"When I came down here I pulled the data."
 
 **[CODE]:**
-"I plugged it in and ran our analysis tools against the log file. About ten
-minutes of work."
+"I loaded it into our analysis tools. About ten minutes of work."
 
-"Here's what we had."
+"Here's what it saw."
 
 ---
 
 **SLIDE: The Results — [show session_analyzer dashboard screenshot, redacted]**
 
 *Four panels: activity timeline, top devices by traffic, frequency distribution,
-signal strength distribution. Real data from the walk.*
+signal strength distribution. Real data from the stationary capture.*
 
 ---
 
 **[CODE]:**
-"Twenty-three distinct devices captured. Meshtastic nodes, LoRaWAN sensors,
+"Twenty-three distinct devices. Meshtastic nodes, LoRaWAN sensors,
 a couple of things we haven't fully identified yet."
 
 "Eight of them were encrypted. Of those eight, three were using a default key
 that ships with the firmware. We decrypted their traffic."
 
 **[FIELD]:**
-"No transmissions. No network connections. No special equipment beyond this."
+"No transmissions. No network connections. No walking around. The device
+never left that windowsill."
 
 *[Hold up the hardware.]*
+
+"These devices were transmitting from homes and offices and parked vehicles
+across this neighborhood. LoRa reaches two to fifteen kilometers. They came
+to us."
 
 "This talk is about how that works, what we built to do it, and what it means
 for anyone running one of these networks."
@@ -124,6 +128,10 @@ ops people in the room.]*
 has a range of several kilometers and almost nobody in the security community
 is looking at it. That gap is what this project is about."
 
+"And that range isn't a theoretical maximum. It's the operational range.
+Nodes in this neighborhood are transmitting to each other across that
+distance right now."
+
 ---
 
 **SLIDE: Meshtastic — The Ecosystem We Care About Most**
@@ -156,7 +164,8 @@ Compare that to a WiFi beacon: **less than 1 millisecond.**
 **[FIELD]:**
 "LoRa's greatest strength — reaching through walls and across kilometers — is
 also what makes it uniquely easy to capture. A 3-second transmission window,
-audible across 15 kilometers. That's a long time to be broadcasting."
+audible across 15 kilometers, repeating every few minutes, indefinitely.
+The transmitter announces itself. You just have to be listening."
 
 ---
 
@@ -177,7 +186,7 @@ push you to — are on a shared party line. Anyone else using the default key
 can read every message."
 
 "We test 23 known default keys against every packet we capture. Automatically.
-That's what produced the results we showed you at the start."
+From wherever we happen to be sitting."
 
 *[NOTE: The crypto itself — AES-128-CTR — is solid. This isn't a
 cryptographic break. This is a key management failure. Make that
@@ -203,13 +212,15 @@ The vulnerability is deployment, not design.]*
 | Laptop required | Yes | No |
 | Setup time | Hours | 10 minutes |
 | LoRa protocol decoding | DIY scripting | Automatic |
-| Battery life in the field | Hours (with laptop) | Days |
-| Fits in a pocket | No | Yes |
+| Battery life unattended | Hours (with laptop) | Days |
+| Fits in a coat pocket | No | Yes |
+| Deploy and walk away | No | Yes |
 
 **[FIELD]:**
-"SDRs are the right tool for a lot of RF problems. For LoRa recon — especially
-for walking around, or leaving a device somewhere unattended for days — they're
-the wrong tool. You need something that runs on its own."
+"SDRs are the right tool for a lot of RF problems. For LoRa recon they're
+the wrong tool. You don't need to be present. The value of this device is
+that it works without you — on a windowsill, in a backpack, on a rooftop —
+while you do something else."
 
 ---
 
@@ -228,10 +239,10 @@ LoRa radio.** The firmware runs on all of them.
 | LilyGO T-Beam Supreme | ~$50 | GPS + real battery management. Field-ready. |
 
 **[FIELD]:**
-"The T-Beam Supreme is my daily driver for anything serious. It runs three or
+"The T-Beam Supreme is my choice for anything serious. It runs three or
 four days on a single 18650 cell, has GPS so every packet gets a location
-stamp, and the battery management chip means proper power-off — not just the
-processor sleeping while the radio drains the battery."
+stamp, and the battery management chip means proper power-off. Leave it
+somewhere, come back, pull the SD card."
 
 "The Heltec V3 is the one I hand to someone who's never done this before. It's
 $22, plug it in, flash the firmware, you're running."
@@ -253,7 +264,9 @@ $22, plug it in, flash the firmware, you're running."
 
 **[FIELD]:**
 "The entire setup is: flash the firmware once, connect to the device's WiFi
-hotspot from your phone, open a browser. Everything else is in the web UI."
+hotspot from your phone, open a browser. Everything else is in the web UI.
+You can check in on it from anywhere on the same network. The device
+does all the work."
 
 ---
 
@@ -290,7 +303,7 @@ The 26 configs cover:
 **[FIELD]:**
 "In the field it looks like this. The display cycles through each config,
 shows signal activity, counts packets. You can see it working without
-touching a phone."
+touching a phone. Set it on a shelf and walk away."
 
 ---
 
@@ -311,6 +324,10 @@ Meshtastic router is a fixed node — usually plugged into wall power — that
 relays messages for the rest of the mesh. Finding routers tells you where
 the backbone of the network is. Those are your critical nodes."
 
+"And you're learning all of this from a single stationary listening post.
+You're not near these devices. They're transmitting to their neighbors
+across the neighborhood. You're just close enough to hear."
+
 ---
 
 **SLIDE: The Web UI — Devices Tab [screenshot]**
@@ -318,9 +335,9 @@ the backbone of the network is. Those are your critical nodes."
 *[Show the Devices tab from the web UI, real data if possible, redacted if not.]*
 
 **[FIELD]:**
-"This is what you see from your phone after an hour of recon. Every device
-that transmitted in range, ranked by packet count. You can see their
-signal profile, their encryption status, and their vulnerability score.
+"This is what you see from your phone after a few hours of passive capture.
+Every device that transmitted in range, ranked by packet count. You can see
+their signal profile, their encryption status, and their vulnerability score.
 Tap any one of them to switch into targeted mode."
 
 ---
@@ -336,8 +353,8 @@ Once something interesting appears, switch to **targeted capture**:
 
 **[FIELD]:**
 "The workflow is the same as any other kind of surveillance: wide-area scan
-to find targets, then focused collection on what matters. That's what we
-were doing during the walk."
+to find targets, then focused collection on what matters. The wide-area scan
+costs you nothing but time. You're already sitting still. Let it run."
 
 ---
 
@@ -441,7 +458,9 @@ that makes it hard to forget.
 **[CODE]:**
 "Embedded development is unforgiving about these. A race condition that
 corrupts a string in a web app produces a bad response. A race condition
-on an ESP32 crashes the device and loses everything in the buffer."
+on an ESP32 crashes the device and loses everything in the buffer.
+And if it crashes at 3am while you're asleep and it's sitting on a rooftop,
+you've lost your capture window."
 
 ---
 
@@ -520,9 +539,10 @@ Tests every captured packet against all 23 known default keys. Reports:
 - How many packets were exposed
 
 **[CODE]:**
-"In a typical residential sweep we see a non-zero hit rate on the current
-default key. These are real people who set up the app, confirmed it worked,
-and never revisited the encryption settings."
+"In a typical stationary capture — a few hours from one position — we see
+a non-zero hit rate on the current default key. These are real people who
+set up the app, confirmed it worked, and never revisited the encryption
+settings. Their traffic was coming to us. We didn't go to them."
 
 ---
 
@@ -565,6 +585,8 @@ relay packet IDs, neighbor reports — is unencrypted by design. The mesh
 needs to route messages without knowing what's in them. That design
 decision hands us the topology for free."
 
+"From one listening post. Without moving."
+
 ---
 
 **SLIDE: Step 4 — Where Are They? (`position_tracker`)**
@@ -577,16 +599,20 @@ decision hands us the topology for free."
 - Self-contained HTML file — share it without a server
 
 On the T-Beam Supreme, every captured packet is GPS-stamped with the
-sniffer's location at the time of capture. With multiple passes through
-an area from different angles, you can triangulate where a fixed
-transmitter is physically located.
+sniffer's location at the time of capture. For a fixed deployment, every
+packet from a given device is stamped with the same coordinates — yours.
+
+For locating a specific transmitter, use multiple deployments from different
+positions, or conduct a directed survey: move toward the signal, note where
+RSSI peaks. The peak is centered on the transmitter. You can locate a fixed
+LoRa node to within a city block without decrypting anything, without
+transmitting anything, and without specialized equipment.
 
 **[CODE]:**
-"The 'walking survey' approach: walk the same area on different paths,
-note where RSSI peaks for each device across passes. The peak is
-centered on the transmitter. You can locate a fixed LoRa node to
-within a city block without decrypting anything, without transmitting
-anything, and without specialized equipment."
+"The passive survey approach: two or three capture positions across an area,
+RSSI peaks triangulate the transmitter. Or a single mobile pass — drive a
+route, note signal strength changes. Either way you're not transmitting.
+The target never knows you're there."
 
 ---
 
@@ -625,9 +651,9 @@ Play back any captured session at configurable speed: 1×, 5×, 10×, 50×.
 - Can broadcast to the live visualizer in sync
 
 **[CODE]:**
-"We'll use this in the demo. A 90-minute walk from [FIELD] compressed
-into about 3 minutes, with device discovery accumulating in real time
-and the PSK hit moment highlighted automatically."
+"We'll use this in the demo. Several hours of stationary capture compressed
+into a few minutes, with device discovery accumulating in real time and
+the PSK hit moment highlighted automatically."
 
 ---
 
@@ -771,11 +797,11 @@ report."
 
 Show sequence:
 1. Boot — OLED cycling through recon configs
-2. Devices tab — pre-seeded nodes or any live captures
+2. Devices tab — pre-seeded nodes or any live captures from the venue
 3. Switch one node to targeted capture
 
 **[CODE]** runs on laptop simultaneously:
-1. `timeline_replay.py` against the pre-captured walk session at 10× speed
+1. `timeline_replay.py` against the pre-captured stationary session at 10× speed
 2. Device count climbing, PSK hit auto-pausing the replay
 3. `decrypt_reveal.html` — the reveal animation
 
@@ -788,10 +814,10 @@ Show sequence:
 Run `timeline_replay.py --demo` or against real CSV. Follow with
 `decrypt_reveal.html` loaded with the pre-baked real packet.
 
-*[NOTE: Always have a recorded backup. LoRa traffic is unpredictable and
-conference WiFi is hostile. The reveal.html runs entirely offline. The
-most important thing to show is the decryption moment — if nothing else
-works, that slide alone makes the point.]*
+*[NOTE: Always have a recorded backup. LoRa traffic is unpredictable at
+venues and conference WiFi is hostile to the web UI. The reveal.html
+runs entirely offline. The most important thing to show is the decryption
+moment — if nothing else works, that slide alone makes the point.]*
 
 ---
 
@@ -810,8 +836,8 @@ works, that slide alone makes the point.]*
    channel.
 2. **Update your firmware.** Devices running v1.x or early v2.x have
    known issues.
-3. **Understand your exposure.** A signal above −50 dBm from the street
-   means someone walking past knows roughly where you are.
+3. **Understand your exposure.** LoRa reaches kilometers. Anyone within
+   that radius, sitting still, can hear everything you send.
 4. **Disable router mode** on nodes that don't need to relay. Routers are
    infrastructure; they're also the most visible target.
 
@@ -841,7 +867,12 @@ They carry real messages from real people in situations where those
 messages matter."
 
 **[CODE]:** "A device that costs thirty dollars, that takes ten minutes
-to flash, that runs for days without a laptop, can listen to all of it."
+to flash, that runs for days on a battery, can sit in one spot and
+listen to everything within fifteen kilometers."
+
+**[FIELD]:** "You don't go to the network."
+
+**[CODE]:** "The network comes to you."
 
 **[FIELD]:** "That's not a reason to stop using LoRa."
 
@@ -963,7 +994,7 @@ and more presenter time on each.
 
 **Visuals to prepare** (in order of importance):
 
-1. The session_analyzer 2×2 dashboard — real data from an actual walk,
+1. The session_analyzer 2×2 dashboard — real data from a stationary capture,
    redacted if needed
 2. The PSK audit report — risk-colored output, clear hit indication
 3. The decrypt_reveal.html loaded and ready — practice the timing
@@ -976,9 +1007,10 @@ and more presenter time on each.
 9. OLED display photo mid-scan
 10. timeline_replay running at speed — recorded video embedded in slides
 
-**Opening photo**: Pick something mundane — a suburban street, a
-conference hotel exterior, a parking lot. The contrast between the
-ordinary setting and "we captured 23 devices here" is the hook.
+**Opening photo**: Pick something mundane — a hotel nightstand, a window
+ledge, a desk. The device sitting on it, plugged into a charger. The contrast
+between the ordinary setting and "we captured 23 devices here without leaving
+the room" is the hook.
 
 **For the decrypt reveal**: If using real captured data, agree in advance
 on what to show. Message content from a TEXT_MESSAGE portnum is personal.
@@ -988,5 +1020,5 @@ less likely to embarrass a real person.
 
 ---
 
-*End of draft. Version 1.0. Adjust speaker labels to real names before
+*End of draft. Version 2.0. Adjust speaker labels to real names before
 sharing externally.*
