@@ -1,7 +1,7 @@
 # Meshtastic Detection & PSK Decryption Troubleshooting
 
 **Last Updated:** March 2026
-**Version:** 2.4.0
+**Version:** 2.4.1
 **Status:** Packet capture ✅ | PSK decryption ✅ (23 default keys including legacy admin defaults)
 
 ---

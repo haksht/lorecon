@@ -1,6 +1,6 @@
 # Getting Started with ESP32 LoRa Sniffer
 
-**Version:** 2.4.0
+**Version:** 2.4.1
 **Status:** ✅ Ready to Use
 **Last Updated:** March 25, 2026
 
@@ -21,7 +21,7 @@
 **No PlatformIO required!**
 
 1. Download from [Releases](https://github.com/tiarno/esp32-sniffer/releases/latest)
-2. Extract `esp32-lora-sniffer-v2.4.0-binaries.zip`
+2. Extract `esp32-lora-sniffer-v2.4.1-binaries.zip`
 3. Install esptool: `pip install esptool`
 4. Run `flash.bat` (Windows) or `./flash.sh` (Linux/Mac):
    ```

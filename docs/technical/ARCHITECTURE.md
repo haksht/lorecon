@@ -2,7 +2,7 @@
 
 Deep dive into the v2.0+ architecture — from hardware fundamentals to the clean component design. Use this as a reference when contributing or extending the tool.
 
-**Version:** 2.4.0 (March 2026)
+**Version:** 2.4.1 (March 2026)
 **Architecture:** RadioController, PacketProcessor, IReconTool interface pattern
 
 ---
