@@ -84,7 +84,7 @@ echo "Flashing full image - this takes 30-90 seconds..."
 echo ""
 
 python3 -m esptool --chip esp32s3 --port "$PORT" --baud 921600 \
-    write-flash --flash-size "$FLASH_SIZE" 0x0 "$BIN"
+    write_flash --flash-size "$FLASH_SIZE" 0x0 "$BIN"
 
 if [ $? -ne 0 ]; then
     echo ""
