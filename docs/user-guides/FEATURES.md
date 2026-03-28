@@ -1,6 +1,6 @@
 # Feature Documentation
 
-**ESP32 LoRa Reconnaissance Tool v2.3.1**
+**ESP32 LoRa Reconnaissance Tool v2.4.0**
 
 ## 🎯 Tool Identity
 

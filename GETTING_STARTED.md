@@ -1,6 +1,6 @@
 # Getting Started with ESP32 LoRa Sniffer
 
-**Version:** 2.3.2
+**Version:** 2.4.0
 **Status:** ✅ Ready to Use
 **Last Updated:** March 25, 2026
 
@@ -21,7 +21,7 @@
 **No PlatformIO required!**
 
 1. Download from [Releases](https://github.com/tiarno/esp32-sniffer/releases/latest)
-2. Extract `esp32-lora-sniffer-v2.3.1-binaries.zip`
+2. Extract `esp32-lora-sniffer-v2.4.0-binaries.zip`
 3. Install esptool: `pip install esptool`
 4. Run `flash.bat` (Windows) or `./flash.sh` (Linux/Mac):
    ```
@@ -177,6 +177,9 @@ Press 'j' - Export GeoJSON
 Press 't' - Show API token
 Press 'w' - LoRaWAN key testing stats
 Press 'b' - Reboot device
+Press 's' - Show summary
+Press 'i' - Reset reason & health info
+Press 'e' - Exit menu / resume current mode
 ```
 
 **Best for:** Debugging, detailed packet analysis, development
@@ -358,8 +361,9 @@ WiFi credentials are stored automatically in device flash memory. No code change
 2. Connect and enter your hotspot credentials via web UI
 3. Credentials saved permanently until cleared
 
-**Configuration files:**
-- Credentials stored in: `/wifi_config.json` (LittleFS)
+**Configuration:**
+- Credentials stored in: NVS (Non-Volatile Storage, survives firmware updates)
+- Legacy `/wifi_config.json` or `/wifi_creds.json` files are auto-migrated to NVS on first boot then deleted
 - Default AP password: `recon-XXYYZZ` (device-unique, matches SSID suffix)
 - Unique device ID derived from: Last 3 bytes of MAC address
 
@@ -453,7 +457,6 @@ ws.onmessage = (event) => {
 
 ### API & Development
 - **`API_REFERENCE.md`** - Complete REST API and WebSocket documentation
-- **`docs/api/recon_service.md`** - Reconnaissance service details
 
 ---
 
@@ -476,7 +479,7 @@ ws.onmessage = (event) => {
 
 **Solutions:**
 1. Verify IP address: `192.168.4.1`
-2. Try `http://esp32-lora.local`
+2. Try `http://lora-xxxxxx.local` (replace `xxxxxx` with your device ID shown on OLED/serial)
 3. Disable cellular data on phone
 4. Use `http://` not `https://`
 5. Run `pio run --target uploadfs` to upload web files

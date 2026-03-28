@@ -1,7 +1,7 @@
 # Meshtastic Detection & PSK Decryption Troubleshooting
 
 **Last Updated:** March 2026
-**Version:** 2.3.1
+**Version:** 2.4.0
 **Status:** Packet capture ✅ | PSK decryption ✅ (23 default keys including legacy admin defaults)
 
 ---
@@ -310,6 +310,8 @@ Try both!
 'r' → Resume reconnaissance (keeps discovered devices)
 'b' → Reboot device (clears all data)
 's' → Show summary
+'i' → Reset reason & health info
+'e' → Exit menu / resume current mode (without clearing state)
 'q' → Toggle quiet/verbose mode
 ```
 

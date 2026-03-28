@@ -15,7 +15,7 @@ Passive LoRa reconnaissance firmware for ESP32-S3 + SX1262 hardware. The ESP32 h
 ## Current Status
 
 - **Branch:** `main`
-- **Version:** 2.3.2
+- **Version:** 2.4.0
 - **Hardware:** ESP32-S3 + SX1262 + OLED. Native or optional SD card.
   - ✅ **Fully Supported:**
     - **Heltec WiFi LoRa 32 V3 / V4** (tested, production-ready; SD requires external module; V4 with L76K GPS module uses separate `heltec_v4` build env)
@@ -169,6 +169,9 @@ WebSocket streams real-time updates to all connected clients with automatic reco
 | `w` | LoRaWAN key testing stats |
 | `q` | Quiet/verbose toggle |
 | `x` | Text-packet diagnostic report |
+| `s` | Show summary |
+| `i` | Reset reason & health info |
+| `e` | Exit menu / resume current mode |
 
 The web UI issues the same requests via `/api/command` so you can switch between USB and WiFi at any time.
 
