@@ -295,6 +295,7 @@ void OLEDDisplay::setAutoOffTimeout(uint32_t timeoutMs) {
 
 void OLEDDisplay::showWelcome() {
     currentMode = MODE_WELCOME;
+    needsRedraw_ = true;
     resetAutoOffTimer();
     update();  // Must render during setup() before main loop starts
 }
@@ -305,6 +306,7 @@ void OLEDDisplay::showBootProgress(const char* stage, uint8_t step, uint8_t tota
     info.bootStage[sizeof(info.bootStage) - 1] = '\0';
     info.bootStep = step;
     info.bootTotalSteps = totalSteps;
+    needsRedraw_ = true;  // Must set explicitly — update() returns early if false
     update();  // Render immediately — we're in setup(), no main loop yet
 }
 
@@ -354,6 +356,7 @@ void OLEDDisplay::showTargetingMode(const char* targetInfo) {
 
 void OLEDDisplay::showShutdown() {
     currentMode = MODE_SHUTDOWN;
+    needsRedraw_ = true;
     update();
 }
 
