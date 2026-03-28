@@ -121,9 +121,38 @@ device and typically transmitted at the gateway side.
 
 ---
 
+## RadioHead (RH_RF95)
+
+**Source**: `firmware/src/protocol_analyzer.cpp`
+
+RadioHead is a popular Arduino LoRa library (often used with the RFM95/SX1276 and SX1262 modules).
+It prepends a 4-byte MAC header to every packet:
+
+| Byte | Field | Description |
+|------|-------|-------------|
+| 0 | TO | Destination address (0–254, 255 = broadcast) |
+| 1 | FROM | Source address (used as node ID) |
+| 2 | ID | Auto-incrementing message ID |
+| 3 | FLAGS | Bit 7 = ACK required, bit 6 = ACK reply, bit 5 = retry; bits 0–4 reserved (always 0) |
+
+**Detection**: packets 5–251 bytes where `FLAGS & 0x1F == 0` (reserved bits are zero) and not
+matching Meshtastic or LoRaWAN structure.
+
+RadioHead uses sync word `0x12` (RadioLib private default), so RadioHead devices appear on the
+Meshtastic 0x12 configs, not the LoRaWAN 0x34 configs.
+
+**Node ID**: byte 1 (FROM address, 8-bit, 0–255).
+
+**Device types**:
+- **RadioHead Broadcast** — TO = 0xFF
+- **RadioHead ACK** — FLAGS bit 6 set (reply to a confirmed message)
+- **RadioHead Node** — standard point-to-point
+
+---
+
 ## Beacons
 
-**Source**: `firmware/src/protocol_analyzer.cpp:81–84`
+**Source**: `firmware/src/protocol_analyzer.cpp`
 
 A packet is classified as `"Beacon"` when it is **8 bytes or shorter** and does not match the
 Meshtastic header (`0xFF 0xFF 0xFF 0xFF`) or a valid LoRaWAN frame structure.
@@ -155,7 +184,7 @@ version range from observable packet structure:
 
 | Observed pattern | Estimated version |
 |---|---|
-| Byte 8, bit 7 is set (encryption flag present) | `~v2.2+ (est: encryption flag)` |
+| Byte 12, bit 7 is set (encryption flag) | `~v2.2+ (est: encryption flag)` |
 | Packet length > 50 bytes (extended routing headers) | `~v2.1+ (est: extended headers)` |
 | Hop count ≤ 3 and upper nibble of byte 9 is zero | `~v2.0.x (est: flag pattern)` |
 | Packet length ≤ 16 bytes | `~v1.x or beacon (est)` |

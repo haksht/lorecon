@@ -202,8 +202,7 @@ tools/
   meshtastic/psk_auditor.py     -> PSK vulnerability scanning
   pcap_analyzer.py              -> PCAP capture file analysis
   enhanced_live_visualizer.py   -> 5-panel matplotlib dashboard
-  recon_report.py, position_tracker.py, api_client.py, ws_monitor.py
-  visualization/                -> network_topology.html, live_map.html, network_dashboard.html
+  recon_report.py, pcap_analyzer.py, api_client.py, ws_monitor.py
 ```
 
 ## ⚠️ Legal & Ethical Use Disclaimer

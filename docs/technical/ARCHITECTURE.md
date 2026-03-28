@@ -909,6 +909,15 @@ public:
             info.protocol = "LoRaWAN";
             info.nodeId = extractLoRaWANDevAddr(data);
         }
+        // RadioHead RH_RF95: [TO][FROM][ID][FLAGS], FLAGS lower 5 bits reserved=0
+        else if (length >= 5 && length <= 251 && (data[3] & 0x1F) == 0) {
+            info.protocol = "RadioHead";
+            info.nodeId = data[1];  // FROM address
+        }
+        // Short packets (≤8 bytes) not matching above
+        else if (length <= 8) {
+            info.protocol = "Beacon";
+        }
         // Unknown protocol
         else {
             info.protocol = "Unknown";

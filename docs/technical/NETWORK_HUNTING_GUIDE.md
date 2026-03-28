@@ -141,7 +141,8 @@ Once you detect activity:
 
 **Use the Python analyzer**:
 ```bash
-python tools/session_analyzer.py your_capture.csv
+python tools/pcap_analyzer.py your_capture.pcap
+python tools/recon_report.py your_capture.csv
 ```
 
 ---
@@ -197,12 +198,12 @@ Your device now scans **26 frequency configurations**:
 |--------|-----------|----------|-------|
 | 1-4    | 902-906 MHz | Meshtastic LF/MF/SF | Primary routing configs |
 | 5-10   | 902 MHz variants | Meshtastic 902 | SF8-11, various sync words |
-| 11-14  | 903-904 MHz | TTN/LoRaWAN | The Things Network channels |
-| 15-17  | 902-911 MHz | LoRaWAN US915 | Commercial uplink channels |
+| 11-14  | 903-904 MHz | TTN/LoRaWAN | The Things Network channels (sync 0x34) |
+| 15-17  | 902-911 MHz | LoRaWAN US915 | Commercial uplink channels (sync 0x34) |
 | 18     | 906 MHz | Meshtastic LongSlow | Maximum range preset |
-| 19-20  | 904 MHz | Helium Uplink | Sensor transmissions |
-| 21-24  | 923-925 MHz | Helium Downlink | Hotspot transmissions |
-| 25-26  | 915-920 MHz | ISM General | Catch-all for unknowns |
+| 19-20  | 904 MHz | Helium Uplink | Sensor transmissions (sync 0x34) |
+| 21-24  | 923-925 MHz | Helium Downlink | Hotspot transmissions (sync 0x34) |
+| 25-26  | 915-920 MHz | ISM General | Private LoRa / RadioHead (sync 0x12) |
 
 **Total scan cycle**: ~5 minutes (26 configs × 12 seconds each)
 
@@ -213,7 +214,7 @@ Your device now scans **26 frequency configurations**:
 1. **Check local coverage**: Visit TTN and Helium maps for your area
 2. **Pick a location** with confirmed gateway coverage
 3. **Bring a backup Meshtastic device** for guaranteed activity during demos
-4. **Use the Python tools** for post-capture analysis: `tools/session_analyzer.py`, `tools/recon_report.py`
+4. **Use the Python tools** for post-capture analysis: `tools/recon_report.py`, `tools/pcap_analyzer.py`
 
 ---
 

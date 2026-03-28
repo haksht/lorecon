@@ -2,6 +2,17 @@
 
 All notable changes to the ESP32 LoRa Sniffer project.
 
+## [2.3.3] - 2026-03-28
+
+### Fixed
+- **LoRaWAN sync word**: All TTN, LoRaWAN US915, and Helium scan configs were using sync word `0x12` (RadioLib private) instead of `0x34` (LoRaWAN public). The SX1262 only demodulates packets matching the configured sync word, so the device was physically incapable of receiving real LoRaWAN/TTN/Helium traffic on those 11 configs. Fixed.
+
+### Added
+- **RadioHead RH_RF95 protocol detection**: Common Arduino/RadioLib sensor library uses a 4-byte MAC header `[TO][FROM][ID][FLAGS]` with reserved lower 5 bits of FLAGS always zero. Detected after LoRaWAN check, before falling through to Unknown. FROM address (byte 1, 0–255) used as node ID. Device types: RadioHead Broadcast / RadioHead ACK / RadioHead Node.
+
+### Changed
+- **Tools directory**: Removed 12 low-value files — `session_analyzer.py`, `timeline_replay.py`, `packet_differ.py`, `position_tracker.py`, `compliance/`, `lorawan/`, `visualization/`. Rewrote README to match the remaining tools.
+
 ## [2.3.1] - 2026-03-22
 
 ### Fixed

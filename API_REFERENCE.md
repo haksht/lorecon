@@ -294,7 +294,7 @@ Host: 192.168.4.1
 | `nodeId` | string | Hexadecimal node identifier |
 | `nodeIdDecimal` | number | Decimal node ID |
 | `frequency` | number | Frequency in MHz |
-| `protocol` | string | Detected protocol (Meshtastic, Helium, LoRaWAN, Unknown) |
+| `protocol` | string | Detected protocol: `Meshtastic`, `LoRaWAN`, `RadioHead`, `Beacon`, `Unknown` |
 | `rssi` | number | Signal strength (dBm) |
 | `snr` | number | Signal-to-noise ratio (dB) |
 | `packetCount` | number | Total packets captured |
