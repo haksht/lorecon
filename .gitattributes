@@ -1,0 +1,9 @@
+# Enforce CRLF line endings for Windows batch files
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# Shell scripts always LF
+*.sh text eol=lf
+
+# Everything else: git decides based on platform
+* text=auto
