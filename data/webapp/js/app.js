@@ -32,7 +32,7 @@ function setStoredToken(token) {
 }
 
 async function promptForToken() {
-    // Try auto-fetch first (works when connected via AP subnet 192.168.4.x)
+    // Try auto-fetch first (AP subnet 192.168.4.x, or auto-trusted LAN in STA mode)
     try {
         const resp = await fetch('/api/auth/token');
         if (resp.ok) {

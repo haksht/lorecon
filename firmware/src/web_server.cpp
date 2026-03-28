@@ -358,11 +358,13 @@ void WebServer::setupRoutes() {
         request->send(200, "application/json", JsonUtils::healthOk());
     });
     
-    // Token retrieval — AP subnet only (physical proximity required to join AP)
+    // Token retrieval — AP subnet clients get unconditional access (physical proximity);
+    // auto-trusted LAN clients (STA/AP_STA mode, private network) also receive the token
+    // since they already have full API access via isAuthenticated().
     server->on("/api/auth/token", HTTP_GET, [](AsyncWebServerRequest* request) {
         IPAddress clientIP = request->client()->remoteIP();
         bool isAPSubnet = (clientIP[0] == 192 && clientIP[1] == 168 && clientIP[2] == 4);
-        if (!isAPSubnet) {
+        if (!isAPSubnet && !APISecurity::isAuthenticated(request)) {
             APISecurity::sendUnauthorized(request);
             return;
         }
