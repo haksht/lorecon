@@ -36,12 +36,12 @@ echo.
 
 REM ---- Build firmware --------------------------------------------------------
 echo [1/3] Building firmware...
-"%PIO%" run -e heltec_v3 -e t3_s3 -e tbeam_supreme -d "%REPO_ROOT%"
+"%PIO%" run -e heltec_v3 -e heltec_v4 -e t3_s3 -e tbeam_supreme -d "%REPO_ROOT%"
 if %ERRORLEVEL% NEQ 0 ( echo Build failed. & exit /b 1 )
 
 echo.
 echo [2/3] Building filesystems...
-"%PIO%" run -t buildfs -e heltec_v3 -e t3_s3 -e tbeam_supreme -d "%REPO_ROOT%"
+"%PIO%" run -t buildfs -e heltec_v3 -e heltec_v4 -e t3_s3 -e tbeam_supreme -d "%REPO_ROOT%"
 if %ERRORLEVEL% NEQ 0 ( echo Filesystem build failed. & exit /b 1 )
 
 REM ---- Package ---------------------------------------------------------------
@@ -69,6 +69,22 @@ copy "%REPO_ROOT%\.pio\build\heltec_v3\littlefs.bin"    "%RELEASE_DIR%\heltec_v3
     0x10000  "%RELEASE_DIR%\heltec_v3\firmware.bin" ^
     0x670000 "%RELEASE_DIR%\heltec_v3\littlefs.bin"
 if %ERRORLEVEL% NEQ 0 ( echo merge_bin failed for heltec_v3. & exit /b 1 )
+
+REM --- heltec_v4 ---
+echo.
+echo   [heltec_v4] Heltec WiFi LoRa 32 V4 (GPS)
+mkdir "%RELEASE_DIR%\heltec_v4"
+copy "%REPO_ROOT%\.pio\build\heltec_v4\bootloader.bin" "%RELEASE_DIR%\heltec_v4\" >nul
+copy "%REPO_ROOT%\.pio\build\heltec_v4\partitions.bin"  "%RELEASE_DIR%\heltec_v4\" >nul
+copy "%REPO_ROOT%\.pio\build\heltec_v4\firmware.bin"    "%RELEASE_DIR%\heltec_v4\" >nul
+copy "%REPO_ROOT%\.pio\build\heltec_v4\littlefs.bin"    "%RELEASE_DIR%\heltec_v4\" >nul
+"%PIO_PYTHON%" "%PIO_ESPTOOL%" --chip esp32s3 merge_bin --flash_size 8MB ^
+    -o "%RELEASE_DIR%\heltec_v4\full.bin" ^
+    0x0      "%RELEASE_DIR%\heltec_v4\bootloader.bin" ^
+    0x8000   "%RELEASE_DIR%\heltec_v4\partitions.bin" ^
+    0x10000  "%RELEASE_DIR%\heltec_v4\firmware.bin" ^
+    0x670000 "%RELEASE_DIR%\heltec_v4\littlefs.bin"
+if %ERRORLEVEL% NEQ 0 ( echo merge_bin failed for heltec_v4. & exit /b 1 )
 
 REM --- t3_s3 ---
 echo.
@@ -123,7 +139,8 @@ echo   Directory: releases\%VERSION%\
 echo   Archive:   releases\%ZIP_NAME%
 echo.
 echo   Boards packaged:
-echo     heltec_v3      Heltec WiFi LoRa 32 V3    (8MB)
-echo     t3_s3          LilyGO T3-S3 V1.2/V1.3    (4MB)
-echo     tbeam_supreme  LilyGO T-Beam Supreme      (8MB)
+echo     heltec_v3      Heltec WiFi LoRa 32 V3         (8MB)
+echo     heltec_v4      Heltec WiFi LoRa 32 V4 + GPS   (8MB)
+echo     t3_s3          LilyGO T3-S3 V1.2/V1.3         (4MB)
+echo     tbeam_supreme  LilyGO T-Beam Supreme           (8MB)
 echo.
