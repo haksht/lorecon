@@ -1,6 +1,6 @@
 # Getting Started with ESP32 LoRa Sniffer
 
-**Version:** 2.3.1
+**Version:** 2.3.2
 **Status:** ✅ Ready to Use
 **Last Updated:** March 25, 2026
 
@@ -23,7 +23,11 @@
 1. Download from [Releases](https://github.com/tiarno/esp32-sniffer/releases/latest)
 2. Extract `esp32-lora-sniffer-v2.3.1-binaries.zip`
 3. Install esptool: `pip install esptool`
-4. Run `flash.bat` (Windows) or `./flash.sh` (Linux/Mac)
+4. Run `flash.bat` (Windows) or `./flash.sh` (Linux/Mac):
+   ```
+   flash.bat heltec_v3 COM3
+   ```
+   Replace `COM3` with your device's port. On Windows, check **Device Manager → Ports (COM & LPT)** to find it. If you only have one device plugged in you can omit the port and it will auto-detect.
 5. Done! Skip to "First Run - WiFi Setup" below.
 
 ### Option B: Build from Source

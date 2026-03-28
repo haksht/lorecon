@@ -10,11 +10,12 @@ Passive LoRa reconnaissance firmware for ESP32-S3 + SX1262 hardware. The ESP32 h
 - `docs/user-guides/HOW_IT_WORKS.md` – how security scoring, router detection, GPS, and packet limits work.
 - `docs/user-guides/TROUBLESHOOTING.md` & `docs/technical/ENCRYPTION.md` – protocol gotchas.
 - `API_REFERENCE.md` – HTTP + WebSocket surface area for custom tooling.
+- `tools/README.md` – Python analysis toolkit (session analyzer, PSK auditor, position tracker, and more).
 
 ## Current Status
 
 - **Branch:** `main`
-- **Version:** 2.3.1
+- **Version:** 2.3.2
 - **Hardware:** ESP32-S3 + SX1262 + OLED. Native or optional SD card.
   - ✅ **Fully Supported:**
     - **Heltec WiFi LoRa 32 V3 / V4** (tested, production-ready; SD requires external module; V4 with L76K GPS module uses separate `heltec_v4` build env)
