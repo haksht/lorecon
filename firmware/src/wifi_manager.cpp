@@ -227,9 +227,34 @@ bool WiFiManager::saveCredentials(const char* ssid, const char* password) {
     return true;
 }
 
+bool WiFiManager::saveAPPassword(const char* password) {
+    if (!password || strlen(password) < 8 || strlen(password) > 63) {
+        LOG_ERROR("AP password must be 8-63 characters");
+        return false;
+    }
+    wifiPrefs.begin(Config::WiFi::NVS_NAMESPACE, false);
+    wifiPrefs.putString(Config::WiFi::NVS_KEY_AP_PASSWORD, password);
+    wifiPrefs.end();
+    apPassword = String(password);
+    LOG_INFO("AP password updated");
+    return true;
+}
+
+String WiFiManager::getAPPassword() {
+    if (apPassword.isEmpty()) {
+        wifiPrefs.begin(Config::WiFi::NVS_NAMESPACE, true);
+        apPassword = wifiPrefs.getString(Config::WiFi::NVS_KEY_AP_PASSWORD, "");
+        wifiPrefs.end();
+    }
+    if (apPassword.isEmpty()) {
+        return String(Config::WiFi::DEFAULT_AP_PASSWORD_PREFIX) + getDeviceId();
+    }
+    return apPassword;
+}
+
 /**
  * Clear stored WiFi credentials from NVS
- * 
+ *
  * @return true if cleared successfully
  */
 bool WiFiManager::clearCredentials() {
@@ -299,7 +324,7 @@ bool WiFiManager::autoConnect() {
     setupMode = true;
     esp_task_wdt_reset();  // Feed watchdog before AP setup
     String uniqueSSID = getUniqueAPSSID();
-    String uniquePassword = String(Config::WiFi::DEFAULT_AP_PASSWORD_PREFIX) + getDeviceId();
+    String uniquePassword = getAPPassword();
     if (startAP(uniqueSSID.c_str(), uniquePassword.c_str())) {
         LOG_INFO("");
         LOG_INFO("╔═══════════════════════════════════════════════╗");
@@ -367,7 +392,7 @@ bool WiFiManager::startAP(const char* ssid, const char* password) {
  */
 void WiFiManager::startBackgroundAP() {
     String uniqueSSID = getUniqueAPSSID();
-    String uniquePassword = String(Config::WiFi::DEFAULT_AP_PASSWORD_PREFIX) + getDeviceId();
+    String uniquePassword = getAPPassword();
     
     LOG_INFO("Starting background AP for fallback access...");
     
@@ -646,7 +671,7 @@ bool WiFiManager::checkAPHealth() {
         
         // Try to restart AP
         String ssid = getUniqueAPSSID();
-        String password = String(Config::WiFi::DEFAULT_AP_PASSWORD_PREFIX) + deviceId;
+        String password = getAPPassword();
         
         bool success = WiFi.softAP(ssid.c_str(), password.c_str());
         

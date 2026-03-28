@@ -31,6 +31,13 @@ void handleSetWiFiCredentials(AsyncWebServerRequest* request);
  */
 void handleClearWiFiCredentials(AsyncWebServerRequest* request);
 
+/**
+ * POST /api/wifi/ap-password - Change the AP WiFi password
+ * Body: { "password": "newpassword" }
+ * Requires: X-API-Token header
+ */
+void handleSetAPPassword(AsyncWebServerRequest* request);
+
 }  // namespace WiFiHandlers
 
 #endif // WIFI_HANDLERS_H

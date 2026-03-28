@@ -31,7 +31,20 @@ function setStoredToken(token) {
     }
 }
 
-function promptForToken() {
+async function promptForToken() {
+    // Try auto-fetch first (works when connected via AP subnet 192.168.4.x)
+    try {
+        const resp = await fetch('/api/auth/token');
+        if (resp.ok) {
+            const data = await resp.json();
+            if (data.token) {
+                setStoredToken(data.token);
+                showToast('API token retrieved automatically', 'success');
+                return data.token;
+            }
+        }
+    } catch (e) { /* not on AP subnet, fall through to manual prompt */ }
+
     const token = prompt(
         'API Token Required\n\n' +
         'Protected actions (replay, targeting, etc.) require authentication.\n' +
@@ -1540,8 +1553,22 @@ class ReconApp {
             this.el.settingsContent.innerHTML = renderErrorState('Failed to load configuration: ' + error.message);
         }
         
-        // Setup OTA form handler
+        // Setup OTA form handlers
         this.setupOTAUpload();
+        this.setupFilesystemUpload();
+        this.setupAPPasswordForm();
+
+        // Show stored token and wire fetch button
+        const stored = getStoredToken();
+        const tokenDisplay = document.getElementById('stored-token-display');
+        if (tokenDisplay) tokenDisplay.textContent = stored || '(none saved)';
+        const fetchTokenBtn = document.getElementById('fetch-token-btn');
+        if (fetchTokenBtn) {
+            fetchTokenBtn.addEventListener('click', async () => {
+                const token = await promptForToken();
+                if (token && tokenDisplay) tokenDisplay.textContent = token;
+            });
+        }
     }
     
     async loadSDStorage() {
@@ -1798,12 +1825,120 @@ class ReconApp {
                 });
                 
                 xhr.open('POST', '/api/firmware/upload');
+                const token = getStoredToken();
+                if (token) xhr.setRequestHeader('X-API-Token', token);
                 xhr.send(formData);
                 
             } catch (error) {
                 showToast('Upload failed: ' + error.message, 'error');
                 uploadBtn.disabled = false;
                 progressContainer.style.display = 'none';
+            }
+        });
+    }
+
+    setupFilesystemUpload() {
+        const fsForm = document.getElementById('ota-fs-form');
+        if (!fsForm || fsForm.dataset.initialized) return;
+        fsForm.dataset.initialized = 'true';
+
+        fsForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const fileInput = document.getElementById('filesystem-file');
+            const file = fileInput.files[0];
+
+            if (!file) {
+                showToast('Please select a filesystem file', 'warning');
+                return;
+            }
+
+            if (!file.name.endsWith('.bin')) {
+                showToast('Only .bin files are supported', 'error');
+                return;
+            }
+
+            if (file.size > 2 * 1024 * 1024) {
+                showToast('Filesystem file is too large (max 2MB)', 'error');
+                return;
+            }
+
+            if (!confirm('Upload filesystem and reboot device? This will disconnect temporarily.')) {
+                return;
+            }
+
+            const uploadBtn = document.getElementById('ota-fs-upload-btn');
+            const progressContainer = document.getElementById('ota-fs-progress');
+            const progressBar = document.getElementById('ota-fs-progress-bar');
+            const progressText = document.getElementById('ota-fs-progress-text');
+
+            try {
+                uploadBtn.disabled = true;
+                progressContainer.style.display = 'block';
+
+                const formData = new FormData();
+                formData.append('filesystem', file);
+
+                const xhr = new XMLHttpRequest();
+
+                xhr.upload.addEventListener('progress', (e) => {
+                    if (e.lengthComputable) {
+                        const percent = Math.round((e.loaded / e.total) * 100);
+                        progressBar.style.width = percent + '%';
+                        progressText.textContent = percent + '%';
+                    }
+                });
+
+                xhr.addEventListener('load', () => {
+                    if (xhr.status === 200) {
+                        showToast('Filesystem uploaded successfully! Device rebooting...', 'success');
+                        progressText.textContent = 'Rebooting...';
+                        setTimeout(() => { window.location.reload(); }, 10000);
+                    } else {
+                        showToast('Upload failed: HTTP ' + xhr.status, 'error');
+                        uploadBtn.disabled = false;
+                        progressContainer.style.display = 'none';
+                    }
+                });
+
+                xhr.addEventListener('error', () => {
+                    showToast('Upload failed: Network error', 'error');
+                    uploadBtn.disabled = false;
+                    progressContainer.style.display = 'none';
+                });
+
+                xhr.open('POST', '/api/filesystem/upload');
+                const token = getStoredToken();
+                if (token) xhr.setRequestHeader('X-API-Token', token);
+                xhr.send(formData);
+
+            } catch (error) {
+                showToast('Upload failed: ' + error.message, 'error');
+                uploadBtn.disabled = false;
+                progressContainer.style.display = 'none';
+            }
+        });
+    }
+
+    setupAPPasswordForm() {
+        const form = document.getElementById('ap-password-form');
+        if (!form || form.dataset.initialized) return;
+        form.dataset.initialized = 'true';
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const password = document.getElementById('ap-password-input').value;
+            if (password.length < 8) {
+                showToast('Password must be at least 8 characters', 'error');
+                return;
+            }
+            if (!confirm('Update AP password and reboot device?')) return;
+            try {
+                await this.post('/api/wifi/ap-password', { password });
+                showToast('AP password updated. Device rebooting...', 'success');
+                document.getElementById('ap-password-input').value = '';
+            } catch (error) {
+                showToast('Failed: ' + error.message, 'error');
             }
         });
     }
@@ -2340,7 +2475,7 @@ class ReconApp {
 
         // Handle 401 Unauthorized - prompt for token and retry once
         if (response.status === 401 && retry) {
-            const newToken = promptForToken();
+            const newToken = await promptForToken();
             if (newToken) {
                 return this.post(endpoint, body, false); // Retry with new token
             }

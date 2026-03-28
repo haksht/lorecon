@@ -484,6 +484,24 @@
                         </div>
                     </div>
                     
+                    <!-- AP Password Section -->
+                    <div class="info-section">
+                        <h3>🔒 AP WiFi Password</h3>
+                        <div class="content-area">
+                            <p class="info-text">ℹ️ Default password is <code>recon-XXXXXX</code> (device ID). Change it here. Device will reboot to apply.</p>
+                            <form id="ap-password-form">
+                                <div class="form-group">
+                                    <label for="ap-password-input">New AP Password (8-63 chars):</label>
+                                    <input type="password" id="ap-password-input" minlength="8" maxlength="63" placeholder="min 8 characters" required>
+                                </div>
+                                <button type="submit" class="btn" id="ap-password-btn">
+                                    <span class="btn-icon">🔒</span>
+                                    <span>Update AP Password</span>
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+
                     <!-- SD Card Storage Section -->
                     <div class="info-section" id="sd-storage-section" style="display: none;">
                         <h3>💾 SD Card Storage</h3>
@@ -520,11 +538,29 @@
                         </div>
                     </div>
 
+                    <!-- API Token Section -->
+                    <div class="info-section">
+                        <h3>🔑 API Token</h3>
+                        <div class="content-area">
+                            <p class="info-text">ℹ️ Token is auto-retrieved when connected via the device AP (192.168.4.x). On LAN, enter it manually.</p>
+                            <div class="form-group">
+                                <label>Stored Token:</label>
+                                <span id="stored-token-display" style="font-family: monospace; font-size: 0.9rem;">—</span>
+                            </div>
+                            <button class="btn" id="fetch-token-btn">
+                                <span class="btn-icon">🔑</span>
+                                <span>Get Token from Device</span>
+                            </button>
+                        </div>
+                    </div>
+
                     <!-- OTA Firmware Update Section -->
                     <div class="info-section">
                         <h3>🔧 Firmware Update (OTA)</h3>
                         <div class="content-area">
                             <p class="warning-text">⚠️ Warning: Device will reboot after successful upload. Ensure stable power supply.</p>
+                            <p class="info-text">ℹ️ Firmware and filesystem are stored in separate flash partitions. Uploading firmware does not affect the filesystem or webapp.</p>
+                            <p class="info-text">ℹ️ First-time setup requires USB flash for both partitions. After that, both can be updated fully over WiFi using the two upload sections below.</p>
                             <form id="ota-form">
                                 <div class="form-group">
                                     <label for="firmware-file">Select Firmware File (.bin):</label>
@@ -537,6 +573,27 @@
                                 <div id="ota-progress" class="progress-container" style="display: none;">
                                     <div class="progress-bar" id="ota-progress-bar"></div>
                                     <span class="progress-text" id="ota-progress-text">0%</span>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                    <!-- OTA Filesystem Update Section -->
+                    <div class="info-section">
+                        <h3>🗂️ Filesystem Update (OTA)</h3>
+                        <div class="content-area">
+                            <p class="warning-text">⚠️ Warning: Device will reboot after successful upload. Use <code>littlefs.bin</code> from <code>.pio/build/&lt;board&gt;/</code>.</p>
+                            <form id="ota-fs-form">
+                                <div class="form-group">
+                                    <label for="filesystem-file">Select Filesystem File (.bin):</label>
+                                    <input type="file" id="filesystem-file" accept=".bin" required>
+                                </div>
+                                <button type="submit" class="btn" id="ota-fs-upload-btn">
+                                    <span class="btn-icon">📤</span>
+                                    <span>Upload Filesystem</span>
+                                </button>
+                                <div id="ota-fs-progress" class="progress-container" style="display: none;">
+                                    <div class="progress-bar" id="ota-fs-progress-bar"></div>
+                                    <span class="progress-text" id="ota-fs-progress-text">0%</span>
                                 </div>
                             </form>
                         </div>

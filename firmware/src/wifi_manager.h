@@ -55,6 +55,10 @@ public:
     bool saveCredentials(const char* ssid, const char* password);
     bool clearCredentials();
     String getStoredSSID() const { return staSsid; }
+
+    // AP password management
+    bool saveAPPassword(const char* password);
+    String getAPPassword();  // Returns stored password or default
     
     // Unique device identifiers (based on MAC address)
     String getUniqueAPSSID() const;      // e.g., "LoRa-A1B2C3"
@@ -91,6 +95,7 @@ private:
     String staSsid;
     String staPassword;
     String deviceId;  // Last 3 bytes of MAC as hex (e.g., "A1B2C3")
+    String apPassword; // Custom AP password (empty = use default)
     
     // Internal helpers
     void handleDisconnect();

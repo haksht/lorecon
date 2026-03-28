@@ -1,7 +1,7 @@
 # Threat Model
 
-**Document Version:** 1.0  
-**Last Updated:** December 2025  
+**Document Version:** 1.1
+**Last Updated:** March 2026
 **Applies to:** ESP32 LoRa Sniffer v2.3.x
 
 ---
@@ -43,7 +43,8 @@ The ESP32 LoRa Sniffer is a **passive reconnaissance tool** for LoRa network sec
 |-------|-------------|----------|
 | **Captured packets** | Medium | RAM (volatile), SD card (persistent) |
 | **WiFi credentials** | High | NVS (encrypted flash partition) |
-| **API token** | High | RAM (regenerated each boot) |
+| **AP password** | High | NVS (encrypted flash partition) |
+| **API token** | Low | RAM (regenerated each boot) — see §3 |
 | **PSK key database** | Low | Firmware (publicly known keys) |
 | **Device configuration** | Low | NVS |
 | **GPS coordinates** | Medium | RAM, SD card |
@@ -60,7 +61,16 @@ The ESP32 LoRa Sniffer is a **passive reconnaissance tool** for LoRa network sec
 ### Boundary 2: WiFi Network
 - **Inside**: Devices connected to the ESP32's AP or same LAN
 - **Outside**: Devices on other networks
-- **Control**: Token authentication for destructive operations
+- **Control**: **AP password is the real gate.** See §5 T1 for full explanation.
+
+The device operates in two network modes:
+
+| Mode | Client subnet | Auth behavior |
+|------|--------------|---------------|
+| AP (`192.168.4.x`) | Direct connection to device AP | Token required; auto-retrieved on first request |
+| STA/AP_STA (LAN) | External hotspot/home network | RFC 1918 clients auto-trusted; no token check |
+
+**Implication**: Any client that can join the network — AP or LAN — effectively has full API access. The AP password is therefore the only meaningful access control. The API token provides a defense-in-depth layer for edge cases (e.g., a client arriving via VPN with a non-RFC-1918 address) but is not the primary barrier.
 
 ### Boundary 3: RF Environment  
 - **Inside**: LoRa devices within radio range
@@ -84,8 +94,10 @@ The ESP32 LoRa Sniffer is a **passive reconnaissance tool** for LoRa network sec
 
 ### T1: Unauthorized API Access
 - **Threat**: Attacker on same network calls protected endpoints
-- **Mitigation**: Token-based authentication with constant-time comparison
-- **Residual Risk**: Low — Token required for destructive operations
+- **Mitigation**: AP password controls network access. Once on the network, clients are either auto-trusted (LAN) or auto-issued a token (AP subnet via `/api/auth/token`). Token validation with constant-time comparison applies in both cases but is not a meaningful barrier against anyone who can join the network.
+- **Why this is correct**: This is a single-owner field device, not a multi-tenant system. The relevant adversary is someone who is *not* on your network — and they are blocked at the WiFi layer. Requiring a separate password after WiFi authentication would add friction with no security benefit against realistic attackers.
+- **Residual Risk**: Medium — entirely dependent on AP password strength. A weak AP password = full device access. Default password is `recon-XXXXXX` (MAC-derived, unique per device). Change it via Settings → AP Password before field use.
+- **What the token actually protects against**: A rogue device that somehow obtains LAN access without knowing the AP password (e.g., via the hotspot network the device has joined). In that scenario the RFC 1918 auto-trust would grant access — the token would block it. This is a low-probability threat for typical field use.
 
 ### T2: Malformed Packet Buffer Overflow
 - **Threat**: Crafted LoRa packet causes memory corruption
@@ -143,7 +155,8 @@ The ESP32 LoRa Sniffer is a **passive reconnaissance tool** for LoRa network sec
 
 | Control | Implementation | Status |
 |---------|----------------|--------|
-| **Authentication** | Token-based, constant-time compare | ✅ Implemented |
+| **AP Password** | WPA2, configurable via webapp Settings | ✅ Implemented |
+| **Authentication** | Token-based, constant-time compare (secondary layer) | ✅ Implemented |
 | **Input Validation** | Bounds checking, type validation | ✅ Implemented |
 | **Memory Safety** | strncpy, static_assert, -fstack-protector | ✅ Implemented |
 | **Rate Limiting** | 10 req/sec per endpoint | ✅ Implemented |
@@ -159,10 +172,12 @@ The ESP32 LoRa Sniffer is a **passive reconnaissance tool** for LoRa network sec
 These risks are accepted as inherent to the tool's design:
 
 1. **Physical access = compromise** — Intentional, device requires physical presence
-2. **Local network traffic unencrypted** — Use HTTPS proxy if needed
-3. **PSK keys are public** — Tool tests against known-weak keys only
-4. **Replay capability exists** — Core feature for authorized testing
-5. **GPS data captured** — User responsibility to handle ethically
+2. **AP password = full access** — Anyone who joins the WiFi network has effective API access. This is a deliberate design choice: the device has one owner, and network access is the appropriate trust boundary.
+3. **LAN clients auto-trusted** — Any RFC 1918 client on the STA network gets full API access without a token. Acceptable because the hotspot owner controls who is on that network.
+4. **Local network traffic unencrypted** — Use HTTPS proxy if needed
+5. **PSK keys are public** — Tool tests against known-weak keys only
+6. **Replay capability exists** — Core feature for authorized testing
+7. **GPS data captured** — User responsibility to handle ethically
 
 ---
 
@@ -194,3 +209,4 @@ If a security incident occurs:
 | Version | Date | Changes |
 |---------|------|---------|
 | 1.0 | December 2025 | Initial threat model |
+| 1.1 | March 2026 | Corrected T1 and Boundary 2 to accurately reflect that AP password is the real security boundary; token is a secondary layer. Added AP password as high-sensitivity asset. Added auto-trust and token auto-retrieval to accepted risks. |

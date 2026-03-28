@@ -119,4 +119,39 @@ void handleClearWiFiCredentials(AsyncWebServerRequest* request) {
     ESP.restart();
 }
 
+void handleSetAPPassword(AsyncWebServerRequest* request) {
+    REQUIRE_AUTH(request);
+
+    if (!request->hasParam("password", true)) {
+        request->send(400, "application/json", JsonUtils::error("Missing 'password' parameter"));
+        return;
+    }
+
+    String password = request->getParam("password", true)->value();
+
+    if (password.length() < 8 || password.length() > 63) {
+        request->send(400, "application/json", JsonUtils::error("Password must be 8-63 characters"));
+        return;
+    }
+
+    if (!wifiManager.saveAPPassword(password.c_str())) {
+        request->send(500, "application/json", JsonUtils::error("Failed to save AP password"));
+        return;
+    }
+
+    LOG_INFO("AP password changed - restarting");
+
+    AsyncWebServerResponse *response = request->beginResponse(200, "application/json",
+        JsonUtils::success("AP password updated. Device restarting..."));
+    response->addHeader("Connection", "close");
+    request->send(response);
+
+    if (g_reconTool) {
+        OLEDDisplay* oled = g_reconTool->getDisplay();
+        if (oled) oled->showReboot();
+    }
+    delay(2000);
+    ESP.restart();
+}
+
 }  // namespace WiFiHandlers

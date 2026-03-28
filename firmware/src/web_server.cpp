@@ -209,6 +209,7 @@ void WebServer::setupRoutes() {
     server->on("/api/wifi/status", HTTP_GET, WiFiHandlers::handleGetWiFiStatus);
     server->on("/api/wifi/configure", HTTP_POST, WiFiHandlers::handleSetWiFiCredentials);
     server->on("/api/wifi/clear", HTTP_POST, WiFiHandlers::handleClearWiFiCredentials);
+    server->on("/api/wifi/ap-password", HTTP_POST, WiFiHandlers::handleSetAPPassword);
     
     // OTA Firmware Update (kept inline - complex state management)
     server->on("/api/firmware/upload", HTTP_POST,
@@ -283,11 +284,94 @@ void WebServer::setupRoutes() {
         }
     );
     
+    // OTA Filesystem Update
+    server->on("/api/filesystem/upload", HTTP_POST,
+        [](AsyncWebServerRequest *request) {
+            if (!APISecurity::isAuthenticated(request)) {
+                APISecurity::sendUnauthorized(request);
+                return;
+            }
+
+            bool success = !Update.hasError();
+            String response = success ?
+                JsonUtils::success("Filesystem uploaded successfully. Rebooting in 3 seconds...") :
+                JsonUtils::error("Filesystem upload failed. Check serial output.");
+
+            AsyncWebServerResponse *resp = request->beginResponse(200, "application/json", response);
+            resp->addHeader("Connection", "close");
+            request->send(resp);
+
+            if (success) {
+                LOG_INFO("OTA Filesystem Update Success - Rebooting...");
+                if (g_reconTool) {
+                    OLEDDisplay* oled = g_reconTool->getDisplay();
+                    if (oled) oled->showReboot();
+                }
+                delay(3000);
+                ESP.restart();
+            }
+        },
+        [](AsyncWebServerRequest *request, String filename, size_t index, uint8_t *data, size_t len, bool final) {
+            if (index == 0 && !APISecurity::isAuthenticated(request)) {
+                LOG_ERROR("Filesystem OTA upload rejected - unauthorized");
+                return;
+            }
+
+            if (index == 0) {
+                LOG_INFO("Filesystem OTA Update Start: %s", filename.c_str());
+
+                if (!filename.endsWith(".bin")) {
+                    LOG_ERROR("Invalid filesystem file - must be .bin");
+                    return;
+                }
+
+                if (!Update.begin(UPDATE_SIZE_UNKNOWN, U_SPIFFS)) {
+                    Update.printError(Serial);
+                    LOG_ERROR("Filesystem OTA begin failed");
+                    return;
+                }
+
+                LOG_INFO("Filesystem OTA upload started");
+            }
+
+            if (len) {
+                if (Update.write(data, len) != len) {
+                    Update.printError(Serial);
+                    LOG_ERROR("Filesystem OTA write failed at %d bytes", index);
+                    return;
+                }
+            }
+
+            if (final) {
+                if (Update.end(true)) {
+                    LOG_INFO("Filesystem OTA complete: %d bytes", index + len);
+                } else {
+                    Update.printError(Serial);
+                    LOG_ERROR("Filesystem OTA end failed");
+                }
+            }
+        }
+    );
+
     // Health check
     server->on("/api/health", HTTP_GET, [](AsyncWebServerRequest* request) {
         request->send(200, "application/json", JsonUtils::healthOk());
     });
     
+    // Token retrieval — AP subnet only (physical proximity required to join AP)
+    server->on("/api/auth/token", HTTP_GET, [](AsyncWebServerRequest* request) {
+        IPAddress clientIP = request->client()->remoteIP();
+        bool isAPSubnet = (clientIP[0] == 192 && clientIP[1] == 168 && clientIP[2] == 4);
+        if (!isAPSubnet) {
+            APISecurity::sendUnauthorized(request);
+            return;
+        }
+        String json = JsonUtils::successWithData([](JsonDocument& doc) {
+            doc["token"] = APISecurity::getToken();
+        });
+        request->send(200, "application/json", json);
+    });
+
     // Auth info
     server->on("/api/auth/info", HTTP_GET, [](AsyncWebServerRequest* request) {
         String json = JsonUtils::successWithData([](JsonDocument& doc) {
@@ -300,6 +384,7 @@ void WebServer::setupRoutes() {
             protected_eps.add("/api/replay/clear");
             protected_eps.add("/api/wifi/configure");
             protected_eps.add("/api/wifi/clear");
+            protected_eps.add("/api/wifi/ap-password");
             protected_eps.add("/api/command");
             protected_eps.add("/api/firmware/upload");
         });

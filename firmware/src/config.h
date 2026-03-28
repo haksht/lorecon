@@ -348,6 +348,7 @@ namespace WiFi {
     constexpr const char* NVS_NAMESPACE = "wifi_creds";
     constexpr const char* NVS_KEY_SSID = "ssid";
     constexpr const char* NVS_KEY_PASSWORD = "pass";
+    constexpr const char* NVS_KEY_AP_PASSWORD = "ap_pass";
     
     // Legacy JSON file paths (for backward compatibility migration)
     // These files will be automatically migrated to NVS and deleted
