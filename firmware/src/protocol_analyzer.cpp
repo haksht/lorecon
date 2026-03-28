@@ -80,7 +80,16 @@ const char* ProtocolAnalyzer::identifyProtocol(const uint8_t* data, size_t lengt
     
     // Short packets might be beacons or keep-alives
     if (length <= 8) return "Beacon";
-    
+
+    // RadioHead RH_RF95: 4-byte header [TO][FROM][ID][FLAGS] + payload
+    // FLAGS lower 5 bits are reserved and always 0 in valid frames.
+    // Max RH_RF95 payload is 251 bytes (255 - 4 header bytes).
+    if (length >= 5 && length <= 251) {
+        if ((data[3] & 0x1F) == 0) {
+            return "RadioHead";
+        }
+    }
+
     return "Unknown";
 }
 
@@ -94,10 +103,15 @@ uint32_t ProtocolAnalyzer::extractNodeId(const uint8_t* data, size_t length, con
     
     if (strcmp(protocol, "LoRaWAN") == 0 && length >= 8) {
         // LoRaWAN DevAddr at offset 1-4 (little endian)
-        return uint32_t(data[1]) | (uint32_t(data[2]) << 8) | 
+        return uint32_t(data[1]) | (uint32_t(data[2]) << 8) |
                (uint32_t(data[3]) << 16) | (uint32_t(data[4]) << 24);
     }
-    
+
+    if (strcmp(protocol, "RadioHead") == 0 && length >= 2) {
+        // RH_RF95 FROM address at byte 1 (8-bit, 0-255)
+        return data[1];
+    }
+
     return 0;
 }
 
@@ -194,12 +208,22 @@ const char* ProtocolAnalyzer::identifyDeviceType(const uint8_t* data, size_t len
         }
     }
     
+    // RadioHead RH_RF95 device classification
+    if (strcmp(protocol, "RadioHead") == 0) {
+        uint8_t toAddr = data[0];
+        uint8_t flags  = data[3];
+        bool isAckReply = (flags >> 6) & 0x01;
+        if (toAddr == 0xFF) return "RadioHead Broadcast";
+        if (isAckReply)     return "RadioHead ACK";
+        return "RadioHead Node";
+    }
+
     // Beacon analysis
     if (strcmp(protocol, "Beacon") == 0) {
         if (rssi > -60) return "Beacon High-Power";
         return "Beacon Standard";
     }
-    
+
     return "Unknown Device";
 }
 
