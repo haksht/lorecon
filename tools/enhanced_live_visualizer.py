@@ -107,20 +107,20 @@ class DemoDataGenerator:
     
     # Realistic node IDs (Meshtastic style)
     DEMO_NODES = [
-        '401ACD4E',  # DEF CON presenter
+        '401ACD4E',  # Presenter node
         '598B29CE',  # Nearby attendee
         'B3F42A10',  # Mobile node (moving)
         '7C891DEF',  # Hidden node
         'A42B8C56',  # Router node
     ]
-    
-    # Demo GPS positions (Las Vegas Convention Center area for DEF CON)
+
+    # Demo GPS positions (Research Triangle Park, NC — Sheraton Imperial area)
     DEMO_POSITIONS = {
-        '401ACD4E': (36.1290, -115.1540, 'stationary'),
-        '598B29CE': (36.1285, -115.1530, 'stationary'),
-        'B3F42A10': (36.1295, -115.1545, 'mobile'),  # Moves around
-        '7C891DEF': (36.1275, -115.1535, 'stationary'),
-        'A42B8C56': (36.1288, -115.1550, 'stationary'),
+        '401ACD4E': (35.8690, -78.8450, 'stationary'),   # Conference venue
+        '598B29CE': (35.8683, -78.8441, 'stationary'),   # Nearby attendee
+        'B3F42A10': (35.8697, -78.8458, 'mobile'),       # Mobile node (moves)
+        '7C891DEF': (35.8672, -78.8445, 'stationary'),   # Distant node
+        'A42B8C56': (35.8693, -78.8463, 'stationary'),   # Router node
     }
     
     def __init__(self, seed=42):
@@ -240,8 +240,8 @@ class EnhancedLoRaVisualizer:
         self.ax_packets = self.fig.add_subplot(gs[1, 0])   # Bottom-left: Packet histogram
         self.ax_map = self.fig.add_subplot(gs[1, 1:])      # Bottom-middle+right: GPS map
         
-        self.fig.suptitle('ESP32 LoRa Sniffer - Conference Demo Mode', 
-                         fontsize=16, fontweight='bold')
+        title = 'ESP32 LoRa Sniffer — Demo (RTP, NC)' if demo_mode else 'ESP32 LoRa Sniffer — Live'
+        self.fig.suptitle(title, fontsize=16, fontweight='bold')
         
         # Connect to serial port (unless in demo mode)
         if not self.demo_mode:

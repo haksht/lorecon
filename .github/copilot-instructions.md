@@ -76,7 +76,7 @@ No exceptions (embedded C++). Return `bool` for success/failure. Use `LOG_ERROR(
 
 ## Critical Files for Understanding
 
-- **`docs/technical/ARCHITECTURE.md`**: 1400-line deep dive into v2.0 design, ISR patterns, memory safety
+- **`docs/ARCHITECTURE.md`**: deep dive into v2.0 design, ISR patterns, memory safety
 - **`firmware/src/main.cpp`**: 108-line entry point showing WiFi/LittleFS/PSK test initialization sequence
 - **`firmware/src/irecon_tool.h`**: Interface contract that breaks circular dependencies
 - **`firmware/src/data_structures.h`**: All shared structs (16 definitions): `CapturedPacket`, `QueuedPacket`, `ScanConfig`, etc.
@@ -133,14 +133,14 @@ No unit test framework (embedded constraints). Validation via:
 ## When Modifying Code
 
 1. **Keep module line counts low**: RadioController ~200 lines, PacketProcessor ~350 lines, LoRaReconTool ~850 lines. Extract new components if growing beyond ~400 lines.
-2. **Update relevant docs**: `API_REFERENCE.md` for HTTP endpoints, `docs/technical/ARCHITECTURE.md` for major design changes.
+2. **Update relevant docs**: `docs/API.md` for HTTP endpoints, `docs/ARCHITECTURE.md` for major design changes.
 3. **Test on hardware**: No simulator. Flash real Heltec V3 board.
 4. **Preserve web UI simplicity**: `data/webapp/` is vanilla HTML+CSS+JS. No build step. Keep it under 100KB total.
 5. **Document PSK key additions**: If adding keys to `psk_decryption_simple.cpp`, document source/rationale.
 
 ## References
 
-- Hardware details: `docs/hardware/TDECK_PLUS_INVESTIGATION.md` explains why T-Deck unsupported
-- API surface: `API_REFERENCE.md` (1000+ lines) documents all HTTP/WebSocket endpoints
-- User workflows: `GETTING_STARTED.md` for serial/OLED/web interfaces
-- Encryption: `docs/technical/ENCRYPTION.md` for Meshtastic PSK details
+- Hardware details: `docs/HARDWARE.md` — board comparison, T-Deck unsupported section
+- API surface: `docs/API.md` — all HTTP/WebSocket endpoints
+- User workflows: `docs/SETUP.md` (flash/connect), `docs/USAGE.md` (web UI/tools)
+- Encryption: `docs/ENCRYPTION.md` for Meshtastic PSK details

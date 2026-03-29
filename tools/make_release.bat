@@ -121,6 +121,7 @@ if %ERRORLEVEL% NEQ 0 ( echo merge_bin failed for tbeam_supreme. & exit /b 1 )
 REM ---- Copy flash scripts from tools -----------------------------------------
 copy "%~dp0\release_flash_template.sh"  "%RELEASE_DIR%\flash.sh"  >nul 2>nul || echo (flash.sh not copied - generate from make_release.sh instead)
 copy "%~dp0\release_flash_template.bat" "%RELEASE_DIR%\flash.bat" >nul 2>nul || echo (flash.bat not copied - generate from make_release.sh instead)
+copy "%~dp0\release_flash_template.ps1" "%RELEASE_DIR%\flash.ps1" >nul 2>nul || echo (flash.ps1 not copied)
 
 REM ---- Zip -------------------------------------------------------------------
 echo.

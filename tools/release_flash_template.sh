@@ -2,12 +2,13 @@
 # ESP32 LoRa Sniffer - Flash Script (Linux / macOS / Windows git-bash)
 # Usage: ./flash.sh <board> [port]
 #
-# Boards: heltec_v3 | t3_s3 | tbeam_supreme
+# Boards: heltec_v3 | heltec_v4 | t3_s3 | tbeam_supreme
 # Port:   auto-detected if omitted
 #
 # Examples:
 #   ./flash.sh heltec_v3
 #   ./flash.sh heltec_v3 /dev/ttyUSB0
+#   ./flash.sh heltec_v4 /dev/ttyACM0
 #   ./flash.sh t3_s3 /dev/ttyACM0
 #   ./flash.sh tbeam_supreme COM11
 #
@@ -20,9 +21,14 @@ PORT=${2:-}
 
 case "$BOARD" in
     heltec_v3)
-        LABEL="Heltec WiFi LoRa 32 V3/V4"
+        LABEL="Heltec WiFi LoRa 32 V3"
         FLASH_SIZE="8MB"
         PORT_HINT="Try /dev/ttyUSB0 (Linux) or /dev/tty.usbserial-* (Mac) - CP210x driver"
+        ;;
+    heltec_v4)
+        LABEL="Heltec WiFi LoRa 32 V4 (GPS)"
+        FLASH_SIZE="8MB"
+        PORT_HINT="Try /dev/ttyACM0 (Linux) or /dev/tty.usbmodem* (Mac) - native USB, hold BOOT button if needed"
         ;;
     t3_s3)
         LABEL="LilyGO T3-S3 V1.2/V1.3"
@@ -39,7 +45,8 @@ case "$BOARD" in
         echo ""
         echo "Usage: $0 <board> [port]"
         echo "Boards:"
-        echo "  heltec_v3      - Heltec WiFi LoRa 32 V3/V4"
+        echo "  heltec_v3      - Heltec WiFi LoRa 32 V3"
+        echo "  heltec_v4      - Heltec WiFi LoRa 32 V4 (GPS)"
         echo "  t3_s3          - LilyGO T3-S3 V1.2/V1.3"
         echo "  tbeam_supreme  - LilyGO T-Beam Supreme"
         exit 1
@@ -84,7 +91,7 @@ echo "Flashing full image - this takes 30-90 seconds..."
 echo ""
 
 python3 -m esptool --chip esp32s3 --port "$PORT" --baud 921600 \
-    write_flash --flash-size "$FLASH_SIZE" 0x0 "$BIN"
+    write_flash --flash_size "$FLASH_SIZE" 0x0 "$BIN"
 
 if [ $? -ne 0 ]; then
     echo ""

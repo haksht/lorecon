@@ -45,9 +45,18 @@ DLT_USER0 = 147          # ESP32 Sniffer custom format
 DLT_LORATAP = 270        # LoRaTap pseudo-header (Wireshark compatible)
 DLT_IEEE802_15_4 = 195   # Alternative for some tools
 
-# Custom ESP32 LoRa header format (from pcap_logger.cpp)
-ESP32_HEADER_FORMAT = '<IhhIBBBB'  # timestamp, rssi*10, snr*10, freq_hz, config, reserved[3]
-ESP32_HEADER_SIZE = struct.calcsize(ESP32_HEADER_FORMAT)
+# Custom ESP32 LoRa pseudo-header format (from pcap_logger.h LoRaPseudoHeader struct)
+# struct LoRaPseudoHeader {
+#     float frequencyMHz;      // 4 bytes
+#     float rssiDbm;           // 4 bytes
+#     float snrDb;             // 4 bytes
+#     uint8_t spreadingFactor; // 1 byte
+#     uint32_t bandwidth;      // 4 bytes (Hz)
+#     uint8_t codingRate;      // 1 byte
+#     uint16_t reserved;       // 2 bytes
+# } __attribute__((packed));   // Total: 20 bytes
+ESP32_HEADER_FORMAT = '<fffBIBH'  # frequencyMHz, rssiDbm, snrDb, sf, bandwidth_hz, codingRate, reserved
+ESP32_HEADER_SIZE = struct.calcsize(ESP32_HEADER_FORMAT)  # 20 bytes
 
 # LoRaTap header format
 # Reference: https://github.com/rpp0/gr-lora/wiki/LoRaTap-Header
@@ -121,35 +130,36 @@ def parse_esp32_pcap(filepath):
             if len(pkt_data) < incl_len:
                 break
             
-            # Parse ESP32 custom header
+            # Parse ESP32 custom pseudo-header (20 bytes: freq, rssi, snr, sf, bw, cr, pad)
             if len(pkt_data) >= ESP32_HEADER_SIZE:
                 header = struct.unpack(ESP32_HEADER_FORMAT, pkt_data[:ESP32_HEADER_SIZE])
-                timestamp_ms, rssi_x10, snr_x10, freq_hz, config_idx, _, _, _ = header
-                
-                rssi = rssi_x10 / 10.0
-                snr = snr_x10 / 10.0
+                frequency_mhz, rssi, snr, spreading_factor, bandwidth_hz, coding_rate, _ = header
                 payload = pkt_data[ESP32_HEADER_SIZE:]
-                
+
                 packets.append({
                     'ts_sec': ts_sec,
                     'ts_usec': ts_usec,
-                    'timestamp_ms': timestamp_ms,
+                    'timestamp_ms': int(ts_sec * 1000 + ts_usec / 1000),
                     'rssi': rssi,
                     'snr': snr,
-                    'frequency_hz': freq_hz,
-                    'config_index': config_idx,
+                    'frequency_hz': int(frequency_mhz * 1e6),
+                    'spreading_factor': spreading_factor,
+                    'bandwidth_khz': bandwidth_hz / 1000.0,
+                    'coding_rate': coding_rate,
                     'payload': payload,
                 })
             else:
-                # No custom header
+                # No custom header — use defaults
                 packets.append({
                     'ts_sec': ts_sec,
                     'ts_usec': ts_usec,
-                    'timestamp_ms': 0,
+                    'timestamp_ms': int(ts_sec * 1000 + ts_usec / 1000),
                     'rssi': 0,
                     'snr': 0,
                     'frequency_hz': 915000000,
-                    'config_index': 0,
+                    'spreading_factor': 7,
+                    'bandwidth_khz': 125.0,
+                    'coding_rate': 5,
                     'payload': pkt_data,
                 })
     
@@ -174,13 +184,13 @@ def write_loratap_pcap(packets, output_path):
         
         # Write packets
         for pkt in packets:
-            # Create LoRaTap header
+            # Create LoRaTap header using actual radio parameters from pseudo-header
             lt = LoRaTapHeader(
                 frequency_hz=pkt['frequency_hz'],
                 rssi=pkt['rssi'],
                 snr=pkt['snr'],
-                sf=get_sf_from_config(pkt['config_index']),
-                bw=get_bw_from_config(pkt['config_index']),
+                sf=pkt.get('spreading_factor', 7),
+                bw=pkt.get('bandwidth_khz', 125.0),
                 timestamp_us=pkt['timestamp_ms'] * 1000
             )
             

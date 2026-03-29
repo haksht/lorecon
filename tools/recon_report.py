@@ -338,34 +338,90 @@ class SecurityAssessment:
     <meta charset="UTF-8">
     <title>LoRa Security Assessment Report</title>
     <style>
+        :root {{
+            --bg: #0d1117;
+            --bg2: #161b22;
+            --bg3: #21262d;
+            --border: #30363d;
+            --text: #c9d1d9;
+            --text-muted: #8b949e;
+            --green: #3fb950;
+            --blue: #58a6ff;
+            --yellow: #d29922;
+            --orange: #db6d28;
+            --red: #f85149;
+        }}
+        * {{ box-sizing: border-box; }}
         body {{
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            font-family: 'Courier New', 'Consolas', monospace;
+            background-color: var(--bg);
+            color: var(--text);
             max-width: 1000px;
             margin: 0 auto;
-            padding: 20px;
+            padding: 24px;
             line-height: 1.6;
-            color: #333;
         }}
-        h1 {{ color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 10px; }}
-        h2 {{ color: #34495e; margin-top: 30px; }}
-        h3 {{ color: #7f8c8d; }}
+        h1 {{
+            color: var(--green);
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 10px;
+            letter-spacing: 0.05em;
+        }}
+        h2 {{
+            color: var(--blue);
+            margin-top: 32px;
+            border-left: 3px solid var(--blue);
+            padding-left: 10px;
+        }}
+        h3 {{ color: var(--text-muted); }}
+        a {{ color: var(--blue); text-decoration: none; }}
+        a:hover {{ text-decoration: underline; }}
         table {{
             border-collapse: collapse;
             width: 100%;
             margin: 15px 0;
+            font-size: 0.9em;
         }}
         th, td {{
-            border: 1px solid #ddd;
-            padding: 10px;
+            border: 1px solid var(--border);
+            padding: 8px 12px;
             text-align: left;
         }}
-        th {{ background-color: #3498db; color: white; }}
-        tr:nth-child(even) {{ background-color: #f9f9f9; }}
-        code {{ background-color: #f4f4f4; padding: 2px 6px; border-radius: 3px; }}
-        .severity-critical {{ color: #e74c3c; font-weight: bold; }}
-        .severity-high {{ color: #e67e22; font-weight: bold; }}
-        .severity-medium {{ color: #f1c40f; font-weight: bold; }}
-        pre {{ background-color: #f4f4f4; padding: 15px; overflow-x: auto; }}
+        th {{
+            background-color: var(--bg3);
+            color: var(--blue);
+            font-weight: bold;
+            letter-spacing: 0.04em;
+        }}
+        tr:nth-child(even) {{ background-color: var(--bg2); }}
+        tr:hover {{ background-color: var(--bg3); }}
+        code {{
+            background-color: var(--bg3);
+            color: var(--green);
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.88em;
+        }}
+        pre {{
+            background-color: var(--bg2);
+            border: 1px solid var(--border);
+            padding: 16px;
+            overflow-x: auto;
+            border-radius: 4px;
+            color: var(--text);
+        }}
+        blockquote {{
+            border-left: 3px solid var(--border);
+            margin-left: 0;
+            padding-left: 16px;
+            color: var(--text-muted);
+        }}
+        .severity-critical {{ color: var(--red); font-weight: bold; }}
+        .severity-high {{ color: var(--orange); font-weight: bold; }}
+        .severity-medium {{ color: var(--yellow); font-weight: bold; }}
+        .severity-low {{ color: var(--green); }}
+        hr {{ border: none; border-top: 1px solid var(--border); margin: 24px 0; }}
     </style>
 </head>
 <body>
@@ -379,7 +435,7 @@ class SecurityAssessment:
         return json.dumps({
             'metadata': {
                 'generated': datetime.now().isoformat(),
-                'tool': 'ESP32 LoRa Sniffer v2.2.0',
+                'tool': 'ESP32 LoRa Sniffer v2.4.1',
                 'total_packets': self.total_packets,
                 'total_devices': len(self.devices),
                 'scan_start': self.start_time,

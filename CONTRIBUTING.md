@@ -141,15 +141,15 @@ Examples:
 - [ ] No new inline styles in JavaScript
 - [ ] All user data escaped with `escapeHtml()`
 - [ ] Console.log calls use DEBUG system
-- [ ] API endpoints documented in `API_REFERENCE.md`
+- [ ] API endpoints documented in `docs/API.md`
 - [ ] No hardcoded magic numbers (use config)
 
 ## Questions?
 
 Check these docs first:
-- [ARCHITECTURE.md](docs/technical/ARCHITECTURE.md) - Design patterns
-- [API_REFERENCE.md](API_REFERENCE.md) - HTTP/WebSocket endpoints
-- [TROUBLESHOOTING.md](docs/user-guides/TROUBLESHOOTING.md) - Common issues
+- [ARCHITECTURE.md](docs/ARCHITECTURE.md) - Design patterns
+- [API.md](docs/API.md) - HTTP/WebSocket endpoints
+- [TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) - Common issues
 
 ---
 

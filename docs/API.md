@@ -843,7 +843,7 @@ wireshark capture.pcap
 - LoRa metadata preserved in pseudo-header for RF analysis
 - Custom Wireshark dissector needed to parse 24-byte header
 - Payload decryption requires PSK or AES256 keys depending on protocol
-- See `docs/technical/ENCRYPTION.md` for decryption workflow
+- See `docs/ENCRYPTION.md` for decryption workflow
 
 **cURL Example:**
 ```bash
@@ -2171,9 +2171,9 @@ ws.on('error', (error) => {
 
 ## 🔗 Related Documentation
 
-- [GETTING_STARTED.md](GETTING_STARTED.md) - Complete setup and usage guide
-- [README.md](README.md) - Main project documentation
-- [docs/user-guides/FEATURES.md](docs/user-guides/FEATURES.md) - Complete feature list
+- [SETUP.md](SETUP.md) - Flash and connect
+- [USAGE.md](USAGE.md) - Web interface and tools
+- [../README.md](../README.md) - Project overview
 
 ---
 

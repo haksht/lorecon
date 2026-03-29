@@ -75,7 +75,7 @@ echo.
 echo Flashing full image - this takes 30-90 seconds...
 echo.
 
-python -m esptool --chip esp32s3 --port %PORT% --baud 921600 write_flash --flash-size %FLASH_SIZE% 0x0 "%BIN%"
+python -m esptool --chip esp32s3 --port %PORT% --baud 921600 write_flash --flash_size %FLASH_SIZE% 0x0 "%BIN%"
 
 if %ERRORLEVEL% NEQ 0 (
     echo.

@@ -1666,7 +1666,7 @@ SecurityScorer::Assessment assessment = SecurityScorer::assess(device);
 ```
 
 Score thresholds: >= 80 = secure, >= 60 = moderate, < 60 = vulnerable.
-See `docs/user-guides/HOW_IT_WORKS.md` for full scoring rubric.
+See `docs/HOW_IT_WORKS.md` for full scoring rubric.
 
 **Used by:** `user_interface.cpp`, `api_handlers.cpp`
 
