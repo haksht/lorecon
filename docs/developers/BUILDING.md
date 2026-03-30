@@ -75,6 +75,12 @@ pio run --target upload --target uploadfs
 
 The `uploadfs` step uploads `firmware/data/webapp/` to the device's LittleFS partition. You only need to run it again when web files change — firmware updates don't touch the filesystem.
 
+**Pre-loading WiFi credentials:** If you want the device to connect to a hotspot on first boot without going through the captive portal, create `firmware/data/wifi_creds.json` before running `uploadfs`:
+```json
+{ "ssid": "YourHotspot", "password": "YourPassword" }
+```
+The firmware migrates these to secure NVS storage on first boot and deletes the file.
+
 ### T3-S3 and T-Beam Supreme: bootloader mode
 
 These boards use native USB. If the device is in a crash loop or the upload can't connect:

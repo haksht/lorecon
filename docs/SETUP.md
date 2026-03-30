@@ -105,7 +105,7 @@ SSID:     LoRa-XXYYZZ
 Password: recon-XXYYZZ
 ```
 
-`XXYYZZ` is the last 3 bytes of the device's MAC address — unique to each board. The exact credentials appear in serial output at boot if you need them.
+The password always matches the suffix in the SSID — if you see `LoRa-A1B2C3`, the password is `recon-A1B2C3`. No serial monitor needed.
 
 ---
 
@@ -119,25 +119,13 @@ On first boot with no stored credentials, a setup wizard runs.
 2. A captive portal opens automatically (like hotel WiFi)
 3. Enter your phone's hotspot SSID and password
 4. The device reboots and connects to your hotspot
-5. Your phone can now reach the web UI at the IP shown on the OLED or serial output
+5. Your phone can now reach the web UI at the IP shown on the OLED
 
 This keeps your phone on cellular while you use the sniffer.
 
 ### Alternative: use the device as AP (no setup required)
 
 Skip provisioning entirely. Connect to `LoRa-XXYYZZ` and browse to `http://192.168.4.1`. You lose internet access on that device while connected, but there's no setup step.
-
-### Pre-provisioned credentials (skip the wizard)
-
-To pre-load WiFi credentials before flashing the filesystem:
-
-1. Create `firmware/data/wifi_creds.json`:
-   ```json
-   { "ssid": "YourHotspot", "password": "YourPassword" }
-   ```
-2. Upload the filesystem: `pio run --target uploadfs`
-
-Credentials are automatically migrated to secure NVS storage on first boot and the JSON file is deleted.
 
 ---
 
