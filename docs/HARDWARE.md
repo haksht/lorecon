@@ -61,14 +61,6 @@ Best choice if you want native SD card logging without GPS or a PMIC. The SD car
 
 **SD card:** MicroSD slot, push-to-insert. Use ≤4 GB cards formatted FAT32. Cards ≥16 GB may be unreliable.
 
-**Pin map:**
-
-| Peripheral | Pins |
-|-----------|------|
-| LoRa (FSPI) | SCK=5, MISO=3, MOSI=6, NSS=7, DIO1=33, RST=8, BUSY=34 |
-| SD (HSPI) | SCK=14, MISO=2, MOSI=11, CS=13 |
-| OLED (I2C) | SDA=18, SCL=17 |
-
 **What to order:** SX1262 variant (not SX1276 or SX1280). For US, order 915 MHz (SKU H598).
 
 **Flash memory:** 4 MB — fits firmware comfortably. SD card handles unlimited logging.
@@ -83,21 +75,9 @@ The most capable board: GPS, SD, and an AXP2101 PMIC for battery management and 
 
 **SD card:** MicroSD slot. Supports up to 32 GB (FAT32).
 
-**GPS:** Built-in u-blox module on UART (RX=9, TX=8). Coordinates are stamped on every captured packet when a fix is acquired.
+**GPS:** Built-in u-blox module. Coordinates are stamped on every captured packet when a fix is acquired.
 
-**Battery:** 18650 Li-Ion cell. PMIC handles charging, voltage regulation, and safe shutdown. Power-off button (or `/api/command` with `'s'`) cuts all rails via PMIC — no residual drain.
-
-**Pin map:**
-
-| Peripheral | Pins |
-|-----------|------|
-| LoRa (FSPI) | SCK=12, MISO=13, MOSI=11, NSS=10, DIO1=1, RST=5, BUSY=4 |
-| SD (HSPI) | SCK=36, MISO=37, MOSI=35, CS=47 |
-| OLED I2C | SDA=17, SCL=18 |
-| PMU I2C | SDA=42, SCL=41 |
-| GPS UART | RX=9, TX=8, EN=7 |
-
-**Init order:** PMU → radio → OLED → SD → GPS. Deviation causes peripheral failures.
+**Battery:** 18650 Li-Ion cell. The AXP2101 PMIC handles charging, voltage regulation, and safe shutdown. Power-off button (or the Settings tab) cuts all rails — no residual drain.
 
 ---
 

@@ -15,7 +15,7 @@ Flash the firmware, boot the device, connect to WiFi. This guide covers the full
 
 ## Download firmware
 
-Go to [Releases](https://github.com/tiarno/esp32-sniffer/releases/latest) and download `esp32-lora-sniffer-vX.X.X-binaries.zip`. Extract it. You'll see a folder per board, each containing a `full.bin` merged image and flash scripts.
+Go to [Releases](https://github.com/tiarno/esp32-sniffer/releases/latest) and download `esp32-lora-sniffer-vX.X.X-binaries.zip`. Extract it. The zip contains `flash.sh`, `flash.bat`, and `flash.ps1` at the top level, plus one folder per board — each folder contains a `full.bin` merged image that flashes at offset `0x0`.
 
 ---
 

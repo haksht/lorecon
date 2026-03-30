@@ -32,23 +32,11 @@ The web UI plays protocol-specific tones as packets arrive — a Geiger counter 
 
 ---
 
-## API authentication
+## API access
 
-Read-only endpoints (devices, status, packets) are public — no token needed. Write actions (replay, targeting, WiFi clear) require the API token.
+Read-only endpoints (devices, status, packets) are public. The web UI handles authentication automatically for everything else — you won't be prompted unless accessing the API directly.
 
-Find your token in the Info tab or serial output at boot:
-```
-[INFO] Token: a1b2c3d4e5f6...
-[INFO] Use header: X-API-Token: <token>
-```
-
-The web UI handles authentication automatically. For direct API calls:
-```bash
-curl -H "X-API-Token: YOUR_TOKEN" http://192.168.4.1/api/capture/start \
-  -d '{"nodeId":"9EA3D744"}'
-```
-
-See [API.md](API.md) for the full endpoint reference.
+For direct API access and the full endpoint reference, see [developers/API.md](developers/API.md).
 
 ---
 
@@ -94,17 +82,18 @@ pip install -r tools/requirements.txt
 
 ```bash
 # 5-panel dashboard (packets, devices, signal, protocols)
-python tools/enhanced_live_visualizer.py 192.168.4.1
-python tools/enhanced_live_visualizer.py --demo          # simulated, no hardware
+python tools/enhanced_live_visualizer.py COM3            # Windows serial port
+python tools/enhanced_live_visualizer.py /dev/ttyUSB0   # Linux
+python tools/enhanced_live_visualizer.py --demo          # simulated, no hardware needed
 
 # Headless WebSocket monitor
-python tools/ws_monitor.py 192.168.4.1
-python tools/ws_monitor.py 192.168.4.1 --json            # machine-readable
+python tools/ws_monitor.py --host 192.168.4.1
+python tools/ws_monitor.py --host 192.168.4.1 --json     # machine-readable
 
 # REST API client
-python tools/api_client.py 192.168.4.1 devices
-python tools/api_client.py 192.168.4.1 status
-python tools/api_client.py 192.168.4.1 replay
+python tools/api_client.py --host 192.168.4.1 devices
+python tools/api_client.py --host 192.168.4.1 status
+python tools/api_client.py --host 192.168.4.1 replay-slots
 ```
 
 ### Offline tools (work from SD card files)
@@ -206,7 +195,7 @@ Stats (total packets, devices, dropped packets) are in the Info tab and `/api/st
 
 ## Deep dives
 
-- [HOW_IT_WORKS.md](HOW_IT_WORKS.md) — security scoring algorithm, router detection, firmware estimation
-- [ENCRYPTION.md](ENCRYPTION.md) — what the PSK decryption can and cannot decrypt
-- [NETWORK_HUNTING.md](NETWORK_HUNTING.md) — hunting strategies by network type
-- [API.md](API.md) — full REST and WebSocket reference
+- [reference/HOW_IT_WORKS.md](reference/HOW_IT_WORKS.md) — security scoring algorithm, router detection, firmware estimation
+- [reference/ENCRYPTION.md](reference/ENCRYPTION.md) — what the PSK decryption can and cannot decrypt
+- [reference/NETWORK_HUNTING.md](reference/NETWORK_HUNTING.md) — hunting strategies by network type
+- [developers/API.md](developers/API.md) — full REST and WebSocket reference

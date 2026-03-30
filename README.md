@@ -23,7 +23,7 @@ See [docs/HARDWARE.md](docs/HARDWARE.md) for specs, pin maps, and purchase links
 → [docs/SETUP.md](docs/SETUP.md) — download binary, flash, connect
 
 **Want to build or modify the firmware:**
-→ [docs/BUILDING.md](docs/BUILDING.md) — PlatformIO, serial monitor, OTA
+→ [docs/developers/BUILDING.md](docs/developers/BUILDING.md) — PlatformIO, serial monitor, OTA
 
 ---
 
@@ -62,16 +62,16 @@ See [docs/HARDWARE.md](docs/HARDWARE.md) for specs, pin maps, and purchase links
 - [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) — common problems and fixes
 
 **For developers:**
-- [docs/BUILDING.md](docs/BUILDING.md) — PlatformIO, build commands, serial monitor, OTA
-- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — code structure and design decisions
-- [docs/API.md](docs/API.md) — REST and WebSocket reference
+- [docs/developers/BUILDING.md](docs/developers/BUILDING.md) — PlatformIO, build commands, serial monitor, OTA
+- [docs/developers/ARCHITECTURE.md](docs/developers/ARCHITECTURE.md) — code structure and design decisions
+- [docs/developers/API.md](docs/developers/API.md) — REST and WebSocket reference
 
 **Reference:**
-- [docs/HOW_IT_WORKS.md](docs/HOW_IT_WORKS.md) — security scoring, router detection, protocol analysis
-- [docs/ENCRYPTION.md](docs/ENCRYPTION.md) — what PSK decryption can and cannot do
-- [docs/NETWORK_HUNTING.md](docs/NETWORK_HUNTING.md) — hunting strategies by network type
-- [docs/CONFERENCE_DEMO.md](docs/CONFERENCE_DEMO.md) — demo script and setup
-- [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md) — security threat model
+- [docs/reference/HOW_IT_WORKS.md](docs/reference/HOW_IT_WORKS.md) — security scoring, router detection, protocol analysis
+- [docs/reference/ENCRYPTION.md](docs/reference/ENCRYPTION.md) — what PSK decryption can and cannot do
+- [docs/reference/NETWORK_HUNTING.md](docs/reference/NETWORK_HUNTING.md) — hunting strategies by network type
+- [docs/reference/CONFERENCE_DEMO.md](docs/reference/CONFERENCE_DEMO.md) — demo script and setup
+- [docs/reference/THREAT_MODEL.md](docs/reference/THREAT_MODEL.md) — security threat model
 
 ---
 

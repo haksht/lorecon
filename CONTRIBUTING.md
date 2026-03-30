@@ -147,8 +147,8 @@ Examples:
 ## Questions?
 
 Check these docs first:
-- [ARCHITECTURE.md](docs/ARCHITECTURE.md) - Design patterns
-- [API.md](docs/API.md) - HTTP/WebSocket endpoints
+- [ARCHITECTURE.md](docs/developers/ARCHITECTURE.md) - Design patterns
+- [API.md](docs/developers/API.md) - HTTP/WebSocket endpoints
 - [TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) - Common issues
 
 ---

@@ -49,7 +49,7 @@ If you discover a security vulnerability in this project, please report it respo
 
 ## Security Model
 
-This tool is designed for **authorized security research** on networks you own or have permission to test. See [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md) for detailed security assumptions.
+This tool is designed for **authorized security research** on networks you own or have permission to test. See [docs/reference/THREAT_MODEL.md](docs/reference/THREAT_MODEL.md) for detailed security assumptions.
 
 ### Design Principles
 

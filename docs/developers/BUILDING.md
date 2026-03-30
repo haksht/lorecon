@@ -2,7 +2,7 @@
 
 Compiling, uploading, using the serial monitor, and updating firmware over the air.
 
-If you just want to flash pre-built binaries, see [SETUP.md](SETUP.md) instead.
+If you just want to flash pre-built binaries, see [SETUP.md](../SETUP.md) instead.
 
 ---
 

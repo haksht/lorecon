@@ -2171,8 +2171,8 @@ ws.on('error', (error) => {
 
 ## 🔗 Related Documentation
 
-- [SETUP.md](SETUP.md) - Flash and connect
-- [USAGE.md](USAGE.md) - Web interface and tools
+- [SETUP.md](../SETUP.md) - Flash and connect
+- [USAGE.md](../USAGE.md) - Web interface and tools
 - [../README.md](../README.md) - Project overview
 
 ---
