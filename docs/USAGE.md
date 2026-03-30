@@ -74,14 +74,30 @@ pip install -r tools/requirements.txt
 
 ### Quick start
 
-```bash
-# Live 5-panel dashboard
-python tools/enhanced_live_visualizer.py --host 192.168.4.1
-python tools/enhanced_live_visualizer.py --demo          # no hardware needed
+`sniffer.py` is a single entry point for all tools — run `help` to see what's available:
 
-# Offline: analyze an SD card capture
-python tools/recon_report.py capture.csv --format html --output report.html
-python tools/pcap_analyzer.py capture.pcap
+```bash
+python tools/sniffer.py help
+```
+
+Common workflows:
+
+```bash
+# Live dashboard — 5-panel view with GPS map
+python tools/sniffer.py visualize --host 192.168.4.1
+python tools/sniffer.py demo                             # no hardware needed
+
+# Live monitor — headless, with PSK decryption
+python tools/sniffer.py monitor --host 192.168.4.1 --decrypt
+python tools/sniffer.py monitor --host 192.168.4.1 --messages  # text messages only
+
+# Full pipeline — capture + audit + report in one command
+python tools/sniffer.py assess --host 192.168.4.1 --duration 10m
+
+# Offline: analyze SD card captures
+python tools/sniffer.py report capture.csv --format html -o report.html
+python tools/sniffer.py analyze capture.pcap --wireshark
+python tools/sniffer.py audit capture.csv
 ```
 
 ---
