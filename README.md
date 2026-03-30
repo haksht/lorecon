@@ -58,6 +58,7 @@ See [docs/HARDWARE.md](docs/HARDWARE.md) for specs, pin maps, and purchase links
 **For users:**
 - [docs/SETUP.md](docs/SETUP.md) — flash + first boot + WiFi provisioning
 - [docs/USAGE.md](docs/USAGE.md) — web interface, Python tools, field deployment
+- [docs/TOOLS.md](docs/TOOLS.md) — Python toolkit full reference
 - [docs/HARDWARE.md](docs/HARDWARE.md) — board comparison, specs, purchase links
 - [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) — common problems and fixes
 

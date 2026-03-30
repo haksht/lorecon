@@ -62,73 +62,27 @@ SD cards up to 32 GB work. Use FAT32. The T3-S3 works best with ≤4 GB cards.
 
 ## Python analysis tools
 
-The `tools/` directory has a Python toolkit for live monitoring and offline analysis.
+The `tools/` directory has a Python toolkit for live monitoring and offline analysis. See [TOOLS.md](TOOLS.md) for the full reference including when to use each tool and all command options.
 
 ### Install
 
 ```bash
-%> python -m venv venv # use virtual environment, one-time creation cmd.
-%> .\venv\Scripts\activate.ps1 # or ./venv/bin/activate on linux)
-%> pip install -r tools/requirements.txt
+python -m venv venv
+.\venv\Scripts\activate.ps1   # Windows (or ./venv/bin/activate on Linux/macOS)
+pip install -r tools/requirements.txt
 ```
 
-### Live tools (device must be running)
+### Quick start
 
 ```bash
-# 5-panel dashboard (packets, devices, signal, protocols)
-python tools/enhanced_live_visualizer.py COM3            # Windows serial port
-python tools/enhanced_live_visualizer.py /dev/ttyUSB0   # Linux
-python tools/enhanced_live_visualizer.py --demo          # simulated, no hardware needed
+# Live 5-panel dashboard
+python tools/enhanced_live_visualizer.py --host 192.168.4.1
+python tools/enhanced_live_visualizer.py --demo          # no hardware needed
 
-# Headless WebSocket monitor
-python tools/ws_monitor.py --host 192.168.4.1
-python tools/ws_monitor.py --host 192.168.4.1 --json     # machine-readable
-
-# REST API client
-python tools/api_client.py --host 192.168.4.1 devices
-python tools/api_client.py --host 192.168.4.1 status
-python tools/api_client.py --host 192.168.4.1 replay-slots
-```
-
-### Offline tools (work from SD card files)
-
-```bash
-# Analyze a PCAP capture
-python tools/pcap_analyzer.py capture.pcap
-python tools/pcap_analyzer.py capture.pcap --export-csv output.csv
-
-# Security assessment report
-python tools/recon_report.py capture.csv
+# Offline: analyze an SD card capture
 python tools/recon_report.py capture.csv --format html --output report.html
-python tools/recon_report.py --api 192.168.4.1              # pull live data
-
-# Meshtastic PSK analysis
-python tools/meshtastic/psk_auditor.py capture.csv --verbose
-python tools/meshtastic/mesh_topology_analyzer.py capture.csv --ascii
-python tools/meshtastic/meshtastic_decoder.py capture.pcap
-
-# Conference decrypt reveal page (browser-based walkthrough)
-python tools/demo/make_reveal.py capture.pcap -o reveal.html
-python tools/demo/make_reveal.py capture.pcap --all-ports -o reveal.html
-
-# Wireshark LoRaTap conversion
-python tools/export/wireshark_exporter.py capture.pcap -o wireshark_capture.pcap
+python tools/pcap_analyzer.py capture.pcap
 ```
-
-### Tool reference
-
-| Tool | Purpose | Mode |
-|------|---------|------|
-| `ws_monitor.py` | Headless WebSocket monitor | Live |
-| `api_client.py` | REST API CLI | Live |
-| `enhanced_live_visualizer.py` | 5-panel dashboard | Live + demo |
-| `pcap_analyzer.py` | PCAP file analysis | Offline |
-| `recon_report.py` | Security assessment report | Both |
-| `demo/make_reveal.py` | Conference decrypt reveal page | Offline |
-| `meshtastic/psk_auditor.py` | PSK vulnerability scanner | Both |
-| `meshtastic/mesh_topology_analyzer.py` | Mesh topology | Both |
-| `meshtastic/meshtastic_decoder.py` | Offline packet decryption | Offline |
-| `export/wireshark_exporter.py` | LoRaTap format for Wireshark | Offline |
 
 ---
 
@@ -191,6 +145,7 @@ Stats (total packets, devices, dropped packets) are in the Info tab and `/api/st
 
 ## Deep dives
 
+- [TOOLS.md](TOOLS.md) — full Python tools reference
 - [reference/HOW_IT_WORKS.md](reference/HOW_IT_WORKS.md) — security scoring algorithm, router detection, firmware estimation
 - [reference/ENCRYPTION.md](reference/ENCRYPTION.md) — what the PSK decryption can and cannot decrypt
 - [reference/NETWORK_HUNTING.md](reference/NETWORK_HUNTING.md) — hunting strategies by network type
