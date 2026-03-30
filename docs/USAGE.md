@@ -32,14 +32,6 @@ The web UI plays protocol-specific tones as packets arrive — a Geiger counter 
 
 ---
 
-## API access
-
-Read-only endpoints (devices, status, packets) are public. The web UI handles authentication automatically for everything else — you won't be prompted unless accessing the API directly.
-
-For direct API access and the full endpoint reference, see [developers/API.md](developers/API.md).
-
----
-
 ## Data export
 
 ### Without SD card
@@ -75,7 +67,9 @@ The `tools/` directory has a Python toolkit for live monitoring and offline anal
 ### Install
 
 ```bash
-pip install -r tools/requirements.txt
+%> python -m venv venv # use virtual environment, one-time creation cmd.
+%> .\venv\Scripts\activate.ps1 # or ./venv/bin/activate on linux)
+%> pip install -r tools/requirements.txt
 ```
 
 ### Live tools (device must be running)
@@ -183,11 +177,13 @@ Or check the Devices tab on any browser connected to the same network.
 
 ### Post-test
 
-Check serial output on next connection for reset reason:
+Check serial output on next connection for reset reason (or press `i` in the serial console):
 ```
 [INFO] Reset reason: Power-on (code 1)    <- normal
 [WARN] Reset reason: Task watchdog        <- indicates hang during test
 ```
+
+On **Heltec V4** (no serial), the Info tab in the web UI shows reset reason and health info.
 
 Stats (total packets, devices, dropped packets) are in the Info tab and `/api/status`.
 

@@ -29,9 +29,10 @@ The score maps to three ratings:
 
 **Worst possible score**: 35 (all five point deductions applied simultaneously).
 
-**Note**: The `possibleUnencrypted` flag (Meshtastic device with > 10 packets and no confirmed PSK
-decryption) appears in the findings list but does **not** deduct from the score. It is only
-confirmed as a finding once PSK testing succeeds.
+**Note**: The `possibleUnencrypted` flag (any Meshtastic device with > 10 packets) appears in the
+findings list but does **not** deduct from the score. It is a speculative indicator — high traffic
+without confirmed decryption may mean the device uses a non-default PSK or is transmitting
+unencrypted. PSK testing is required to distinguish between these cases.
 
 ---
 
@@ -186,7 +187,7 @@ version range from observable packet structure:
 |---|---|
 | Byte 12, bit 7 is set (encryption flag) | `~v2.2+ (est: encryption flag)` |
 | Packet length > 50 bytes (extended routing headers) | `~v2.1+ (est: extended headers)` |
-| Hop count ≤ 3 and upper nibble of byte 9 is zero | `~v2.0.x (est: flag pattern)` |
+| Hop count ≤ 3 and upper nibble of byte 13 is zero | `~v2.0.x (est: flag pattern)` |
 | Packet length ≤ 16 bytes | `~v1.x or beacon (est)` |
 | None of the above | `~v2.0-2.2 (est)` |
 
@@ -258,7 +259,7 @@ with 0,0 coordinates if the API serializes the raw struct before the `valid` che
 
 ---
 
-## Why Only 10 Packets Are Kept Per Device
+## Why Only 10 Packets Are Kept
 
 **Source**: `firmware/src/repositories/packet_store.h:20`, `firmware/src/config.h:153`
 
@@ -270,8 +271,7 @@ constexpr uint8_t MAX_SLOTS = 10;  // Replay::MAX_SLOTS
 static constexpr size_t MAX_SLOTS = 10;  // From Config::Replay::MAX_PACKETS
 ```
 
-The 10-packet limit applies to the **replay store** — the packets available for the capture/replay
-feature. This is a RAM budget constraint, not a logging limit.
+The 10-packet limit applies to the **replay store** as a whole — 10 slots total across all devices. This is a RAM budget constraint, not a logging limit.
 
 Each slot holds up to 256 bytes of raw packet data plus metadata. At 10 slots:
 - 10 × 256 bytes = 2,560 bytes of packet payload
@@ -285,6 +285,5 @@ tracking, JSON serialization buffers, and the FreeRTOS stack.
 formats) without a count limit — the SD card is flushed every 10 packets to prevent data loss,
 but the total number of logged packets is unlimited.
 
-The 10-slot replay store operates as a **ring buffer**: when full, the oldest slot is overwritten
-by the newest captured packet. You can select any of the 10 stored packets for replay from the
-web UI or serial menu.
+The replay store operates as a **ring buffer**: when all 10 slots are full, the oldest is overwritten
+by the newest captured packet, regardless of which device it came from. You can select any of the 10 stored packets for replay from the web UI or serial menu.

@@ -1,8 +1,6 @@
-# Meshtastic Detection & PSK Decryption Troubleshooting
+# Troubleshooting Guide
 
-**Last Updated:** March 2026
 **Version:** 2.4.1
-**Status:** Packet capture ✅ | PSK decryption ✅ (23 default keys including legacy admin defaults)
 
 ---
 
@@ -23,15 +21,17 @@ To prevent USB electrical noise from triggering phantom commands during unattend
 ### Why This Matters
 USB cables can pick up electrical interference that appears as random characters. Without this protection, noise bytes like `0x6D` (ASCII 'm') could switch the device to menu mode unexpectedly.
 
+**Heltec V4 note:** V4 has no serial monitor (native USB is disabled to prevent radio interference). Use the web UI for all monitoring and configuration.
+
 ---
 
 ## ✅ **Pre-Flight Checklist**
 
 ### ESP32 Hardware
-- [ ] Antenna connected to ESP32 sniffer
-- [ ] Antenna is 902-928 MHz compatible
+- [ ] Antenna connected to ESP32 LoRa module
+- [ ] Antenna is the right frequency for your region (915 MHz for US, 868 MHz for EU)
 - [ ] ESP32 powered on and running firmware
-- [ ] Serial monitor showing scan messages
+- [ ] OLED shows scanning status, or web UI is accessible
 
 ### Test Transmitter (any Meshtastic device)
 - [ ] Meshtastic device powered on and running
@@ -81,7 +81,7 @@ meshtastic --sendtext "Test"
 
 ### **Step 2: Verify ESP32 Radio is Working**
 
-**Test Basic Reception:**
+**Test Basic Reception (Heltec V3 / T3-S3 / T-Beam):**
 ```
 1. Start ESP32: pio device monitor
 2. Wait for "[RECON] Started" message
@@ -105,9 +105,11 @@ or
 - ❌ Antenna issue
 - ❌ Frequency mismatch
 
+On the **Heltec V4**, check the web UI Packets tab instead of serial output.
+
 ### **Step 3: Match Frequencies Exactly**
 
-**Get T-Deck Exact Config:**
+**Get your Meshtastic device's config:**
 
 Using Meshtastic app or CLI, find:
 - **Frequency**: e.g., 906.875 MHz
@@ -122,7 +124,7 @@ Using Meshtastic app or CLI, find:
 3. Find matching config from list
 4. Select it (e.g., press '1' for first config)
 5. ESP32 now locked on that frequency
-6. Send message from T-Deck
+6. Send message from your Meshtastic device
 7. Should see packet immediately
 
 ---
@@ -130,12 +132,12 @@ Using Meshtastic app or CLI, find:
 ## 🐛 **Common Issues & Solutions**
 
 ### Issue 1: No Antenna on ESP32
-**Symptom**: No packets ever detected, even when devices touching  
+**Symptom**: No packets ever detected, even when devices touching
 **Solution**: Connect 902-928 MHz antenna to ESP32 LoRa module
 
 ### Issue 2: Wrong Region
-**Symptom**: T-Deck configured for EU (433/868 MHz), ESP32 scanning US (902-928 MHz)  
-**Solution**: 
+**Symptom**: Meshtastic device configured for EU (433/868 MHz), ESP32 scanning US (902-928 MHz)
+**Solution**:
 ```
 Meshtastic app → Radio Config → Region → Set to "US"
 or
@@ -167,7 +169,7 @@ meshtastic --set lora.region US
 4. **Relayed capture**: If another mesh node relays your packet, you may capture that *relayed* copy (from the other node, not your own TX)
 
 ### Issue 5: Queue Overflow / Packet Drops
-**Symptom**: 
+**Symptom**:
 - Serial shows: `[QUEUE] Full (100 packets) - dropping packet! Total drops: X`
 - Web UI toast: `⚠️ Queue overload: X packets dropped (Y%)`
 - Missing packets in capture log
@@ -187,28 +189,23 @@ meshtastic --set lora.region US
 
 **Solutions:**
 
-1. **Reduce scan frequency diversity** (advanced users only):
-   - Edit `firmware/src/recon_state.cpp` scan configs
-   - Comment out less-used frequencies (e.g., Helium downlink channels)
-   - Reduces context switching, allows faster processing
-
-2. **Disable web UI during critical capture**:
+1. **Disable web UI during critical capture**:
    - WebSocket broadcasts and HTTP requests consume CPU cycles
    - Disconnect phone/browser during high-traffic periods
    - Re-connect after to view captured data
 
-3. **Use faster SD card**:
+2. **Use faster SD card** (T3-S3 / T-Beam Supreme):
    - Class 10 or UHS-I cards write faster
-   - Reduces time spent in blocking `fwrite()` operations
+   - Reduces time spent in blocking write operations
    - Sandisk Extreme recommended over generic cards
 
-4. **Target specific frequency** (temporary):
+3. **Target specific frequency** (temporary):
    - Press `m` → `f` → select one frequency config
    - Eliminates frequency hopping overhead
    - Captures all traffic on that single frequency
    - Resume recon mode afterward with `r`
 
-5. **Monitor drop rate**:
+4. **Monitor drop rate**:
    - Serial: Watch for `[QUEUE]` messages
    - Web UI: Toast warnings appear automatically
    - API: `GET /api/status` returns `droppedPackets` field
@@ -219,7 +216,7 @@ Backpressure (pausing radio when queue fills) would eliminate drops but create c
 **Acceptable Drop Rates:**
 - **<2%**: Excellent - occasional burst handling
 - **2-5%**: Good - sustained high traffic
-- **5-10%**: Acceptable - very busy environment  
+- **5-10%**: Acceptable - very busy environment
 - **>10%**: Problematic - consider mitigation strategies above
 
 ### Issue 6: Hardware Sensitivity Variance Between Units
@@ -272,7 +269,7 @@ Try both!
 ```
 
 ### Issue 8: Interference or Bad Antenna
-**Symptom**: Intermittent detection, weak RSSI  
+**Symptom**: Intermittent detection, weak RSSI
 **Solution**:
 - Move away from computers/USB hubs
 - Try different antenna orientation
@@ -281,41 +278,42 @@ Try both!
 
 ---
 
-## 📊 **Success Criteria**
+## 📊 **Signal Health Check**
 
-### Minimum Success (Phase 1):
-- [ ] ESP32 detects **any** packet from T-Deck
+### Minimum (device working):
+- [ ] ESP32 detects **any** packet from a nearby Meshtastic device
 - [ ] Even 14-byte routing packets count
 - [ ] RSSI shown (e.g., -45 dBm)
 
-### Partial Success (Phase 2):
-- [ ] ESP32 detects packets consistently
-- [ ] Shows device with Node ID
-- [ ] Can target specific device
+### Good (ready for field use):
+- [ ] Packets detected consistently
+- [ ] Devices appear in the Devices tab with Node IDs
+- [ ] Can target a specific device or frequency
 
-### Full Success (Phase 3):
+### Full capability:
 - [ ] Captures encrypted user messages (>20 bytes)
-- [ ] PSK decryption attempts on packets
-- [ ] Successfully decrypts with default key
-- [ ] Shows message content
+- [ ] PSK decryption succeeds on devices using default keys
+- [ ] Message content visible in Packets tab
 
 ---
 
-## 🔧 **Emergency Debugging Commands**
+## 🔧 **Serial Commands Reference**
 
-### ESP32 Commands:
+Activate the console first (double-Enter within 1.5 seconds):
+
 ```
-'m' → Enter menu
+'m' → Enter device menu
 'f' → Frequency targeting menu
 'r' → Resume reconnaissance (keeps discovered devices)
-'b' → Reboot device (clears all data)
+'e' → Exit menu / resume current mode (without clearing state)
+'b' → Reboot device (clears all RAM data)
 's' → Show summary
 'i' → Reset reason & health info
-'e' → Exit menu / resume current mode (without clearing state)
 'q' → Toggle quiet/verbose mode
+'t' → Show API token
 ```
 
-### Meshtastic Commands:
+### Meshtastic CLI reference
 ```bash
 # Get full device info
 meshtastic --info
@@ -359,60 +357,30 @@ meshtastic --sendtext "TEST 123"
 
 ## 🖥️ **OLED Display Troubleshooting**
 
-### Problem: "No OLED detected on I2C bus"
+### Problem: OLED blank or "No OLED detected"
 
-#### Supported Board Pins
+Check serial output (or web UI on V4):
+```
+[DISPLAY] Scanning I2C bus...
+[DISPLAY]   Address 0x3C: FOUND!
+```
+or
+```
+[DISPLAY]   Address 0x3C: not found (error 2)
+```
 
-**Heltec V3/V4 (ESP32-S3)**:
-- SDA: GPIO 17, SCL: GPIO 18, RST: GPIO 21
-- Vext: GPIO 36 (active LOW)
+**I2C Error Codes**
+- `error 0`: Success (device found)
+- `error 2`: Address not acknowledged (no device at that address)
+- `error 3`: Data not acknowledged
+- `error 4`: Other error
+- `error 5`: Timeout
 
-**LilyGO T3-S3**:
-- SDA: GPIO 18, SCL: GPIO 17 (note: swapped vs Heltec)
-- No Vext control (always powered)
-
-**LilyGO T-Beam Supreme**:
-- SDA: GPIO 17, SCL: GPIO 18 (SH1106 display)
-- No Vext control
-
-**Note:** Heltec V1/V2 (non-S3) boards are not supported.
-
-#### Diagnostic Steps
-
-1. **Check Serial Output**
-   ```
-   [DISPLAY] Scanning I2C bus...
-   [DISPLAY]   Address 0x3C: FOUND!
-   ```
-   or
-   ```
-   [DISPLAY]   Address 0x3C: not found (error 2)
-   ```
-
-2. **I2C Error Codes**
-   - `error 0`: Success (device found)
-   - `error 2`: Address not acknowledged (no device)
-   - `error 3`: Data not acknowledged
-   - `error 4`: Other error
-   - `error 5`: Timeout
-
-3. **Common Fixes**
-   - **Wrong pins for V2**: Edit `oled_display.h` to use V2 pins
-   - **Vext polarity**: Most V3 use LOW=ON, some need HIGH=ON
-   - **Physical connection**: Check OLED is properly seated
-   - **No OLED populated**: Some boards lack OLED (code handles gracefully)
-
-4. **Manual I2C Scan**
-   Add to setup() for debugging:
-   ```cpp
-   Serial.println("Scanning I2C 0x01-0x7F...");
-   for (uint8_t addr = 1; addr < 127; addr++) {
-     Wire.beginTransmission(addr);
-     if (Wire.endTransmission() == 0) {
-       Serial.printf("Device at 0x%02X\n", addr);
-     }
-   }
-   ```
+**Common Fixes**
+- **Physical connection**: Reseat the board in its socket; check solder joints if assembled yourself
+- **Vext rail** (Heltec only): Heltec boards power the OLED via a GPIO-controlled rail. If the rail doesn't come up, the display stays blank. Serial output will show `[DISPLAY] Vext ON` if it toggled correctly.
+- **No OLED populated**: Some boards ship without the OLED pre-soldered. The firmware continues without display — check the web UI instead.
+- **Board not supported**: Heltec V1/V2 (non-S3) boards are not supported and will not work with this firmware.
 
 ### Button Not Responding
 
@@ -422,33 +390,31 @@ meshtastic --sendtext "TEST 123"
 
 ---
 
-## 💾 **SD Card Configuration (Optional)**
+## 💾 **SD Card Logging**
 
-If you want to add SD card logging capability:
+SD card logging works automatically on the **T3-S3** and **T-Beam Supreme**. Insert a FAT32-formatted MicroSD card before booting — the firmware creates `/logs/` and starts writing on the first received packet.
 
-### Pin Configuration (Heltec V3)
-- **CS (Chip Select)**: GPIO 5
-- **SPI Bus** (shared with LoRa radio):
-  - SCK: GPIO 9
-  - MISO: GPIO 11
-  - MOSI: GPIO 10
+**Heltec V3 and V4** do not have SD card slots. All data is RAM-only; export before rebooting.
 
-### Important Notes
-- ⚠️ **GPIO 21 is NOT available** - It's used for OLED RST and must not be shared
-- SD card logging is optional; the device works fine without it
-- If SD initialization fails, the system continues normally without logging
-- Use `packet_logger.h` and `packet_logger.cpp` for SD implementation
+### SD card not detected
 
-### Diagnostic
-Check serial output for SD card status:
+Check serial output:
 ```
-[SD] Initializing SD card...
-[SD] Card initialized successfully
+[SD] ✅ SD card detected: SDHC
+[SD] Card size: 3756 MB
 ```
 or
 ```
-[SD] Card initialization failed
+[SD] ⚠️  No SD card detected
+[SD]   Insert SD card for data logging capability
+[SD]   Device will continue without logging
 ```
+
+If the card is not detected:
+- Verify it is FAT32 formatted (not exFAT or NTFS)
+- Use ≤4 GB cards on T3-S3; T-Beam supports up to 32 GB
+- Push the card in firmly until it clicks
+- Try a different card — some generic cards fail to initialize
 
 ---
 
@@ -461,13 +427,20 @@ or
 - Can view devices but can't clear them or use replay
 
 **Solution:**
-1. Check serial output at boot for the API token:
+
+The web UI handles authentication automatically — if you're accessing the device through a browser, the token is managed for you.
+
+For direct API access (curl, scripts), you need the token:
+
+1. Check serial output at boot (Heltec V3 / T3-S3 / T-Beam):
    ```
    🔐 API Security Enabled
      Token: a1b2c3d4e5f6789012345678abcdef01
      Header: X-API-Token
    ```
-2. Add the token to your requests:
+2. **Heltec V4** (no serial): open the web UI → Settings tab → the token is shown in the system info panel.
+
+3. Add the token to your requests:
    ```bash
    curl -X POST http://192.168.4.1/api/devices/clear \
         -H "X-API-Token: YOUR_TOKEN_HERE"
@@ -475,17 +448,15 @@ or
 
 ### Problem: Lost API Token
 
-**Solution:** Reboot the device and check serial output. The token persists across reboots but is displayed at each startup.
+**Solution:** Reboot the device. The token persists across reboots and is displayed at each startup (serial or Settings tab).
 
 ### Problem: Can't Connect to WiFi AP
 
 **Symptoms:**
-- Generic password doesn't work
+- Wrong password error
 
-**Solution:** Each device has a unique password based on its MAC address:
-- SSID: `LoRa-XXYYZZ`
-- Password: `recon-XXYYZZ` (same suffix as SSID)
-- Check serial output at boot for exact credentials
+**Solution:** The password is always the same suffix as the SSID:
+- SSID: `LoRa-A1B2C3` → Password: `recon-A1B2C3`
 
 ### Protected vs Public Endpoints
 
@@ -497,20 +468,14 @@ or
 
 ---
 
-## 🎯 **Quick Win Test**
+## 🎯 **Quick Reception Test**
 
-**Do this right now:**
+Use this to verify the radio is working before field deployment:
 
-1. **ESP32**: 
-   ```
-   Press 'f' → Select #1 (Meshtastic_LF_906)
-   ```
+1. **Lock to a known-good frequency**: Press `f` on serial → Select `Meshtastic_LF_906`
+2. **Hold a Meshtastic device within 1 foot of the ESP32**
+3. **Send a message**: via the Meshtastic app or CLI
+4. **Watch for any `[PACKET]` message** in serial output (or in the web UI Packets tab)
 
-2. **Meshtastic device**: Hold 1 foot from ESP32
-
-3. **Meshtastic app**: Send message "HELLO WORLD"
-
-4. **ESP32**: Watch serial output for **any** [PACKET] message
-
-**If you see a packet** → Hardware works, just need config tweaks  
-**If you see nothing** → Deeper hardware/config issue
+**If you see a packet** → Radio working, configure and deploy
+**If you see nothing** → Check antenna, region setting, and that the test device is actually transmitting

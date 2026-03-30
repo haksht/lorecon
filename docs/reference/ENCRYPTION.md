@@ -406,10 +406,3 @@ Bytes 12-15: Unused (0x00)
 - ❌ Admin messages between 2.5.0+ devices
 - ❌ Custom PSK channels (without the key)
 
-**Recommendation:** Market as comprehensive reconnaissance tool, not encryption-breaking tool. The capabilities are still highly valuable for security research and network analysis.
-
----
-
-**Version:** 1.0  
-**Accuracy:** Verified against Meshtastic 2.5.0+ documentation  
-**Last Verified:** October 15, 2025

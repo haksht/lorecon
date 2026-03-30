@@ -2,7 +2,7 @@
 
 **Document Version:** 1.1
 **Last Updated:** March 2026
-**Applies to:** ESP32 LoRa Sniffer v2.3.x
+**Applies to:** ESP32 LoRa Sniffer v2.4.x
 
 ---
 
@@ -201,12 +201,3 @@ If a security incident occurs:
 2. **Preserve** — Save SD card logs if applicable
 3. **Report** — File GitHub security advisory
 4. **Reset** — Factory reset clears NVS credentials
-
----
-
-## 10. Revision History
-
-| Version | Date | Changes |
-|---------|------|---------|
-| 1.0 | December 2025 | Initial threat model |
-| 1.1 | March 2026 | Corrected T1 and Boundary 2 to accurately reflect that AP password is the real security boundary; token is a secondary layer. Added AP password as high-sensitivity asset. Added auto-trust and token auto-retrieval to accepted risks. |

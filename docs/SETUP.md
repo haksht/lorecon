@@ -105,7 +105,7 @@ SSID:     LoRa-XXYYZZ
 Password: recon-XXYYZZ
 ```
 
-The password always matches the suffix in the SSID — if you see `LoRa-A1B2C3`, the password is `recon-A1B2C3`. No serial monitor needed.
+The password always matches the suffix in the SSID — if you see `LoRa-A1B2C3`, the password is `recon-A1B2C3`. 
 
 ---
 
