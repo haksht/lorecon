@@ -141,7 +141,7 @@ Examples:
 - [ ] No new inline styles in JavaScript
 - [ ] All user data escaped with `escapeHtml()`
 - [ ] Console.log calls use DEBUG system
-- [ ] API endpoints documented in `docs/API.md`
+- [ ] API endpoints documented in `docs/developers/API.md`
 - [ ] No hardcoded magic numbers (use config)
 
 ## Questions?

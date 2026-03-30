@@ -1,13 +1,5 @@
 # Security Policy
 
-## Supported Versions
-
-| Version | Supported          |
-| ------- | ------------------ |
-| 2.3.x   | :white_check_mark: |
-| 2.2.x   | :white_check_mark: |
-| < 2.2   | :x:                |
-
 ## Reporting a Vulnerability
 
 If you discover a security vulnerability in this project, please report it responsibly:
@@ -56,7 +48,7 @@ This tool is designed for **authorized security research** on networks you own o
 1. **Receive-only by default** — Active transmission requires explicit user action
 2. **Local network only** — No cloud connectivity, no telemetry
 3. **Token authentication** — Protected endpoints require `X-API-Token` header
-4. **Minimal attack surface** — No shell access, no firmware upload via API
+4. **Minimal attack surface** — No shell access, no remote code execution
 
 ### Known Limitations
 
@@ -70,4 +62,3 @@ This tool is designed for **authorized security research** on networks you own o
 - [ ] Change default WiFi credentials via web UI Settings
 - [ ] Note your API token from serial output or `t` command
 - [ ] Use AP mode (192.168.4.1) for isolated operation
-- [ ] Disable serial console when unattended (auto-deactivates after 5 min)

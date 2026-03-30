@@ -3,11 +3,11 @@
 #include <string.h>
 
 // Comprehensive packet analysis - calls all analysis functions and returns consolidated info
-PacketInfo ProtocolAnalyzer::analyze(const uint8_t* data, size_t length, float rssi) {
+PacketInfo ProtocolAnalyzer::analyze(const uint8_t* data, size_t length, float rssi, uint8_t syncWord) {
     PacketInfo info;
-    
+
     // Step 1: Identify protocol
-    info.protocol = identifyProtocol(data, length);
+    info.protocol = identifyProtocol(data, length, syncWord);
     
     // Step 2: Extract node IDs (source and destination)
     info.nodeId = extractNodeId(data, length, info.protocol);
@@ -40,15 +40,19 @@ PacketInfo ProtocolAnalyzer::analyze(const uint8_t* data, size_t length, float r
     return info;
 }
 
-// Identify protocol from packet signature and structure
-const char* ProtocolAnalyzer::identifyProtocol(const uint8_t* data, size_t length) {
+// Identify protocol from packet signature and structure.
+// syncWord: the radio sync word active when this packet was received.
+// Meshtastic-only sync words (0x2B, 0x48) enable unicast detection — the radio hardware
+// already filtered to that sync word, so non-Meshtastic packets cannot arrive on those configs.
+const char* ProtocolAnalyzer::identifyProtocol(const uint8_t* data, size_t length, uint8_t syncWord) {
     if (length < 4) return "Short";
-    
-    // Meshtastic signature detection (4-byte magic header)
+
+    // Meshtastic broadcast: destination address 0xFFFFFFFF in bytes 0-3 (little-endian).
+    // This is the reliable, sync-word-independent check.
     if (data[0] == 0xFF && data[1] == 0xFF && data[2] == 0xFF && data[3] == 0xFF) {
         return "Meshtastic";
     }
-    
+
     // LoRaWAN detection (validate actual frame structure, not just length)
     if (length >= 12) {
         uint8_t mhdr = data[0];
@@ -78,6 +82,22 @@ const char* ProtocolAnalyzer::identifyProtocol(const uint8_t* data, size_t lengt
         }
     }
     
+    // Meshtastic unicast: destination is a specific node ID (not 0xFFFFFFFF).
+    //
+    // On Meshtastic-only sync words (0x2B = standard, 0x48 = LongSlow), the SX1262
+    // hardware filters by sync word before the ISR fires. Only packets with matching
+    // sync word are delivered to firmware. LoRaWAN (0x34) and RadioHead (0x12) cannot
+    // arrive on these configs, so any packet ≥ 14 bytes that wasn't broadcast and
+    // didn't match LoRaWAN structure is a unicast Meshtastic packet.
+    //
+    // Minimum Meshtastic header: 4 dest + 4 src + 4 packet_id + 1 flags + 1 channel = 14 bytes.
+    //
+    // Sync word 0x12 configs are excluded: they cover both Meshtastic SW12 variants and
+    // ISM/RadioHead traffic, so we cannot safely assume Meshtastic on those configs.
+    if ((syncWord == 0x2b || syncWord == 0x48) && length >= 14) {
+        return "Meshtastic";
+    }
+
     // Short packets might be beacons or keep-alives
     if (length <= 8) return "Beacon";
 

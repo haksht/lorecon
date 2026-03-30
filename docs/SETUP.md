@@ -105,7 +105,7 @@ SSID:     LoRa-XXYYZZ
 Password: recon-XXYYZZ
 ```
 
-The password always matches the suffix in the SSID — if you see `LoRa-A1B2C3`, the password is `recon-A1B2C3`. 
+The password always matches the suffix in the SSID — if you see `LoRa-A1B2C3`, the password is `recon-A1B2C3`.
 
 ---
 
@@ -137,6 +137,8 @@ Skip provisioning entirely. Connect to `LoRa-XXYYZZ` and browse to `http://192.1
 4. The Info tab shows scanning status and packet counts
 
 The device starts scanning 26 LoRa configurations immediately on boot. You should see the frequency cycling on the OLED and in the Info tab within seconds.
+
+**Heltec V4 note:** The V4 has no serial monitor -- the web UI is the only interface. Everything above applies; just skip any step that refers to serial output.
 
 ---
 

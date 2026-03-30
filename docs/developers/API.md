@@ -1,14 +1,14 @@
-# 🔌 ESP32 LoRa Sniffer - REST API Reference
+# ESP32 LoRa Sniffer - REST API Reference
 
 **Version:** 2.4.1
-**Base URL:** `http://192.168.4.1` or `http://lora-XXXXXX.local`  
-**Protocol:** HTTP/1.1  
-**Format:** JSON  
-**Authentication:** Token-based for protected endpoints (see [Authentication](#-authentication))  
+**Base URL:** `http://192.168.4.1` or `http://lora-XXXXXX.local`
+**Protocol:** HTTP/1.1
+**Format:** JSON
+**Authentication:** Token-based for protected endpoints (see [Authentication](#-authentication))
 
 ---
 
-## 📋 Table of Contents
+## Table of Contents
 
 1. [Overview](#overview)
 2. [Authentication](#authentication)
@@ -28,7 +28,7 @@
 
 ---
 
-## 🌐 Overview
+## Overview
 
 The ESP32 LoRa Sniffer exposes a RESTful API over HTTP for programmatic control and monitoring. All responses are JSON-formatted.
 
@@ -53,7 +53,7 @@ curl http://192.168.4.1/api/status
 
 ---
 
-## 🔐 Authentication
+## Authentication
 
 ### **Token-Based Authentication**
 
@@ -66,10 +66,10 @@ Auto-trust applies **only when the device is connected to an external network (S
 **Rationale:** Anyone who knows the AP password gets a `192.168.4.x` address — granting auto-trust there would allow unauthenticated access to sensitive endpoints. Auto-trust is reserved for users already on a trusted LAN (home router, phone hotspot the device joined).
 
 This means:
-- ✅ Home WiFi (192.168.1.x) — auto-authenticated (device in STA/AP_STA mode, client on same LAN)
-- ✅ Phone hotspot the device joined (172.20.x.x, 192.168.x.x) — auto-authenticated
-- ❌ Direct AP connection (192.168.4.x) — **requires token** (device acting as hotspot, client connected to it)
-- ❌ Public internet — requires token header (if you ever port-forward)
+-  Home WiFi (192.168.1.x) — auto-authenticated (device in STA/AP_STA mode, client on same LAN)
+-  Phone hotspot the device joined (172.20.x.x, 192.168.x.x) — auto-authenticated
+-  Direct AP connection (192.168.4.x) — **requires token** (device acting as hotspot, client connected to it)
+-  Public internet — requires token header (if you ever port-forward)
 
 **In practice:** If you connect your phone directly to the device's WiFi hotspot (`LoRa-XXXXXX`), you will be prompted to enter the API token the first time you perform a protected action. After entry, it is saved in your browser's `localStorage` and you won't be asked again on that device.
 
@@ -85,7 +85,7 @@ This means:
 The API token is displayed at boot in serial output:
 
 ```
-🔐 API Security Enabled
+ API Security Enabled
   Token: a1b2c3d4e5f6789012345678abcdef01
   Header: X-API-Token
   Protected endpoints require this token
@@ -154,7 +154,7 @@ Returns authentication configuration (does not expose the token):
 
 ---
 
-## 📦 Response Format
+## Response Format
 
 ### **Success Response**
 
@@ -237,7 +237,7 @@ All successful responses follow this structure:
 
 ---
 
-## �📱 Device Endpoints
+## � Device Endpoints
 
 ### **GET /api/devices**
 
@@ -402,7 +402,7 @@ curl -X POST http://192.168.4.1/api/devices/clear
 
 ---
 
-## 🔄 Packet Replay
+## Packet Replay
 
 ### **GET /api/replay/slots**
 
@@ -558,7 +558,7 @@ curl -X POST http://192.168.4.1/api/replay/transmit \
   -d "slotIndex=1&repeatCount=3&delayMs=500"
 ```
 
-**⚠️ Important: Half-Duplex Radio Limitation**
+** Important: Half-Duplex Radio Limitation**
 
 The SX1262 radio is **half-duplex** — it can either transmit OR receive, never both simultaneously. This means:
 
@@ -574,7 +574,7 @@ The SX1262 radio is **half-duplex** — it can either transmit OR receive, never
 
 ---
 
-## 🎯 Capture Control
+## Capture Control
 
 ### **POST /api/capture/start**
 
@@ -653,7 +653,7 @@ curl -X POST http://192.168.4.1/api/capture/stop
 
 ---
 
-## 🗺️ Geographic Data
+## Geographic Data
 
 ### **GET /api/positions**
 
@@ -1099,7 +1099,7 @@ curl "http://192.168.4.1/api/files/download?name=snf_12345.csv" -o snf_12345.csv
 
 ---
 
-## 📊 Status & Statistics
+## Status & Statistics
 
 ### **GET /api/status**
 
@@ -1477,7 +1477,7 @@ curl -X GET http://192.168.4.1/api/recon/summary
 
 ---
 
-## �🛡️ Security Assessment
+## � Security Assessment
 
 ### **GET /api/recon/security**
 
@@ -1536,9 +1536,9 @@ Devices start at **100 points** (fully secure) and lose points for risk factors:
 
 | Score Range | Risk Level | UI Display |
 |-------------|------------|------------|
-| 80-100 | `secure` | 🟢 Low |
-| 60-79 | `moderate` | 🟡 Med |
-| 0-59 | `vulnerable` | 🔴 High |
+| 80-100 | `secure` | Low |
+| 60-79 | `moderate` | Med |
+| 0-59 | `vulnerable` | High |
 
 ### **Router Detection**
 
@@ -1561,7 +1561,7 @@ curl -X GET http://192.168.4.1/api/recon/security
 
 ---
 
-## �🔍 Scan Control
+## � Scan Control
 
 ### **POST /api/scan/start**
 
@@ -1612,7 +1612,7 @@ Host: 192.168.4.1
 
 ---
 
-## 📶 WiFi Configuration
+## WiFi Configuration
 
 The device supports two WiFi modes:
 - **AP Mode (Setup):** Device creates its own WiFi network for initial setup
@@ -1814,7 +1814,7 @@ curl -X POST http://192.168.4.1/api/command -d "command=s" -H "Authorization: Be
 
 ---
 
-## 🔧 Firmware Management
+## Firmware Management
 
 ### **POST /api/firmware/upload**
 
@@ -1920,7 +1920,7 @@ pio run
 
 ---
 
-## 🔌 WebSocket API
+## WebSocket API
 
 ### **Connection**
 
@@ -1999,7 +1999,7 @@ Periodic status broadcasts (every 5 seconds).
 
 ---
 
-## ❌ Error Codes
+## Error Codes
 
 | Code | HTTP Status | Description |
 |------|-------------|-------------|
@@ -2023,7 +2023,7 @@ Periodic status broadcasts (every 5 seconds).
 
 ---
 
-## ⏱️ Rate Limiting
+## ⏱ Rate Limiting
 
 ### **Current Implementation**
 
@@ -2047,7 +2047,7 @@ X-RateLimit-Reset: 1699900860
 
 ---
 
-## 💡 Examples
+## Examples
 
 ### **Python - Get Device List**
 
@@ -2103,7 +2103,7 @@ asyncio.run(listen())
 async function getStatus() {
   const response = await fetch('http://192.168.4.1/api/status');
   const data = await response.json();
-  
+
   console.log(`Mode: ${data.mode}`);
   console.log(`Devices: ${data.devices}`);
   console.log(`Uptime: ${data.uptime}s`);
@@ -2155,9 +2155,9 @@ ws.on('open', () => {
 
 ws.on('message', (data) => {
   const msg = JSON.parse(data);
-  
+
   if (msg.type === 'packet') {
-    console.log(`📡 ${msg.nodeId}: ${msg.protocol} @ ${msg.frequency} MHz`);
+    console.log(` ${msg.nodeId}: ${msg.protocol} @ ${msg.frequency} MHz`);
     console.log(`   RSSI: ${msg.rssi} dBm, SNR: ${msg.snr} dB`);
   }
 });
@@ -2169,7 +2169,7 @@ ws.on('error', (error) => {
 
 ---
 
-## 🔗 Related Documentation
+## Related Documentation
 
 - [SETUP.md](../SETUP.md) - Flash and connect
 - [USAGE.md](../USAGE.md) - Web interface and tools
@@ -2177,7 +2177,7 @@ ws.on('error', (error) => {
 
 ---
 
-## 📝 Changelog
+## Changelog
 
 **v1.0.0** (November 13, 2025)
 - Initial API release
@@ -2192,4 +2192,4 @@ ws.on('error', (error) => {
 
 Report API bugs or feature requests via GitHub Issues.
 
-**Happy Hacking! 🚀**
+**Happy Hacking! **

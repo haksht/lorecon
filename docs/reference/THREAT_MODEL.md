@@ -72,7 +72,7 @@ The device operates in two network modes:
 
 **Implication**: Any client that can join the network — AP or LAN — effectively has full API access. The AP password is therefore the only meaningful access control. The API token provides a defense-in-depth layer for edge cases (e.g., a client arriving via VPN with a non-RFC-1918 address) but is not the primary barrier.
 
-### Boundary 3: RF Environment  
+### Boundary 3: RF Environment
 - **Inside**: LoRa devices within radio range
 - **Outside**: Devices outside radio range
 - **Assumption**: All received RF data is untrusted
@@ -101,7 +101,7 @@ The device operates in two network modes:
 
 ### T2: Malformed Packet Buffer Overflow
 - **Threat**: Crafted LoRa packet causes memory corruption
-- **Mitigation**: 
+- **Mitigation**:
   - Bounds checking on all packet operations
   - `strncpy` with explicit null termination
   - Static assertions on buffer sizes
@@ -110,7 +110,7 @@ The device operates in two network modes:
 
 ### T3: Serial Command Injection
 - **Threat**: USB noise or malicious input triggers mode changes
-- **Mitigation**: 
+- **Mitigation**:
   - Double-Enter activation requirement
   - 100ms debounce
   - 5-minute auto-deactivation
@@ -119,7 +119,7 @@ The device operates in two network modes:
 
 ### T4: WiFi Credential Theft
 - **Threat**: Attacker extracts stored WiFi passwords
-- **Mitigation**: 
+- **Mitigation**:
   - NVS storage (encrypted flash partition)
   - No API endpoint exposes credentials
   - Credentials only settable, not readable
@@ -135,7 +135,7 @@ The device operates in two network modes:
 
 ### T6: Cross-Site Scripting (XSS)
 - **Threat**: Malicious data in captured packets rendered in web UI
-- **Mitigation**: 
+- **Mitigation**:
   - `escapeHtml()` on all user-controlled data
   - Protocol fields, node IDs, messages all escaped
 - **Residual Risk**: Very Low — Systematic escaping
@@ -155,15 +155,15 @@ The device operates in two network modes:
 
 | Control | Implementation | Status |
 |---------|----------------|--------|
-| **AP Password** | WPA2, configurable via webapp Settings | ✅ Implemented |
-| **Authentication** | Token-based, constant-time compare (secondary layer) | ✅ Implemented |
-| **Input Validation** | Bounds checking, type validation | ✅ Implemented |
-| **Memory Safety** | strncpy, static_assert, -fstack-protector | ✅ Implemented |
-| **Rate Limiting** | 10 req/sec per endpoint | ✅ Implemented |
-| **XSS Prevention** | escapeHtml() on all output | ✅ Implemented |
-| **Secure Storage** | NVS for credentials | ✅ Implemented |
-| **Watchdog** | 30-second hardware timer | ✅ Implemented |
-| **Serial Protection** | Double-Enter + auto-deactivate | ✅ Implemented |
+| **AP Password** | WPA2, configurable via webapp Settings | Implemented |
+| **Authentication** | Token-based, constant-time compare (secondary layer) | Implemented |
+| **Input Validation** | Bounds checking, type validation | Implemented |
+| **Memory Safety** | strncpy, static_assert, -fstack-protector | Implemented |
+| **Rate Limiting** | 10 req/sec per endpoint | Implemented |
+| **XSS Prevention** | escapeHtml() on all output | Implemented |
+| **Secure Storage** | NVS for credentials | Implemented |
+| **Watchdog** | 30-second hardware timer | Implemented |
+| **Serial Protection** | Double-Enter + auto-deactivate | Implemented |
 
 ---
 

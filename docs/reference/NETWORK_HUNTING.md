@@ -1,30 +1,30 @@
 # LoRa Network Hunting Guide
 
-## What Networks Are You Scanning?
+## What networks the sniffer covers
 
-Your ESP32 sniffer is now configured to detect **three major LoRa network types**:
+The sniffer scans **four LoRa network types** across 26 frequency configurations:
 
 ### 1. **Meshtastic** (10 configs)
-**What it is**: Peer-to-peer mesh network for off-grid text messaging  
-**Frequencies**: 902.125 MHz, 903.875 MHz, 904.375 MHz, 906.875 MHz  
-**Why so common**: Exploded in popularity 2023-2024, cheap hardware ($30-40)  
+**What it is**: Peer-to-peer mesh network for off-grid text messaging
+**Frequencies**: 902.125 MHz, 903.875 MHz, 904.375 MHz, 906.875 MHz
+**Why so common**: Exploded in popularity 2023-2024, cheap hardware ($30-40)
 **You'll find it**: Hiking trails, preppers, ham radio operators, off-grid communities
 
 ### 2. **The Things Network (TTN) / LoRaWAN** (4 configs)
-**What it is**: Global open-source IoT network with community-run gateways  
-**Frequencies**: 903.9 MHz, 904.1 MHz, 904.3 MHz, 904.5 MHz  
-**Why important**: Powers thousands of IoT sensors worldwide  
+**What it is**: Global open-source IoT network with community-run gateways
+**Frequencies**: 903.9 MHz, 904.1 MHz, 904.3 MHz, 904.5 MHz
+**Why important**: Powers thousands of IoT sensors worldwide
 **You'll find it**: Cities with TTN gateways, universities, smart buildings
 
 ### 3. **Helium Network** (4 configs)
-**What it is**: Blockchain-based LoRaWAN network where people mine crypto by running hotspots  
-**Frequencies**: 923.3 MHz, 923.9 MHz, 924.5 MHz, 925.1 MHz (downlink bands)  
-**Why to hunt**: Huge deployment (millions of hotspots), active in urban/suburban areas  
+**What it is**: Blockchain-based LoRaWAN network where people mine crypto by running hotspots
+**Frequencies**: 923.3 MHz, 923.9 MHz, 924.5 MHz, 925.1 MHz (downlink bands)
+**Why to hunt**: Huge deployment (millions of hotspots), active in urban/suburban areas
 **You'll find it**: Residential neighborhoods, businesses with Helium miners
 
 ### 4. **ISM Band General** (2 configs)
-**What it is**: Exploring common ISM band frequencies for unknown/proprietary protocols  
-**Frequencies**: 915 MHz, 920 MHz  
+**What it is**: Exploring common ISM band frequencies for unknown/proprietary protocols
+**Frequencies**: 915 MHz, 920 MHz
 **Why scan**: Catch experimental projects, proprietary sensors, unlabeled devices
 
 ---
@@ -63,11 +63,11 @@ Your ESP32 sniffer is now configured to detect **three major LoRa network types*
 
 ---
 
-## Best Hunting Strategy
+## Hunting strategy
 
-### Step 1: Reconnaissance - Is There Activity?
+### Step 1: Pre-location reconnaissance
 
-**Before going to a location**, check these maps:
+Before going to a location, check these maps:
 
 1. **The Things Network Map**: https://www.thethingsnetwork.org/map
    - Look for blue hexagons near your target location
@@ -103,14 +103,14 @@ Your ESP32 sniffer is now configured to detect **three major LoRa network types*
 - **Hacker cons**: Target-rich environment (like CackalackyCon!)
 - **Endurance races**: SAR teams may use Meshtastic
 
-### Step 3: Field Deployment
+### Step 3: Field deployment
 
 **Setup**:
-1. Power on your sniffer
-2. Start reconnaissance mode (scans all 26 frequencies)
+1. Power on the sniffer
+2. Reconnaissance mode is default -- it scans all 26 frequencies automatically
 3. Let it run for **at least one full cycle** (4 minutes)
 4. Watch the OLED display for detections
-5. Check web interface Network tab for devices
+5. Check the web UI Network tab for devices
 
 **What you'll see first**:
 - **Meshtastic**: Usually appears within 30 seconds (frequent beaconing)
@@ -119,18 +119,18 @@ Your ESP32 sniffer is now configured to detect **three major LoRa network types*
 
 **Patience required**:
 - LoRaWAN sensors transmit every 5-60 minutes (battery saving)
-- If you see TTN configs with "🔥" (activity detected), stake out that area longer
+- If you see TTN configs with "" (activity detected), stake out that area longer
 
-### Step 4: Deep Dive on Active Frequencies
+### Step 4: Focus on active frequencies
 
-Once you detect activity:
+Once activity is detected:
 
-1. **Note which config found it**: Check the Network tab or OLED
-2. **Target that frequency**: Use web UI → Frequency Targeting
-3. **Capture more packets**: Focused listening increases packet count
-4. **Analyze later**: SD card logs will have all metadata
+1. Note which config found it (Network tab or OLED)
+2. Lock to that frequency: web UI -> Frequency tab -> click the config
+3. Focused listening captures more packets from that network
+4. SD card logs will have all metadata for offline analysis
 
-### Step 5: Data Analysis Back Home
+### Step 5: Post-capture analysis
 
 **What you can learn**:
 - Device types (from protocol analysis)
@@ -171,16 +171,16 @@ python tools/recon_report.py your_capture.csv
 
 ## Ethical & Legal Considerations
 
-### ✅ Legal to Monitor
+### Legal to Monitor
 - **Passive reception**: Listening to unencrypted broadcasts
 - **Signal analysis**: RSSI, frequency, timing patterns
 - **Protocol identification**: What type of device is transmitting
 
-### ⚠️ Gray Area
+### Gray Area
 - **Attempting decryption**: Legal if using publicly known default keys for research
 - **Content inspection**: OK for research, not for interception
 
-### ❌ Illegal
+### Illegal
 - **Transmitting interference**: Jamming or disrupting networks
 - **Unauthorized access**: Decrypting private communications
 - **Identifying individuals**: Tracking specific people without consent
@@ -190,9 +190,9 @@ python tools/recon_report.py your_capture.csv
 
 ---
 
-## Current Scan Configuration Summary
+## Scan configuration summary
 
-Your device now scans **26 frequency configurations**:
+The sniffer covers **26 frequency configurations**:
 
 | Config | Frequency | Protocol | Notes |
 |--------|-----------|----------|-------|
@@ -209,23 +209,21 @@ Your device now scans **26 frequency configurations**:
 
 ---
 
-## Getting Started
+## Getting started
 
-1. **Check local coverage**: Visit TTN and Helium maps for your area
-2. **Pick a location** with confirmed gateway coverage
-3. **Bring a backup Meshtastic device** for guaranteed activity during demos
-4. **Use the Python tools** for post-capture analysis: `tools/recon_report.py`, `tools/pcap_analyzer.py`
+1. Check local coverage: TTN map and Helium Explorer for your area
+2. Pick a location with confirmed gateway coverage
+3. Bring a backup Meshtastic device for guaranteed activity during demos
+4. Use the Python tools for post-capture analysis: `tools/recon_report.py`, `tools/pcap_analyzer.py`
 
 ---
 
 ## Resources
 
-- **The Things Network**: https://www.thethingsnetwork.org/
-- **Helium Explorer**: https://explorer.helium.com/
-- **Meshtastic Docs**: https://meshtastic.org/docs/
-- **LoRaWAN Specification**: https://lora-alliance.org/
-- **RadioLib (our library)**: https://github.com/jgromes/RadioLib
+- The Things Network: https://www.thethingsnetwork.org/
+- Helium Explorer: https://explorer.helium.com/
+- Meshtastic docs: https://meshtastic.org/docs/
+- LoRaWAN specification: https://lora-alliance.org/
+- RadioLib: https://github.com/jgromes/RadioLib
 
-## Questions?
 
-Check the project README or open an issue on GitHub!

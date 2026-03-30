@@ -23,9 +23,9 @@ The score maps to three ratings:
 
 | Score | Rating | Display |
 |---|---|---|
-| ≥ 80 | Secure | ✅ SECURE (green) |
-| 60–79 | Moderate | ⚠️ MODERATE (yellow) |
-| < 60 | Vulnerable | 🔴 VULNERABLE (red) |
+| ≥ 80 | Secure | SECURE (green) |
+| 60–79 | Moderate | MODERATE (yellow) |
+| < 60 | Vulnerable | VULNERABLE (red) |
 
 **Worst possible score**: 35 (all five point deductions applied simultaneously).
 

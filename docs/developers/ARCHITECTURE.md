@@ -7,7 +7,7 @@ Deep dive into the v2.0+ architecture — from hardware fundamentals to the clea
 
 ---
 
-## 📚 Table of Contents
+## Table of Contents
 
 ### Part 1: Architecture Overview
 1. [The Big Picture: v2.0 Component Design](#1-the-big-picture-v20-component-design)
@@ -145,11 +145,11 @@ void loop() {
 int main() {
     initArduino();  // Setup hardware, clocks, etc.
     setup();        // Your setup function
-    
+
     while(1) {      // Infinite loop
         loop();     // Your loop function
     }
-    
+
     return 0;  // Never reached
 }
 ```
@@ -161,54 +161,54 @@ bool LoRaReconTool::initialize() {
     // ===== PHASE 1: Serial Communication =====
     Serial.begin(115200);
     delay(2000);  // Allow USB serial to stabilize
-    
+
     // ===== PHASE 2: Safety Systems First =====
     ErrorHandler::initialize();  // Can log errors during init
-    
+
     // ===== PHASE 3: Watchdog Timer =====
     esp_task_wdt_init(30, true);  // 30s timeout, panic on expire
     esp_task_wdt_add(NULL);       // Add current task
-    
+
     // ===== PHASE 4: User Button =====
     pinMode(USER_BUTTON_GPIO, INPUT_PULLUP);
-    
+
     // ===== PHASE 5: Component Creation =====
     radioController = new RadioController();
     packetProcessor = new PacketProcessor();
     oledDisplay = new OLEDDisplay();
-    
+
     // ===== PHASE 6: Component Initialization =====
     if (!radioController->initialize()) {
         LOG_ERROR("Radio initialization failed");
         return false;
     }
-    
+
     if (oledDisplay->initialize()) {
         LOG_INFO("OLED display available");
     }
-    
+
     // ===== PHASE 7: State Management =====
     reconState.initialize();  // Clear tracking data
-    
+
     // ===== PHASE 8: Initial Radio Config =====
     const ScanConfig& cfg = reconState.getScanConfig(0);
     radioController->applyConfig(cfg);
     radioController->startReceive();
-    
+
     // ===== PHASE 9: SD Card Logger =====
     if (packetLogger.initialize()) {
         LOG_INFO("SD card logging available");
         packetLogger.startSession();
     }
-    
+
     // ===== PHASE 10: PSK Decryption =====
     #ifdef ENABLE_PSK_TESTING
     PSKDecryption::initialize();
     #endif
-    
+
     // ===== PHASE 11: Command Handler =====
     commandHandler = new CommandHandler(this);  // Pass IReconTool interface
-    
+
     return true;
 }
 ```
@@ -262,7 +262,7 @@ SX1262 Specifications:
 
 ### **How They Connect (v2.0 Abstraction)**
 
-**Before v2.0**: Radio hardware mixed with application logic  
+**Before v2.0**: Radio hardware mixed with application logic
 **After v2.0**: Clean `RadioController` abstraction
 
 ```cpp
@@ -297,32 +297,32 @@ The `update()` function is called thousands of times per second:
 ```cpp
 void LoRaReconTool::update() {
     uint32_t now = millis();
-    
+
     // 1. Handle button (shutdown takes priority)
     handleButtonPress(now);
     if (shutdownInitiated) return;
-    
+
     // 2. Pet the watchdog (prevent reset)
     esp_task_wdt_reset();
-    
+
     // 3. Update display if present
     if (oledDisplay && oledDisplay->isOn()) {
         oledDisplay->update();
     }
-    
+
     // 4. Handle serial commands
     if (Serial.available()) {
         char cmd = Serial.read();
         commandHandler->handleCommand(cmd);
     }
-    
+
     // 5. Handle mode-specific logic
     if (reconState.scanState.mode == MODE_RECONNAISSANCE) {
         handleReconnaissanceMode(now);
     } else if (reconState.scanState.mode == MODE_TARGETED_CAPTURE) {
         handleTargetedCaptureMode(now);
     }
-    
+
     // 6. Check for received packets
     handlePacketReception();
 }
@@ -344,33 +344,33 @@ public:
     // Lifecycle
     bool initialize();
     void shutdown();
-    
+
     // Configuration (chainable)
     bool applyConfig(const ScanConfig& config);
     bool setFrequency(float frequency);
     bool setBandwidth(float bandwidth);
     bool setSpreadingFactor(uint8_t sf);
     bool setSyncWord(uint8_t sw);
-    
+
     // Reception
     bool startReceive();
     bool stopReceive();
-    
+
     // Packet handling (thread-safe)
     bool hasPacket() const;
     int readPacket(uint8_t* buffer, size_t maxLength);
-    
+
     // Signal quality
     float getRSSI(bool useCache = true);
     float getSNR(bool useCache = true);
-    
+
     // Interrupt support
     void markPacketReceived();  // Called by ISR
-    
+
 private:
     SX1262 radio;  // RadioLib object
     std::atomic<bool> packetAvailable;  // Thread-safe flag
-    
+
     // Cached metrics (avoid repeated SPI reads)
     float cachedRSSI;
     float cachedSNR;
@@ -426,7 +426,7 @@ But processing takes time:
   - PSK decryption (CPU intensive)
   - Display updates
   - SD card writes
-  
+
 Solution: Queue packets in ISR, process in main loop
 ```
 
@@ -436,18 +436,18 @@ Solution: Queue packets in ISR, process in main loop
 class PacketProcessor {
 public:
     // Called from ISR context (fast!)
-    bool queuePacket(const uint8_t* data, size_t length, 
+    bool queuePacket(const uint8_t* data, size_t length,
                      float rssi, float snr);
-    
+
     // Called from main loop (slow OK)
     void processQueue(OLEDDisplay* display = nullptr);
-    
+
 private:
     std::queue<QueuedPacket> packetQueue;  // FIFO queue
     ProtocolAnalyzer protocolAnalyzer;
     GeoIntelligence geoIntel;
-    
-    void processSinglePacket(const QueuedPacket& qp, 
+
+    void processSinglePacket(const QueuedPacket& qp,
                             OLEDDisplay* display);
 };
 ```
@@ -484,38 +484,38 @@ For reconnaissance, **continuous coverage > perfect capture**. Dropped packets a
 ### **Processing Pipeline**
 
 ```cpp
-void PacketProcessor::processSinglePacket(const QueuedPacket& qp, 
+void PacketProcessor::processSinglePacket(const QueuedPacket& qp,
                                          OLEDDisplay* display) {
     // 1. Store for replay
     lastPacketData.assign(qp.data, qp.data + qp.length);
-    
+
     // 2. Analyze timing and encryption
-    TextPacketDiagnostic::analyzePacket(qp.data, qp.length, 
+    TextPacketDiagnostic::analyzePacket(qp.data, qp.length,
                                        qp.rssi, qp.snr);
-    
+
     // 3. Identify protocol
     PacketInfo info = protocolAnalyzer.analyze(qp.data, qp.length, qp.rssi);
-    
+
     // 4. Extract GPS if Meshtastic
     if (strcmp(info.protocol, "Meshtastic") == 0) {
         geoIntel.extractPosition(qp.data, qp.length, info.nodeId);
     }
-    
+
     // 5. Track device
     if (info.nodeId != 0) {
         reconState.addTargetableDevice(info.nodeId, /*...*/);
     }
-    
+
     // 6. Mode-specific handling
     if (reconState.scanState.mode == MODE_RECONNAISSANCE) {
         handleReconPacket(info, /*...*/);
     } else {
         handleTargetedPacket(info, /*...*/);
     }
-    
+
     // 7. Log to SD card
     if (packetLogger.isAvailable()) {
-        packetLogger.logPacket(qp.data, qp.length, qp.rssi, qp.snr, 
+        packetLogger.logPacket(qp.data, qp.length, qp.rssi, qp.snr,
                               info.protocol, info.nodeId);
     }
 }
@@ -555,11 +555,11 @@ No circular dependency! Easy to mock for testing.
 class IReconTool {
 public:
     virtual ~IReconTool() = default;
-    
+
     // Component access
     virtual RadioController* getRadioController() = 0;
     virtual OLEDDisplay* getDisplay() = 0;
-    
+
     // Operations
     virtual void startTargetedCapture(uint8_t deviceIndex) = 0;
     virtual void startFrequencyTargeting(uint8_t configIndex) = 0;
@@ -576,7 +576,7 @@ class IReconTool(ABC):
     @abstractmethod
     def get_radio_controller(self):
         pass
-    
+
     @abstractmethod
     def start_targeted_capture(self, device_index):
         pass
@@ -589,18 +589,18 @@ class IReconTool(ABC):
 class LoRaReconTool : public IReconTool {
 public:
     // Implement interface
-    RadioController* getRadioController() override { 
-        return radioController; 
+    RadioController* getRadioController() override {
+        return radioController;
     }
-    
-    OLEDDisplay* getDisplay() override { 
-        return oledDisplay; 
+
+    OLEDDisplay* getDisplay() override {
+        return oledDisplay;
     }
-    
+
     void startTargetedCapture(uint8_t deviceIndex) override {
         // Implementation here
     }
-    
+
     // ... other interface methods
 };
 ```
@@ -612,13 +612,13 @@ public:
 class CommandHandler {
 public:
     CommandHandler(IReconTool* tool) : reconTool(tool) {}
-    
+
     void handleCommand(char cmd) {
         // Use interface, not concrete class
         RadioController* radio = reconTool->getRadioController();
         radio->setFrequency(906.875);
     }
-    
+
 private:
     IReconTool* reconTool;  // Interface pointer, not concrete class
 };
@@ -652,10 +652,10 @@ handler.handleCommand('f');  // Test without ESP32!
 5. **Delegate work**: Let components do their jobs
 
 ### **It Does NOT:**
-- ❌ Handle SPI communication (RadioController does)
-- ❌ Parse protocols (PacketProcessor → ProtocolAnalyzer does)
-- ❌ Process commands (CommandHandler does)
-- ❌ Render display (OLEDDisplay does)
+-  Handle SPI communication (RadioController does)
+-  Parse protocols (PacketProcessor → ProtocolAnalyzer does)
+-  Process commands (CommandHandler does)
+-  Render display (OLEDDisplay does)
 
 ### **Mode Switching Example**
 
@@ -666,27 +666,27 @@ void LoRaReconTool::startTargetedCapture(uint8_t deviceIndex) {
         Serial.println("[ERROR] Invalid device index");
         return;
     }
-    
+
     // Get device info
     const TargetableDevice& dev = reconState.getTargetableDevice(deviceIndex);
-    
+
     // Get optimal radio config for this device
     const ScanConfig& cfg = reconState.getScanConfig(dev.configIndex);
-    
+
     // Apply config via RadioController
     if (!radioController->applyConfig(cfg)) {
         Serial.println("[ERROR] Failed to apply config");
         return;
     }
-    
+
     // Update state
     reconState.scanState.mode = MODE_TARGETED_CAPTURE;
     reconState.scanState.targetConfig = dev.configIndex;
-    
+
     // Restart reception
     radioController->startReceive();
-    
-    Serial.printf("[TARGETED] Locked to 0x%08X (%.3f MHz)\n", 
+
+    Serial.printf("[TARGETED] Locked to 0x%08X (%.3f MHz)\n",
                   dev.nodeId, cfg.frequency);
 }
 ```
@@ -769,7 +769,7 @@ bool handleCommand(char cmd) {
 ```cpp
 // All handlers are static (no need for object state)
 static void cmdShowMenu(IReconTool* tool) {
-    Serial.println("\n📋 MENU");
+    Serial.println("\n MENU");
     showReconResults();
 }
 
@@ -805,12 +805,12 @@ Interrupt (good):
         radio.setDio1Action(radioISR);  // Register ISR
         radio.startReceive();
     }
-    
+
     void radioISR() {
         // Called by hardware when packet arrives
         packetAvailable = true;
     }
-    
+
     void loop() {
         if (packetAvailable) {
             readPacket();
@@ -896,7 +896,7 @@ public:
         PacketInfo info;
         info.length = length;
         info.rssi = rssi;
-        
+
         // Check Meshtastic header
         if (isMeshtastic(data, length)) {
             info.protocol = "Meshtastic";
@@ -922,25 +922,25 @@ public:
         else {
             info.protocol = "Unknown";
         }
-        
+
         return info;
     }
-    
+
 private:
     bool isMeshtastic(const uint8_t* data, size_t length) {
         // Heuristics:
         // 1. Minimum 16 bytes (header + minimal payload)
         // 2. NodeIDs should be non-zero and reasonable
         // 3. Flags byte should have valid values
-        
+
         if (length < 16) return false;
-        
+
         uint32_t toNode = extract_uint32_le(data, 0);
         uint32_t fromNode = extract_uint32_le(data, 4);
-        
+
         // Check if node IDs look valid
         if (fromNode == 0 || fromNode == 0xFFFFFFFF) return false;
-        
+
         return true;
     }
 };
@@ -975,19 +975,19 @@ void constructNonce(uint32_t packetId, uint32_t fromNode, uint8_t nonce[16]) {
     nonce[1] = (packetId >> 8) & 0xFF;
     nonce[2] = (packetId >> 16) & 0xFF;
     nonce[3] = (packetId >> 24) & 0xFF;
-    
+
     // Bytes 4-7: Unused (zeros)
     nonce[4] = 0;
     nonce[5] = 0;
     nonce[6] = 0;
     nonce[7] = 0;
-    
+
     // Bytes 8-11: From Node ID (big-endian! different from packet)
     nonce[8] = (fromNode >> 24) & 0xFF;
     nonce[9] = (fromNode >> 16) & 0xFF;
     nonce[10] = (fromNode >> 8) & 0xFF;
     nonce[11] = (fromNode >> 0) & 0xFF;
-    
+
     // Bytes 12-15: Unused (zeros)
     nonce[12] = 0;
     nonce[13] = 0;
@@ -999,14 +999,14 @@ void constructNonce(uint32_t packetId, uint32_t fromNode, uint8_t nonce[16]) {
 ### **PSK Testing**
 
 ```cpp
-bool PSKDecryption::tryDecrypt(const uint8_t* encryptedData, 
+bool PSKDecryption::tryDecrypt(const uint8_t* encryptedData,
                                size_t length,
                                uint8_t* decrypted) {
     // Try each default PSK (Config::PSK::NUM_DEFAULT_KEYS = 23)
     for (uint8_t i = 0; i < NUM_PSKS; i++) {
         uint8_t key[32];
         size_t keyLen = decodeBase64(DEFAULT_PSKS[i], key, sizeof(key));
-        
+
         if (decryptWithKey(encryptedData, length, key, keyLen, decrypted)) {
             // Decryption succeeded, validate content
             if (isValidProtobuf(decrypted, length)) {
@@ -1016,7 +1016,7 @@ bool PSKDecryption::tryDecrypt(const uint8_t* encryptedData,
             }
         }
     }
-    
+
     return false;  // No PSK worked
 }
 ```
@@ -1077,10 +1077,10 @@ struct JoinRequest {
 bool LoRaWANKeys::verifyMIC(const uint8_t* packet, const uint8_t* appKey) {
     uint8_t micInput[19];  // bytes 0-18 of Join Request
     memcpy(micInput, packet, 19);
-    
+
     uint8_t computedMIC[16];
     aes_cmac(appKey, micInput, 19, computedMIC);
-    
+
     // MIC is first 4 bytes of CMAC result
     return memcmp(&packet[19], computedMIC, 4) == 0;
 }
@@ -1091,7 +1091,7 @@ bool LoRaWANKeys::verifyMIC(const uint8_t* packet, const uint8_t* appKey) {
 ```cpp
 bool LoRaWANKeys::testDefaultKeys(const uint8_t* packet, size_t length) {
     if (!isJoinRequest(packet, length)) return false;
-    
+
     // Test 16 well-known AppKeys
     for (uint8_t i = 0; i < NUM_DEFAULT_KEYS; i++) {
         if (verifyMIC(packet, DEFAULT_APPKEYS[i])) {
@@ -1126,17 +1126,17 @@ bool LoRaWANKeys::testDefaultKeys(const uint8_t* packet, size_t length) {
 
 ```
 LittleFS (internal flash):
-  ✅ Always available
-  ❌ Limited space (1-4 MB)
-  ❌ Wear leveling concerns
-  ❌ Hard to access (need USB)
+   Always available
+   Limited space (1-4 MB)
+   Wear leveling concerns
+   Hard to access (need USB)
 
 SD Card:
-  ✅ Huge capacity (8-32 GB)
-  ✅ Easy to access (remove and read)
-  ✅ No wear concerns for ESP32
-  ✅ Works with any PC
-  ❌ Optional (not always present)
+   Huge capacity (8-32 GB)
+   Easy to access (remove and read)
+   No wear concerns for ESP32
+   Works with any PC
+   Optional (not always present)
 ```
 
 ### **Hybrid Approach (v2.0)**
@@ -1149,7 +1149,7 @@ lastPacketData.assign(qp.data, qp.data + qp.length);
 
 // Log to SD if available (doesn't block if missing)
 if (packetLogger.isAvailable()) {
-    packetLogger.logPacket(qp.data, qp.length, qp.rssi, qp.snr, 
+    packetLogger.logPacket(qp.data, qp.length, qp.rssi, qp.snr,
                           info.protocol, info.nodeId);
 }
 
@@ -1260,7 +1260,7 @@ esp_task_wdt_add(NULL);       // Add current task
 // In main loop, pet the dog
 void loop() {
     esp_task_wdt_reset();  // "I'm alive!"
-    
+
     // Do work...
 }
 
@@ -1308,7 +1308,7 @@ enum class ErrorCodes : uint8_t {
 };
 
 // Log errors with context
-REPORT_RADIO_ERROR(ErrorCodes::RADIO_INIT_FAILED, 
+REPORT_RADIO_ERROR(ErrorCodes::RADIO_INIT_FAILED,
                    "SX1262 not responding on SPI");
 ```
 
@@ -1340,11 +1340,11 @@ DEBUG_PRINTF("[RADIO] Frequency: %.3f MHz\n", frequency);
 
 ```cpp
 void printMemoryUsage() {
-    Serial.printf("[MEM] Heap free: %d bytes\n", 
+    Serial.printf("[MEM] Heap free: %d bytes\n",
                   ESP.getFreeHeap());
-    Serial.printf("[MEM] Heap min: %d bytes\n", 
+    Serial.printf("[MEM] Heap min: %d bytes\n",
                   ESP.getMinFreeHeap());
-    Serial.printf("[MEM] Stack free: %d bytes\n", 
+    Serial.printf("[MEM] Stack free: %d bytes\n",
                   uxTaskGetStackHighWaterMark(NULL));
 }
 ```
@@ -1358,7 +1358,7 @@ public:
     RadioController* getRadioController() override {
         return &mockRadio;
     }
-    
+
     bool applyConfigCalled = false;
     float lastFrequency = 0;
 };
@@ -1367,9 +1367,9 @@ public:
 TEST(CommandHandler, FrequencyCommand) {
     MockReconTool mock;
     CommandHandler handler(&mock);
-    
+
     handler.handleCommand('f');
-    
+
     EXPECT_TRUE(mock.applyConfigCalled);
     EXPECT_EQ(mock.lastFrequency, 906.875);
 }
@@ -1413,7 +1413,7 @@ float RadioController::getRSSI(bool useCache) {
     if (useCache && (millis() - lastMetricUpdate) < 100) {
         return cachedRSSI;  // Return cached value
     }
-    
+
     // Expensive SPI read
     cachedRSSI = radio.getRSSI();
     lastMetricUpdate = millis();
@@ -1656,7 +1656,7 @@ SecurityScorer::Assessment assessment = SecurityScorer::assess(device);
 
 // assessment.score           - 0-100 (higher = more SECURE; 100 = no findings)
 // assessment.rating          - "secure" / "moderate" / "vulnerable"
-// assessment.ratingEmoji     - "✅ SECURE" / "⚠️ MODERATE" / "🔴 VULNERABLE"
+// assessment.ratingEmoji     - " SECURE" / " MODERATE" / " VULNERABLE"
 // assessment.isRouter        - true if device relayed >= 2 packets
 // assessment.physicalProximity - true if RSSI > -50 dBm
 // assessment.possibleUnencrypted - true if Meshtastic + >10 packets + no PSK hit
@@ -1689,7 +1689,7 @@ The v2.0 architecture represents a significant improvement in:
 - **Extensibility**: Easy to add features
 - **Security**: Token-based API auth, input validation, NVS credential storage
 
-**Keep exploring, keep questioning, and keep building!** 🚀
+**Keep exploring, keep questioning, and keep building!**
 
 ---
 

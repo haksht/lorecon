@@ -100,8 +100,11 @@ void PacketProcessor::processSinglePacket(const QueuedPacket& qp, OLEDDisplay* d
     // Analyze raw packet for diagnostics (timing, encryption detection)
     TextPacketDiagnostic::analyzePacket(qp.data, qp.length, qp.rssi, qp.snr);
     
-    // Analyze packet using ProtocolAnalyzer
-    PacketInfo info = protocolAnalyzer.analyze(qp.data, qp.length, qp.rssi);
+    // Analyze packet using ProtocolAnalyzer.
+    // Pass the sync word from the active scan config so identifyProtocol() can detect
+    // unicast Meshtastic packets on Meshtastic-only configs (0x2B, 0x48).
+    PacketInfo info = protocolAnalyzer.analyze(qp.data, qp.length, qp.rssi,
+        reconState.getScanConfig(qp.configIndex).syncWord);
     
     // Enhanced packet analysis for Meshtastic (extract GPS position silently)
     bool positionExtracted = false;

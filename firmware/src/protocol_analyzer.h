@@ -44,11 +44,14 @@ struct PacketInfo {
 // Protocol analysis class - extracts intelligence from raw LoRa packets
 class ProtocolAnalyzer {
 public:
-    // Analyze a packet and return comprehensive information
-    PacketInfo analyze(const uint8_t* data, size_t length, float rssi);
-    
+    // Analyze a packet and return comprehensive information.
+    // syncWord: the radio sync word active when this packet was received (from ScanConfig).
+    // Passing syncWord enables unicast Meshtastic detection on Meshtastic-only configs
+    // (0x2B, 0x48). Default 0 = no sync word context, falls back to broadcast-only detection.
+    PacketInfo analyze(const uint8_t* data, size_t length, float rssi, uint8_t syncWord = 0);
+
     // Individual analysis functions (public for flexibility)
-    const char* identifyProtocol(const uint8_t* data, size_t length);
+    const char* identifyProtocol(const uint8_t* data, size_t length, uint8_t syncWord = 0);
     uint32_t extractNodeId(const uint8_t* data, size_t length, const char* protocol);
     uint32_t extractDestId(const uint8_t* data, size_t length, const char* protocol);
     uint32_t extractPacketId(const uint8_t* data, size_t length, const char* protocol);

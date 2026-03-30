@@ -1,408 +1,137 @@
-# Meshtastic Encryption Reality Guide
+# Meshtastic Encryption Reference
 
-**Last Updated:** December 2025  
-**Firmware Version:** 2.5.0+ (June 2024 and later)  
-**Status:** Accurate for current Meshtastic implementations
+What the sniffer can and cannot decrypt, and why.
 
 ---
 
-## 🎯 Executive Summary
+## What you can decrypt
 
-### What You CAN Decrypt ✅
-- **Position broadcasts** (GPS coordinates)
-- **Telemetry** (battery, temperature, voltage)
-- **Node information** (device names, hardware models)
-- **Traceroutes** (network topology)
-- **Routing packets** (mesh control traffic)
-- **Channel/Group messages** (text sent to channel, not DMs)
+These packet types use **channel PSK (AES-256-CTR)** with a shared key. If the device is using a
+known default key, the sniffer decrypts them automatically.
 
-### What You CANNOT Decrypt ❌
-- **Direct Messages** (person-to-person text messages) - Uses PKC
-- **Admin messages** (between 2.5.0+ devices) - Uses PKC
+- Position broadcasts (GPS coordinates)
+- Telemetry (battery, temperature, voltage)
+- Node info (device name, hardware model)
+- Traceroutes (network topology)
+- Routing and mesh control packets
+- Channel/group messages (text sent to a channel, not DMs)
 
----
+## What you cannot decrypt
 
-## 📖 Understanding Meshtastic Encryption
-
-### Two Encryption Systems (Post-2.5.0)
-
-Meshtastic firmware 2.5.0+ (released June 2024) uses **two different encryption methods**:
-
-#### 1. Channel PSK (AES-256-CTR) ✅ You Can Decrypt
-
-**Used for:**
-- All automatic broadcasts (position, telemetry, node info)
-- Messages sent to the **channel** (group chat)
-- Routing and network control packets
-- Traceroutes and topology information
-
-**Encryption:** Symmetric AES-256-CTR with shared channel key  
-**Default Key:** `"AQ=="` (base64-encoded single byte)  
-**Custom Keys:** Users can set custom PSK, but defaults are common
-
-**Your Tool:** ✅ **Can decrypt these with known channel PSK (23 keys tested)**
-
-**Note on Default Keys:** Key #15 (`PKdTs51e4EB0BoOevIN0Dw==`) is the admin channel default from pre-2.5 firmware. Devices still using this default are potentially vulnerable to unauthorized remote configuration if admin channel is enabled.
-
-#### 2. Public Key Cryptography (Curve25519) ❌ You Cannot Decrypt
-
-**Used for:**
-- **Direct Messages** (DMs) between two specific users
-- Admin/control messages between 2.5.0+ devices
-- Session management and authentication
-
-**Encryption:** Asymmetric Curve25519 key pairs (public/private)  
-**Key Storage:** Each device has unique private key  
-**Decryption:** Only recipient with matching private key can decrypt
-
-**Your Tool:** ❌ **Cannot decrypt without private key** (mathematically infeasible)
+- **Direct messages** -- use Curve25519 PKC (post-2.5.0 firmware); requires the recipient private key
+- **Admin messages** -- also PKC-protected (post-2.5.0 firmware)
+- **Custom PSK channels** -- if a user changed the default key, the 23-key database will not match
 
 ---
 
-## 🔍 Message Type Breakdown
+## Two encryption systems
 
-### Channel Messages vs Direct Messages
+Meshtastic 2.5.0 (June 2024) introduced asymmetric encryption for DMs. Prior to that, everything
+used channel PSK.
 
-This is the **critical distinction** users must understand:
+### Channel PSK (AES-256-CTR)
 
-#### Channel Messages (Group Chat) ✅
+Used for all automatic broadcasts and channel messages. The key is shared across all nodes on the
+channel. Default key is "AQ==" (base64, expands to a 32-byte key). Most out-of-the-box
+deployments still use this default.
 
-**Where:** Meshtastic app → "Messages" → "Channel" tab  
-**Encryption:** Channel PSK (shared key)  
-**Visibility:** All nodes on channel can decrypt (if they have PSK)  
-**Example:** "Meeting at coffee shop at 5pm" sent to channel
-
-```
-User sends channel message
-       ↓
-Encrypted with channel PSK ("AQ==" or custom)
-       ↓
-Broadcast to all mesh nodes
-       ↓
-Your ESP32 receives packet
-       ↓
-Decrypts with known PSK ✅
-       ↓
-Extracts text: "Meeting at coffee shop at 5pm"
-```
-
-#### Direct Messages (DMs) ❌
-
-**Where:** Meshtastic app → "Direct Messages" → Select recipient  
-**Encryption:** Recipient's public key (PKC)  
-**Visibility:** Only sender and recipient can decrypt  
-**Example:** "Secret code: 1234" sent to specific person
-
-```
-User sends DM to Bob
-       ↓
-Encrypted with Bob's public key (Curve25519)
-       ↓
-Sent to Bob via mesh
-       ↓
-Your ESP32 receives packet
-       ↓
-Attempts decryption ❌
-       ↓
-FAIL: Only Bob's private key can decrypt
-```
-
----
-
-## 📡 Automatic Broadcasts (Always Decryptable)
-
-These packets are sent **automatically** by Meshtastic devices and **always use channel PSK**:
-
-### Position Packets
-- **Frequency:** Every 30-900 seconds (configurable)
-- **Content:** Latitude, longitude, altitude, heading, speed
-- **Encryption:** Channel PSK
-- **Your Tool:** ✅ Extracts GPS coordinates
-
-### Telemetry Packets
-- **Frequency:** Every 900 seconds (default)
-- **Content:** Battery voltage, temperature, air pressure
-- **Encryption:** Channel PSK
-- **Your Tool:** ✅ Monitors device health
-
-### Node Info Packets
-- **Frequency:** Periodically and on request
-- **Content:** Device name, hardware model, firmware version
-- **Encryption:** Channel PSK
-- **Your Tool:** ✅ Device fingerprinting
-
-### Traceroute Packets
-- **Frequency:** On demand or periodic
-- **Content:** Route taken, hop count, SNR per hop
-- **Encryption:** Channel PSK
-- **Your Tool:** ✅ Network topology mapping
-
----
-
-## 🧪 Testing Your Decryption
-
-### ✅ Test 1: Verify Broadcast Decryption
-
-**Setup:**
-1. One Meshtastic device with default settings
-2. Your ESP32 sniffer running
-
-**Expected Results:**
-```
-[RECON] Packet #1: Meshtastic, 35 bytes, -45.0 dBm
-[PSK] ✓ Decryption SUCCESS with key #1 "AQ=="
-[PSK] Type: POSITION_APP
-[GEO] 📍 Position: 37.7749° N, 122.4194° W, alt: 15m
-```
-
-**If this fails:** Check antenna, frequency, range
-
-### ✅ Test 2: Verify Channel Message Decryption
-
-**Setup:**
-1. Meshtastic device with **default channel settings** (PSK = "AQ==")
-2. Your ESP32 sniffer running
-3. Send message to **CHANNEL**, not Direct Message
-
-**Steps:**
-1. Open Meshtastic app
-2. Go to "Messages" tab
-3. **Ensure you're in "Channel" view** (not "Direct Messages")
-4. Type: `"TEST BROADCAST MESSAGE"`
-5. Send
-
-**Expected Results:**
-```
-[RECON] Packet #5: Meshtastic, 58 bytes, -42.0 dBm
-[PSK] ✓ Decryption SUCCESS with key #1 "AQ=="
-[PSK] 📧 DECRYPTED TEXT MESSAGE: "TEST BROADCAST MESSAGE"
-[PSK] From: Node 0x401ACD4E
-```
-
-**If this fails:**
-- Verify message sent to channel (not DM)
-- Check channel PSK (should be "AQ==" for default)
-- Confirm ESP32 on correct frequency
-
-### ❌ Test 3: Verify DM Protection
-
-**Setup:**
-1. Two Meshtastic devices (2.5.0+ firmware)
-2. Your ESP32 sniffer running
-3. Send **Direct Message** between devices
-
-**Steps:**
-1. Open Meshtastic app
-2. Go to "Direct Messages" tab
-3. Select recipient
-4. Type: `"SECRET DIRECT MESSAGE"`
-5. Send
-
-**Expected Results:**
-```
-[RECON] Packet #8: Meshtastic, 120 bytes, -38.0 dBm
-[PSK] Testing all 23 default PSKs...
-[PSK] ❌ No valid decryption found
-[PSK] Note: Direct messages use PKC (cannot decrypt)
-```
-
-**This is correct behavior** - DMs are protected by PKC.
-
----
-
-## 🔑 Default PSK Database
-
-Your tool tests 23 default and common PSKs:
-
-```cpp
-// Core defaults (1-2)
-1. "AQ=="                      // Default (most common)
-2. "1PG7OiApB1nwvP+rz05pAQ=="  // LongFast channel key
-
-// Legacy single-byte keys (3-10)
-3-10. Single-byte keys from pre-2.0 firmware (expanded to 16 bytes)
-
-// Test/development keys (11-14)
-11-14. Common test keys often left in deployments
-
-// Historic defaults from older firmware (15-18)
-15. "PKdTs51e4EB0BoOevIN0Dw=="  // Admin channel default (pre-2.5)
-16. Secondary channel default
-17. Debug/dev key from firmware source
-18. EU868 regional default
-
-// Channel preset keys (19-23)
-19-23. Preset-derived keys (MediumFast, ShortFast, LongSlow, etc.)
-```
-
-**Note:** Devices using key #15 with admin channel enabled may be vulnerable to unauthorized remote configuration.
-
-**Success Rate:**
-- Default installations: High (most use "AQ==")
-- Legacy installations: Varies by firmware version
-- Custom configurations: Requires specific PSK
-
----
-
-## 🚫 What Changed in Firmware 2.5.0
-
-### Before 2.5.0 (Pre-June 2024)
-
-**All messages** used channel PSK or session keys:
-- ✅ Channel messages → Channel PSK
-- ✅ Direct messages → Session keys (derived from channel PSK)
-- ✅ Admin messages → Channel PSK
-
-**Result:** Everything was decryptable with channel PSK or harvested session keys.
-
-### After 2.5.0 (June 2024+)
-
-**PKC introduced for sensitive communications:**
-- ✅ Channel messages → Still use channel PSK ✅
-- ❌ Direct messages → Now use PKC (Curve25519) ❌
-- ❌ Admin messages → Now use PKC + Session IDs ❌
-
-**Result:** Broadcasts and channel messages still decryptable, DMs are now protected.
-
-### Why the Change?
-
-**Security improvement:** Pre-2.5.0, anyone with the channel PSK could read all "direct messages" because they were just channel messages with a `to` field. Post-2.5.0, true end-to-end encryption for DMs.
-
----
-
-## 📊 Security Assessment Matrix
-
-| Message Type | Pre-2.5.0 | Post-2.5.0 | Your Tool |
-|--------------|-----------|------------|-----------|
-| Position broadcasts | Channel PSK | Channel PSK | ✅ Decrypt |
-| Telemetry | Channel PSK | Channel PSK | ✅ Decrypt |
-| Node info | Channel PSK | Channel PSK | ✅ Decrypt |
-| Traceroutes | Channel PSK | Channel PSK | ✅ Decrypt |
-| **Channel messages** | Channel PSK | Channel PSK | ✅ Decrypt |
-| **Direct messages** | Session key | **PKC** | ❌ Cannot |
-| **Admin messages** | Channel PSK | **PKC** | ❌ Cannot |
-
----
-
-## 🎯 Practical Use Cases
-
-### What Your Tool Excels At
-
-#### 1. Network Reconnaissance ✅
-- Enumerate all devices in mesh
-- Identify node IDs and hardware
-- Map signal strength and coverage
-- Detect routers vs endpoints
-
-#### 2. Geographic Intelligence ✅
-- Extract GPS from position broadcasts
-- Track device movements over time
-- Export to KML/GeoJSON for mapping
-- Identify high-value targets by location
-
-#### 3. Telemetry Monitoring ✅
-- Monitor battery levels (low battery = vulnerable)
-- Track temperature (thermal stress testing)
-- Identify power class (fixed vs portable)
-
-#### 4. Protocol Analysis ✅
-- Analyze packet structure
-- Timing analysis (transmission patterns)
-- Frequency usage (channel hopping)
-- Firmware fingerprinting
-
-#### 5. Group Communication Monitoring ✅
-- Decrypt channel/group messages
-- Monitor operational communications
-- Detect coordination patterns
-- Identify organizational structure
-
-### What Your Tool Cannot Do ❌
-
-#### 1. Decrypt Direct Messages
-- Requires private key (unique per device)
-- PKC mathematically infeasible to break
-- Would need physical access to extract key
-
-#### 2. Break Custom PSKs
-- If users change from default "AQ=="
-- Would need to know or obtain the PSK
-- Brute force impractical (2^256 keyspace)
-
----
-
-## 💡 Recommendations for Users
-
-### For Security Researchers
-- **Focus on reconnaissance capabilities** - Network enumeration, location tracking, protocol analysis
-- **Test channel message decryption** - Use default PSK installations
-- **Don't claim DM decryption** - Mathematically protected by PKC
-- **Highlight what's exposed** - Position, telemetry, group chats on default channels
-
-### For Network Defenders
-- **Change default channel PSK** - Don't use "AQ=="
-- **Use DMs for sensitive info** - Protected by PKC (firmware 2.5.0+)
-- **Disable position broadcasts** - If covert operation needed
-- **Monitor for sniffers** - Look for suspicious RF activity
-
-### For Developers
-- **Accurate documentation** - Clearly state what's decryptable
-- **Set realistic expectations** - Don't oversell capabilities
-- **Focus on value** - Reconnaissance is valuable even without DM decryption
-
----
-
-## 🔬 Technical Details
-
-### AES-256-CTR Decryption (Channel Messages)
-
-**Nonce Construction:**
+**Nonce construction:**
 ```
 Bytes 0-3:   Packet ID (little-endian)
-Bytes 4-7:   Unused (0x00)
+Bytes 4-7:   0x00
 Bytes 8-11:  From Node ID (big-endian)
-Bytes 12-15: Unused (0x00)
+Bytes 12-15: 0x00
 ```
 
-**Key:** Channel PSK (16 or 32 bytes, typically base64-decoded)
+### Curve25519 (direct messages, post-2.5.0)
 
-**Process:**
-1. Extract packet ID and node ID from header
-2. Construct nonce from IDs
-3. Initialize AES-CTR with channel PSK
-4. Decrypt payload
-5. Parse protobuf structure
-
-### Curve25519 (Direct Messages)
-
-**Key Exchange:** ECDH (Elliptic Curve Diffie-Hellman)  
-**Key Size:** 256 bits  
-**Your Access:** None (would need recipient's private key)
+Each device has a unique Curve25519 key pair. DMs are encrypted to the recipient public key.
+Decryption requires the recipient private key, which never leaves the device. Not feasible to break.
 
 ---
 
-## 📖 Further Reading
+## Default PSK database (23 keys)
 
-- [Meshtastic Official Encryption Docs](https://meshtastic.org/docs/overview/encryption/)
-- [Firmware 2.5.0 Release Notes](https://github.com/meshtastic/firmware/releases/tag/v2.5.0)
-- [Protobuf Message Definitions](https://github.com/meshtastic/protobufs)
+The sniffer tests 23 known default and historically common PSKs:
+
+| Range | Description |
+|-------|-------------|
+| Key 1 | `"AQ=="` -- official default, most common |
+| Key 2 | `"1PG7OiApB1nwvP+rz05pAQ=="` -- LongFast channel key |
+| Keys 3-10 | Legacy single-byte keys from pre-2.0 firmware |
+| Keys 11-14 | Common test/development keys found in deployments |
+| Key 15 | `"PKdTs51e4EB0BoOevIN0Dw=="` -- admin channel default (pre-2.5) |
+| Keys 16-18 | Secondary channel defaults, debug key, EU868 regional default |
+| Keys 19-23 | Preset-derived keys (MediumFast, ShortFast, LongSlow, etc.) |
+
+**Key 15 note:** Devices still using the pre-2.5 admin channel default with admin channel enabled
+are potentially vulnerable to unauthorized remote configuration.
+
+A successful PSK hit means you can read position, telemetry, node info, and any channel messages
+from that device. It does not help with DMs.
 
 ---
 
-## ✅ Summary
+## What changed in firmware 2.5.0
 
-### Your Tool's Capabilities (Accurate Assessment)
+| Message type | Pre-2.5.0 | Post-2.5.0 |
+|---|---|---|
+| Position, telemetry, node info | Channel PSK | Channel PSK |
+| Traceroutes, routing | Channel PSK | Channel PSK |
+| Channel/group messages | Channel PSK | Channel PSK |
+| **Direct messages** | Session key (derived from channel PSK) | **Curve25519 PKC** |
+| **Admin messages** | Channel PSK | **Curve25519 PKC** |
 
-**Strong reconnaissance tool** for:
-- ✅ Network enumeration and device discovery
-- ✅ Geographic intelligence (GPS tracking)
-- ✅ Telemetry monitoring (battery, temperature)
-- ✅ Protocol analysis and fingerprinting
-- ✅ Channel/group message decryption (with known PSK)
-- ✅ Signal analysis and coverage mapping
+Before 2.5.0, DMs were just channel messages with a `to` field -- anyone with the channel PSK
+could read them. Post-2.5.0, DMs have true end-to-end encryption.
 
-**Cannot decrypt:**
-- ❌ Direct messages (PKC-protected)
-- ❌ Admin messages between 2.5.0+ devices
-- ❌ Custom PSK channels (without the key)
+---
 
+## Unicast vs broadcast capture
+
+LoRa is always broadcast at the RF layer -- every radio in range receives every transmission.
+Destination addressing is application-layer only; the SX1262 does not filter by it.
+
+On the sniffer primary Meshtastic configs (sync word `0x2B`, `0x48`), both broadcast packets
+(`0xFFFFFFFF` destination) and unicast packets (specific node ID destination) are captured and
+identified as Meshtastic. All downstream analysis -- PSK decryption, device tracking, GPS
+extraction -- applies to both.
+
+On `0x12` sync word configs (`Meshtastic_902_SW12` variants, ISM configs), only broadcast packets
+are identified as Meshtastic. Unicast on those configs is ambiguous with RadioHead traffic.
+
+---
+
+## Testing decryption
+
+### Verify broadcast decryption
+
+1. One Meshtastic device with default settings, sniffer running
+2. Expected serial output:
+```
+[PSK] Decryption SUCCESS with key #1 "AQ=="
+[PSK] Type: POSITION_APP
+[GEO] Position: 37.7749 N, 122.4194 W, alt: 15m
+```
+
+### Verify channel message decryption
+
+1. Send a message to the **channel** (not DM) from a device using default PSK
+2. Expected serial output:
+```
+[PSK] Decryption SUCCESS with key #1 "AQ=="
+[PSK] DECRYPTED TEXT MESSAGE: "your test message"
+```
+
+If this fails: confirm the message went to the channel tab, not the DM tab.
+
+### Verify DM protection
+
+1. Send a DM between two 2.5.0+ devices
+2. Expected serial output:
+```
+[PSK] Testing all 23 default PSKs...
+[PSK] No valid decryption found
+```
+
+This is correct -- DMs are PKC-protected and cannot be decrypted passively.

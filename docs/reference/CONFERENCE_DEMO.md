@@ -8,8 +8,8 @@ Use this script for reproducible live demos at security conferences, workshops, 
 
 ## Pre-Demo Checklist (Day Before)
 
-- [ ] Flash latest firmware: `pio run --target upload`
-- [ ] Upload web UI: `pio run --target uploadfs`
+- [ ] Flash latest firmware: `pio run -e heltec_v3 --target upload` (replace `heltec_v3` with your board env)
+- [ ] Upload web UI: `pio run -e heltec_v3 --target uploadfs`
 - [ ] Verify antenna connected (915MHz band)
 - [ ] Charge battery or confirm USB power source
 - [ ] Test WiFi AP comes up (`LoRa-XXXXXX`)
@@ -26,7 +26,7 @@ Use this script for reproducible live demos at security conferences, workshops, 
 3. **Open browser** to `http://192.168.4.1`
 4. **Verify web UI loads** - You should see the Info tab
 
-**Backup plan**: If WiFi flaky, use serial monitor (`pio device monitor`)
+**Backup plan**: If WiFi flaky, use serial monitor (`pio device monitor`)  14 not available on Heltec V4 (no serial port by design; use web UI only)
 
 ---
 
@@ -63,7 +63,7 @@ Use this script for reproducible live demos at security conferences, workshops, 
 
 **Say:** *"Here's where it gets interesting. Meshtastic encrypts traffic, but most people use default keys. We test 23 known default PSKs including admin channel defaults from older firmware."*
 
-**Show:** 
+**Show:**
 - Navigate to **Info** tab → scroll to PSK Stats section
 - Or use serial command `m` to show decryption hits
 
@@ -126,8 +126,8 @@ Use this script for reproducible live demos at security conferences, workshops, 
 - *"The web UI is convenient but the serial interface gives you more detail"*
 
 ### Web UI doesn't load
-- Run `pio run --target uploadfs` to re-upload
-- Use serial commands as backup: `m`, `a`, `g`
+- Run `pio run -e heltec_v3 --target uploadfs` (adjust env for your board) to re-upload
+- Use serial commands as backup: `m`, `a`, `g` (not available on Heltec V4)
 
 ### Decryption not working
 - *"This network uses a custom PSK - that's actually good security practice"*
