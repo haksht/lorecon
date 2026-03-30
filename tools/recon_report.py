@@ -294,6 +294,29 @@ class SecurityAssessment:
             lines.append(f"| {node_id} | {proto} | {data['packets']} | {avg_rssi} | {encrypted} | {gps} |")
         lines.append("")
         
+        # GPS Observations
+        gps_devices = {nid: d for nid, d in self.devices.items() if d['has_gps'] and d['positions']}
+        if gps_devices:
+            lines.append("## GPS Observations")
+            lines.append("")
+            lines.append("The following devices broadcast GPS coordinates during the observation window.")
+            lines.append("Coordinates are extracted from unencrypted position packets.")
+            lines.append("")
+            lines.append("| Node ID | Fixes | Lat Range | Lon Range |")
+            lines.append("|---------|-------|-----------|-----------|")
+            for node_id, data in sorted(gps_devices.items()):
+                positions = data['positions']
+                lats = [p[0] for p in positions]
+                lons = [p[1] for p in positions]
+                if len(positions) == 1:
+                    lat_str = f"{lats[0]:.6f}"
+                    lon_str = f"{lons[0]:.6f}"
+                else:
+                    lat_str = f"{min(lats):.6f} – {max(lats):.6f}"
+                    lon_str = f"{min(lons):.6f} – {max(lons):.6f}"
+                lines.append(f"| {node_id} | {len(positions)} | {lat_str} | {lon_str} |")
+            lines.append("")
+
         # PSK Analysis
         if self.psk_success:
             lines.append("## PSK Decryption Analysis")
@@ -305,6 +328,26 @@ class SecurityAssessment:
                 lines.append(f"| {psk} | {count} |")
             lines.append("")
         
+        # Assessment Methodology
+        lines.append("## Assessment Methodology")
+        lines.append("")
+        lines.append("Security findings are based on passive observation of over-the-air traffic only.")
+        lines.append("No active probing or injection was performed.")
+        lines.append("")
+        lines.append("**Severity criteria:**")
+        lines.append("")
+        lines.append("| Severity | Criteria |")
+        lines.append("|----------|----------|")
+        lines.append("| CRITICAL | Exploitable with public tools, immediate risk (e.g. legacy admin key) |")
+        lines.append("| HIGH | Default credential in use, decryption confirmed |")
+        lines.append("| MEDIUM | Information exposure, missing encryption |")
+        lines.append("| INFO | Observation only, no direct risk |")
+        lines.append("")
+        lines.append("**Limitations:** Findings are constrained by observation time and frequency coverage.")
+        lines.append("Devices with fewer than 5 packets captured may be under-characterized —")
+        lines.append("a low packet count does not indicate low risk.")
+        lines.append("")
+
         # Recommendations
         lines.append("## Recommendations Summary")
         lines.append("")

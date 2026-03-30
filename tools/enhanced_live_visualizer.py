@@ -47,7 +47,7 @@ try:
     AUDIO_AVAILABLE = True
 except ImportError:
     AUDIO_AVAILABLE = False
-    print("[!] Audio feedback disabled (install sounddevice + numpy to enable)")
+    print("[!] Audio feedback disabled - pip install sounddevice numpy")
 
 # Try optional folium for interactive maps
 try:
@@ -55,7 +55,7 @@ try:
     FOLIUM_AVAILABLE = True
 except ImportError:
     FOLIUM_AVAILABLE = False
-    print("[!] Interactive maps disabled (install folium to enable)")
+    print("[!] HTML map export disabled - pip install folium")
 
 # Configuration
 SERIAL_BAUDRATE = 115200

@@ -31,6 +31,22 @@ from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
 
+# Wireshark exporter (same repo, export/ subdirectory)
+sys.path.insert(0, str(Path(__file__).parent / 'export'))
+try:
+    from wireshark_exporter import parse_esp32_pcap, write_loratap_pcap, open_wireshark as _ws_open
+    EXPORTER_AVAILABLE = True
+except ImportError:
+    EXPORTER_AVAILABLE = False
+
+sys.path.insert(0, str(Path(__file__).parent / 'meshtastic'))
+try:
+    from psk_decrypt import MeshtasticDecryptor
+    _decryptor = MeshtasticDecryptor()
+    PSK_AVAILABLE = True
+except Exception:
+    PSK_AVAILABLE = False
+
 # Try optional scapy import
 try:
     from scapy.all import rdpcap, raw, Packet
@@ -80,6 +96,9 @@ class LoRaPacket:
         self.length = len(data)
         self.protocol = self._identify_protocol()
         self.node_id = self._extract_node_id()
+        self.lat = None
+        self.lon = None
+        self._extract_gps()
     
     def _identify_protocol(self):
         """Identify protocol from packet signature"""
@@ -115,6 +134,94 @@ class LoRaPacket:
         
         return None
     
+    def _extract_gps(self):
+        """
+        Extract GPS coordinates from Meshtastic position packets.
+
+        Tries PSK decryption first (covers encrypted packets using default keys),
+        then falls back to checking if the payload is already plaintext.
+        Parses the decrypted Data protobuf for portnum POSITION (0x03) and
+        extracts latitude_i / longitude_i (signed int32, scaled by 1e7).
+        """
+        if self.protocol != 'Meshtastic' or len(self.data) < 20:
+            return
+
+        plaintext = None
+
+        # Try PSK decryption (handles encrypted packets with default keys)
+        if PSK_AVAILABLE:
+            try:
+                result = _decryptor.try_decrypt(self.data)
+                if result and result.portnum_name == 'POSITION':
+                    plaintext = result.plaintext
+            except Exception:
+                pass
+
+        # Fall back: check if payload is already unencrypted
+        if plaintext is None:
+            payload = self.data[20:]  # skip 4-byte magic + 16-byte header
+            if len(payload) >= 2 and payload[0] == 0x08 and payload[1] == 0x03:
+                plaintext = payload
+
+        if plaintext is None:
+            return
+
+        # plaintext is a Data protobuf. Find field 2 (0x12) = the Position bytes.
+        # Structure: 0x08 0x03 0x12 <len> <Position protobuf>
+        try:
+            i = 0
+            pos_data = None
+            while i < len(plaintext) - 1:
+                tag = plaintext[i]; i += 1
+                field = tag >> 3
+                wire  = tag & 0x07
+                if wire == 2 and field == 2:          # length-delimited, field 2 = payload
+                    length = plaintext[i]; i += 1
+                    pos_data = plaintext[i:i + length]
+                    break
+                elif wire == 0:                        # skip varint
+                    while i < len(plaintext) and (plaintext[i] & 0x80):
+                        i += 1
+                    i += 1
+                else:
+                    break
+
+            if not pos_data:
+                return
+
+            # Parse Position protobuf: field 1 = latitude_i, field 2 = longitude_i (varints)
+            i = 0
+            lat_i = lon_i = None
+            while i < len(pos_data):
+                tag = pos_data[i]; i += 1
+                field = tag >> 3
+                wire  = tag & 0x07
+                if wire == 0:
+                    val = 0; shift = 0
+                    while i < len(pos_data):
+                        b = pos_data[i]; i += 1
+                        val |= (b & 0x7F) << shift
+                        shift += 7
+                        if not (b & 0x80):
+                            break
+                    if val >= (1 << 31):
+                        val -= (1 << 32)
+                    if field == 1:
+                        lat_i = val
+                    elif field == 2:
+                        lon_i = val
+                elif wire == 2:                        # skip length-delimited
+                    length = pos_data[i]; i += 1
+                    i += length
+                else:
+                    break
+
+            if lat_i and lon_i:
+                self.lat = lat_i / 1e7
+                self.lon = lon_i / 1e7
+        except Exception:
+            pass
+
     def to_dict(self):
         """Convert to dictionary"""
         result = {
@@ -129,7 +236,9 @@ class LoRaPacket:
             'length': self.length,
             'protocol': self.protocol,
             'node_id': self.node_id,
-            'data_hex': self.data.hex()
+            'data_hex': self.data.hex(),
+            'lat': self.lat,
+            'lon': self.lon,
         }
         return result
 
@@ -323,6 +432,24 @@ def analyze_packets(packets):
             print(f"   {node_id}: {stats['count']:4} pkts, "
                   f"avg RSSI {avg_rssi:6.1f} dBm ({protos})")
     
+    # GPS observations
+    gps_packets = [(p.node_id, p.lat, p.lon) for p in packets if p.lat is not None]
+    if gps_packets:
+        print(f"\n📍 GPS Observations")
+        gps_by_node = defaultdict(list)
+        for node_id, lat, lon in gps_packets:
+            gps_by_node[node_id or 'Unknown'].append((lat, lon))
+        print(f"   Nodes with GPS data: {len(gps_by_node)}")
+        for node_id, positions in sorted(gps_by_node.items()):
+            lats = [p[0] for p in positions]
+            lons = [p[1] for p in positions]
+            if len(positions) == 1:
+                print(f"   {node_id}: {lats[0]:.6f}, {lons[0]:.6f}")
+            else:
+                lat_range = f"{min(lats):.6f} – {max(lats):.6f}"
+                lon_range = f"{min(lons):.6f} – {max(lons):.6f}"
+                print(f"   {node_id}: {len(positions)} fixes  lat {lat_range}  lon {lon_range}")
+
     # Packet sizes
     sizes = [p.length for p in packets]
     print(f"\n📐 Packet Sizes")

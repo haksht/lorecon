@@ -17,10 +17,12 @@ Requirements:
 """
 
 import argparse
+import binascii
 import json
 import sys
 import signal
 from datetime import datetime
+from pathlib import Path
 
 try:
     import websocket
@@ -28,6 +30,14 @@ except ImportError:
     print("Error: websocket-client library required.")
     print("Install with: pip install websocket-client")
     sys.exit(1)
+
+# PSK decryption (optional)
+sys.path.insert(0, str(Path(__file__).parent / 'meshtastic'))
+try:
+    from psk_decrypt import MeshtasticDecryptor
+    PSK_AVAILABLE = True
+except ImportError:
+    PSK_AVAILABLE = False
 
 
 # ANSI color codes
@@ -56,17 +66,55 @@ PROTOCOL_COLORS = {
 class WebSocketMonitor:
     """Headless WebSocket monitor for ESP32 LoRa Sniffer"""
     
-    def __init__(self, host='192.168.4.1', json_output=False, 
-                 protocol_filter=None, quiet=False, no_color=False):
+    @staticmethod
+    def _extract_text(plaintext: bytes) -> str | None:
+        """
+        Extract UTF-8 text from a decrypted Meshtastic TEXT_MESSAGE protobuf.
+
+        Expected structure after decryption:
+          0x08 0x01         field 1 (portnum) = 1 (TEXT_MESSAGE)
+          0x12 <len> <str>  field 2 (payload bytes) = the message text
+        """
+        if len(plaintext) < 4:
+            return None
+        if plaintext[0] != 0x08 or plaintext[1] != 0x01:
+            return None
+        if plaintext[2] != 0x12:
+            return None
+        text_len = plaintext[3]
+        text_bytes = plaintext[4:4 + text_len]
+        if len(text_bytes) < text_len:
+            return None
+        try:
+            return text_bytes.decode('utf-8')
+        except UnicodeDecodeError:
+            return text_bytes.decode('utf-8', errors='replace')
+
+    def __init__(self, host='192.168.4.1', json_output=False,
+                 protocol_filter=None, quiet=False, no_color=False,
+                 decrypt=False, messages=False):
         self.host = host
         self.json_output = json_output
         self.protocol_filter = protocol_filter.lower() if protocol_filter else None
         self.quiet = quiet
         self.no_color = no_color
+        self.decrypt = decrypt
         self.ws = None
         self.packet_count = 0
         self.start_time = datetime.now()
         self.running = True
+
+        self.messages = messages
+        if self.messages:
+            self.decrypt = True  # --messages implies --decrypt
+
+        if self.decrypt:
+            if not PSK_AVAILABLE:
+                print("[!] PSK decryption unavailable - pip install cryptography")
+                self.decrypt = False
+                self.messages = False
+            else:
+                self._decryptor = MeshtasticDecryptor()
         
         # Handle Ctrl+C gracefully
         signal.signal(signal.SIGINT, self._signal_handler)
@@ -135,12 +183,51 @@ class WebSocketMonitor:
         node_str = self._color(f"{node_id:<12}", Colors.CYAN)
         rssi_str = self._format_rssi(rssi)
         
+        # --messages mode: attempt decrypt, skip non-text packets entirely
+        if self.messages and protocol == 'Meshtastic':
+            raw_hex = data.get('dataHex') or data.get('data_hex') or data.get('rawHex')
+            if not raw_hex:
+                return  # no raw bytes — can't decrypt, skip
+            try:
+                raw_bytes = binascii.unhexlify(raw_hex)
+                result = self._decryptor.try_decrypt(raw_bytes)
+                if result and result.portnum_name == 'TEXT_MESSAGE':
+                    text = self._extract_text(result.plaintext) or ''.join(
+                        chr(b) if 32 <= b < 127 else '.' for b in result.plaintext[4:]
+                    )
+                    key_label = self._color(f"[key#{result.key_index}]", Colors.YELLOW)
+                    print(f"💬 {timestamp} {node_str} {rssi_str}  {key_label} {self._color(text, Colors.GREEN)}")
+                    self.packet_count += 1
+            except Exception:
+                pass
+            return  # always skip packet-header line in --messages mode
+
+        self.packet_count += 1
         print(f"📦 {timestamp} {proto_str} {node_str} {rssi_str}  SNR:{snr:5.1f}  {length:3}B")
-        
-        # Show message if decrypted
+
+        # Show message if decrypted by firmware
         message = data.get('message')
         if message:
             print(f"   💬 {self._color(message, Colors.GREEN)}")
+
+        # Attempt PSK decryption on raw bytes if --decrypt and no firmware message
+        if self.decrypt and not message and protocol == 'Meshtastic':
+            raw_hex = data.get('dataHex') or data.get('data_hex') or data.get('rawHex')
+            if raw_hex:
+                try:
+                    raw_bytes = binascii.unhexlify(raw_hex)
+                    result = self._decryptor.try_decrypt(raw_bytes)
+                    if result:
+                        portnum = f" [{result.portnum_name}]" if result.portnum_name else ""
+                        key_label = self._color(f"key#{result.key_index} {result.key_name}", Colors.YELLOW)
+                        plaintext_printable = ''.join(
+                            chr(b) if 32 <= b < 127 else '.' for b in result.plaintext
+                        )
+                        print(f"   🔓 {key_label}{portnum}: {self._color(plaintext_printable[:120], Colors.GREEN)}")
+                    else:
+                        print(f"   🔒 {self._color('no default PSK matched', Colors.GRAY)}")
+                except Exception:
+                    pass
     
     def _print_status(self, data):
         """Print status update"""
@@ -247,6 +334,8 @@ Examples:
   %(prog)s --filter meshtastic      Only show Meshtastic packets
   %(prog)s --quiet                   Suppress status updates
   %(prog)s --no-color                Disable colored output
+  %(prog)s --decrypt                 Attempt PSK decryption on Meshtastic packets
+  %(prog)s --messages                Decrypted text messages only (quiet everything else)
 
 Keyboard:
   Ctrl+C                             Stop monitoring and show summary
@@ -263,15 +352,21 @@ Keyboard:
                        help='Only show packets, no status updates')
     parser.add_argument('--no-color', action='store_true',
                        help='Disable colored output')
-    
+    parser.add_argument('--decrypt', action='store_true',
+                       help='Attempt PSK decryption on Meshtastic packets (requires: pip install cryptography)')
+    parser.add_argument('--messages', action='store_true',
+                       help='Show decrypted text messages only — implies --decrypt, suppresses all other output')
+
     args = parser.parse_args()
-    
+
     monitor = WebSocketMonitor(
         host=args.host,
         json_output=args.json,
         protocol_filter=args.filter,
         quiet=args.quiet,
-        no_color=args.no_color
+        no_color=args.no_color,
+        decrypt=args.decrypt,
+        messages=args.messages,
     )
     
     monitor.run()
