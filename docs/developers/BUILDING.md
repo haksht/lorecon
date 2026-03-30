@@ -133,44 +133,48 @@ The console auto-deactivates after 5 minutes of inactivity.
 
 ---
 
-## OTA firmware updates
+## OTA updates
 
-Once the device is flashed via USB once, you can update firmware wirelessly.
+Once the device is flashed via USB once, both firmware and the web UI filesystem can be updated wirelessly. The Settings tab has two separate upload sections.
 
-### Via web browser
+### Firmware update (OTA)
 
 1. Build: `pio run -e heltec_v3`
 2. Connect to the device (AP or hotspot)
-3. Open the web UI → Settings tab
-4. Under "Firmware Update", click Choose File
-5. Navigate to `.pio/build/<env>/firmware.bin`
-6. Click Upload Firmware
+3. Open the web UI → Settings tab → **Firmware Update**
+4. Choose `.pio/build/<env>/firmware.bin`
+5. Click Upload Firmware
 
-Progress bar shows upload status. Device validates the firmware and reboots automatically. If the new firmware fails to boot, the ESP32 auto-rolls back to the previous firmware — the device cannot be bricked via OTA.
+Progress bar shows upload status. Device validates the firmware and reboots automatically. If the new firmware fails to boot, the ESP32 auto-rolls back to the previous partition — the device cannot be bricked via OTA.
 
-Web UI files (LittleFS) cannot be updated via OTA — those still require `pio run --target uploadfs` over USB.
+### Filesystem update (OTA)
+
+The web UI files (LittleFS) can also be updated over WiFi — no USB required after the initial flash.
+
+1. Build the filesystem image: `pio run -e heltec_v3 --target buildfs`
+2. Open the web UI → Settings tab → **Filesystem Update**
+3. Choose `.pio/build/<env>/littlefs.bin`
+4. Click Upload Filesystem
+
+Device reboots with the new web UI after upload.
 
 ### Via command line
 
 ```bash
-# cURL (Linux/macOS/WSL)
-curl -X POST \
-  -F "firmware=@.pio/build/heltec_v3/firmware.bin" \
+# Firmware (cURL)
+curl -X POST -F "firmware=@.pio/build/heltec_v3/firmware.bin" \
   http://192.168.4.1/api/firmware/upload
 
-# PowerShell
-$uri = "http://192.168.4.1/api/firmware/upload"
-$file = ".pio/build/heltec_v3/firmware.bin"
-$form = [System.Net.Http.MultipartFormDataContent]::new()
-$stream = [System.IO.FileStream]::new($file, [System.IO.FileMode]::Open)
-$form.Add([System.Net.Http.StreamContent]::new($stream), "firmware", "firmware.bin")
-([System.Net.Http.HttpClient]::new()).PostAsync($uri, $form).Result
-$stream.Close()
+# Filesystem (cURL)
+curl -X POST -F "filesystem=@.pio/build/heltec_v3/littlefs.bin" \
+  http://192.168.4.1/api/filesystem/upload
 ```
+
+Both endpoints require the API token header (`X-API-Token: <token>`).
 
 ### How dual-partition OTA works
 
-The ESP32 has two firmware partitions. OTA writes to the inactive partition, then reboots to it. If the new firmware fails to start, the bootloader reverts to the previous partition automatically.
+The ESP32 has two firmware partitions. OTA writes to the inactive partition, then reboots to it. If the new firmware fails to start, the bootloader reverts to the previous partition automatically. The filesystem partition is separate from both and is updated independently.
 
 ---
 
