@@ -1693,7 +1693,23 @@ The v2.0 architecture represents a significant improvement in:
 
 ---
 
-**Document Version:** 2.2  
-**Last Updated:** December 2025  
-**Audience:** Developers learning the v2.0 codebase  
+**Document Version:** 2.2
+**Last Updated:** December 2025
+**Audience:** Developers learning the v2.0 codebase
 **Prerequisite:** Basic C++ knowledge, Arduino familiarity
+
+---
+
+## Porting to Other Boards
+
+The firmware is designed to support multiple boards through `config.h` — each board defines its pin assignments and feature flags under `Config::Hardware`. Adding a new board requires a `platformio.ini` environment, a board section in `config.h`, and hardware testing.
+
+**T-Deck Plus — why it's unsupported:**
+
+Two hardware design issues make it incompatible with no software workaround:
+
+1. **Shared power rail:** GPIO 10 (`PERI_POWERON`) powers both the LoRa radio and the TFT display from the same LDO. You cannot reset the radio without cutting power to the display, making radio recovery after initialization failure impossible.
+
+2. **Shared SPI bus:** HSPI (SCK=40, MISO=38, MOSI=41) is shared among the LoRa radio, TFT display, and SD card with no hardware CS arbitration. LoRa SPI transactions corrupt the display framebuffer within seconds; the display goes black and cannot recover without a full power cycle.
+
+Both are silicon/PCB constraints — no driver or firmware change can resolve them.
