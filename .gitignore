@@ -90,6 +90,7 @@ releases/*.zip
 # Internal session notes (not for public repo)
 HANDOFF.md
 STUDY_PLAN.md
+TEST_PLAN.md
 
 # Generated map exports
 lora_map.html
