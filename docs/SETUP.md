@@ -9,8 +9,15 @@ Flash the firmware, boot the device, connect to WiFi. This guide covers the full
 - One of the [supported boards](HARDWARE.md)
 - USB-C data cable (not charge-only)
 - 902-928 MHz antenna — usually ships with the board
-- Python 3 and esptool: `pip install esptool`
+- Python 3 and esptool:
+```bash
+   python -m venv venv      # One time creation of "venv" virtual environment
+   .\venv\Scripts\activate  # ./venv/bin/activate (linux)
+   pip install -r tools/requirements.txt
 
+.. note:
+   make sure you always activate the virtual environment you created above (venv)
+   when you use any python related tools in this project.
 ---
 
 ## Download firmware
@@ -64,6 +71,7 @@ Flashing takes 30-90 seconds. The script prints `SUCCESS` when done.
 
 If you prefer to run esptool yourself:
 ```bash
+.\venv\Scripts\activate  # or ./venv/bin/activate on linux
 python -m esptool --chip esp32s3 --port COM3 --baud 921600 \
   write_flash --flash_size 8MB 0x0 heltec_v3/full.bin
 ```

@@ -41,7 +41,17 @@ Flash the `heltec_v3` binary unless your V4 has the GPS module — in that case 
 
 **Purchase:** [Heltec Store](https://heltec.org/project/wifi-lora-32-v3/)
 
-**Note:** The V4 has no serial monitor. Use the web UI for all monitoring.
+**No serial monitor.** The V4 uses native USB (no CP210x bridge). Enabling USB CDC kills radio reception due to shared silicon noise, so serial output is permanently disabled. Use the web UI for all monitoring and commands.
+
+**Hotspot setup is required on V4.** On other boards you can read the API token from the serial output at boot and authenticate via the device AP. On V4 there is no serial output, so there is no way to retrieve the token while connected to the device AP. You must configure a hotspot first:
+
+1. Connect to `LoRa-XXXXXX` AP (password `recon-XXXXXX`)
+2. Open `http://192.168.4.1` → Settings → Configure Hotspot
+3. Enter your phone hotspot credentials and save
+4. Device reboots and connects to your hotspot
+5. Connect your phone/laptop to the same hotspot — the token is now auto-fetched and saved to your browser
+
+After this one-time setup, the token is stored in your browser's localStorage and you will not be prompted again.
 
 ---
 

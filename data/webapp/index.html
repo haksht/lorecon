@@ -177,23 +177,10 @@
                 </div>
             </div>
 
-            <!-- Target Info Banner -->
-            <div class="target-info" id="target-info" style="display: none;">
-                <div class="target-header">
-                    <strong>🎯 Locked On</strong>
-                    <button data-action="stop-capture" class="target-close" aria-label="Stop targeting">✕</button>
-                </div>
-                <div id="target-details" class="target-details"></div>
-            </div>
-
             <!-- Actions -->
             <div class="actions-section">
                 <h2>Actions</h2>
                 <div class="button-list">
-                    <button data-action="toggle-scan" class="btn btn-primary" aria-label="Toggle scanning">
-                        <span class="btn-icon">▶</span>
-                        <span>Resume Scan</span>
-                    </button>
                     <button data-action="download-report" class="btn" aria-label="Download consolidated report">
                         <span class="btn-icon">📥</span>
                         <span>Download Report</span>
@@ -220,6 +207,12 @@
 
         <!-- Right Panel -->
         <div class="results-panel">
+            <!-- Targeting Bar (shown only when in targeted capture mode) -->
+            <div id="targeting-bar" class="targeting-bar" style="display: none;">
+                <span class="targeting-bar-info">🎯 <span id="targeting-bar-freq"></span></span>
+                <button data-action="stop-capture" data-confirm-msg="Stop capture and return to scanning mode?" class="btn btn-small targeting-bar-btn">↩ Return to Scan</button>
+            </div>
+
             <!-- Tabs Navigation -->
             <div class="tabs" role="tablist">
                 <button class="tab-btn active" data-tab="info" role="tab" aria-selected="true" aria-controls="tab-info">
@@ -256,6 +249,9 @@
                     <div class="status-grid">
                         <div class="status-card-large">
                             <h3>System Status</h3>
+                            <div id="info-targeting-notice" class="targeting-notice" style="display: none;">
+                                🎯 Targeting: <span id="info-targeting-freq"></span>
+                            </div>
                             <div class="status-row">
                                 <span>Mode</span>
                                 <span class="status-value" id="info-mode">—</span>
@@ -301,7 +297,7 @@
 
                     <!-- Additional Info Sections -->
                     <div class="info-section">
-                        <h3> Security Assessment</h3>
+                        <h3>Security Assessment</h3>
                         <div id="security-content" class="content-area">
                             <div class="loading-container">
                                 <div class="loading-spinner"></div>
@@ -317,7 +313,7 @@
                 <div class="tab-inner">
                     <div class="results-header">
                         <h2>Discovered Devices</h2>
-                        <p class="header-subtitle">Click "🎯 Lock Freq" to lock the radio on a device's frequency and capture all traffic there</p>
+                        <p class="header-subtitle">Devices discovered during scanning. Go to Frequencies tab to target a frequency and capture all traffic there.</p>
                         <button data-action="clear-devices" class="btn btn-secondary" aria-label="Clear devices">
                             <span class="btn-icon">🗑️</span>
                             <span>Clear All</span>
@@ -357,7 +353,7 @@
                 <div class="tab-inner">
                     <div class="results-header">
                         <h2>Frequency Configurations</h2>
-                        <p class="header-subtitle">26 scan configurations covering Meshtastic, LoRaWAN, and Helium</p>
+                        <p class="header-subtitle">26 scan configurations covering Meshtastic, LoRaWAN, and Helium. Tap 🎯 Target on any row to lock the radio on that frequency and capture all traffic there.</p>
                     </div>
                     
                     <!-- Frequency Analysis Summary -->
@@ -547,7 +543,7 @@
                                 <label>Stored Token:</label>
                                 <span id="stored-token-display" style="font-family: monospace; font-size: 0.9rem;">—</span>
                             </div>
-                            <button class="btn" id="fetch-token-btn">
+                            <button class="btn" id="fetch-token-btn" data-action="fetch-token">
                                 <span class="btn-icon">🔑</span>
                                 <span>Get Token from Device</span>
                             </button>
