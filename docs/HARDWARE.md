@@ -12,7 +12,7 @@ Supported boards, specifications, purchase links, and antenna selection.
 | **LoRa** | SX1262 | SX1262 | SX1262 | SX1262 |
 | **Display** | 0.96" SSD1306 OLED | 0.96" SSD1306 OLED | 0.96" SSD1306 OLED | 1.3" SH1106 OLED |
 | **SD card** | No | No | Native MicroSD slot | Native MicroSD slot |
-| **GPS** | No | Optional L76K module | No | u-blox (built in) |
+| **GPS** | No | Optional L76K module | No | Quectel L76K or MAX-M10S (built in) |
 | **PMIC** | No | No | No | AXP2101 |
 | **Price** | ~$22-32 | ~$25-35 | ~$23-30 | ~$45-55 |
 
@@ -75,7 +75,7 @@ The most capable board: GPS, SD card, and battery management.
 
 **SD card:** MicroSD slot. Supports up to 32 GB (FAT32).
 
-**GPS:** Built-in u-blox module. Coordinates are stamped on every captured packet when a fix is acquired.
+**GPS:** Built-in Quectel L76K or MAX-M10S module. Coordinates are stamped on every captured packet when a fix is acquired.
 
 **Battery:** 18650 Li-Ion cell with charging and safe hardware power-off. The power-off button (or Settings tab) cuts all rails — no residual drain.
 
