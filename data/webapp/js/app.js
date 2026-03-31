@@ -45,11 +45,12 @@ async function promptForToken() {
         }
     } catch (e) { /* not on AP subnet, fall through to manual prompt */ }
 
-    const token = prompt(
-        'API Token Required\n\n' +
-        'Protected actions (replay, targeting, etc.) require authentication.\n' +
-        'Find your token in the serial output at device boot.\n\n' +
-        'Enter API Token:'
+    // window.prompt() is suppressed by captive portal browsers — use custom modal
+    const token = await ModalRenderer.prompt(
+        'API Token Required',
+        'Protected actions (replay, targeting, etc.) require authentication.<br>Find your token in the serial output at device boot.',
+        'Paste token here',
+        'password'
     );
     if (token) {
         setStoredToken(token);
@@ -110,6 +111,11 @@ function handleError(error, context, options = {}) {
     
     if (rethrow) throw error;
     return null;
+}
+
+// Mode detection helper — single place for firmware mode string logic
+function isTargetedMode(mode) {
+    return (mode || '').toLowerCase().includes('target');
 }
 
 // Loading state HTML helper
@@ -338,6 +344,68 @@ const ModalRenderer = {
     },
 
     /**
+     * Show a text input modal (replaces window.prompt() which is suppressed
+     * by captive portal browsers on iOS Safari)
+     * @param {string} title - Modal title
+     * @param {string} message - Prompt message
+     * @param {string} [placeholder=''] - Input placeholder text
+     * @param {string} [inputType='text'] - Input type ('text' or 'password')
+     * @returns {Promise<string|null>} entered value, or null if cancelled
+     */
+    prompt(title, message, placeholder = '', inputType = 'text') {
+        return new Promise((resolve) => {
+            const id = 'prompt-modal-' + Date.now();
+            const inputId = 'prompt-input-' + Date.now();
+            const html = `<div class="modal-backdrop" id="${id}">
+                <div class="modal-box">
+                    <div class="modal-header-section">
+                        <h3 class="text-primary">${title}</h3>
+                    </div>
+                    <div class="modal-body-section">
+                        <p>${message}</p>
+                        <input type="${inputType}" id="${inputId}" class="modal-input" placeholder="${placeholder}"
+                            style="width:100%;margin-top:12px;padding:8px;background:var(--bg-secondary);border:1px solid var(--border);border-radius:var(--radius);color:var(--text-primary);font-size:0.95rem;">
+                    </div>
+                    <div class="modal-footer-section">
+                        <button data-confirm="cancel" class="btn btn-secondary">Cancel</button>
+                        <button data-confirm="ok" class="btn btn-primary">OK</button>
+                    </div>
+                </div>
+            </div>`;
+
+            const container = document.createElement('div');
+            container.innerHTML = html;
+            const modal = container.firstChild;
+            document.body.appendChild(modal);
+
+            const input = document.getElementById(inputId);
+            if (input) setTimeout(() => input.focus(), 50);
+
+            if (input) {
+                input.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter') {
+                        const val = input.value.trim();
+                        modal.remove();
+                        resolve(val || null);
+                    }
+                });
+            }
+
+            modal.addEventListener('click', (e) => {
+                const action = e.target.dataset.confirm;
+                if (action === 'ok') {
+                    const val = input ? input.value.trim() : null;
+                    modal.remove();
+                    resolve(val || null);
+                } else if (action === 'cancel' || e.target === modal) {
+                    modal.remove();
+                    resolve(null);
+                }
+            });
+        });
+    },
+
+    /**
      * Show a confirmation modal (replaces browser confirm() which is
      * suppressed by captive portal browsers)
      * @param {string} title - Modal title
@@ -408,7 +476,11 @@ class ReconApp {
             settingsContent: document.getElementById('settings-content'),
             gpsContent: document.getElementById('gps-content'),
             securityContent: document.getElementById('security-content'),
+            targetingBar: document.getElementById('targeting-bar'),
+            targetingBarFreq: document.getElementById('targeting-bar-freq'),
             infoMode: document.getElementById('info-mode'),
+            infoTargetingNotice: document.getElementById('info-targeting-notice'),
+            infoTargetingFreq: document.getElementById('info-targeting-freq'),
             infoUptime: document.getElementById('info-uptime'),
             infoPackets: document.getElementById('info-packets'),
             infoDevices: document.getElementById('info-devices'),
@@ -416,19 +488,27 @@ class ReconApp {
             infoGpsRow: document.getElementById('info-gps-row'),
             infoGps: document.getElementById('info-gps'),
             mobileMenuToggle: document.getElementById('mobile-menu-toggle'),
-            mobileMenuOverlay: document.getElementById('mobile-menu-overlay'),
-            targetInfo: document.getElementById('target-info'),
-            targetDetails: document.getElementById('target-details')
+            mobileMenuOverlay: document.getElementById('mobile-menu-overlay')
         };
 
         // State
         this.statusTimer = null;
         this.lastDropWarning = null;  // Track queue warning timestamp
         this.currentTab = 'info';
+        this.currentStatus = null;
         this.isMobile = window.innerWidth < 768;
         this.networkMap = null;
         this.warRoom = null;
         this.ws = null;
+
+        // Device filter/sort state (persists across tab refreshes)
+        this.allDevices = null;
+        this.deviceFilter = { text: '', protocol: 'all', risk: 'all' };
+        this.deviceSort = { col: 'securityScore', dir: 'asc' };
+
+        // War room event tracking (detect mode/device-count changes)
+        this.lastStatusMode = undefined;
+        this.lastStatusDevices = undefined;
 
         this.init();
     }
@@ -446,7 +526,15 @@ class ReconApp {
             // Initial data load
             await this.updateStatus();
             this.statusTimer = setInterval(() => this.updateStatus(), 10000);
-            
+
+            // Auto-refresh active tab content every 15s (devices, packets, frequency, network)
+            const refreshableTabs = new Set(['devices', 'packets', 'frequency', 'network']);
+            this.contentRefreshTimer = setInterval(() => {
+                if (refreshableTabs.has(this.currentTab)) {
+                    this.loadTabContent(this.currentTab);
+                }
+            }, 15000);
+
             // Check WiFi setup mode and show banner if needed
             await this.checkSetupMode();
             
@@ -504,6 +592,9 @@ class ReconApp {
     }
 
     handleStatusUpdate(data) {
+        this.currentStatus = data;
+        const isTargeted = isTargetedMode(data.mode);
+
         // Check for queue drops and show warning if significant
         if (data.droppedPackets > 0 && data.totalPackets > 0) {
             const totalReceived = data.totalPackets + data.droppedPackets;
@@ -516,12 +607,16 @@ class ReconApp {
         
         // Update sidebar stats
         if (this.el.mode) {
-            this.el.mode.textContent = this.formatMode(data.mode);
-            // Add pulse animation when actively scanning
+            if (isTargeted && data.target && data.target.frequency) {
+                const cfgIdx = data.target.configIndex;
+                const cfgSuffix = cfgIdx !== undefined ? ` #${cfgIdx}` : '';
+                this.el.mode.textContent = `🎯 ${data.target.frequency.toFixed(3)} MHz${cfgSuffix}`;
+            } else {
+                this.el.mode.textContent = '🔍 Scanning';
+            }
             const modeCard = this.el.mode.closest('.stat-card');
             if (modeCard) {
-                const isScanning = !(data.mode || '').toLowerCase().includes('target');
-                modeCard.classList.toggle('scanning-pulse', isScanning);
+                modeCard.classList.toggle('scanning-pulse', !isTargeted);
             }
         }
         if (this.el.devices) this.el.devices.textContent = data.devices || 0;
@@ -540,7 +635,25 @@ class ReconApp {
         
         // Update info tab if visible
         if (this.currentTab === 'info') {
-            if (this.el.infoMode) this.el.infoMode.textContent = this.formatMode(data.mode);
+            if (this.el.infoTargetingNotice) {
+                if (isTargeted && data.target && data.target.frequency) {
+                    const cfgIdx = data.target.configIndex;
+                    const cfgSuffix = cfgIdx !== undefined ? ` (config #${cfgIdx})` : '';
+                    if (this.el.infoTargetingFreq) {
+                        this.el.infoTargetingFreq.textContent = `${data.target.frequency.toFixed(3)} MHz${cfgSuffix}`;
+                    }
+                    this.el.infoTargetingNotice.style.display = '';
+                } else {
+                    this.el.infoTargetingNotice.style.display = 'none';
+                }
+            }
+            if (this.el.infoMode) {
+                if (isTargeted && data.target && data.target.frequency) {
+                    this.el.infoMode.textContent = 'Targeted Capture';
+                } else {
+                    this.el.infoMode.textContent = this.formatMode(data.mode);
+                }
+            }
             if (this.el.infoUptime) this.el.infoUptime.textContent = this.formatDuration(data.uptime || 0);
             if (this.el.infoPackets) this.el.infoPackets.textContent = data.totalPackets || 0;
             if (this.el.infoDevices) this.el.infoDevices.textContent = data.devices || 0;
@@ -566,71 +679,42 @@ class ReconApp {
             }
         }
         
-        // Update Resume Scan button based on mode
-        this.updateScanButton(data.mode);
-        
-        // Update target banner
-        this.updateTargetBanner(data);
+        // Feed war room event log when meaningful state changes occur
+        if (this.warRoom) {
+            if (this.lastStatusMode !== undefined && this.lastStatusMode !== data.mode) {
+                const nowTargeted = isTargetedMode(data.mode);
+                const wasTargeted = isTargetedMode(this.lastStatusMode);
+                if (nowTargeted && data.target) {
+                    const freq = data.target.frequency ? data.target.frequency.toFixed(3) : '?';
+                    this.warRoom.addEvent('mode', `Locked: ${freq} MHz (cfg #${data.target.configIndex ?? '?'})`);
+                } else if (wasTargeted) {
+                    this.warRoom.addEvent('mode', 'Returned to scanning');
+                }
+            }
+            if (this.lastStatusDevices !== undefined && (data.devices || 0) > this.lastStatusDevices) {
+                const n = data.devices - this.lastStatusDevices;
+                this.warRoom.addEvent('device', `${n} new device${n > 1 ? 's' : ''} detected`);
+            }
+        }
+        this.lastStatusMode = data.mode;
+        this.lastStatusDevices = data.devices || 0;
+
+        // Update targeting bar
+        this.updateTargetingBar(data);
     }
     
-    updateScanButton(mode) {
-        const scanBtn = document.querySelector('[data-action="toggle-scan"]');
-        if (!scanBtn) return;
-        
-        const modeStr = (mode || '').toLowerCase();
-        const isTargeted = modeStr.includes('target');
-        
-        // Update button appearance based on mode
-        if (isTargeted) {
-            scanBtn.classList.add('btn-disabled');
-            scanBtn.title = 'Stop targeted capture first';
-            const textEl = scanBtn.querySelector('span:last-child');
-            if (textEl) textEl.textContent = 'Frequency Locked';
-        } else {
-            scanBtn.classList.remove('btn-disabled');
-            scanBtn.title = '';
-            const textEl = scanBtn.querySelector('span:last-child');
-            if (textEl) textEl.textContent = 'Resume Scan';
-        }
-    }
-
-    updateTargetBanner(data) {
-        if (!this.el.targetInfo || !data.target) return;
-        
-        const mode = (data.mode || '').toLowerCase();
-        if (mode.includes('target') && data.target.frequency) {
-            this.el.targetInfo.style.display = 'block';
-            
-            // Clearly distinguish device targeting vs frequency targeting
-            const isDeviceTarget = data.target.targetedByDevice && data.target.nodeId;
-            
-            let html = '';
-            if (isDeviceTarget) {
-                // Device targeting - locks on the device's frequency, captures all traffic there
-                html = `<div class="target-type">📻 Frequency Lock</div>`;
-                html += `<strong>${data.target.frequency.toFixed(3)} MHz</strong>`;
-                html += ` <span class="text-muted">(frequency of <code>${escapeHtml(String(data.target.nodeId))}</code>`;
-                if (data.target.deviceType) {
-                    html += ` — ${escapeHtml(data.target.deviceType)}`;
-                }
-                html += `)</span>`;
-                if (data.target.rssi) {
-                    html += `<br><span class="text-muted">${formatRSSI(data.target.rssi)}</span>`;
-                }
-                html += `<br><span class="text-muted">Capturing all traffic on this channel</span>`;
-            } else {
-                // Frequency targeting - show frequency info prominently
-                html = `<div class="target-type">📻 Frequency Lock</div>`;
-                html += `<strong>${data.target.frequency.toFixed(3)} MHz</strong>`;
-                if (data.target.protocol) {
-                    html += ` <span class="text-muted">(${escapeHtml(data.target.protocol)})</span>`;
-                }
-                html += `<br><span class="text-muted">SF${data.target.spreadingFactor || '?'} / ${data.target.bandwidth || '?'} kHz</span>`;
+    updateTargetingBar(data) {
+        if (!this.el.targetingBar) return;
+        const isTargeted = isTargetedMode(data.mode);
+        if (isTargeted && data.target && data.target.frequency) {
+            const cfgIdx = data.target.configIndex;
+            const cfgSuffix = cfgIdx !== undefined ? ` (config #${cfgIdx})` : '';
+            if (this.el.targetingBarFreq) {
+                this.el.targetingBarFreq.textContent = `${data.target.frequency.toFixed(3)} MHz${cfgSuffix}`;
             }
-            
-            this.el.targetDetails.innerHTML = html;
+            this.el.targetingBar.style.display = '';
         } else {
-            this.el.targetInfo.style.display = 'none';
+            this.el.targetingBar.style.display = 'none';
         }
     }
 
@@ -709,9 +793,8 @@ class ReconApp {
                 await this.showFrequency();
                 break;
             case 'network':
-                // Dashboard tab: load both network map and stats
-                await this.showNetwork();
-                await this.showStats();
+                // Dashboard tab: load both network map and stats in parallel
+                await Promise.all([this.showNetwork(), this.showStats()]);
                 break;
             case 'settings':
                 await this.showSettings();
@@ -729,16 +812,49 @@ class ReconApp {
     //               showInfo (line ~1059), showSettings (line ~1254)
     
     /**
+     * Fetch devices enriched with security scores from /api/recon/security.
+     * Shared by showDevices() and showNetwork() to avoid duplicate fetches.
+     * @returns {Object|null} { devices: [...enriched] } or null on failure
+     */
+    async fetchEnrichedDevices() {
+        const data = await this.get('/api/devices');
+        if (!data || !data.devices) return null;
+
+        const scoreMap = new Map();
+        try {
+            const secData = await this.get('/api/recon/security');
+            if (secData && secData.devices) {
+                secData.devices.forEach(d => {
+                    scoreMap.set(d.nodeIdDecimal, { score: d.score, riskLevel: d.riskLevel });
+                });
+            }
+        } catch (e) {
+            DEBUG.warn('Security data not available');
+        }
+
+        return {
+            ...data,
+            devices: data.devices.map(device => {
+                const secInfo = scoreMap.get(device.nodeIdDecimal) || { score: 100, riskLevel: 'unknown' };
+                return { ...device, securityScore: secInfo.score, riskLevel: secInfo.riskLevel };
+            })
+        };
+    }
+
+    /**
      * Load and display the Devices tab
-     * Fetches /api/devices and renders device table with targeting options
+     * Fetches /api/devices and renders device table with filter/sort controls
      */
     async showDevices() {
-        // Show loading state
-        this.el.devicesContent.innerHTML = renderLoadingState('Loading devices...');
-        
+        // Only show spinner on first visit; subsequent refreshes update silently
+        if (!this.allDevices) {
+            this.el.devicesContent.innerHTML = renderLoadingState('Loading devices...');
+        }
+
         try {
-            const data = await this.get('/api/devices');
+            const data = await this.fetchEnrichedDevices();
             if (!data || !data.devices || data.devices.length === 0) {
+                this.allDevices = null;
                 this.el.devicesContent.innerHTML = `
                     <div class="empty-state">
                         <div class="empty-icon">📡</div>
@@ -748,125 +864,193 @@ class ReconApp {
                     </div>`;
                 return;
             }
-            
-            // Fetch security assessment to get vulnerability scores
-            let securityData = null;
-            try {
-                securityData = await this.get('/api/recon/security');
-            } catch (error) {
-                DEBUG.warn('Security data not available, sorting by discovery order');
-            }
-            
-            // Create a map of nodeId to vulnerability score
-            const scoreMap = new Map();
-            if (securityData && securityData.devices) {
-                securityData.devices.forEach(secDev => {
-                    scoreMap.set(secDev.nodeIdDecimal, {
-                        score: secDev.score,
-                        riskLevel: secDev.riskLevel
-                    });
-                });
-            }
-            
-            // Enrich devices with security scores and sort by vulnerability (lowest score first)
-            const enrichedDevices = data.devices.map(device => {
-                const secInfo = scoreMap.get(device.nodeIdDecimal) || { score: 100, riskLevel: 'unknown' };
-                return {
-                    ...device,
-                    vulnerabilityScore: secInfo.score,
-                    riskLevel: secInfo.riskLevel
-                };
-            });
-            
-            // Sort by vulnerability score (lowest first = most vulnerable first)
-            enrichedDevices.sort((a, b) => a.vulnerabilityScore - b.vulnerabilityScore);
-            
-            let html = '<div class="table-wrapper">';
-            html += '<table class="table"><thead><tr>';
-            html += '<th>Node ID</th><th>Risk</th><th>Type</th><th>Firmware</th><th>Router</th><th>Beacon</th><th>Power</th><th>Pkts (Orig/Relay)</th><th>RSSI (Avg/Best)</th><th>Frequency</th><th>First Seen</th><th>Last Seen</th><th>Actions</th>';
-            html += '</tr></thead><tbody>';
-            
-            enrichedDevices.forEach(device => {
-                const rssiClass = formatRSSI(device.rssi, false);
-                
-                // Risk badge styling
-                let riskBadge = '';
-                let riskClass = '';
-                if (device.riskLevel === 'vulnerable') {
-                    riskBadge = '🔴 High';
-                    riskClass = 'risk-high';
-                } else if (device.riskLevel === 'moderate') {
-                    riskBadge = '🟡 Med';
-                    riskClass = 'risk-medium';
-                } else if (device.riskLevel === 'secure') {
-                    riskBadge = '🟢 Low';
-                    riskClass = 'risk-low';
-                } else {
-                    riskBadge = '⚪ —';
-                    riskClass = 'risk-unknown';
-                }
-                
-                // Router indicator
-                const routerBadge = device.isRouter ? '✅' : '—';
-                
-                // Power class indicator
-                const powerBadge = device.powerClass >= 2 ? '🔋 High' : (device.powerClass === 1 ? '🔋 Med' : '🪫 Low');
-                
-                // Beacon/periodicity indicator
-                const periodicityScore = device.periodicityScore || 0;
-                const avgInterval = device.avgPacketInterval || 0;
-                let beaconBadge = '—';
-                if (periodicityScore >= 80) {
-                    beaconBadge = `📡 ${periodicityScore}%`;
-                } else if (periodicityScore >= 50) {
-                    beaconBadge = `📶 ${periodicityScore}%`;
-                }
-                const intervalTooltip = avgInterval > 0 ? `Avg interval: ${(avgInterval/1000).toFixed(0)}s` : '';
-                
-                // Packet counts
-                const origPkts = device.originatedPackets || 0;
-                const relayPkts = device.relayedPackets || 0;
-                const totalPkts = device.packetCount || 0;
-                const pktDisplay = `${totalPkts} (${origPkts}/${relayPkts})`;
-                
-                // RSSI display with best and spoofing indicator
-                const avgRssi = device.avgRSSI || device.rssi || 0;
-                const bestRssi = device.bestRSSI || avgRssi;
-                const rssiStdDev = device.rssiStdDev || 0;
-                const rssiDisplay = `${avgRssi.toFixed(0)} / ${bestRssi.toFixed(0)}`;
-                // High RSSI variance could indicate spoofing or mobile device
-                const rssiTooltip = rssiStdDev > 10 ? `σ=${rssiStdDev.toFixed(1)} ⚠️ High variance` : `σ=${rssiStdDev.toFixed(1)}`;
-                
-                // Firmware version
-                const firmware = escapeHtml(device.firmwareVersion || '—');
-                
-                // Escape all user-derived data for XSS prevention
-                const safeNodeId = escapeHtml(device.nodeId);
-                const safeDeviceType = escapeHtml(device.deviceType || 'Unknown');
-                
-                html += '<tr>';
-                html += `<td><code>0x${safeNodeId}</code></td>`;
-                html += `<td><span class="${riskClass}">${riskBadge}</span></td>`;
-                html += `<td>${safeDeviceType}</td>`;
-                html += `<td><small>${firmware}</small></td>`;
-                html += `<td>${routerBadge}</td>`;
-                html += `<td><small title="${intervalTooltip}">${beaconBadge}</small></td>`;
-                html += `<td><small>${powerBadge}</small></td>`;
-                html += `<td>${pktDisplay}</td>`;
-                html += `<td><span class="${rssiClass}" title="${rssiTooltip}">${rssiDisplay} dBm</span></td>`;
-                html += `<td>${(device.frequency || 0).toFixed(3)} MHz</td>`;
-                html += `<td>${this.formatDuration(device.firstSeenSecondsAgo || 0)} ago</td>`;
-                html += `<td>${this.formatLastSeen(device.lastSeenSecondsAgo)}</td>`;
-                html += `<td><button data-action="target-device" data-value="${safeNodeId}" class="btn btn-primary btn-small" title="Lock radio on this device's frequency">🎯 Lock Freq</button></td>`;
-                html += '</tr>';
-            });
-            
-            html += '</tbody></table></div>';
-            this.el.devicesContent.innerHTML = html;
+
+            this.allDevices = data.devices;
+
+            // Build protocol option list from live data
+            const protocols = [...new Set(this.allDevices.map(d => d.protocol || 'Unknown'))].sort();
+            const protoOptions = protocols.map(p =>
+                `<option value="${escapeHtml(p)}" ${this.deviceFilter.protocol === p ? 'selected' : ''}>${escapeHtml(p)}</option>`
+            ).join('');
+
+            this.el.devicesContent.innerHTML = `
+                <div class="device-filter-bar">
+                    <input type="text" id="device-search" class="filter-input" placeholder="Search Node ID…" value="${escapeHtml(this.deviceFilter.text)}">
+                    <select id="device-proto-filter" class="filter-select">
+                        <option value="all">All Protocols</option>
+                        ${protoOptions}
+                    </select>
+                    <select id="device-risk-filter" class="filter-select">
+                        <option value="all">All Risk</option>
+                        <option value="vulnerable" ${this.deviceFilter.risk === 'vulnerable' ? 'selected' : ''}>High Risk</option>
+                        <option value="moderate"   ${this.deviceFilter.risk === 'moderate'   ? 'selected' : ''}>Medium</option>
+                        <option value="secure"     ${this.deviceFilter.risk === 'secure'     ? 'selected' : ''}>Low Risk</option>
+                        <option value="unknown"    ${this.deviceFilter.risk === 'unknown'    ? 'selected' : ''}>Unknown</option>
+                    </select>
+                    <span class="filter-count" id="device-filter-count"></span>
+                </div>
+                <div id="device-table-wrapper"></div>`;
+
+            this.setupDeviceFilterHandlers();
+            this.renderDeviceTable();
+
+            // Prevent mobile keyboard from auto-raising — user must tap the field explicitly
+            document.getElementById('device-search')?.blur();
+
         } catch (error) {
             DEBUG.error('Failed to load devices:', error);
             this.el.devicesContent.innerHTML = renderErrorState('Failed to load devices', 'retry-devices');
         }
+    }
+
+    /** Attach input/change listeners to the filter bar controls */
+    setupDeviceFilterHandlers() {
+        const searchEl = document.getElementById('device-search');
+        const protoEl  = document.getElementById('device-proto-filter');
+        const riskEl   = document.getElementById('device-risk-filter');
+
+        if (searchEl) searchEl.addEventListener('input',  () => { this.deviceFilter.text     = searchEl.value;  this.renderDeviceTable(); });
+        if (protoEl)  protoEl.addEventListener('change',  () => { this.deviceFilter.protocol = protoEl.value;   this.renderDeviceTable(); });
+        if (riskEl)   riskEl.addEventListener('change',   () => { this.deviceFilter.risk     = riskEl.value;    this.renderDeviceTable(); });
+    }
+
+    /** Render (or re-render) the filtered + sorted device table into #device-table-wrapper */
+    renderDeviceTable() {
+        const wrapper = document.getElementById('device-table-wrapper');
+        if (!wrapper || !this.allDevices) return;
+
+        // --- Filter ---
+        const text  = this.deviceFilter.text.toLowerCase();
+        const proto = this.deviceFilter.protocol;
+        const risk  = this.deviceFilter.risk;
+
+        const filtered = this.allDevices.filter(device => {
+            if (text  && !(device.nodeId || '').toLowerCase().includes(text)) return false;
+            if (proto !== 'all' && (device.protocol  || 'Unknown') !== proto) return false;
+            if (risk  !== 'all' && (device.riskLevel || 'unknown') !== risk)  return false;
+            return true;
+        });
+
+        // --- Sort ---
+        const { col, dir } = this.deviceSort;
+        filtered.sort((a, b) => {
+            let av = a[col], bv = b[col];
+            if (typeof av === 'number' || typeof bv === 'number') {
+                av = av ?? (dir === 'asc' ? Infinity : -Infinity);
+                bv = bv ?? (dir === 'asc' ? Infinity : -Infinity);
+                return dir === 'asc' ? av - bv : bv - av;
+            }
+            av = String(av ?? '').toLowerCase();
+            bv = String(bv ?? '').toLowerCase();
+            return dir === 'asc' ? av.localeCompare(bv) : bv.localeCompare(av);
+        });
+
+        // --- Count badge ---
+        const total = this.allDevices.length;
+        const countEl = document.getElementById('device-filter-count');
+        if (countEl) {
+            countEl.textContent = filtered.length < total
+                ? `${filtered.length} of ${total}`
+                : `${total} device${total !== 1 ? 's' : ''}`;
+        }
+
+        if (filtered.length === 0) {
+            wrapper.innerHTML = '<div class="filter-empty">No devices match the current filter.</div>';
+            return;
+        }
+
+        // --- Sortable column headers ---
+        const cols = [
+            { key: 'nodeId',               label: 'Node ID' },
+            { key: 'securityScore',        label: 'Risk' },
+            { key: 'deviceType',           label: 'Type' },
+            { key: 'firmwareVersion',      label: 'Firmware' },
+            { key: 'isRouter',             label: 'Router' },
+            { key: 'periodicityScore',     label: 'Beacon' },
+            { key: 'powerClass',           label: 'Power' },
+            { key: 'packetCount',          label: 'Pkts (Orig/Relay)' },
+            { key: 'avgRSSI',              label: 'RSSI (Avg/Best)' },
+            { key: 'frequency',            label: 'Frequency' },
+            { key: 'firstSeenSecondsAgo',  label: 'First Seen' },
+            { key: 'lastSeenSecondsAgo',   label: 'Last Seen' },
+        ];
+
+        let html = '<div class="table-wrapper"><table class="table"><thead><tr>';
+        cols.forEach(c => {
+            const isActive = col === c.key;
+            const arrow = isActive ? (dir === 'asc' ? ' ↑' : ' ↓') : ' ↕';
+            html += `<th class="th-sort${isActive ? ' sort-active' : ''}" data-sort-col="${c.key}">${c.label}<span class="sort-arrow">${arrow}</span></th>`;
+        });
+        html += '</tr></thead><tbody>';
+
+        // --- Rows ---
+        filtered.forEach(device => {
+            const rssiClass = formatRSSI(device.rssi, false);
+
+            let riskBadge = '', riskClass = '';
+            if      (device.riskLevel === 'vulnerable') { riskBadge = '🔴 High'; riskClass = 'risk-high';    }
+            else if (device.riskLevel === 'moderate')   { riskBadge = '🟡 Med';  riskClass = 'risk-medium';  }
+            else if (device.riskLevel === 'secure')     { riskBadge = '🟢 Low';  riskClass = 'risk-low';     }
+            else                                        { riskBadge = '⚪ —';    riskClass = 'risk-unknown'; }
+
+            const routerBadge = device.isRouter ? '✅' : '—';
+            const powerBadge  = device.powerClass >= 2 ? '🔋 High' : (device.powerClass === 1 ? '🔋 Med' : '🪫 Low');
+
+            const periodicityScore = device.periodicityScore || 0;
+            const avgInterval      = device.avgPacketInterval || 0;
+            let beaconBadge = '—';
+            if      (periodicityScore >= 80) beaconBadge = `📡 ${periodicityScore}%`;
+            else if (periodicityScore >= 50) beaconBadge = `📶 ${periodicityScore}%`;
+            const intervalTooltip = avgInterval > 0 ? `Avg interval: ${(avgInterval/1000).toFixed(0)}s` : '';
+
+            const origPkts  = device.originatedPackets || 0;
+            const relayPkts = device.relayedPackets    || 0;
+            const totalPkts = device.packetCount       || 0;
+            const pktDisplay = `${totalPkts} (${origPkts}/${relayPkts})`;
+
+            const avgRssi    = device.avgRSSI || device.rssi || 0;
+            const bestRssi   = device.bestRSSI || avgRssi;
+            const rssiStdDev = device.rssiStdDev || 0;
+            const rssiDisplay  = `${avgRssi.toFixed(0)} / ${bestRssi.toFixed(0)}`;
+            const rssiTooltip  = rssiStdDev > 10 ? `σ=${rssiStdDev.toFixed(1)} ⚠️ High variance` : `σ=${rssiStdDev.toFixed(1)}`;
+
+            const firmware     = escapeHtml(device.firmwareVersion || '—');
+            const safeNodeId   = escapeHtml(device.nodeId);
+            const safeDevType  = escapeHtml(device.deviceType || 'Unknown');
+
+            html += '<tr>';
+            html += `<td><code>0x${safeNodeId}</code></td>`;
+            html += `<td><span class="${riskClass}">${riskBadge}</span></td>`;
+            html += `<td>${safeDevType}</td>`;
+            html += `<td><small>${firmware}</small></td>`;
+            html += `<td>${routerBadge}</td>`;
+            html += `<td><small title="${intervalTooltip}">${beaconBadge}</small></td>`;
+            html += `<td><small>${powerBadge}</small></td>`;
+            html += `<td>${pktDisplay}</td>`;
+            html += `<td><span class="${rssiClass}" title="${rssiTooltip}">${rssiDisplay} dBm</span></td>`;
+            html += `<td>${(device.frequency || 0).toFixed(3)} MHz</td>`;
+            html += `<td>${this.formatDuration(device.firstSeenSecondsAgo || 0)} ago</td>`;
+            html += `<td>${this.formatLastSeen(device.lastSeenSecondsAgo)}</td>`;
+            html += '</tr>';
+        });
+
+        html += '</tbody></table></div>';
+        wrapper.innerHTML = html;
+
+        // Attach sort handlers to freshly-rendered column headers
+        wrapper.querySelectorAll('.th-sort').forEach(th => {
+            th.addEventListener('click', () => {
+                const c = th.dataset.sortCol;
+                if (this.deviceSort.col === c) {
+                    this.deviceSort.dir = this.deviceSort.dir === 'asc' ? 'desc' : 'asc';
+                } else {
+                    this.deviceSort.col = c;
+                    // Numeric risk/packets/RSSI default desc; everything else asc
+                    this.deviceSort.dir = ['securityScore','packetCount','periodicityScore','powerClass'].includes(c) ? 'asc' : 'desc';
+                }
+                this.renderDeviceTable();
+            });
+        });
     }
 
     /**
@@ -884,8 +1068,8 @@ class ReconApp {
                     <div class="empty-state">
                         <div class="empty-icon">📦</div>
                         <h3>No Packets Captured</h3>
-                        <p>Packets are stored here when you <strong>target</strong> a specific device or frequency.</p>
-                        <p class="text-muted">Go to <a href="#" onclick="app.switchTab('devices'); return false;">Devices</a> and click "🎯 Lock Freq" on a device to lock the radio on its frequency.</p>
+                        <p>Packets are stored here when you target a frequency.</p>
+                        <p class="text-muted">Go to <a href="#" onclick="app.switchTab('frequency'); return false;">Frequencies</a> and click "🎯 Target" on a frequency config to lock the radio on it.</p>
                     </div>`;
                 return;
             }
@@ -1017,20 +1201,29 @@ class ReconApp {
             
             const allConfigs = activityData.activities;
             const totalConfigs = activityData.totalConfigs || allConfigs.length;
-            
+
+            const isTargeted = isTargetedMode(this.currentStatus?.mode);
+            const lockedConfigIndex = isTargeted ? this.currentStatus?.target?.configIndex : null;
+            const lockedFreq = isTargeted ? this.currentStatus?.target?.frequency : null;
+
             let html = '<div class="frequency-intro">';
+            if (isTargeted && lockedFreq !== null) {
+                const cfgLabel = lockedConfigIndex !== null ? ` <span class="text-muted">(config #${lockedConfigIndex})</span>` : '';
+                html += `<div class="targeting-notice">🎯 Currently targeting <strong>${lockedFreq.toFixed(3)} MHz</strong>${cfgLabel} &mdash; radio locked on this channel.</div>`;
+            }
             html += `<p><strong>${totalConfigs} frequency configurations available.</strong> Target any config to focus packet capture on that frequency.</p>`;
             html += '</div>';
-            
+
             html += '<div class="table-wrapper">';
             html += '<table class="table freq-table"><thead><tr>';
             html += '<th>Protocol</th><th>Frequency</th><th>SF</th><th>BW</th><th>Packets</th><th>RSSI</th><th>Actions</th>';
             html += '</tr></thead><tbody>';
-            
+
             allConfigs.forEach(act => {
+                const isLocked = isTargeted && lockedConfigIndex !== null && act.configIndex === lockedConfigIndex;
                 const isActive = act.packets > 0;
                 const rssiClass = formatRSSI(act.avgRSSI, false);
-                const rowClass = isActive ? '' : 'inactive-row';
+                const rowClass = isLocked ? 'locked-row' : (isActive ? '' : 'inactive-row');
                 html += `<tr class="${rowClass}">`;
                 html += `<td><strong>${act.protocol}</strong> <span class="badge config-badge">#${act.configIndex}</span></td>`;
                 html += `<td>${act.frequencyMHz.toFixed(3)} MHz</td>`;
@@ -1043,7 +1236,11 @@ class ReconApp {
                     html += '<td class="text-muted">—</td>';
                     html += '<td class="text-muted">—</td>';
                 }
-                html += `<td><button data-action="target-frequency" data-value="${act.configIndex}" class="btn btn-primary btn-small">🎯 Target</button></td>`;
+                if (isLocked) {
+                    html += `<td><span class="locked-badge">🔒 Locked</span></td>`;
+                } else {
+                    html += `<td><button data-action="target-frequency" data-value="${act.configIndex}" class="btn btn-primary btn-small">🎯 Target</button></td>`;
+                }
                 html += '</tr>';
             });
             
@@ -1100,47 +1297,17 @@ class ReconApp {
         }
         
         try {
-            const data = await this.get('/api/devices');
+            const data = await this.fetchEnrichedDevices();
             DEBUG.log('Network devices data:', data);
-            
+
             if (data && data.devices) {
-                // Fetch security data to enrich devices with vulnerability info
-                let securityData = null;
-                try {
-                    securityData = await this.get('/api/recon/security');
-                } catch (error) {
-                    DEBUG.warn('Security data not available for network map');
-                }
-                
-                // Create score map from security data
-                const scoreMap = new Map();
-                if (securityData && securityData.devices) {
-                    securityData.devices.forEach(secDev => {
-                        scoreMap.set(secDev.nodeIdDecimal, {
-                            score: secDev.score,
-                            riskLevel: secDev.riskLevel
-                        });
-                    });
-                }
-                
-                // Enrich devices with security scores for network map coloring
-                const enrichedDevices = data.devices.map(device => {
-                    const secInfo = scoreMap.get(device.nodeIdDecimal) || { score: 100, riskLevel: 'unknown' };
-                    return {
-                        ...device,
-                        securityScore: secInfo.score,
-                        riskLevel: secInfo.riskLevel
-                    };
-                });
-                
                 if (this.networkMap) {
-                    this.networkMap.updateDevices(enrichedDevices);
-                    DEBUG.log('Updated map with', enrichedDevices.length, 'enriched devices');
+                    this.networkMap.updateDevices(data.devices);
+                    DEBUG.log('Updated map with', data.devices.length, 'enriched devices');
                 } else {
                     DEBUG.warn('NetworkMap not initialized, cannot update');
                 }
-                
-                // Update network info panel
+
                 const infoEl = document.getElementById('network-info');
                 if (infoEl) {
                     if (data.devices.length === 0) {
@@ -1196,6 +1363,16 @@ class ReconApp {
             if (data && this.warRoom) {
                 this.warRoom.update(data);
                 DEBUG.log('War room updated');
+            }
+
+            // Feed per-config activity data into war room frequency bars
+            try {
+                const activityData = await this.get('/api/activity');
+                if (activityData && activityData.activities && this.warRoom) {
+                    this.warRoom.updateActivityData(activityData.activities);
+                }
+            } catch (e) {
+                DEBUG.warn('Failed to load activity for war room:', e);
             }
 
             // Remove previously inserted alert boxes to prevent duplication
@@ -1314,31 +1491,48 @@ class ReconApp {
         // Load GPS data from /api/positions
         try {
             const gpsData = await this.get('/api/positions');
-            if (gpsData && gpsData.positions && gpsData.positions.length > 0) {
-                // Sort by node ID for consistent display
-                const sortedPositions = [...gpsData.positions].sort((a, b) => {
-                    const aId = parseInt(a.nodeId, 16) || 0;
-                    const bId = parseInt(b.nodeId, 16) || 0;
-                    return aId - bId;
-                });
-                
+            // Build display list: sniffer's own GPS first (if fix), then remote device positions
+            const snifferGps = this.currentStatus && this.currentStatus.gps;
+            const devicePositions = (gpsData && gpsData.positions) ? [...gpsData.positions].sort((a, b) => {
+                const aId = parseInt(a.nodeId, 16) || 0;
+                const bId = parseInt(b.nodeId, 16) || 0;
+                return aId - bId;
+            }) : [];
+
+            const hasSnifferFix = snifferGps && snifferGps.hasFix;
+            const hasDevicePositions = devicePositions.length > 0;
+
+            if (!hasSnifferFix && !hasDevicePositions) {
+                this.el.gpsContent.innerHTML = renderPlaceholder('📍', 'No GPS data captured yet.', 'Device positions will appear here once discovered during scanning.');
+            } else {
                 let html = '<div class="table-wrapper"><table class="table"><thead><tr>';
-                html += '<th>Node ID</th><th>Latitude</th><th>Longitude</th><th>Altitude</th>';
+                html += '<th>Source</th><th>Node ID</th><th>Latitude</th><th>Longitude</th><th>Altitude</th>';
                 html += '</tr></thead><tbody>';
-                
-                sortedPositions.forEach(pos => {
+
+                // Sniffer's own position (from integrated GPS module)
+                if (hasSnifferFix) {
                     html += '<tr>';
+                    html += '<td><span class="badge-sniffer">Sniffer</span></td>';
+                    html += '<td><span class="text-muted">(this device)</span></td>';
+                    html += `<td>${parseFloat(snifferGps.lat).toFixed(6)}</td>`;
+                    html += `<td>${parseFloat(snifferGps.lon).toFixed(6)}</td>`;
+                    html += `<td>${snifferGps.alt !== undefined ? parseFloat(snifferGps.alt).toFixed(0) + ' m' : '—'}</td>`;
+                    html += '</tr>';
+                }
+
+                // Remote device positions (decoded from Meshtastic position packets)
+                devicePositions.forEach(pos => {
+                    html += '<tr>';
+                    html += '<td><span class="badge-device">Device</span></td>';
                     html += `<td><code>0x${escapeHtml(String(pos.nodeId))}</code></td>`;
                     html += `<td>${pos.lat.toFixed(6)}</td>`;
                     html += `<td>${pos.lon.toFixed(6)}</td>`;
-                    html += `<td>${pos.alt || '—'} m</td>`;
+                    html += `<td>${pos.alt !== undefined ? pos.alt + ' m' : '—'}</td>`;
                     html += '</tr>';
                 });
-                
+
                 html += '</tbody></table></div>';
                 this.el.gpsContent.innerHTML = html;
-            } else {
-                this.el.gpsContent.innerHTML = renderPlaceholder('📍', 'No GPS data captured yet.', 'Device positions will appear here once discovered during scanning.');
             }
         } catch (error) {
             DEBUG.error('Failed to load GPS:', error);
@@ -1468,9 +1662,9 @@ class ReconApp {
                 if (activeFreqs.length > 0) {
                     html += '<p class="text-muted mb-md">Top ' + activeFreqs.length + ' most active frequencies:</p>';
                     html += '<div class="flex-column-gap">';
-                    
+
+                    const maxPackets = Math.max(...activeFreqs.map(f => f.packets));
                     activeFreqs.forEach(freq => {
-                        const maxPackets = Math.max(...activeFreqs.map(f => f.packets));
                         const barWidth = ((freq.packets / maxPackets) * 100).toFixed(1);
                         html += '<div class="freq-card">';
                         html += `<div class="freq-card-header">`;
@@ -1520,9 +1714,7 @@ class ReconApp {
         // Show loading state
         this.el.settingsContent.innerHTML = renderLoadingState('Loading configuration...');
 
-        // Load WiFi status and SD storage in parallel
-        await this.loadWiFiStatus();
-        await this.loadSDStorage();
+        await Promise.all([this.loadWiFiStatus(), this.loadSDStorage()]);
         
         try {
             const response = await this.get('/api/config');
@@ -1558,17 +1750,10 @@ class ReconApp {
         this.setupFilesystemUpload();
         this.setupAPPasswordForm();
 
-        // Show stored token and wire fetch button
+        // Show stored token
         const stored = getStoredToken();
         const tokenDisplay = document.getElementById('stored-token-display');
         if (tokenDisplay) tokenDisplay.textContent = stored || '(none saved)';
-        const fetchTokenBtn = document.getElementById('fetch-token-btn');
-        if (fetchTokenBtn) {
-            fetchTokenBtn.addEventListener('click', async () => {
-                const token = await promptForToken();
-                if (token && tokenDisplay) tokenDisplay.textContent = token;
-            });
-        }
     }
     
     async loadSDStorage() {
@@ -1770,12 +1955,17 @@ class ReconApp {
                 return;
             }
             
-            if (file.size > 2 * 1024 * 1024) {
-                showToast('Firmware file is too large (max 2MB)', 'error');
+            if (file.size > 4 * 1024 * 1024) {
+                showToast('Firmware file is too large (max 4MB)', 'error');
                 return;
             }
-            
-            if (!confirm('Upload firmware and reboot device? This will disconnect temporarily.')) {
+
+            const confirmed = await ModalRenderer.confirm(
+                'Upload Firmware',
+                'Upload firmware and reboot device? This will disconnect temporarily.',
+                'Upload & Reboot'
+            );
+            if (!confirmed) {
                 return;
             }
             
@@ -1950,7 +2140,12 @@ class ReconApp {
             // Handle buttons and clickable elements with data-action
             const actionEl = e.target.closest('[data-action]');
             if (!actionEl) return;
-            
+            if (actionEl.classList.contains('btn-disabled')) return;
+
+            // Confirm BEFORE disabling the button — disabled buttons suppress confirm() in most browsers
+            const confirmMsg = actionEl.dataset.confirmMsg;
+            if (confirmMsg && !confirm(confirmMsg)) return;
+
             e.preventDefault();
             const action = actionEl.dataset.action;
             const value = actionEl.dataset.value;
@@ -1959,10 +2154,10 @@ class ReconApp {
     }
 
     // Action dispatch table - cleaner than giant switch statement
+    // Lazy-initialized: arrow functions capture `this` correctly on first call
     getActionHandlers() {
-        return {
-            'toggle-scan': () => this.actionToggleScan(),
-            'resume-recon': () => this.actionToggleScan(),
+        if (this._actionHandlers) return this._actionHandlers;
+        this._actionHandlers = {
             'stop-capture': () => this.actionStopCapture(),
             'download-report': () => this.actionDownloadReport(),
             'download-csv':    () => this.actionExportCSV(),
@@ -1976,11 +2171,15 @@ class ReconApp {
             'diagnostics': () => this.actionDiagnostics(),
             'reboot': () => this.actionReboot(),
             'shutdown': () => this.actionShutdown(),
-            'center-map': () => {}, // Handled by network-map.js
-            'toggle-labels': () => {},
-            'zoom-in': () => {},
-            'zoom-out': () => {},
-            'target-device': (v) => this.actionTargetDevice(v),
+            'center-map':    () => { if (this.networkMap) this.networkMap.centerMap(); },
+            'toggle-labels': () => {
+                if (this.networkMap) {
+                    const on = this.networkMap.toggleLabels();
+                    showToast(`Labels ${on ? 'on' : 'off'}`, 'info');
+                }
+            },
+            'zoom-in':  () => { if (this.networkMap) this.networkMap.zoomIn(); },
+            'zoom-out': () => { if (this.networkMap) this.networkMap.zoomOut(); },
             'replay-packet': (v) => this.actionReplayPacket(v),
             'target-frequency': (v) => this.actionTargetFrequency(v),
             'retry-devices': () => this.showDevices(),
@@ -1992,11 +2191,13 @@ class ReconApp {
             'wifi-setup': () => this.showWiFiSetupModal(),
             'dismiss-setup': () => this.actionDismissSetup(),
             'wifi-clear': () => this.actionWifiClear(),
+            'fetch-token': () => this.actionFetchToken(),
             'close-modal': () => this.closeModal(),
             // Sidebar stat card navigation
             'goto-devices': () => this.switchTab('devices'),
             'goto-packets': () => this.switchTab('packets')
         };
+        return this._actionHandlers;
     }
 
     async handleAction(action, value, event) {
@@ -2026,7 +2227,7 @@ class ReconApp {
             if (btn) {
                 btn.disabled = originalDisabled;
                 btn.classList.remove('btn-loading');
-                if (originalText && !action.startsWith('retry-')) {
+                if (originalText && !action.startsWith('retry-') && !btn.hasAttribute('data-no-restore')) {
                     setTimeout(() => { btn.innerHTML = originalText; }, 300);
                 }
             }
@@ -2036,21 +2237,14 @@ class ReconApp {
     // ============ Action Implementations ============
     
     async actionToggleScan() {
-        const status = await this.get('/api/status');
-        const currentMode = (status?.mode || '').toLowerCase();
-        if (currentMode.includes('target')) {
-            if (!confirm('Exit targeting and return to scanning mode?')) return;
-        }
         await this.post('/api/scan/start', {});
         showToast('Scanning resumed', 'success');
         await this.updateStatus();
     }
-    
+
     async actionStopCapture() {
-        // Confirm before stopping to prevent accidental taps
-        if (!confirm('Stop capture and return to scanning mode?')) return;
         await this.post('/api/capture/stop', {});
-        showToast('Capture stopped', 'success');
+        showToast('Capture stopped — returning to scan', 'success');
         await this.updateStatus();
     }
     
@@ -2181,12 +2375,6 @@ class ReconApp {
     }
     
     async actionExportPCAP() {
-        const statusData = await this.get('/api/status');
-        if (!statusData || statusData.mode === 'idle') {
-            showToast('No active scan session. Start scanning first.', 'warning');
-            return;
-        }
-        
         showToast('Downloading PCAP capture...', 'info');
         try {
             const response = await fetch('/api/export/pcap');
@@ -2222,7 +2410,9 @@ class ReconApp {
             return;
         }
         
-        const radioOK = true;
+        // Radio health: no dedicated endpoint; infer from mode being set
+        // (if radio init failed, mode is typically absent from status)
+        const radioOK = !!(diag.mode);
         const wifiOK = (diag.clientCount !== undefined);
         const heapFree = diag.freeHeap || 0;
         const heapTotal = diag.heapSize || 1;
@@ -2314,8 +2504,21 @@ class ReconApp {
         showToast('Continuing with device AP. Go to Settings to configure hotspot later.', 'info');
     }
     
+    async actionFetchToken() {
+        const token = await promptForToken();
+        if (token) {
+            const tokenDisplay = document.getElementById('stored-token-display');
+            if (tokenDisplay) tokenDisplay.textContent = token;
+        }
+    }
+
     async actionWifiClear() {
-        if (confirm('Clear stored hotspot credentials? The device will restart in setup mode.')) {
+        const confirmed = await ModalRenderer.confirm(
+            'Clear WiFi Credentials',
+            'Clear stored hotspot credentials? The device will restart in setup mode.',
+            'Clear & Restart'
+        );
+        if (confirmed) {
             await this.post('/api/wifi/clear', {});
             showToast('Credentials cleared. Device restarting...', 'success');
         }

@@ -25,7 +25,8 @@ class WarRoom {
             currentFreq: '—',
             uptime: 0
         };
-        this.frequencyActivity = new Array(26).fill(0); // RSSI by config
+        this.frequencyActivity = new Array(26).fill(0); // RSSI by config (legacy decay array)
+        this.activityData = [];    // Per-config data from /api/activity
         this.recentEvents = [];
         this.maxEvents = 5;
         this.lastPacketCount = 0;
@@ -118,16 +119,21 @@ class WarRoom {
         this.render();
     }
     
+    updateActivityData(activities) {
+        this.activityData = activities || [];
+        this.render();
+    }
+
     render() {
         if (!this.container) return;
-        
-        // Check if in targeting mode
-        const isTargeted = this.metrics.currentFreq.includes('Targeting');
-        
+
+        // currentFreq is set to 'Locked: X.XXX MHz' when in targeted mode
+        const isTargeted = this.metrics.currentFreq.startsWith('Locked:');
+
         const html = `
             <div class="war-room-dashboard">
-                ${isTargeted ? '<div class="war-room-alert">🎯 In Targeting Mode <button class="btn btn-primary btn-sm" onclick="app.post(\'/api/scan/start\').then(() => location.reload())">↩️ Resume Scan</button></div>' : ''}
-                
+                ${isTargeted ? '<div class="war-room-alert">🎯 In Targeting Mode <button class="btn btn-primary btn-sm" data-action="stop-capture">↩ Resume Scan</button></div>' : ''}
+
                 <div class="war-room-metrics">
                     <div class="war-metric-card">
                         <div class="war-metric-label">Active Devices</div>
@@ -138,8 +144,8 @@ class WarRoom {
                         <div class="war-metric-value">${this.metrics.packetRate}<span class="war-metric-unit">/min</span></div>
                     </div>
                     <div class="war-metric-card">
-                        <div class="war-metric-label">Avg RSSI</div>
-                        <div class="war-metric-value">${this.metrics.avgRSSI.toFixed(1)}<span class="war-metric-unit">dBm</span></div>
+                        <div class="war-metric-label">Uptime</div>
+                        <div class="war-metric-value">${this.formatUptime(this.metrics.uptime)}</div>
                     </div>
                     <div class="war-metric-card">
                         <div class="war-metric-label">${isTargeted ? 'Lock Status' : 'Scan Progress'}</div>
@@ -170,17 +176,55 @@ class WarRoom {
     }
     
     renderFrequencyBars() {
-        // Simplified: Show a progress indicator instead of per-frequency bars
-        // since WebSocket doesn't provide per-config RSSI data
-        const progress = this.metrics.scanProgress || 0;
+        const activeConfigs = this.activityData.filter(c => c.packets > 0);
+
+        // Fall back to scan progress bar if no activity data yet
+        if (this.activityData.length === 0) {
+            const progress = this.metrics.scanProgress || 0;
+            return `
+                <div class="scan-progress-bar">
+                    <div class="scan-progress-fill" style="width: ${progress}%"></div>
+                </div>
+                <div class="scan-progress-text">Scan cycle: ${progress}% complete</div>
+            `;
+        }
+
+        if (activeConfigs.length === 0) {
+            const progress = this.metrics.scanProgress || 0;
+            return `
+                <div class="scan-progress-bar">
+                    <div class="scan-progress-fill" style="width: ${progress}%"></div>
+                </div>
+                <div class="scan-progress-text">No activity yet — ${progress}% through scan cycle</div>
+            `;
+        }
+
+        const maxPackets = Math.max(...activeConfigs.map(c => c.packets));
+        const bars = this.activityData.map(cfg => {
+            const hasActivity = cfg.packets > 0;
+            const height = hasActivity ? Math.max(4, Math.round((cfg.packets / maxPackets) * 40)) : 2;
+            const color = hasActivity ? this.getRSSIColor(cfg.avgRSSI || -100) : 'rgba(255,255,255,0.1)';
+            const freq = cfg.frequencyMHz ? cfg.frequencyMHz.toFixed(3) : '?';
+            const title = hasActivity
+                ? `${freq} MHz: ${cfg.packets} pkts, ${cfg.avgRSSI} dBm`
+                : `${freq} MHz: no activity`;
+            return `<div class="freq-bar" style="height:${height}px;background:${color}" title="${title}"></div>`;
+        }).join('');
+
         return `
-            <div class="scan-progress-bar">
-                <div class="scan-progress-fill" style="width: ${progress}%"></div>
-            </div>
-            <div class="scan-progress-text">Scan cycle: ${progress}% complete</div>
+            <div class="freq-activity-bars">${bars}</div>
+            <div class="scan-progress-text">${activeConfigs.length} active config${activeConfigs.length !== 1 ? 's' : ''} of ${this.activityData.length}</div>
         `;
     }
     
+    formatUptime(seconds) {
+        if (!seconds) return '0m';
+        const h = Math.floor(seconds / 3600);
+        const m = Math.floor((seconds % 3600) / 60);
+        if (h > 0) return `${h}h ${m}m`;
+        return `${m}m`;
+    }
+
     getRSSIColor(rssi) {
         if (rssi >= -70) return '#10b981'; // Excellent (green)
         if (rssi >= -90) return '#f59e0b'; // Good (orange)

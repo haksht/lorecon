@@ -23,7 +23,7 @@ const MAP_DEBUG = {
 const MAP_CONFIG = {
     // Node sizing
     nodeRadius: 20,              // Default node circle radius in pixels
-    clickRadius: 50,             // Click/touch detection radius (2.5x node for easier mobile taps)
+    clickRadius: 25,             // Click/touch detection radius (wider than node for easier mobile taps)
     innerIconRadius: 5,          // Offset from nodeRadius for inner icon circle
     selectionRingOffset: 3,      // Extra radius for selection highlight ring
     
@@ -91,6 +91,10 @@ class NetworkMap {
         // Animation
         this.animationFrame = null;
         this.pulsePhase = 0;
+
+        // View controls
+        this.zoom = 1;
+        this.showLabels = true;
         
         // Colors
         this.colors = {
@@ -268,12 +272,15 @@ class NetworkMap {
     }
     
     findNodeAtPosition(x, y) {
-        // Use larger click radius for easier clicking
         const clickRadius = this.clickRadius || MAP_CONFIG.clickRadius;
-        
-        MAP_DEBUG.log(`Finding node at (${x.toFixed(0)}, ${y.toFixed(0)})`);
+
+        // Inverse-transform screen coords to world coords to account for zoom
+        const worldX = (x - this.centerX) / this.zoom + this.centerX;
+        const worldY = (y - this.centerY) / this.zoom + this.centerY;
+
+        MAP_DEBUG.log(`Finding node at screen (${x.toFixed(0)}, ${y.toFixed(0)}) → world (${worldX.toFixed(0)}, ${worldY.toFixed(0)})`);
         MAP_DEBUG.log(`Total devices in array: ${this.devices.length}`);
-        MAP_DEBUG.log(`Click radius: ${clickRadius}px, Node radius: ${this.nodeRadius}px`);
+        MAP_DEBUG.log(`Click radius: ${clickRadius}px, zoom: ${this.zoom}`);
         MAP_DEBUG.log(`Canvas center: (${this.centerX}, ${this.centerY})`);
         
         if (!this.devices || this.devices.length === 0) {
@@ -286,9 +293,9 @@ class NetworkMap {
                 MAP_DEBUG.log('Device has no position:', device.nodeId || device.source);
                 continue;
             }
-            
-            const dx = x - device.position.x;
-            const dy = y - device.position.y;
+
+            const dx = worldX - device.position.x;
+            const dy = worldY - device.position.y;
             const distance = Math.sqrt(dx * dx + dy * dy);
             
             MAP_DEBUG.log(`Device ${device.nodeId || device.source} at (${device.position.x.toFixed(0)}, ${device.position.y.toFixed(0)}), distance=${distance.toFixed(1)}px`);
@@ -431,31 +438,32 @@ class NetworkMap {
         // Clear canvas
         this.ctx.fillStyle = this.colors.background;
         this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
-        
-        // Draw grid and center
+
+        // Empty state: show message + pulsing center dot, skip all node drawing
+        if (!this.devices || this.devices.length === 0) {
+            this.drawCenter();
+            this.drawEmptyState();
+            this.drawLegend();
+            return;
+        }
+
+        // Apply zoom transform centered on canvas midpoint
+        this.ctx.save();
+        this.ctx.translate(this.centerX, this.centerY);
+        this.ctx.scale(this.zoom, this.zoom);
+        this.ctx.translate(-this.centerX, -this.centerY);
+
         this.drawGrid();
         this.drawCenter();
-        
-        // Draw signal range circles
         this.drawRangeCircles();
-        
-        // Draw signal strength heatmap (before nodes)
-        if (this.showHeatmap) {
-            this.drawHeatmap();
-        }
-        
-        // Draw connection lines (if devices have hop relationships)
+        if (this.showHeatmap) this.drawHeatmap();
         this.drawConnections();
-        
-        // Draw nodes
         this.drawNodes();
-        
-        // Draw hover tooltip
-        if (this.hoveredNode) {
-            this.drawTooltip(this.hoveredNode);
-        }
-        
-        // Draw legend
+        if (this.hoveredNode) this.drawTooltip(this.hoveredNode);
+
+        this.ctx.restore();
+
+        // Legend is fixed position — drawn outside zoom transform
         this.drawLegend();
     }
     
@@ -624,13 +632,15 @@ class NetworkMap {
             // Draw signal strength indicator
             this.drawSignalBars(device);
             
-            // Draw node ID (show last 4 chars for uniqueness, with 0x prefix to match device list)
-            this.ctx.fillStyle = this.colors.text;
-            this.ctx.font = 'bold 10px Arial';
-            this.ctx.textAlign = 'center';
-            const nodeIdStr = device.nodeId || '';
-            const shortId = nodeIdStr.length > 4 ? nodeIdStr.slice(-4) : nodeIdStr || '????';
-            this.ctx.fillText(`0x..${shortId}`, device.position.x, device.position.y + this.nodeRadius + MAP_CONFIG.labelOffset);
+            // Draw node ID label (can be toggled off)
+            if (this.showLabels) {
+                this.ctx.fillStyle = this.colors.text;
+                this.ctx.font = 'bold 10px Arial';
+                this.ctx.textAlign = 'center';
+                const nodeIdStr = device.nodeId || '';
+                const shortId = nodeIdStr.length > 4 ? nodeIdStr.slice(-4) : nodeIdStr || '????';
+                this.ctx.fillText(`0x..${shortId}`, device.position.x, device.position.y + this.nodeRadius + MAP_CONFIG.labelOffset);
+            }
         }
     }
     
@@ -853,6 +863,39 @@ class NetworkMap {
         return `${Math.floor(secondsAgo / 86400)}d ago`;
     }
     
+    // ---- View controls (wired to map control buttons) ----
+
+    centerMap() {
+        this.zoom = 1;
+        this.redraw();
+    }
+
+    toggleLabels() {
+        this.showLabels = !this.showLabels;
+        this.redraw();
+        return this.showLabels;
+    }
+
+    zoomIn() {
+        this.zoom = Math.min(3, this.zoom * 1.3);
+        this.redraw();
+    }
+
+    zoomOut() {
+        this.zoom = Math.max(0.3, this.zoom / 1.3);
+        this.redraw();
+    }
+
+    drawEmptyState() {
+        this.ctx.textAlign = 'center';
+        this.ctx.font = '15px Arial';
+        this.ctx.fillStyle = 'rgba(160, 160, 160, 0.6)';
+        this.ctx.fillText('No devices detected yet', this.centerX, this.centerY - 30);
+        this.ctx.font = '12px Arial';
+        this.ctx.fillStyle = 'rgba(120, 120, 140, 0.6)';
+        this.ctx.fillText('Nodes appear as packets are received', this.centerX, this.centerY - 10);
+    }
+
     destroy() {
         this.stopAnimation();
         // Clean up resize listener to prevent memory leak
