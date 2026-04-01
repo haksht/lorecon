@@ -35,6 +35,8 @@ import json
 import os
 import subprocess
 import sys
+sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+sys.stderr.reconfigure(encoding='utf-8', errors='replace')
 import time
 import webbrowser
 from datetime import datetime
@@ -163,10 +165,10 @@ def run_tool(script: Path, args: list[str], output_file: Path | None = None) -> 
     """Run a tool subprocess, optionally capturing stdout to a file."""
     cmd = [sys.executable, str(script)] + args
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True)
+        result = subprocess.run(cmd, capture_output=True, text=True, encoding='utf-8')
         output = result.stdout + result.stderr
         if output_file:
-            output_file.write_text(output)
+            output_file.write_text(output, encoding='utf-8')
         return result.returncode, output
     except Exception as e:
         return 1, str(e)

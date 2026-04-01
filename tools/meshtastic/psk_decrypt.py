@@ -29,6 +29,8 @@ import argparse
 import base64
 import struct
 import sys
+sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+sys.stderr.reconfigure(encoding='utf-8', errors='replace')
 from typing import Dict, List, Optional, Tuple, NamedTuple
 from dataclasses import dataclass
 

@@ -27,6 +27,8 @@ import argparse
 import json
 import struct
 import sys
+sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+sys.stderr.reconfigure(encoding='utf-8', errors='replace')
 from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
@@ -556,7 +558,14 @@ Examples:
     
     # Handle outputs
     if args.wireshark:
-        open_wireshark(pcap_path)
+        if EXPORTER_AVAILABLE:
+            loratap_path = pcap_path.with_name(pcap_path.stem + '_loratap.pcap')
+            raw_packets = parse_esp32_pcap(pcap_path)
+            write_loratap_pcap(raw_packets, loratap_path)
+            print(f"✅ LoRaTap PCAP created: {loratap_path}")
+            _ws_open(loratap_path)
+        else:
+            open_wireshark(pcap_path)
     
     if args.output:
         export_csv(packets, args.output)

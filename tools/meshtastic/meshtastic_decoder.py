@@ -21,6 +21,8 @@ import base64
 import struct
 import json
 import sys
+sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+sys.stderr.reconfigure(encoding='utf-8', errors='replace')
 from pathlib import Path
 from datetime import datetime
 from collections import defaultdict

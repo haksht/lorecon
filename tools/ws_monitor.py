@@ -20,6 +20,8 @@ import argparse
 import binascii
 import json
 import sys
+sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+sys.stderr.reconfigure(encoding='utf-8', errors='replace')
 import signal
 from datetime import datetime
 from pathlib import Path

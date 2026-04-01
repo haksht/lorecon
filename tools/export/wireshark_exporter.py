@@ -31,6 +31,8 @@ import argparse
 import struct
 import json
 import sys
+sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+sys.stderr.reconfigure(encoding='utf-8', errors='replace')
 from pathlib import Path
 from datetime import datetime
 
@@ -191,7 +193,7 @@ def write_loratap_pcap(packets, output_path):
                 snr=pkt['snr'],
                 sf=pkt.get('spreading_factor', 7),
                 bw=pkt.get('bandwidth_khz', 125.0),
-                timestamp_us=pkt['timestamp_ms'] * 1000
+                timestamp_us=pkt['ts_usec']
             )
             
             loratap_header = lt.pack()

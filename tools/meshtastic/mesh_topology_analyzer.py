@@ -32,6 +32,8 @@ import csv
 import json
 import struct
 import sys
+sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+sys.stderr.reconfigure(encoding='utf-8', errors='replace')
 from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
@@ -451,7 +453,12 @@ class MeshTopologyAnalyzer:
         lines.append('')
         
         metrics = self.calculate_metrics()
-        
+
+        if 'error' in metrics:
+            lines.append(f"No topology data: {metrics['error']}")
+            lines.append(f"Packets analyzed: {metrics.get('total_packets', 0)}")
+            return '\n'.join(lines)
+
         # Summary
         lines.append(f"Total Nodes: {metrics['total_nodes']}")
         lines.append(f"Total Links: {metrics['total_edges']}")

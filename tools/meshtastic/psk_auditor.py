@@ -19,6 +19,8 @@ import base64
 import json
 import struct
 import sys
+sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+sys.stderr.reconfigure(encoding='utf-8', errors='replace')
 from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
@@ -110,7 +112,8 @@ class PSKAuditor:
             'sample_data': [],
         })
         self.total_tested = 0
-        self.total_vulnerable = 0
+        self.total_vulnerable = 0   # sensitive portnums (text, admin)
+        self.informational = 0      # decryptable but expected public data
         self.unencrypted = 0
         self.failed = 0
     
@@ -137,15 +140,22 @@ class PSKAuditor:
         struct.pack_into('<I', nonce, 8, node_id)
         return bytes(nonce)
     
+    # Portnums where default-PSK decryption is a real security finding
+    SENSITIVE_PORTNUMS = {
+        1,   # TEXT_MESSAGE_APP  - private messages
+        2,   # REMOTE_HARDWARE_APP - device control
+        67,  # ADMIN_APP - remote configuration
+    }
+
     def try_decrypt(self, encrypted, key_bytes, packet_id, node_id):
-        """Attempt decryption and validate result"""
+        """Attempt decryption and validate result. Returns portnum (int) or None."""
         if not CRYPTO_AVAILABLE:
-            return False
-        
+            return None
+
         try:
             expanded = self.expand_key(key_bytes)
             nonce = self.build_nonce(packet_id, node_id)
-            
+
             cipher = Cipher(
                 algorithms.AES(expanded),
                 modes.CTR(nonce),
@@ -153,25 +163,25 @@ class PSKAuditor:
             )
             decryptor = cipher.decryptor()
             decrypted = decryptor.update(encrypted) + decryptor.finalize()
-            
+
             # Validate: check for protobuf field 1 (portnum)
             if len(decrypted) >= 2 and decrypted[0] == 0x08:
                 portnum = decrypted[1]
                 # Known Meshtastic portnums
                 if portnum in (0, 1, 2, 3, 4, 5, 6, 7, 8, 32, 33, 34, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73):
-                    return True
-            
-            return False
+                    return portnum
+
+            return None
         except Exception:
-            return False
+            return None
     
     def audit_packet(self, raw_data, timestamp=None):
         """Audit a single packet for PSK vulnerabilities"""
         if isinstance(raw_data, str):
             raw_data = bytes.fromhex(raw_data.replace(' ', '').replace('0x', ''))
         
-        # Check for Meshtastic header
-        if len(raw_data) < 20 or raw_data[:4] != b'\xff\xff\xff\xff':
+        # Minimum Meshtastic packet length (16-byte header + at least some payload)
+        if len(raw_data) < 20:
             return None
         
         self.total_tested += 1
@@ -200,34 +210,44 @@ class PSKAuditor:
                 key_bytes = base64.b64decode(psk_b64)
             except Exception:
                 continue
-            
-            if self.try_decrypt(encrypted, key_bytes, packet_id, node_id):
+
+            portnum = self.try_decrypt(encrypted, key_bytes, packet_id, node_id)
+            if portnum is None:
+                continue
+
+            is_sensitive = portnum in self.SENSITIVE_PORTNUMS
+
+            if is_sensitive:
                 self.total_vulnerable += 1
-                
-                # Record vulnerability
-                net_key = psk_name
-                net = self.vulnerable_networks[net_key]
-                net['psk_name'] = psk_name
-                net['psk_risk'] = risk
-                net['psk_description'] = description
-                net['packet_count'] += 1
-                net['devices'].add(f"0x{node_id:08X}")
-                
-                if timestamp:
-                    if net['first_seen'] is None:
-                        net['first_seen'] = timestamp
-                    net['last_seen'] = timestamp
-                
-                if len(net['sample_data']) < 3:
-                    net['sample_data'].append(raw_data[:48].hex())
-                
-                return {
-                    'node_id': node_id,
-                    'vulnerable': True,
-                    'risk': risk,
-                    'psk_name': psk_name,
-                    'description': description,
-                }
+            else:
+                self.informational += 1
+
+            # Record finding
+            net_key = psk_name
+            net = self.vulnerable_networks[net_key]
+            net['psk_name'] = psk_name
+            net['psk_risk'] = risk
+            net['psk_description'] = description
+            net['packet_count'] += 1
+            net['sensitive_count'] = net.get('sensitive_count', 0) + (1 if is_sensitive else 0)
+            net['devices'].add(f"0x{node_id:08X}")
+
+            if timestamp:
+                if net['first_seen'] is None:
+                    net['first_seen'] = timestamp
+                net['last_seen'] = timestamp
+
+            if len(net['sample_data']) < 3:
+                net['sample_data'].append(raw_data[:48].hex())
+
+            return {
+                'node_id': node_id,
+                'vulnerable': is_sensitive,
+                'portnum': portnum,
+                'risk': risk if is_sensitive else 'INFO',
+                'psk_name': psk_name,
+                'description': description,
+            }
         
         self.failed += 1
         return {
@@ -244,14 +264,15 @@ class PSKAuditor:
         print("="*70)
         
         print(f"\n📊 Summary:")
-        print(f"   Total packets tested: {self.total_tested}")
-        print(f"   Vulnerable (weak PSK): {self.total_vulnerable}")
-        print(f"   Unencrypted: {self.unencrypted}")
-        print(f"   Unknown PSK: {self.failed}")
-        
+        print(f"   Total packets tested:   {self.total_tested}")
+        print(f"   Sensitive (text/admin): {self.total_vulnerable}  ← real findings")
+        print(f"   Informational (pos/nodeinfo/telemetry): {self.informational}  ← expected public data")
+        print(f"   Unencrypted:            {self.unencrypted}")
+        print(f"   Unknown PSK:            {self.failed}")
+
         if self.total_tested > 0:
-            vuln_pct = (self.total_vulnerable + self.unencrypted) / self.total_tested * 100
-            print(f"   Vulnerability rate: {vuln_pct:.1f}%")
+            sensitive_pct = (self.total_vulnerable + self.unencrypted) / self.total_tested * 100
+            print(f"   Sensitive exposure rate: {sensitive_pct:.1f}%")
         
         if not self.vulnerable_networks:
             print("\n✅ No vulnerable networks detected")
@@ -273,8 +294,12 @@ class PSKAuditor:
             print(f"┌{'─'*68}┐")
             print(f"│ {risk_colored:>8} │ {psk_name:<54} │")
             print(f"├{'─'*68}┤")
+            sensitive = data.get('sensitive_count', 0)
+            info = data['packet_count'] - sensitive
             print(f"│ Description: {data['psk_description']:<52} │")
             print(f"│ Packets: {data['packet_count']:<56} │")
+            print(f"│   Sensitive (text/admin): {sensitive:<45} │")
+            print(f"│   Informational (pos/nodeinfo/etc): {info:<35} │")
             print(f"│ Devices: {len(data['devices']):<56} │")
             
             if data['devices']:
@@ -317,7 +342,8 @@ class PSKAuditor:
             'audit_time': datetime.now().isoformat(),
             'summary': {
                 'total_tested': self.total_tested,
-                'vulnerable': self.total_vulnerable,
+                'sensitive_vulnerable': self.total_vulnerable,
+                'informational_decryptable': self.informational,
                 'unencrypted': self.unencrypted,
                 'unknown_psk': self.failed,
             },
@@ -349,10 +375,15 @@ def load_pcap(filepath):
             ts_sec, ts_usec, incl_len, _ = struct.unpack('<IIII', pkt_header)
             pkt_data = f.read(incl_len)
             
-            # Skip custom LoRa pseudo-header (20 bytes) if present
+            # Strip custom LoRa pseudo-header (20 bytes) if present
             if len(pkt_data) > 20 and pkt_data[:4] != b'\xff\xff\xff\xff':
                 pkt_data = pkt_data[20:]
-            
+
+            # Only audit Meshtastic broadcast packets from PCAP
+            # (no protocol label available; unicast requires CSV with protocol column)
+            if pkt_data[:4] != b'\xff\xff\xff\xff':
+                continue
+
             packets.append((pkt_data, ts_sec + ts_usec/1e6))
     
     return packets
@@ -366,6 +397,10 @@ def load_csv(filepath):
     with open(filepath, 'r') as f:
         reader = csv.DictReader(f)
         for row in reader:
+            # Only audit packets the firmware identified as Meshtastic
+            protocol = row.get('protocol', '')
+            if protocol and protocol != 'Meshtastic':
+                continue
             hex_data = row.get('hex_data') or row.get('data') or row.get('raw_hex')
             timestamp = float(row.get('timestamp_ms', row.get('timestamp', 0))) / 1000
             if hex_data:

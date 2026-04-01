@@ -34,6 +34,8 @@ from matplotlib.ticker import MaxNLocator
 from collections import deque, defaultdict
 import re
 import sys
+sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+sys.stderr.reconfigure(encoding='utf-8', errors='replace')
 import time
 import json
 import argparse

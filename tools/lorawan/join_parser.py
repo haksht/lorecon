@@ -32,6 +32,8 @@ import csv
 import json
 import struct
 import sys
+sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+sys.stderr.reconfigure(encoding='utf-8', errors='replace')
 from collections import defaultdict
 from datetime import datetime
 from pathlib import Path

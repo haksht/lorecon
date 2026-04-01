@@ -18,6 +18,8 @@ import argparse
 import csv
 import json
 import sys
+sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+sys.stderr.reconfigure(encoding='utf-8', errors='replace')
 from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
@@ -550,7 +552,7 @@ def main():
     
     # Write output
     if args.output:
-        with open(args.output, 'w') as f:
+        with open(args.output, 'w', encoding='utf-8') as f:
             f.write(output)
         print(f"Report saved to {args.output}", file=sys.stderr)
     else:
