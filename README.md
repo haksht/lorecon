@@ -48,7 +48,7 @@ See [docs/HARDWARE.md](docs/HARDWARE.md) for specs, pin maps, and purchase links
 | GPS extraction | Extracts coordinates from Meshtastic POSITION_APP packets |
 | Packet replay | 10 slots, configurable repeat count and delay |
 | Export | CSV, PCAP (Wireshark), KML, GeoJSON — wireless download from web UI |
-| Web UI | 7-tab interface: devices, packets, network map, stats, frequency control |
+| Web UI | 6-tab interface (Info, Devices, Packets, Frequencies, Dashboard, Settings); live stats sidebar always visible on desktop, hamburger popup on mobile |
 | Security | Token-based API auth, device-unique AP password, NVS credential storage |
 
 ---

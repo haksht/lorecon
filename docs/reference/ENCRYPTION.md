@@ -68,7 +68,9 @@ The sniffer tests 23 known default and historically common PSKs:
 are potentially vulnerable to unauthorized remote configuration.
 
 A successful PSK hit means you can read position, telemetry, node info, and any channel messages
-from that device. It does not help with DMs.
+from that device.
+
+**DMs (direct messages):** In pre-2.5.0 Meshtastic firmware, DMs were encrypted with the channel PSK, so a PSK hit exposes them. In post-2.5.0 firmware, DMs use Curve25519 public key cryptography; a PSK hit does not expose them.
 
 ---
 

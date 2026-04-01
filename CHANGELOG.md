@@ -2,6 +2,24 @@
 
 All notable changes to the ESP32 LoRa Sniffer project.
 
+## [2.4.1] - 2026-03-29
+
+### Fixed
+- **`/api/auth/token` for auto-trusted LAN clients**: Endpoint was rejecting requests from clients on the local LAN (STA mode, non-AP subnet) that are auto-trusted. Now issues a token correctly without requiring a pre-existing token.
+- **esptool `write_flash` syntax**: Flash scripts used `write-flash` (hyphen); corrected to `write_flash` (underscore) for esptool v5+ compatibility.
+- **OLED boot progress rendering**: `showBootProgress()`, `showWelcome()`, and `showShutdown()` never rendered because `needsRedraw_` was not set. Fixed.
+
+## [2.4.0] - 2026-03-28
+
+### Added
+- **Filesystem OTA** (`POST /api/filesystem/upload`): Upload a new `webapp.bin` LittleFS image over WiFi — no serial cable required for webapp updates.
+- **AP password config** (`POST /api/wifi/ap-password`): Change the device access point password via API; persisted in NVS.
+- **Auto token retrieval** (`GET /api/auth/token`): Returns the API token for clients that cannot read serial output (primarily Heltec V4 in no-serial-monitor mode). Only available to auto-trusted LAN clients.
+
+### Improved
+- **Settings tab**: AP password change UI added; token display improved for no-serial-monitor boards.
+- **OLED boot sequence**: Progress bar and welcome screen display correctly on all boards.
+
 ## [2.3.3] - 2026-03-28
 
 ### Fixed
@@ -11,7 +29,7 @@ All notable changes to the ESP32 LoRa Sniffer project.
 - **RadioHead RH_RF95 protocol detection**: Common Arduino/RadioLib sensor library uses a 4-byte MAC header `[TO][FROM][ID][FLAGS]` with reserved lower 5 bits of FLAGS always zero. Detected after LoRaWAN check, before falling through to Unknown. FROM address (byte 1, 0–255) used as node ID. Device types: RadioHead Broadcast / RadioHead ACK / RadioHead Node.
 
 ### Changed
-- **Tools directory**: Removed 12 low-value files — `session_analyzer.py`, `timeline_replay.py`, `packet_differ.py`, `position_tracker.py`, `compliance/`, `lorawan/`, `visualization/`. Rewrote README to match the remaining tools.
+- **Tools directory**: Removed 12 low-value files — `session_analyzer.py`, `timeline_replay.py`, `packet_differ.py`, `position_tracker.py`, `compliance/`, `visualization/`. Rewrote README to match the remaining tools. (`lorawan/` was rebuilt with `join_parser.py` and `uplink_parser.py` — not removed.)
 
 ## [2.3.1] - 2026-03-22
 

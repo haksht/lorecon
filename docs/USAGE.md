@@ -10,7 +10,7 @@ If you haven't flashed the device yet, start with [SETUP.md](SETUP.md).
 
 Browse to the device IP or `http://lora-xxyyzz.local` (replace `xxyyzz` with your device ID).
 
-### 7 tabs
+### 6 tabs + stats sidebar
 
 **Info** — System overview: uptime, free memory, GPS fix status, security assessment summary, quick-action buttons.
 
@@ -18,13 +18,13 @@ Browse to the device IP or `http://lora-xxyyzz.local` (replace `xxyyzz` with you
 
 **Packets** — Live Wireshark-style packet stream with protocol badges, RSSI indicators, and encryption status. Controls: pause, resume, clear, auto-scroll. Replay slots below.
 
-**Frequency** — All 26 scan configurations with activity indicators. Click any config to lock the radio to that frequency and modulation.
+**Frequencies** — All 26 scan configurations with activity indicators. Click any config to lock the radio to that frequency and modulation.
 
-**Network** — Interactive canvas map. Nodes placed by signal strength. Click a node to see details and targeting button. Updates every 2 seconds.
-
-**Stats** — Protocol breakdown (Meshtastic / LoRaWAN / Helium) as pie chart (desktop) or bar chart (mobile). Live packet counts and percentages.
+**Dashboard** — War-room stats (protocol breakdown, live packet counts), interactive canvas network map (nodes placed by signal strength), and GPS positions. Updates every 2 seconds.
 
 **Settings** — WiFi credentials, system diagnostics, reboot, power off. On T-Beam Supreme, power off cuts PMIC rails completely.
+
+**Stats sidebar** — Device count, packet count, current mode, and battery level, plus Download CSV/PCAP and Export KML/GeoJSON buttons. On desktop the sidebar is always visible alongside the tabs. On mobile it collapses to a hamburger (≡) button in the header; tap it to open an overlay panel.
 
 ### Audio feedback
 

@@ -212,7 +212,7 @@ python tools/meshtastic/psk_auditor.py --demo
 Reconstructs the mesh network graph from hop count data in the capture.
 
 ```bash
-python tools/meshtastic/mesh_topology_analyzer.py capture.csv --ascii
+python tools/meshtastic/mesh_topology_analyzer.py capture.csv --format ascii
 python tools/meshtastic/mesh_topology_analyzer.py --demo
 ```
 
