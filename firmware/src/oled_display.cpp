@@ -33,13 +33,32 @@ bool OLEDDisplay::initialize() {
         delay(20);                      // Hold reset for 20ms (conservative)
         digitalWrite(OLED_RST, HIGH);  // De-assert reset
         delay(50);                      // Wait for OLED to finish reset sequence
-    #elif defined(BOARD_T3_S3)
-        // T3-S3: No Vext power control or hardware reset pin
-        Serial.println("[DISPLAY] T3-S3: Using software reset only");
-        delay(50);  // Short delay for power stabilization
-    #elif defined(BOARD_TBEAM_SUPREME)
-        // T-Beam Supreme: Display powered by AXP2101 ALDO1 (always on after PMU init)
-        Serial.println("[DISPLAY] T-Beam Supreme: SH1106 display, software reset only");
+    #elif defined(BOARD_T3_S3) || defined(BOARD_TBEAM_SUPREME)
+        // No Vext control or hardware RST pin on these boards.
+        // After a software restart, the I2C slave may be stuck mid-transaction
+        // (e.g., if restart happened during showReboot() rendering).
+        // Send 9 SCL pulses to clock out any stuck slave state, then a STOP
+        // condition — this is the standard I2C bus recovery sequence.
+        #if defined(BOARD_T3_S3)
+        Serial.println("[DISPLAY] T3-S3: I2C bus recovery + software reset");
+        #else
+        Serial.println("[DISPLAY] T-Beam Supreme: I2C bus recovery + software reset");
+        #endif
+        pinMode(OLED_SCL, OUTPUT);
+        pinMode(OLED_SDA, OUTPUT);
+        digitalWrite(OLED_SDA, HIGH);
+        for (int i = 0; i < 9; i++) {
+            digitalWrite(OLED_SCL, LOW);
+            delayMicroseconds(5);
+            digitalWrite(OLED_SCL, HIGH);
+            delayMicroseconds(5);
+        }
+        // STOP condition: SDA transitions LOW→HIGH while SCL is HIGH
+        digitalWrite(OLED_SDA, LOW);
+        delayMicroseconds(5);
+        digitalWrite(OLED_SCL, HIGH);
+        delayMicroseconds(5);
+        digitalWrite(OLED_SDA, HIGH);
         delay(50);
     #endif
 

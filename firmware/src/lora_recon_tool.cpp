@@ -116,10 +116,6 @@ bool LoRaReconTool::initialize() {
     if (oledDisplay && oledDisplay->initialize()) {
         oledDisplay->showWelcome();
         delay(Config::UI::WELCOME_SCREEN_DELAY_MS);
-        // Keep display alive during long init
-        if (oledDisplay->isOn()) {
-            oledDisplay->update();
-        }
     } else {
         LOG_WARN("Display initialization failed - continuing without display");
         if (oledDisplay) {
@@ -145,20 +141,6 @@ bool LoRaReconTool::initialize() {
                  cfg.protocol, cfg.frequency);
     } else {
         LOG_INFO("Reconnaissance started");
-    }
-    
-    // Update display to show current status
-    if (oledDisplay && oledDisplay->isOn()) {
-        static char freqStr[16];
-        snprintf(freqStr, sizeof(freqStr), "%.3f", cfg.frequency);
-        if (reconState.scanState.mode == MODE_TARGETED_CAPTURE) {
-            oledDisplay->showTargetingMode(freqStr);
-        } else {
-            oledDisplay->showScanningStatus(freqStr, cfg.spreadingFactor,
-                                            reconState.scanState.currentConfig,
-                                            reconState.getNumConfigs());
-        }
-        oledDisplay->update();  // Render immediately during setup
     }
     
     // Initialize SD card logger

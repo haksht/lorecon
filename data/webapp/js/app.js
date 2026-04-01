@@ -500,6 +500,7 @@ class ReconApp {
         this.networkMap = null;
         this.warRoom = null;
         this.ws = null;
+        this.wsRetryCount = 0;
 
         // Device filter/sort state (persists across tab refreshes)
         this.allDevices = null;
@@ -566,6 +567,7 @@ class ReconApp {
         this.ws = new WebSocket(`${protocol}//${window.location.host}/ws`);
         
         this.ws.onopen = () => {
+            this.wsRetryCount = 0;
             this.setConnected(true);
         };
         
@@ -587,7 +589,9 @@ class ReconApp {
         
         this.ws.onclose = () => {
             this.setConnected(false);
-            setTimeout(() => this.connectWebSocket(), 3000);
+            this.wsRetryCount++;
+            const delay = Math.min(30000, 1000 * Math.pow(2, this.wsRetryCount - 1));
+            setTimeout(() => this.connectWebSocket(), delay);
         };
     }
 
@@ -624,7 +628,7 @@ class ReconApp {
         if (this.el.battery) {
             const pct = data.batteryPercent;
             if (pct !== undefined && pct !== null && pct >= 0) {
-                this.el.battery.innerHTML = `${pct}%`;
+                this.el.battery.textContent = `${pct}%`;
                 // Color code battery level
                 this.el.battery.className = 'stat-value ' + (pct > 50 ? 'text-success' : pct > 20 ? 'text-warning' : 'text-danger');
             } else {
@@ -874,6 +878,10 @@ class ReconApp {
             ).join('');
 
             this.el.devicesContent.innerHTML = `
+                <div class="devices-header" aria-hidden="true">
+                    <span class="devices-title">Discovered Devices</span>
+                    <span class="devices-count">${this.allDevices.length} device${this.allDevices.length !== 1 ? 's' : ''}</span>
+                </div>
                 <div class="device-filter-bar">
                     <input type="text" id="device-search" class="filter-input" placeholder="Search Node ID…" value="${escapeHtml(this.deviceFilter.text)}">
                     <select id="device-proto-filter" class="filter-select">
@@ -894,9 +902,6 @@ class ReconApp {
             this.setupDeviceFilterHandlers();
             this.renderDeviceTable();
 
-            // Prevent mobile keyboard from auto-raising — user must tap the field explicitly
-            document.getElementById('device-search')?.blur();
-
         } catch (error) {
             DEBUG.error('Failed to load devices:', error);
             this.el.devicesContent.innerHTML = renderErrorState('Failed to load devices', 'retry-devices');
@@ -909,7 +914,7 @@ class ReconApp {
         const protoEl  = document.getElementById('device-proto-filter');
         const riskEl   = document.getElementById('device-risk-filter');
 
-        if (searchEl) searchEl.addEventListener('input',  () => { this.deviceFilter.text     = searchEl.value;  this.renderDeviceTable(); });
+        if (searchEl) searchEl.addEventListener('input',  () => { this.deviceFilter.text = searchEl.value; this.renderDeviceTable(); });
         if (protoEl)  protoEl.addEventListener('change',  () => { this.deviceFilter.protocol = protoEl.value;   this.renderDeviceTable(); });
         if (riskEl)   riskEl.addEventListener('change',   () => { this.deviceFilter.risk     = riskEl.value;    this.renderDeviceTable(); });
     }
@@ -1001,6 +1006,7 @@ class ReconApp {
             let beaconBadge = '—';
             if      (periodicityScore >= 80) beaconBadge = `📡 ${periodicityScore}%`;
             else if (periodicityScore >= 50) beaconBadge = `📶 ${periodicityScore}%`;
+            else if (periodicityScore >   0) beaconBadge = `〰 ${periodicityScore}%`;
             const intervalTooltip = avgInterval > 0 ? `Avg interval: ${(avgInterval/1000).toFixed(0)}s` : '';
 
             const origPkts  = device.originatedPackets || 0;
@@ -1068,8 +1074,8 @@ class ReconApp {
                     <div class="empty-state">
                         <div class="empty-icon">📦</div>
                         <h3>No Packets Captured</h3>
-                        <p>Packets are stored here when you target a frequency.</p>
-                        <p class="text-muted">Go to <a href="#" onclick="app.switchTab('frequency'); return false;">Frequencies</a> and click "🎯 Target" on a frequency config to lock the radio on it.</p>
+                        <p>Packets are captured here as the scanner receives them across all frequencies. The replay buffer holds the last 10 unique packets.</p>
+                        <p class="text-muted">Go to <a href="#" onclick="app.switchTab('frequency'); return false;">Frequencies</a> and click "🎯 Target" to lock the radio on one channel for focused capture.</p>
                     </div>`;
                 return;
             }
@@ -1131,7 +1137,7 @@ class ReconApp {
                     }
                     
                     html += `<td>${pkt.length || 0} B</td>`;
-                    html += `<td><span class="${rssiClass}">${pkt.rssi || '—'} dBm</span></td>`;
+                    html += `<td>${pkt.rssi != null ? `<span class="${rssiClass}">${pkt.rssi} dBm</span>` : '—'}</td>`;
                     html += `<td>${pkt.snr !== undefined ? pkt.snr.toFixed(1) + ' dB' : '—'}</td>`;
                     html += `<td>${(pkt.frequencyMHz || 0).toFixed(3)} MHz</td>`;
                     html += `<td>${this.formatDuration(pkt.capturedSecondsAgo || 0)} ago</td>`;
@@ -1246,10 +1252,45 @@ class ReconApp {
             
             html += '</tbody></table></div>';
             this.el.frequencyContent.innerHTML = html;
+
+            // Populate the activity analysis summary panel (lives in this same tab)
+            this.renderFrequencyAnalysis(allConfigs);
         } catch (error) {
             DEBUG.error('Failed to load frequency data:', error);
             this.el.frequencyContent.innerHTML = renderErrorState('Failed to load frequency data', 'retry-frequency');
         }
+    }
+
+    /** Render top-active-frequency bars into #frequency-analysis-content */
+    renderFrequencyAnalysis(allConfigs) {
+        const freqAnalysisEl = document.getElementById('frequency-analysis-content');
+        if (!freqAnalysisEl) return;
+
+        const activeFreqs = allConfigs
+            .filter(f => f.packets > 0)
+            .sort((a, b) => b.packets - a.packets)
+            .slice(0, 10);
+
+        if (activeFreqs.length === 0) {
+            freqAnalysisEl.innerHTML = renderPlaceholder('📊', 'No frequency activity yet.', 'Active frequencies will appear during scanning.');
+            return;
+        }
+
+        const maxPackets = Math.max(...activeFreqs.map(f => f.packets));
+        let html = '<div class="p-md">';
+        html += '<p class="text-muted mb-md">Top ' + activeFreqs.length + ' most active frequencies:</p>';
+        html += '<div class="flex-column-gap">';
+        activeFreqs.forEach(freq => {
+            const barWidth = ((freq.packets / maxPackets) * 100).toFixed(1);
+            html += '<div class="freq-card">';
+            html += `<div class="freq-card-header"><strong>${escapeHtml(freq.protocol)}</strong><span>${freq.frequencyMHz.toFixed(3)} MHz</span></div>`;
+            html += `<div class="freq-card-config">SF${freq.spreadingFactor} • BW ${freq.bandwidthKHz}kHz • Config #${freq.configIndex}</div>`;
+            html += `<div class="freq-card-stats"><span>Packets: <strong>${freq.packets}</strong></span><span>Avg RSSI: ${formatRSSI(freq.avgRSSI)}</span></div>`;
+            html += `<div class="progress-track"><div class="progress-fill" style="width: ${barWidth}%; background: var(--primary);"></div></div>`;
+            html += '</div>';
+        });
+        html += '</div></div>';
+        freqAnalysisEl.innerHTML = html;
     }
 
     /**
@@ -1418,11 +1459,14 @@ class ReconApp {
         data.anomalies.slice(0, 5).forEach(anom => {
             const typeEmoji = {'packet_size': '📦', 'relay_hops': '↻', 'rate_limit': '⚡', 'rssi_variance': '📡', 'replay': '🔁', 'timing': '⏱️'}[anom.type] || '⚠️';
             const safeNodeId = escapeHtml(anom.nodeId.toString(16));
-            // timestamp is millis() uptime, format as relative time
-            const uptimeSec = Math.floor(anom.timestamp / 1000);
-            const mins = Math.floor(uptimeSec / 60);
+            // anom.timestamp is millis() uptime when event occurred; compute elapsed
+            const currentUptimeMs = (this.currentStatus && this.currentStatus.uptime)
+                ? this.currentStatus.uptime * 1000 : 0;
+            const elapsedSec = Math.max(0, Math.floor((currentUptimeMs - anom.timestamp) / 1000));
+            const mins = Math.floor(elapsedSec / 60);
             const hrs = Math.floor(mins / 60);
-            const timeStr = hrs > 0 ? `${hrs}h ${mins % 60}m ago` : `${mins}m ago`;
+            const timeStr = elapsedSec < 60 ? `${elapsedSec}s ago`
+                : hrs > 0 ? `${hrs}h ${mins % 60}m ago` : `${mins}m ago`;
             html += '<div class="alert-item">';
             html += `<div class="alert-item-row"><span>${typeEmoji} <strong>0x${safeNodeId}</strong></span>`;
             html += `<span class="alert-item-timestamp">${timeStr}</span></div>`;
@@ -1647,63 +1691,6 @@ class ReconApp {
             this.el.securityContent.innerHTML = renderErrorState('Failed to load security data', 'retry-security');
         }
         
-        // Load frequency analysis from /api/activity
-        try {
-            const freqData = await this.get('/api/activity');
-            if (freqData && freqData.activities && freqData.activities.length > 0) {
-                let html = '<div class="p-md">';
-                
-                // Sort by packet count
-                const activeFreqs = freqData.activities
-                    .filter(f => f.packets > 0)
-                    .sort((a, b) => b.packets - a.packets)
-                    .slice(0, 10); // Top 10
-                
-                if (activeFreqs.length > 0) {
-                    html += '<p class="text-muted mb-md">Top ' + activeFreqs.length + ' most active frequencies:</p>';
-                    html += '<div class="flex-column-gap">';
-
-                    const maxPackets = Math.max(...activeFreqs.map(f => f.packets));
-                    activeFreqs.forEach(freq => {
-                        const barWidth = ((freq.packets / maxPackets) * 100).toFixed(1);
-                        html += '<div class="freq-card">';
-                        html += `<div class="freq-card-header">`;
-                        html += `<strong>${escapeHtml(freq.protocol)}</strong>`;
-                        html += `<span>${freq.frequencyMHz.toFixed(3)} MHz</span>`;
-                        html += `</div>`;
-                        html += `<div class="freq-card-config">`;
-                        html += `SF${freq.spreadingFactor} • BW ${freq.bandwidthKHz}kHz • Config #${freq.configIndex}`;
-                        html += `</div>`;
-                        html += `<div class="freq-card-stats">`;
-                        html += `<span>Packets: <strong>${freq.packets}</strong></span>`;
-                        html += `<span>Avg RSSI: ${formatRSSI(freq.avgRSSI)}</span>`;
-                        html += `</div>`;
-                        html += `<div class="progress-track">`;
-                        html += `<div class="progress-fill" style="width: ${barWidth}%; background: var(--primary);"></div>`;
-                        html += `</div></div>`;
-                    });
-                    
-                    html += '</div>';
-                } else {
-                    html += '<p class="text-center text-muted p-lg">No frequency activity detected yet. Active frequencies will appear during scanning.</p>';
-                }
-                
-                html += '</div>';
-                const freqAnalysisEl = document.getElementById('frequency-analysis-content');
-                if (freqAnalysisEl) freqAnalysisEl.innerHTML = html;
-            } else {
-                const freqAnalysisEl = document.getElementById('frequency-analysis-content');
-                if (freqAnalysisEl) {
-                    freqAnalysisEl.innerHTML = renderPlaceholder('📊', 'No frequency data yet.', 'Frequency analysis will appear during scanning.');
-                }
-            }
-        } catch (error) {
-            DEBUG.error('Failed to load frequency analysis:', error);
-            const freqAnalysisEl = document.getElementById('frequency-analysis-content');
-            if (freqAnalysisEl) {
-                freqAnalysisEl.innerHTML = renderErrorState('Failed to load frequency data', 'retry-freq-analysis');
-            }
-        }
     }
 
     /**
@@ -2053,9 +2040,12 @@ class ReconApp {
                 return;
             }
 
-            if (!confirm('Upload filesystem and reboot device? This will disconnect temporarily.')) {
-                return;
-            }
+            const confirmed = await ModalRenderer.confirm(
+                'Upload Filesystem',
+                'Upload filesystem and reboot device? This will disconnect temporarily.',
+                'Upload & Reboot'
+            );
+            if (!confirmed) return;
 
             const uploadBtn = document.getElementById('ota-fs-upload-btn');
             const progressContainer = document.getElementById('ota-fs-progress');
@@ -2122,7 +2112,12 @@ class ReconApp {
                 showToast('Password must be at least 8 characters', 'error');
                 return;
             }
-            if (!confirm('Update AP password and reboot device?')) return;
+            const confirmed = await ModalRenderer.confirm(
+                'Update AP Password',
+                'Update AP password and reboot device?',
+                'Update'
+            );
+            if (!confirmed) return;
             try {
                 await this.post('/api/wifi/ap-password', { password });
                 showToast('AP password updated. Device rebooting...', 'success');
@@ -2136,15 +2131,18 @@ class ReconApp {
     // ============ Button Handlers ============
     
     setupButtons() {
-        document.addEventListener('click', (e) => {
+        document.addEventListener('click', async (e) => {
             // Handle buttons and clickable elements with data-action
             const actionEl = e.target.closest('[data-action]');
             if (!actionEl) return;
             if (actionEl.classList.contains('btn-disabled')) return;
 
-            // Confirm BEFORE disabling the button — disabled buttons suppress confirm() in most browsers
+            // Use custom modal confirm — native confirm() is suppressed by captive portal browsers
             const confirmMsg = actionEl.dataset.confirmMsg;
-            if (confirmMsg && !confirm(confirmMsg)) return;
+            if (confirmMsg) {
+                const confirmed = await ModalRenderer.confirm('Confirm', confirmMsg);
+                if (!confirmed) return;
+            }
 
             e.preventDefault();
             const action = actionEl.dataset.action;
@@ -2166,8 +2164,6 @@ class ReconApp {
             'export-geojson':  () => this.actionExportGeoJSON(),
             'clear-packets': () => this.actionClearPackets(),
             'clear-devices': () => this.actionClearDevices(),
-            'show-activity': () => this.actionShowActivity(),
-            'show-security': () => this.actionShowSecurity(),
             'diagnostics': () => this.actionDiagnostics(),
             'reboot': () => this.actionReboot(),
             'shutdown': () => this.actionShutdown(),
@@ -2187,7 +2183,7 @@ class ReconApp {
             'retry-frequency': () => this.showFrequency(),
             'retry-gps': () => this.showInfo(),
             'retry-security': () => this.showInfo(),
-            'retry-freq-analysis': () => this.showInfo(),
+            'retry-freq-analysis': () => this.showFrequency(),
             'wifi-setup': () => this.showWiFiSetupModal(),
             'dismiss-setup': () => this.actionDismissSetup(),
             'wifi-clear': () => this.actionWifiClear(),
@@ -2236,12 +2232,6 @@ class ReconApp {
 
     // ============ Action Implementations ============
     
-    async actionToggleScan() {
-        await this.post('/api/scan/start', {});
-        showToast('Scanning resumed', 'success');
-        await this.updateStatus();
-    }
-
     async actionStopCapture() {
         await this.post('/api/capture/stop', {});
         showToast('Capture stopped — returning to scan', 'success');
@@ -2358,20 +2348,6 @@ class ReconApp {
         showToast('Devices cleared', 'success');
         await this.showDevices();
         await this.updateStatus();
-    }
-    
-    actionShowActivity() {
-        this.switchTab('info');
-        this.closeMobileMenu();
-        setTimeout(() => {
-            const freqSection = document.getElementById('frequency-analysis-content');
-            if (freqSection) freqSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        }, 100);
-    }
-    
-    async actionShowSecurity() {
-        await this.showSecurityAssessment();
-        this.closeMobileMenu();
     }
     
     async actionExportPCAP() {
@@ -2573,79 +2549,23 @@ class ReconApp {
         document.body.style.overflow = '';
     }
     
-    async showSecurityAssessment() {
-        try {
-            // Use backend security assessment for consistency
-            const secData = await this.get('/api/recon/security');
-            if (!secData || !secData.devices || secData.devices.length === 0) {
-                showToast('No devices to assess', 'warning');
-                return;
-            }
-            
-            const devices = secData.devices;
-            const summary = secData.summary || {};
-            const totalDevices = summary.totalDevices || 0;
-            const vulnerable = summary.vulnerable || 0;
-            const moderate = summary.moderate || 0;
-            const secure = summary.secure || 0;
-            
-            // Build modal content using CSS classes
-            const vulnPercent = totalDevices > 0 ? ((vulnerable / totalDevices) * 100).toFixed(0) : 0;
-            const vulnClass = vulnPercent > 50 ? 'danger' : vulnPercent > 25 ? 'warning' : 'success';
-            
-            let content = '';
-            
-            // Summary stat
-            content += '<div class="security-modal-stat security-device-card-' + vulnClass + '">';
-            content += '<div class="security-modal-stat-value text-' + vulnClass + '">' + vulnPercent + '%</div>';
-            content += '<div class="security-modal-stat-label">High Risk Devices</div>';
-            content += '</div>';
-            
-            // Details grid
-            content += '<div class="security-stats-grid-4">';
-            content += '<div class="security-stat-card security-stat-card-primary">';
-            content += '<div class="security-stat-value text-primary">' + totalDevices + '</div>';
-            content += '<div class="security-stat-label">Total Devices</div></div>';
-            
-            content += '<div class="security-stat-card security-stat-card-danger">';
-            content += '<div class="security-stat-value text-danger">' + vulnerable + '</div>';
-            content += '<div class="security-stat-label">Vulnerable</div></div>';
-            
-            content += '<div class="security-stat-card security-stat-card-warning">';
-            content += '<div class="security-stat-value text-warning">' + moderate + '</div>';
-            content += '<div class="security-stat-label">Moderate Risk</div></div>';
-            
-            content += '<div class="security-stat-card security-stat-card-success">';
-            content += '<div class="security-stat-value text-success">' + secure + '</div>';
-            content += '<div class="security-stat-label">Secure</div></div>';
-            content += '</div>';
-            
-            // Recommendations - with XSS escaping
-            const recommendations = secData.recommendations || [];
-            if (recommendations.length > 0) {
-                content += '<div class="security-recommendations">';
-                content += '<div class="security-recommendations-header">⚠️ Recommendations</div>';
-                content += '<ul>';
-                recommendations.forEach(rec => {
-                    content += '<li>' + escapeHtml(rec) + '</li>';
-                });
-                content += '</ul></div>';
-            }
-            
-            const modalHtml = ModalRenderer.create('security-modal', '🔒 Security Assessment', content, 'text-danger');
-            ModalRenderer.show(modalHtml);
-        } catch (error) {
-            showToast('Security assessment failed: ' + error.message, 'error');
-        }
-    }
-
     // ============ API Helpers ============
     
-    async get(endpoint) {
+    async get(endpoint, retry = true) {
         try {
             DEBUG.log('[GET]', endpoint);
-            const response = await fetch(endpoint);
+            const headers = {};
+            const token = getStoredToken();
+            if (token) headers['X-API-Token'] = token;
+            const response = await fetch(endpoint, { headers });
             DEBUG.log('[GET]', endpoint, 'status:', response.status);
+
+            // Handle 401 — prompt for token and retry once (mirrors post() behaviour)
+            if (response.status === 401 && retry) {
+                const newToken = await promptForToken();
+                if (newToken) return this.get(endpoint, false);
+                throw new Error('Authentication required. Set your API token in Settings.');
+            }
             if (!response.ok) {
                 throw new Error(`HTTP ${response.status}: ${response.statusText}`);
             }

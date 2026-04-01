@@ -293,7 +293,7 @@ void CommandHandler::cmdRebootDevice(IReconTool* tool) {
         if (display) display->showReboot();
 
         Serial.flush();  // Ensure output is sent before restart
-        delay(100);
+        delay(1500);
         ESP.restart();
     } else {
         Serial.println("\n❌ Reboot cancelled. Returning to menu.");

@@ -2568,6 +2568,28 @@ tr.locked-row {
 .freq-bar:hover { opacity: 0.75; }
 
 /* ==================== Device filter bar ==================== */
+.devices-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.6rem 1rem;
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border);
+    user-select: none;
+    pointer-events: none;
+}
+
+.devices-title {
+    font-weight: 600;
+    font-size: 0.9rem;
+    color: var(--text-primary);
+}
+
+.devices-count {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+}
+
 .device-filter-bar {
     display: flex;
     align-items: center;
