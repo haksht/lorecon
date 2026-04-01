@@ -885,33 +885,12 @@ class ReconApp {
         }
     }
 
-    /** Attach input/change listeners to the filter bar controls */
-    setupDeviceFilterHandlers() {
-        const searchEl = document.getElementById('device-search');
-        const protoEl  = document.getElementById('device-proto-filter');
-        const riskEl   = document.getElementById('device-risk-filter');
-
-        if (searchEl) searchEl.addEventListener('input',  () => { this.deviceFilter.text = searchEl.value; this.renderDeviceTable(); });
-        if (protoEl)  protoEl.addEventListener('change',  () => { this.deviceFilter.protocol = protoEl.value;   this.renderDeviceTable(); });
-        if (riskEl)   riskEl.addEventListener('change',   () => { this.deviceFilter.risk     = riskEl.value;    this.renderDeviceTable(); });
-    }
-
-    /** Render (or re-render) the filtered + sorted device table into #device-table-wrapper */
+    /** Render (or re-render) the sorted device table into #device-table-wrapper */
     renderDeviceTable() {
         const wrapper = document.getElementById('device-table-wrapper');
         if (!wrapper || !this.allDevices) return;
 
-        // --- Filter ---
-        const text  = this.deviceFilter.text.toLowerCase();
-        const proto = this.deviceFilter.protocol;
-        const risk  = this.deviceFilter.risk;
-
-        const filtered = this.allDevices.filter(device => {
-            if (text  && !(device.nodeId || '').toLowerCase().includes(text)) return false;
-            if (proto !== 'all' && (device.protocol  || 'Unknown') !== proto) return false;
-            if (risk  !== 'all' && (device.riskLevel || 'unknown') !== risk)  return false;
-            return true;
-        });
+        const filtered = [...this.allDevices];
 
         // --- Sort ---
         const { col, dir } = this.deviceSort;
@@ -926,20 +905,6 @@ class ReconApp {
             bv = String(bv ?? '').toLowerCase();
             return dir === 'asc' ? av.localeCompare(bv) : bv.localeCompare(av);
         });
-
-        // --- Count badge ---
-        const total = this.allDevices.length;
-        const countEl = document.getElementById('device-filter-count');
-        if (countEl) {
-            countEl.textContent = filtered.length < total
-                ? `${filtered.length} of ${total}`
-                : `${total} device${total !== 1 ? 's' : ''}`;
-        }
-
-        if (filtered.length === 0) {
-            wrapper.innerHTML = '<div class="filter-empty">No devices match the current filter.</div>';
-            return;
-        }
 
         // --- Sortable column headers ---
         const cols = [
