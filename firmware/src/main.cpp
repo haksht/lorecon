@@ -88,7 +88,7 @@ void setup() {
         resetReason == ESP_RST_INT_WDT || resetReason == ESP_RST_WDT) {
         LOG_WARN("ABNORMAL RESTART - check for bugs or blocking code");
     }
-    // Always load crash context — shows previous session info regardless of reset type
+    // Always load crash context  -  shows previous session info regardless of reset type
     CrashContext::loadAndReport();
 
     // Persist this boot's reset reason to NVS so it survives the NEXT reboot
@@ -98,10 +98,10 @@ void setup() {
     if (!LittleFS.begin(true)) {
         LOG_ERROR("LittleFS mount failed");
     } else {
-        LOG_INFO("✓ LittleFS mounted successfully");
+        LOG_INFO("+ LittleFS mounted successfully");
     }
     
-    // Initialize LoRa reconnaissance tool (retry on failure — SX1262 sometimes
+    // Initialize LoRa reconnaissance tool (retry on failure  -  SX1262 sometimes
     // needs a second attempt after cold boot or flash erase)
     {
         bool initOk = false;
@@ -110,12 +110,12 @@ void setup() {
                 initOk = true;
                 break;
             }
-            LOG_ERROR("Init attempt %d/3 failed — retrying in 2s...", attempt);
+            LOG_ERROR("Init attempt %d/3 failed  -  retrying in 2s...", attempt);
             esp_task_wdt_reset();
             delay(2000);
         }
         if (!initOk) {
-            LOG_ERROR("All init attempts failed — rebooting in 5s");
+            LOG_ERROR("All init attempts failed  -  rebooting in 5s");
             delay(5000);
             esp_restart();
         }
@@ -129,7 +129,7 @@ void setup() {
 
     // Step 1: PSK tests
     if (bootDisplay) bootDisplay->showBootProgress("PSK self-test...", 1, BOOT_STEPS);
-    Serial.println("\n🧪 Running PSK Decryption Tests...");
+    Serial.println("\n Running PSK Decryption Tests...");
     PSKTests::runAll();
     delay(2000);  // Give time to read results
 
@@ -157,7 +157,7 @@ void setup() {
             if (ntpRetries < 50) {
                 char timeStr[32];
                 strftime(timeStr, sizeof(timeStr), "%Y-%m-%d %H:%M:%S", &timeinfo);
-                LOG_INFO("✓ Time synced: %s UTC", timeStr);
+                LOG_INFO("+ Time synced: %s UTC", timeStr);
             } else {
                 LOG_WARN("NTP sync timed out - file timestamps will be incorrect");
             }
@@ -169,13 +169,13 @@ void setup() {
             // Connect web server to packet processor for live updates
             reconTool.setWebServer(&webServer);
             
-            LOG_INFO("✓ Web interface ready!");
+            LOG_INFO("+ Web interface ready!");
             
             // Show connection info based on mode
             if (wifiManager.getMode() == WiFiMode::AP_STA) {
                 // Dual mode - show both with clear labels
-                LOG_INFO("  📡 Hotspot IP: http://%s (use for Python tools)", wifiManager.getIPAddress().toString().c_str());
-                LOG_INFO("  📱 Fallback AP: http://192.168.4.1 (connect to %s)", wifiManager.getUniqueAPSSID().c_str());
+                LOG_INFO("   Hotspot IP: http://%s (use for Python tools)", wifiManager.getIPAddress().toString().c_str());
+                LOG_INFO("   Fallback AP: http://192.168.4.1 (connect to %s)", wifiManager.getUniqueAPSSID().c_str());
             } else {
                 LOG_INFO("  Open browser: http://%s", wifiManager.getIPAddress().toString().c_str());
             }
@@ -183,7 +183,7 @@ void setup() {
             
             // Display API token for authenticated access
             if (Config::Security::AUTH_ENABLED) {
-                LOG_INFO("\n🔐 API Security Enabled");
+                LOG_INFO("\n API Security Enabled");
                 LOG_INFO("  Token: %s", APISecurity::getToken().c_str());
                 LOG_INFO("  Header: %s", Config::Security::AUTH_HEADER);
                 LOG_INFO("  Protected endpoints require this token");
@@ -199,7 +199,7 @@ void setup() {
             }
             
             if (wifiManager.isSetupMode()) {
-                LOG_INFO("  📱 Configure your hotspot in the web UI");
+                LOG_INFO("   Configure your hotspot in the web UI");
             }
         } else {
             LOG_ERROR("Failed to start web server");
@@ -213,7 +213,7 @@ void setup() {
     if (reconTool.getRadioController()) {
         reconTool.getRadioController()->runDiagnostics();
 
-        // Diagnostics calls standby() which kills RX mode — restore it
+        // Diagnostics calls standby() which kills RX mode  -  restore it
         const ScanConfig& restoreCfg = reconState.getScanConfig(reconState.scanState.currentConfig);
         if (reconTool.getRadioController()->applyConfig(restoreCfg)) {
             reconTool.getRadioController()->startReceive();
@@ -224,7 +224,7 @@ void setup() {
         }
     }
 
-    // Step 5: Done — show READY then transition to normal display
+    // Step 5: Done  -  show READY then transition to normal display
     if (bootDisplay) {
         bootDisplay->showBootProgress("READY", 5, BOOT_STEPS);
         delay(800);
@@ -261,7 +261,7 @@ void loop() {
     wifiManager.update();
     
     // Periodically save crash context to NVS (every 5 minutes)
-    // Reduced from 10 seconds to prevent NVS flash wear — 10s interval caused
+    // Reduced from 10 seconds to prevent NVS flash wear  -  10s interval caused
     // ~41K writes/day which can corrupt the NVS partition after ~23 hours.
     static uint32_t lastCrashContextSave = 0;
     static uint32_t lastHeapLog = 0;
@@ -281,7 +281,7 @@ void loop() {
         uint32_t freeHeap = ESP.getFreeHeap();
         uint32_t minFreeHeap = ESP.getMinFreeHeap();
         uint32_t uptimeMin = now / 60000;
-        LOG_INFO("📊 Heap status @ %lu min: free=%lu bytes, min=%lu bytes", 
+        LOG_INFO(" Heap status @ %lu min: free=%lu bytes, min=%lu bytes", 
                  uptimeMin, freeHeap, minFreeHeap);
         lastHeapLog = now;
     }
@@ -292,7 +292,7 @@ void loop() {
     if (now - lastWiFiHealthCheck >= 60000) {
         if (!wifiManager.checkAPHealth()) {
             wifiRecoveryCount++;
-            LOG_WARN("📡 WiFi AP recovery #%lu at uptime %lu min", 
+            LOG_WARN(" WiFi AP recovery #%lu at uptime %lu min", 
                      wifiRecoveryCount, now / 60000);
         }
         lastWiFiHealthCheck = now;

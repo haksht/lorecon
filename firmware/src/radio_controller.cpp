@@ -10,21 +10,21 @@
 // Global pointer for ISR access
 RadioController* g_radioController = nullptr;
 
-// ── Board-specific radio init helpers ────────────────────────────────────────
+// -- Board-specific radio init helpers ----------------------------------------
 
 // T3-S3 and T-Beam Supreme both use SX1262 with an external TCXO at 1.8 V and
 // DIO2 as the RF-switch control line.  The only difference is the log tag.
 static int initTcxoRadio(SX1262* radio, const char* boardName) {
     LOG_INFO("%s: Initializing SX1262 (TCXO 1.8V via DIO3)...", boardName);
     int state = radio->begin(
-        868.0,   // initial freq — overridden by applyConfig()
+        868.0,   // initial freq  -  overridden by applyConfig()
         125.0,   // bw kHz
         9,       // sf
         7,       // cr
         RADIOLIB_SX126X_SYNC_WORD_PRIVATE,
         10,      // power dBm
         8,       // preamble length
-        1.8,     // TCXO voltage — must be passed to begin() so calibration uses it
+        1.8,     // TCXO voltage  -  must be passed to begin() so calibration uses it
         false    // useRegulatorLDO (false = DCDC)
     );
     if (state != RADIOLIB_ERR_NONE) {
@@ -49,7 +49,7 @@ static void enableHeltecV4Fem(SX1262* radio) {
     else                             LOG_INFO("V4 DIO2 RF switch enabled");
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// -----------------------------------------------------------------------------
 
 // Interrupt service routine
 void IRAM_ATTR radioISR() {
@@ -82,7 +82,7 @@ bool RadioController::initialize() {
     LOG_INFO("Initializing SX1262...");
 
     // Explicit hardware reset of SX1262 before SPI init.
-    // After a full flash erase, GPIO pin states may be undefined — the radio
+    // After a full flash erase, GPIO pin states may be undefined  -  the radio
     // can be in a stuck state where it won't respond to SPI until reset.
     pinMode(Config::Hardware::LORA_RST, OUTPUT);
     digitalWrite(Config::Hardware::LORA_RST, LOW);
@@ -92,7 +92,7 @@ bool RadioController::initialize() {
     LOG_INFO("SX1262 hardware reset complete (RST pin %d)", Config::Hardware::LORA_RST);
 
     // Initialize SPI bus with custom pins BEFORE creating Module
-    // Use explicit FSPI (SPI2) bus — after a full flash erase, the default SPI
+    // Use explicit FSPI (SPI2) bus  -  after a full flash erase, the default SPI
     // object may not reliably map to FSPI on ESP32-S3.
     static SPIClass loraSPI(FSPI);
     loraSPI.begin(Config::Hardware::SPI_SCK, Config::Hardware::SPI_MISO,
@@ -127,14 +127,14 @@ bool RadioController::initialize() {
         // RadioLib puts the SX1262 in TCXO mode (not crystal mode) for calibration.
         if (initTcxoRadio(radio, "T-Beam Supreme") != RADIOLIB_ERR_NONE) return false;
     #else
-        // Heltec V3/V4: crystal oscillator — no tcxoVoltage argument.
+        // Heltec V3/V4: crystal oscillator  -  no tcxoVoltage argument.
         int state = radio->begin();
         if (state != RADIOLIB_ERR_NONE) {
             LOG_ERROR("SX1262 initialization failed (error: %d)", state);
             return false;
         }
         #if defined(BOARD_HELTEC_V4)
-            // V4 has an external FEM that gates the LNA/PA — must be enabled
+            // V4 has an external FEM that gates the LNA/PA  -  must be enabled
             // before reception is possible.  GPIO 46 is a strapping pin that
             // defaults LOW (GC1109 RX mode) so it is left as INPUT.
             enableHeltecV4Fem(radio);
@@ -183,7 +183,7 @@ void RadioController::runDiagnostics() {
     if (state != RADIOLIB_ERR_NONE) {
         LOG_WARN("Radio not responding (error %d), attempting hardware reset recovery...", state);
 
-        // Hardware reset — only reliable recovery path.
+        // Hardware reset  -  only reliable recovery path.
         // Note: SPI bus is on the explicit loraSPI(FSPI) instance created in initialize().
         // Re-initializing the default SPI object here would have no effect on the radio.
         pinMode(Config::Hardware::LORA_RST, OUTPUT);
@@ -251,7 +251,7 @@ bool RadioController::applyConfig(const ScanConfig& config) {
 // Apply protocol-specific radio parameters
 // All protocols use the same promiscuous-mode settings for passive capture.
 // (Previous per-protocol branches for "Meshtastic_MSG" / "Meshtastic_MF" were
-// dead code — identifyProtocol() returns "Meshtastic", never those strings.)
+// dead code  -  identifyProtocol() returns "Meshtastic", never those strings.)
 void RadioController::applyProtocolParameters(const char* /*protocol*/) {
     radio->setCodingRate(5);    // 4/5 coding rate
     radio->setPreambleLength(8);
@@ -286,7 +286,7 @@ bool RadioController::setSyncWord(uint8_t sw) {
 // If the RxDone flag is set, marks a packet as available and clears the flag.
 void RadioController::pollIrqStatus() {
     if (!radio) return;
-    // Skip if a packet is already pending — readData() will clear the IRQ when consumed.
+    // Skip if a packet is already pending  -  readData() will clear the IRQ when consumed.
     if (packetAvailable.load(std::memory_order_acquire)) return;
     uint16_t irq = radio->getIrqStatus();
     if (irq & RADIOLIB_SX126X_IRQ_RX_DONE) {
@@ -300,7 +300,7 @@ bool RadioController::startReceive() {
     int state = radio->startReceive();
     lastRxError = state;
     if (state == RADIOLIB_ERR_NONE) {
-        LOG_INFO("startReceive() OK — radio in continuous RX mode");
+        LOG_INFO("startReceive() OK  -  radio in continuous RX mode");
     } else {
         LOG_ERROR("startReceive() FAILED (error: %d)", state);
     }

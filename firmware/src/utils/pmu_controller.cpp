@@ -18,7 +18,7 @@ bool initialize() {
     if (_initialized) return true;
 
     // AXP2101 is on a dedicated I2C bus separate from the display.
-    // begin(wire, addr, sda, scl) — the Wire object configures itself internally.
+    // begin(wire, addr, sda, scl)  -  the Wire object configures itself internally.
     if (!pmu.begin(Wire1, AXP2101_SLAVE_ADDRESS,
                    Config::Hardware::PMU_SDA, Config::Hardware::PMU_SCL)) {
         LOG_ERROR("AXP2101 not found on I2C bus (SDA:%d SCL:%d)",
@@ -74,7 +74,7 @@ bool initialize() {
  */
 float getBatteryVoltage() {
     if (!_initialized) return 0.0f;
-    return pmu.getBattVoltage() / 1000.0f;  // mV → V
+    return pmu.getBattVoltage() / 1000.0f;  // mV -> V
 }
 
 /**
@@ -86,7 +86,7 @@ bool isCharging() {
 }
 
 /**
- * Returns estimated battery percentage (0–100).
+ * Returns estimated battery percentage (0 - 100).
  * AXP2101 has a built-in coulomb counter for this.
  */
 uint8_t getBatteryPercent() {
@@ -96,7 +96,7 @@ uint8_t getBatteryPercent() {
 
 /**
  * Cut all PMIC power rails and power off the board.
- * This is a hard power-off — the device will not restart until
+ * This is a hard power-off  -  the device will not restart until
  * the PMIC wakes it (e.g. button press or USB insertion).
  */
 void shutdown() {

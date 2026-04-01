@@ -106,7 +106,7 @@ void DeviceRepository::initializeNewDevice(
     device->periodicityScore = 0;
     
     // Track first packet as originated or relayed based on hop count
-    // First packet sets maxHopCount baseline — tentatively classified as originated
+    // First packet sets maxHopCount baseline  -  tentatively classified as originated
     if (hopCount != 0xFF) {
         device->maxHopCount = hopCount;
         device->originatedPackets = 1;

@@ -83,12 +83,12 @@ void PacketProcessor::processQueue(OLEDDisplay* display) {
 
 // Process a single packet
 void PacketProcessor::processSinglePacket(const QueuedPacket& qp, OLEDDisplay* display) {
-    // Store for potential replay capture (static buffer — no heap allocation)
+    // Store for potential replay capture (static buffer  -  no heap allocation)
     if (qp.length <= Config::PacketProcessing::MAX_PACKET_SIZE) {
         memcpy(lastPacketData, qp.data, qp.length);
         lastPacketLength = qp.length;
 
-        // Also update recon state (locked — read by serial command handler)
+        // Also update recon state (locked  -  read by serial command handler)
         {
             ReconState::ScopedLock lock(reconState);
             memcpy(reconState.scanState.lastPacket, qp.data, qp.length);
@@ -134,7 +134,7 @@ void PacketProcessor::processSinglePacket(const QueuedPacket& qp, OLEDDisplay* d
     // Process packet (same pipeline regardless of mode)
     handlePacket(info, qp.data, qp.length, qp.rssi, qp.snr, display);
     
-    // Capture sniffer GPS fix once — used for both SD log and PacketEvent below.
+    // Capture sniffer GPS fix once  -  used for both SD log and PacketEvent below.
     // On boards without GPS (Heltec V3, T3-S3) this is always false.
     bool snifferHasGPS = false;
     double snifferLat = 0.0, snifferLon = 0.0, snifferAlt = 0.0;
@@ -260,7 +260,7 @@ void PacketProcessor::tryDecryptAndCapture(const uint8_t* data, size_t length, f
     bool decrypted = PSKDecryption::testDefaultPSKs(hdr.payload, hdr.payloadLen);
 
     // Auto-capture packet for replay with all header fields.
-    // Use getLastMessageSafe() to copy under mutex — getLastMessage() returns a raw
+    // Use getLastMessageSafe() to copy under mutex  -  getLastMessage() returns a raw
     // pointer with no lock, creating a race with setLastMessage() on another core.
     char decryptedTextBuf[256];
     PSKDecryption::getLastMessageSafe(decryptedTextBuf, sizeof(decryptedTextBuf));
@@ -270,11 +270,11 @@ void PacketProcessor::tryDecryptAndCapture(const uint8_t* data, size_t length, f
                                            hdr.nodeId, hdr.packetId, hdr.hopCount,
                                            hdr.destId, hdr.channel, hdr.wantAck, hdr.viaMqtt, hdr.priority)) {
         if (decrypted && decryptedText[0] != '\0') {
-            Serial.printf("   ✅ Packet auto-captured with text: \"%s\"\n", decryptedText);
+            Serial.printf("   [OK] Packet auto-captured with text: \"%s\"\n", decryptedText);
         } else if (decrypted) {
-            Serial.println("   ✅ Packet auto-captured");
+            Serial.println("   [OK] Packet auto-captured");
         } else {
-            Serial.println("   ✅ Packet auto-captured (encrypted)");
+            Serial.println("   [OK] Packet auto-captured (encrypted)");
         }
     }
 }

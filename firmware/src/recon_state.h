@@ -75,7 +75,7 @@ public:
     void clearTargetableDevices();
     uint8_t getNumTargetableDevices() const { return deviceRepo_.count(); }
     
-    // Repository access — caller must hold lock when accessing directly
+    // Repository access  -  caller must hold lock when accessing directly
     DeviceRepository& getDeviceRepository() { return deviceRepo_; }
     
     // Thread-safe lock/unlock for API handlers accessing repositories

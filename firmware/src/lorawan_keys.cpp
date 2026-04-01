@@ -287,40 +287,40 @@ bool analyzePacket(const uint8_t* data, size_t length) {
     formatEUI(jr.appEUI, appEUIStr);
     formatEUI(jr.devEUI, devEUIStr);
     
-    Serial.println("\n╔══════════════════════════════════════════════════════════╗");
-    Serial.println("║  📡 LoRaWAN JOIN REQUEST CAPTURED                        ║");
-    Serial.println("╠══════════════════════════════════════════════════════════╣");
-    Serial.printf("║  AppEUI:   %s                  ║\n", appEUIStr);
-    Serial.printf("║  DevEUI:   %s                  ║\n", devEUIStr);
-    Serial.printf("║  DevNonce: 0x%04X                                        ║\n", jr.devNonce);
-    Serial.printf("║  MIC:      %02X:%02X:%02X:%02X                                    ║\n",
+    Serial.println("\n+==========================================================+");
+    Serial.println("|   LoRaWAN JOIN REQUEST CAPTURED                        |");
+    Serial.println("+==========================================================+");
+    Serial.printf("|  AppEUI:   %s                  |\n", appEUIStr);
+    Serial.printf("|  DevEUI:   %s                  |\n", devEUIStr);
+    Serial.printf("|  DevNonce: 0x%04X                                        |\n", jr.devNonce);
+    Serial.printf("|  MIC:      %02X:%02X:%02X:%02X                                    |\n",
                   jr.mic[0], jr.mic[1], jr.mic[2], jr.mic[3]);
     
     // Test default keys
     KeyTestResult keyResult = testDefaultKeys(jr, data, length);
     
     if (keyResult.success) {
-        Serial.println("╠══════════════════════════════════════════════════════════╣");
-        Serial.println("║  🔓 DEFAULT KEY FOUND!                                   ║");
-        Serial.printf("║  Key: %s", keyResult.keyName);
+        Serial.println("+==========================================================+");
+        Serial.println("|   DEFAULT KEY FOUND!                                   |");
+        Serial.printf("|  Key: %s", keyResult.keyName);
         // Pad to align
         size_t nameLen = strlen(keyResult.keyName);
         for (size_t i = nameLen; i < 40; i++) Serial.print(" ");
-        Serial.println("║");
-        Serial.print("║  AppKey: ");
+        Serial.println("|");
+        Serial.print("|  AppKey: ");
         for (int i = 0; i < 16; i++) {
             Serial.printf("%02X", keyResult.appKey[i]);
         }
-        Serial.println("    ║");
-        Serial.println("║                                                          ║");
-        Serial.println("║  ⚠️  SECURITY VULNERABILITY: Device using default key!   ║");
-        Serial.println("╚══════════════════════════════════════════════════════════╝\n");
+        Serial.println("    |");
+        Serial.println("|                                                          |");
+        Serial.println("|  [!]  SECURITY VULNERABILITY: Device using default key!   |");
+        Serial.println("+==========================================================+\n");
         return true;
     } else {
-        Serial.println("║                                                          ║");
-        Serial.printf("║  🔒 Tested %d default keys - no match                    ║\n", NUM_KEYS);
-        Serial.println("║     (Device appears to use custom AppKey)                ║");
-        Serial.println("╚══════════════════════════════════════════════════════════╝\n");
+        Serial.println("|                                                          |");
+        Serial.printf("|   Tested %d default keys - no match                    |\n", NUM_KEYS);
+        Serial.println("|     (Device appears to use custom AppKey)                |");
+        Serial.println("+==========================================================+\n");
         return true;  // Still successfully analyzed
     }
 }

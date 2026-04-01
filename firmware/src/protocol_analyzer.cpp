@@ -42,7 +42,7 @@ PacketInfo ProtocolAnalyzer::analyze(const uint8_t* data, size_t length, float r
 
 // Identify protocol from packet signature and structure.
 // syncWord: the radio sync word active when this packet was received.
-// Meshtastic-only sync words (0x2B, 0x48) enable unicast detection — the radio hardware
+// Meshtastic-only sync words (0x2B, 0x48) enable unicast detection  -  the radio hardware
 // already filtered to that sync word, so non-Meshtastic packets cannot arrive on those configs.
 const char* ProtocolAnalyzer::identifyProtocol(const uint8_t* data, size_t length, uint8_t syncWord) {
     if (length < 4) return "Short";
@@ -87,7 +87,7 @@ const char* ProtocolAnalyzer::identifyProtocol(const uint8_t* data, size_t lengt
     // On Meshtastic-only sync words (0x2B = standard, 0x48 = LongSlow), the SX1262
     // hardware filters by sync word before the ISR fires. Only packets with matching
     // sync word are delivered to firmware. LoRaWAN (0x34) and RadioHead (0x12) cannot
-    // arrive on these configs, so any packet ≥ 14 bytes that wasn't broadcast and
+    // arrive on these configs, so any packet >= 14 bytes that wasn't broadcast and
     // didn't match LoRaWAN structure is a unicast Meshtastic packet.
     //
     // Minimum Meshtastic header: 4 dest + 4 src + 4 packet_id + 1 flags + 1 channel = 14 bytes.

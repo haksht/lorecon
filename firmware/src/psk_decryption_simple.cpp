@@ -66,7 +66,7 @@ void PSKDecryption::clearLastMessage() {
 // should use unique PSKs. This tool tests default keys for research/analysis.
 //
 // Key Format: Base64-encoded AES keys (8, 16, or 32 bytes when decoded)
-// Decoding: Base64 → binary key → AES-256-CTR decryption
+// Decoding: Base64 -> binary key -> AES-256-CTR decryption
 static constexpr const char* DEFAULT_PSKS[] = {
     // === Standard defaults (most common) ===
     "AQ==",                              // #1: Single byte 0x01 - THE classic default
@@ -217,8 +217,8 @@ static bool extractMessage(const uint8_t* data, size_t len, String& text) {
 void PSKDecryption::initialize() {
     if (!messageMutex) messageMutex = xSemaphoreCreateMutex();
     pskStats = PSKStats();
-    Serial.println("🔐 PSK Testing initialized");
-    Serial.printf("📊 Testing %d default keys\n", NUM_PSKS);
+    Serial.println(" PSK Testing initialized");
+    Serial.printf(" Testing %d default keys\n", NUM_PSKS);
 }
 
 int PSKDecryption::decodeBase64(const char* input, uint8_t* output, size_t maxLen) {
@@ -236,7 +236,7 @@ bool PSKDecryption::testDefaultPSKs(const uint8_t* data, size_t length) {
     
     // Validate minimum packet structure
     if (length < 20) {
-        Serial.printf("[PSK] Packet too small (%d bytes, need ≥20)\n", length);
+        Serial.printf("[PSK] Packet too small (%d bytes, need >=20)\n", length);
         return false;
     }
     
@@ -320,16 +320,16 @@ bool PSKDecryption::testDefaultPSKs(const uint8_t* data, size_t length) {
                               secondByte == 0x08 || secondByte == 0x09));
     
     if (looksUnencrypted) {
-        Serial.println("[PSK] ⚠️  Packet appears unencrypted (0x08 + valid portnum detected)");
+        Serial.println("[PSK] [!]  Packet appears unencrypted (0x08 + valid portnum detected)");
         Serial.printf("[PSK] First bytes: 0x%02X 0x%02X (field 1, portnum %d)\n", 
                      firstByte, secondByte, secondByte);
         
         // Try to extract text message
         String plaintext;
         if (extractMessage(encryptedData, encryptedLen, plaintext)) {
-            Serial.println("\n╔════════════════════════════════════════════╗");
-            Serial.printf("║  📧 PLAINTEXT MESSAGE: \"%s\"\n", plaintext.c_str());
-            Serial.println("╚════════════════════════════════════════════╝\n");
+            Serial.println("\n+============================================+");
+            Serial.printf("|   PLAINTEXT MESSAGE: \"%s\"\n", plaintext.c_str());
+            Serial.println("+============================================+\n");
             // Store for web broadcast (thread-safe)
             setLastMessage(plaintext.c_str());
             return true;
@@ -344,7 +344,7 @@ bool PSKDecryption::testDefaultPSKs(const uint8_t* data, size_t length) {
         
         // Check if this is a position packet and extract GPS
         if (secondByte == 0x03) {  // POSITION_APP
-            Serial.println("[PSK] 📍 Unencrypted position packet - extracting GPS...");
+            Serial.println("[PSK]  Unencrypted position packet - extracting GPS...");
             geoIntel.extractPositionFromDecrypted(encryptedData, encryptedLen, nodeId);
         }
         
@@ -445,7 +445,7 @@ bool PSKDecryption::testDefaultPSKs(const uint8_t* data, size_t length) {
         
         if (!looksValid) {
             // Possible match but not confirmed - don't count as success
-            Serial.printf("\n[PSK] ⚠️ Possible match with key #%d (\"%s\") - unverified\n", i + 1, DEFAULT_PSKS[i]);
+            Serial.printf("\n[PSK] [!] Possible match with key #%d (\"%s\") - unverified\n", i + 1, DEFAULT_PSKS[i]);
             Serial.printf("[PSK] First byte 0x%02X doesn't match expected protobuf start\n", firstByte);
             // Continue to next key - this one didn't produce valid output
             continue;
@@ -455,7 +455,7 @@ bool PSKDecryption::testDefaultPSKs(const uint8_t* data, size_t length) {
         pskStats.successes++;
         pskStats.hitCount[i]++;
         
-        Serial.printf("\n[PSK] ✓ Decrypted with key #%d (\"%s\")\n", i + 1, DEFAULT_PSKS[i]);
+        Serial.printf("\n[PSK] + Decrypted with key #%d (\"%s\")\n", i + 1, DEFAULT_PSKS[i]);
         Serial.printf("[PSK] Node: 0x%08X, Packet: 0x%08X, Flags: 0x%02X\n", 
                       nodeId, packetId, flags);
         
@@ -479,9 +479,9 @@ bool PSKDecryption::testDefaultPSKs(const uint8_t* data, size_t length) {
         // Try to extract text message
         String messageText;
         if (extractMessage(decrypted, encryptedLen, messageText)) {
-            Serial.println("\n╔════════════════════════════════════════════╗");
-            Serial.printf("║  📧 TEXT MESSAGE: \"%s\"\n", messageText.c_str());
-            Serial.println("╚════════════════════════════════════════════╝\n");
+            Serial.println("\n+============================================+");
+            Serial.printf("|   TEXT MESSAGE: \"%s\"\n", messageText.c_str());
+            Serial.println("+============================================+\n");
             // Store for web broadcast (thread-safe)
             setLastMessage(messageText.c_str());
         } else {
@@ -497,7 +497,7 @@ bool PSKDecryption::testDefaultPSKs(const uint8_t* data, size_t length) {
                         if (decrypted[j] == 0x08 && j + 1 < encryptedLen && j > 2) {
                             uint8_t batteryLevel = decrypted[j+1];
                             if (batteryLevel <= 101) {  // Valid battery percentage
-                                Serial.printf("[PSK]   🔋 Battery: %d%%\n", batteryLevel);
+                                Serial.printf("[PSK]    Battery: %d%%\n", batteryLevel);
                             }
                         }
                         // Voltage: field 2, fixed32 (0x15 followed by 4-byte float)
@@ -505,7 +505,7 @@ bool PSKDecryption::testDefaultPSKs(const uint8_t* data, size_t length) {
                             float voltage;
                             memcpy(&voltage, &decrypted[j+1], 4);
                             if (voltage > 0.0f && voltage < 10.0f) {  // Valid voltage range
-                                Serial.printf("[PSK]   ⚡ Voltage: %.2fV\n", voltage);
+                                Serial.printf("[PSK]   ~ Voltage: %.2fV\n", voltage);
                             }
                         }
                         // Channel utilization: field 3, fixed32 (0x1d followed by 4-byte float)
@@ -513,7 +513,7 @@ bool PSKDecryption::testDefaultPSKs(const uint8_t* data, size_t length) {
                             float chUtil;
                             memcpy(&chUtil, &decrypted[j+1], 4);
                             if (chUtil >= 0.0f && chUtil <= 100.0f) {
-                                Serial.printf("[PSK]   📡 Channel util: %.1f%%\n", chUtil);
+                                Serial.printf("[PSK]    Channel util: %.1f%%\n", chUtil);
                             }
                         }
                         // Air util TX: field 4, fixed32 (0x25 followed by 4-byte float)
@@ -521,7 +521,7 @@ bool PSKDecryption::testDefaultPSKs(const uint8_t* data, size_t length) {
                             float airUtil;
                             memcpy(&airUtil, &decrypted[j+1], 4);
                             if (airUtil >= 0.0f && airUtil <= 100.0f) {
-                                Serial.printf("[PSK]   📻 Air util TX: %.1f%%\n", airUtil);
+                                Serial.printf("[PSK]    Air util TX: %.1f%%\n", airUtil);
                             }
                         }
                     }
@@ -544,7 +544,7 @@ void PSKDecryption::resetStats() {
 }
 
 void PSKDecryption::printStats() {
-    Serial.println("\n📊 PSK STATISTICS:");
+    Serial.println("\n PSK STATISTICS:");
     Serial.printf("   Attempts: %d\n", pskStats.attempts);
     Serial.printf("   Successful: %d (%.1f%%)\n", 
                   pskStats.successes,

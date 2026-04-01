@@ -32,13 +32,13 @@ bool ModeManager::loadPersistedMode(OperationMode& outMode, uint8_t& outTargetCo
     
     // Log change counter for debugging long-running tests
     if (changeCount > 0) {
-        LOG_INFO("📊 Mode change counter: %lu (since last firmware flash)", changeCount);
+        LOG_INFO(" Mode change counter: %lu (since last firmware flash)", changeCount);
     }
     
     // Validate persisted mode
     if (savedMode == MODE_TARGETED_CAPTURE) {
         if (reconState.isValidConfigIndex(savedTargetCfg)) {
-            LOG_INFO("🔄 Restoring persisted targeting mode (config %d)", savedTargetCfg);
+            LOG_INFO(">> Restoring persisted targeting mode (config %d)", savedTargetCfg);
             outMode = MODE_TARGETED_CAPTURE;
             outTargetConfig = savedTargetCfg;
             outByDevice = savedByDevice;
@@ -83,7 +83,7 @@ void ModeManager::clearPersistedMode(const char* source) {
     prefs.remove(KEY_BY_DEVICE);
     prefs.end();
     
-    LOG_WARN("⚠️ Mode CLEARED by [%s] (total clears: %lu)", source, changeCount);
+    LOG_WARN("[!] Mode CLEARED by [%s] (total clears: %lu)", source, changeCount);
 }
 
 uint32_t ModeManager::getModeChangeCount() {
@@ -117,7 +117,7 @@ void ModeManager::logModeTransition(OperationMode from, OperationMode to, const 
     prefs.end();
     
     // Critical log - this helps debug unexpected mode changes
-    LOG_WARN("🔀 MODE TRANSITION: %d→%d at uptime %lu sec by [%s]", from, to, uptimeSec, source);
+    LOG_WARN(">> MODE TRANSITION: %d->%d at uptime %lu sec by [%s]", from, to, uptimeSec, source);
 }
 
 bool ModeManager::hasPersistedMode() {

@@ -24,7 +24,7 @@
     #define OLED_SDA    17  // GPIO 17
     #define OLED_SCL    18  // GPIO 18
     #define OLED_RST    -1  // No hardware reset pin (software reset)
-    #define OLED_VEXT   -1  // No Vext control — powered by AXP2101 ALDO1
+    #define OLED_VEXT   -1  // No Vext control  -  powered by AXP2101 ALDO1
 #elif defined(BOARD_HELTEC_V3)
     // Heltec WiFi LoRa 32 V3: Uses default I2C pins with Vext control
     #define OLED_SDA    17  // GPIO 17 for V3

@@ -44,7 +44,7 @@ public:
     void setMenuModeEntered() override { menuModeEnteredAt = millis(); }
     void clearMenuTimeout() override { menuModeEnteredAt = 0; }
     
-    // Shutdown — safe radio stop + PMIC power-off (or deep sleep on boards without PMIC)
+    // Shutdown  -  safe radio stop + PMIC power-off (or deep sleep on boards without PMIC)
     void performShutdown();
 
     // Web server integration

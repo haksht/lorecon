@@ -29,7 +29,7 @@ WiFiManager::WiFiManager()
  * Generate unique device ID from ESP32's MAC address
  * 
  * Uses last 3 bytes of MAC for a short but unique identifier.
- * Example: MAC 24:6F:28:A1:B2:C3 → deviceId "A1B2C3"
+ * Example: MAC 24:6F:28:A1:B2:C3 -> deviceId "A1B2C3"
  * 
  * Safe to call multiple times - only generates once.
  */
@@ -300,7 +300,7 @@ bool WiFiManager::autoConnect() {
             
             if (startStation(staSsid.c_str(), staPassword.c_str())) {
                 setupMode = false;
-                LOG_INFO("✓ Connected to hotspot: %s", staSsid.c_str());
+                LOG_INFO("+ Connected to hotspot: %s", staSsid.c_str());
                 
                 // Also start AP so device is always reachable at 192.168.4.1
                 startBackgroundAP();
@@ -327,14 +327,14 @@ bool WiFiManager::autoConnect() {
     String uniquePassword = getAPPassword();
     if (startAP(uniqueSSID.c_str(), uniquePassword.c_str())) {
         LOG_INFO("");
-        LOG_INFO("╔═══════════════════════════════════════════════╗");
-        LOG_INFO("║          WIFI SETUP MODE                      ║");
-        LOG_INFO("╠═══════════════════════════════════════════════╣");
-        LOG_INFO("║  1. Connect phone to: %s", uniqueSSID.c_str());
-        LOG_INFO("║  2. Password: %s", uniquePassword.c_str());
-        LOG_INFO("║  3. Open browser: http://%s", getIPAddress().toString().c_str());
-        LOG_INFO("║  4. Enter your hotspot credentials            ║");
-        LOG_INFO("╚═══════════════════════════════════════════════╝");
+        LOG_INFO("+===============================================+");
+        LOG_INFO("|          WIFI SETUP MODE                      |");
+        LOG_INFO("+===============================================+");
+        LOG_INFO("|  1. Connect phone to: %s", uniqueSSID.c_str());
+        LOG_INFO("|  2. Password: %s", uniquePassword.c_str());
+        LOG_INFO("|  3. Open browser: http://%s", getIPAddress().toString().c_str());
+        LOG_INFO("|  4. Enter your hotspot credentials            |");
+        LOG_INFO("+===============================================+");
         LOG_INFO("");
         return true;
     }
@@ -372,13 +372,13 @@ bool WiFiManager::startAP(const char* ssid, const char* password) {
     if (success) {
         currentMode = WiFiMode::AP;
         IPAddress ip = WiFi.softAPIP();
-        LOG_INFO("✓ Access Point started");
+        LOG_INFO("+ Access Point started");
         LOG_INFO("  IP Address: %s", ip.toString().c_str());
         LOG_INFO("  Connect phone to WiFi: %s", ssid);
         LOG_INFO("  Then open browser: http://%s", ip.toString().c_str());
         return true;
     } else {
-        LOG_ERROR("✗ Failed to start Access Point");
+        LOG_ERROR("x Failed to start Access Point");
         return false;
     }
 }
@@ -401,7 +401,7 @@ void WiFiManager::startBackgroundAP() {
     
     if (WiFi.softAP(uniqueSSID.c_str(), uniquePassword.c_str())) {
         currentMode = WiFiMode::AP_STA;
-        LOG_INFO("✓ Background AP started: %s", uniqueSSID.c_str());
+        LOG_INFO("+ Background AP started: %s", uniqueSSID.c_str());
         LOG_INFO("  Fallback IP: %s", WiFi.softAPIP().toString().c_str());
     } else {
         LOG_WARN("Failed to start background AP - STA-only mode");
@@ -461,7 +461,7 @@ bool WiFiManager::startStation(const char* ssid, const char* password) {
     uint32_t startTime = millis();
     while (WiFi.status() != WL_CONNECTED) {
         if (millis() - startTime > connectionTimeout) {
-            LOG_ERROR("✗ Connection timeout after %d ms", connectionTimeout);
+            LOG_ERROR("x Connection timeout after %d ms", connectionTimeout);
             return false;
         }
         esp_task_wdt_reset();  // Feed watchdog during long wait
@@ -472,7 +472,7 @@ bool WiFiManager::startStation(const char* ssid, const char* password) {
     Serial.println();  // End progress line
     
     currentMode = WiFiMode::STA;
-    LOG_INFO("✓ Connected to WiFi");
+    LOG_INFO("+ Connected to WiFi");
     LOG_INFO("  IP Address: %s", WiFi.localIP().toString().c_str());
     LOG_INFO("  Signal: %d dBm", WiFi.RSSI());
     
@@ -490,7 +490,7 @@ void WiFiManager::stop() {
         WiFi.disconnect(true);
         WiFi.mode(WIFI_OFF);
         currentMode = WiFiMode::OFF;
-        LOG_INFO("✓ WiFi stopped");
+        LOG_INFO("+ WiFi stopped");
     }
 }
 
@@ -579,7 +579,7 @@ void WiFiManager::update() {
         handleDisconnect();
     } else if (reconnectAttempts > 0) {
         // Connection restored - reset counter and log success
-        LOG_INFO("✓ WiFi reconnected successfully after %d attempts", reconnectAttempts);
+        LOG_INFO("+ WiFi reconnected successfully after %d attempts", reconnectAttempts);
         reconnectAttempts = 0;
     }
 }
@@ -636,11 +636,11 @@ bool WiFiManager::startMDNS(const char* hostname) {
     
     if (MDNS.begin(hostname)) {
         MDNS.addService("http", "tcp", 80);
-        LOG_INFO("✓ mDNS started");
+        LOG_INFO("+ mDNS started");
         LOG_INFO("  Access at: http://%s.local", hostname);
         return true;
     } else {
-        LOG_ERROR("✗ Failed to start mDNS");
+        LOG_ERROR("x Failed to start mDNS");
         return false;
     }
 }
@@ -667,7 +667,7 @@ bool WiFiManager::checkAPHealth() {
     bool apRunning = (mode == WIFI_MODE_AP || mode == WIFI_MODE_APSTA);
     
     if (!apRunning) {
-        LOG_ERROR("⚠️  WiFi AP died! Attempting restart...");
+        LOG_ERROR("[!]  WiFi AP died! Attempting restart...");
         
         // Try to restart AP
         String ssid = getUniqueAPSSID();
@@ -676,10 +676,10 @@ bool WiFiManager::checkAPHealth() {
         bool success = WiFi.softAP(ssid.c_str(), password.c_str());
         
         if (success) {
-            LOG_INFO("✓ WiFi AP recovered: %s", ssid.c_str());
+            LOG_INFO("+ WiFi AP recovered: %s", ssid.c_str());
             LOG_INFO("  IP: %s", WiFi.softAPIP().toString().c_str());
         } else {
-            LOG_ERROR("✗ Failed to restart WiFi AP!");
+            LOG_ERROR("x Failed to restart WiFi AP!");
         }
         
         return false;  // AP was dead

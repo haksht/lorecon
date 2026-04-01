@@ -79,7 +79,7 @@ bool APISecurity::isAuthenticated(AsyncWebServerRequest* request) {
     }
     
     // Helper: constant-time token comparison.
-    // Token is always TOKEN_LENGTH hex chars — reject wrong length upfront
+    // Token is always TOKEN_LENGTH hex chars  -  reject wrong length upfront
     // (length is public knowledge, not secret).
     auto validateToken = [](const String& provided) -> bool {
         if (provided.length() != Config::Security::TOKEN_LENGTH) {

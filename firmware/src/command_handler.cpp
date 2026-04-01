@@ -35,7 +35,7 @@ constexpr uint8_t CommandHandler::numCommands;
 
 // Pre-menu snapshot: captured when 'm' is pressed so 'e' can restore exactly.
 // Overwritten on every menu entry, cleared on exit. If menu times out instead
-// of explicit 'e', the stale snapshot is harmless — next 'm' overwrites it.
+// of explicit 'e', the stale snapshot is harmless  -  next 'm' overwrites it.
 static OperationMode s_preMenuMode = MODE_RECONNAISSANCE;
 static uint8_t       s_preMenuConfig = 0;
 static bool          s_preMenuByDevice = false;
@@ -77,7 +77,7 @@ bool CommandHandler::handleCommand(char cmd) {
                 serialActivated = true;
                 firstEnterTime = 0;
                 lastCommandTime = now;
-                Serial.println("[SERIAL] ✓ Serial console activated. Press 'm' for menu.");
+                Serial.println("[SERIAL] + Serial console activated. Press 'm' for menu.");
                 return true;
             } else {
                 // Too slow - reset and start over
@@ -155,25 +155,25 @@ void CommandHandler::showCommands() {
     Serial.println("\n=== AVAILABLE COMMANDS ===");
     
     // Group by functionality
-    Serial.println("\n📡 TARGETING:");
+    Serial.println("\n TARGETING:");
     Serial.println("  1-9 : Target device by number");
     Serial.println("  f   : Frequency targeting (skip device)");
     
-    Serial.println("\n📊 ANALYSIS:");
+    Serial.println("\n ANALYSIS:");
     Serial.println("  m   : Show menu with discovered devices");
     Serial.println("  s   : Show summary again");
     Serial.println("  a   : Detailed RF activity analysis");
     Serial.println("  d   : Device type breakdown");
     Serial.println("  v   : Security vulnerability assessment");
     
-    Serial.println("\n🌍 GEO / EXPORT:");
+    Serial.println("\n GEO / EXPORT:");
     Serial.println("  g   : Geographic intelligence");
     Serial.println("  k   : Export KML (Google Earth)");
     Serial.println("  j   : Export GeoJSON (web maps)");
     Serial.println("  w   : LoRaWAN key testing stats");
     Serial.println("  x   : Text packet diagnostic report");
 
-    Serial.println("\n🔧 OPERATIONS:");
+    Serial.println("\n OPERATIONS:");
     Serial.println("  c   : Capture packet for replay");
     Serial.println("  p   : Packet replay menu");
     Serial.println("  l   : Clear all captured packets");
@@ -261,8 +261,8 @@ void CommandHandler::cmdResumeRecon(IReconTool* tool) {
 
 void CommandHandler::cmdRebootDevice(IReconTool* tool) {
     Serial.println("\n=== REBOOTING DEVICE ===");
-    Serial.println("⚠️  This will clear ALL discovered devices, nodes, and replay slots!");
-    Serial.println("⚠️  Diagnostic counters will also be reset.");
+    Serial.println("[!]  This will clear ALL discovered devices, nodes, and replay slots!");
+    Serial.println("[!]  Diagnostic counters will also be reset.");
     Serial.print("\nAre you sure? Type 'YES' to confirm or anything else to cancel: ");
     
     // Wait for user confirmation with watchdog feeding
@@ -279,7 +279,7 @@ void CommandHandler::cmdRebootDevice(IReconTool* tool) {
     }
     
     if (confirmation == "YES") {
-        Serial.println("\n✅ Confirmed. Clearing all data and restarting...");
+        Serial.println("\n[OK] Confirmed. Clearing all data and restarting...");
 
         reconState.reset();
         TextPacketDiagnostic::reset();
@@ -296,7 +296,7 @@ void CommandHandler::cmdRebootDevice(IReconTool* tool) {
         delay(1500);
         ESP.restart();
     } else {
-        Serial.println("\n❌ Reboot cancelled. Returning to menu.");
+        Serial.println("\n[FAIL] Reboot cancelled. Returning to menu.");
     }
 }
 
@@ -382,15 +382,15 @@ void CommandHandler::cmdCapturePacket(IReconTool* tool) {
         if (reconState.capturePacketForReplay(data, length, reconState.scanState.currentConfig,
                                                rssi, 0.0f, info.protocol, decryptedText, nodeId, packetId, hopCount,
                                                destId, channel, wantAck, viaMqtt, priority)) {
-            Serial.println("✅ Packet saved to replay slot!");
+            Serial.println("[OK] Packet saved to replay slot!");
             if (decryptedText) {
-                Serial.printf("   📧 Decrypted text: \"%s\"\n", decryptedText);
+                Serial.printf("    Decrypted text: \"%s\"\n", decryptedText);
             }
         } else {
-            Serial.println("❌ Failed to save packet (slots full?)");
+            Serial.println("[FAIL] Failed to save packet (slots full?)");
         }
     } else {
-        Serial.println("❌ No packet available to capture (must be in targeted mode)");
+        Serial.println("[FAIL] No packet available to capture (must be in targeted mode)");
     }
 }
 
@@ -406,7 +406,7 @@ void CommandHandler::cmdExportKML(IReconTool* tool) {
     String kml;
     geoIntel.exportKML(kml);
     
-    Serial.println("\n📍 KML EXPORT (Copy and save as .kml file)");
+    Serial.println("\n KML EXPORT (Copy and save as .kml file)");
     Serial.println("============================================");
     Serial.println(kml);
     Serial.println("============================================\n");
@@ -417,7 +417,7 @@ void CommandHandler::cmdExportGeoJSON(IReconTool* tool) {
     String geojson;
     geoIntel.exportGeoJSON(geojson);
     
-    Serial.println("\n🌍 GEOJSON EXPORT (Copy for web mapping)");
+    Serial.println("\n GEOJSON EXPORT (Copy for web mapping)");
     Serial.println("==========================================");
     Serial.println(geojson);
     Serial.println("==========================================\n");
@@ -428,7 +428,7 @@ void CommandHandler::cmdDiagnosticReport(IReconTool* tool) {
     // Print the comprehensive diagnostic report
     TextPacketDiagnostic::printReport();
     
-    Serial.println("💡 TIP: To reset diagnostic counters, reboot device with 'b'");
+    Serial.println(" TIP: To reset diagnostic counters, reboot device with 'b'");
     Serial.println("    or manually reset by restarting the device.\n");
 }
 
@@ -437,10 +437,10 @@ void CommandHandler::cmdToggleQuietMode(IReconTool* tool) {
     TextPacketDiagnostic::enableVerbose(!currentMode);
     
     if (!currentMode) {
-        Serial.println("\n📢 VERBOSE MODE ENABLED");
+        Serial.println("\n VERBOSE MODE ENABLED");
         Serial.println("   All packet details will be shown (slower, more gaps)");
     } else {
-        Serial.println("\n🔇 QUIET MODE ENABLED");
+        Serial.println("\n QUIET MODE ENABLED");
         Serial.println("   Minimal output for faster packet capture");
         Serial.println("   Only TEXT MESSAGES will be displayed");
         Serial.println("   Press 'x' to see statistics, 'q' to toggle back to verbose");
@@ -451,19 +451,19 @@ void CommandHandler::cmdToggleQuietMode(IReconTool* tool) {
 void CommandHandler::cmdClearPackets(IReconTool* tool) {
     uint8_t count = reconState.getNumCapturedPackets();
     reconState.clearReplaySlots();
-    Serial.printf("\n✅ Cleared %d captured packet(s) from replay slots.\n\n", count);
+    Serial.printf("\n[OK] Cleared %d captured packet(s) from replay slots.\n\n", count);
 }
 
 void CommandHandler::cmdClearDevices(IReconTool* tool) {
     uint8_t deviceCount = reconState.getNumTargetableDevices();
     reconState.clearTargetableDevices();
-    Serial.printf("\n✅ Cleared %d device(s).\n\n", deviceCount);
+    Serial.printf("\n[OK] Cleared %d device(s).\n\n", deviceCount);
 }
 
 void CommandHandler::cmdShowToken(IReconTool* tool) {
     String token = APISecurity::getToken();
     
-    Serial.println("\n🔑 API TOKEN (for protected endpoints)");
+    Serial.println("\n API TOKEN (for protected endpoints)");
     Serial.println("======================================");
     Serial.printf("Token: %s\n", token.c_str());
     Serial.println("======================================");
@@ -475,7 +475,7 @@ void CommandHandler::cmdShowToken(IReconTool* tool) {
     OLEDDisplay* display = tool->getDisplay();
     if (display) {
         display->showApiToken(token.c_str());
-        Serial.println("📱 TOKEN DISPLAYED ON OLED");
+        Serial.println(" TOKEN DISPLAYED ON OLED");
         Serial.println("   (Look at device screen)\n");
     }
     #endif
@@ -505,17 +505,17 @@ void CommandHandler::cmdExitMenu(IReconTool* tool) {
         reconState.scanState.targetConfig = resumeConfig;
         reconState.scanState.currentConfig = resumeConfig;
         reconState.scanState.targetedByDevice = resumeByDevice;
-        Serial.printf("\n▶  Returning to TARGETING mode (config %d)\n\n", resumeConfig);
+        Serial.printf("\n>  Returning to TARGETING mode (config %d)\n\n", resumeConfig);
     } else if (modeManager.loadPersistedMode(resumeMode, resumeConfig, resumeByDevice)) {
         // Fall back to NVS (menu entered via webapp stopScan, not serial 'm')
         reconState.scanState.targetConfig = resumeConfig;
         reconState.scanState.currentConfig = resumeConfig;
         reconState.scanState.targetedByDevice = resumeByDevice;
-        Serial.printf("\n▶  Returning to %s mode (config %d)\n\n",
+        Serial.printf("\n>  Returning to %s mode (config %d)\n\n",
                       resumeMode == MODE_TARGETED_CAPTURE ? "TARGETING" : "RECONNAISSANCE",
                       resumeConfig);
     } else {
-        Serial.println("\n▶  Returning to RECONNAISSANCE mode\n");
+        Serial.println("\n>  Returning to RECONNAISSANCE mode\n");
     }
 
     s_hasPreMenuSnapshot = false;

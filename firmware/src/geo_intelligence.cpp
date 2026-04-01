@@ -53,16 +53,16 @@ bool GeoIntelligence::storePoint(const GeoPoint& point) {
         }
     }
     
-    LOG_INFO("📍 GPS: Node 0x%08X at %.6f°%s, %.6f°%s, Alt %.1fm",
+    LOG_INFO(" GPS: Node 0x%08X at %.6fdeg%s, %.6fdeg%s, Alt %.1fm",
              point.nodeId,
              fabsf(point.latitude), point.latitude >= 0 ? "N" : "S",
              fabsf(point.longitude), point.longitude >= 0 ? "E" : "W",
              point.altitude);
 
-    Serial.printf("\n📍 GPS POSITION EXTRACTED!\n");
+    Serial.printf("\n GPS POSITION EXTRACTED!\n");
     Serial.printf("   Node: 0x%08X\n", point.nodeId);
-    Serial.printf("   Lat:  %.6f° %s\n", fabsf(point.latitude), point.latitude >= 0 ? "N" : "S");
-    Serial.printf("   Lon:  %.6f° %s\n", fabsf(point.longitude), point.longitude >= 0 ? "E" : "W");
+    Serial.printf("   Lat:  %.6fdeg %s\n", fabsf(point.latitude), point.latitude >= 0 ? "N" : "S");
+    Serial.printf("   Lon:  %.6fdeg %s\n", fabsf(point.longitude), point.longitude >= 0 ? "E" : "W");
 
     return true;
 }
@@ -198,7 +198,7 @@ bool GeoIntelligence::parseProtobufPosition(const uint8_t* payload, size_t lengt
             point.latitude = convertCoordinate(latitudeRaw);
             point.longitude = convertCoordinate(longitudeRaw);
         }
-        // Filter out 0,0 — means device has no GPS fix yet
+        // Filter out 0,0  -  means device has no GPS fix yet
         if (point.latitude == 0.0f && point.longitude == 0.0f) {
             return false;
         }
@@ -285,7 +285,7 @@ void GeoIntelligence::exportGeoJSON(String& output) const {
 }
 
 void GeoIntelligence::printSummary() const {
-    Serial.println("\n📍 GEOGRAPHIC INTELLIGENCE SUMMARY");
+    Serial.println("\n GEOGRAPHIC INTELLIGENCE SUMMARY");
     Serial.println("===================================");
     Serial.printf("Total positions: %d\n", numPoints);
     
@@ -303,7 +303,7 @@ void GeoIntelligence::printSummary() const {
         
         uint32_t ageSeconds = (millis() - p.timestamp) / 1000;
         
-        Serial.printf("0x%08X | %10.6f° | %10.6f° | %7.1fm | %5us\n",
+        Serial.printf("0x%08X | %10.6fdeg | %10.6fdeg | %7.1fm | %5us\n",
                       p.nodeId,
                       p.latitude,
                       p.longitude,

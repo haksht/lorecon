@@ -33,9 +33,9 @@ enum class WiFiMode {
  * Designed for minimal memory footprint and reliable operation.
  * 
  * First-run behavior:
- * - No stored credentials → AP mode with setup page
- * - Has credentials → Station mode (connect to user's hotspot)
- * - Station fails → Fall back to AP mode
+ * - No stored credentials -> AP mode with setup page
+ * - Has credentials -> Station mode (connect to user's hotspot)
+ * - Station fails -> Fall back to AP mode
  */
 class WiFiManager {
 public:

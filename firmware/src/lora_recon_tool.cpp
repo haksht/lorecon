@@ -74,11 +74,11 @@ bool LoRaReconTool::initialize() {
         return false;
     }
 
-    // Initialize AXP2101 PMIC (T-Beam Supreme only — no-op on other boards).
+    // Initialize AXP2101 PMIC (T-Beam Supreme only  -  no-op on other boards).
     // MUST run before radio, display, SD, and GPS: the PMIC controls all power rails.
 #ifdef HAS_AXP2101
     if (!PMUController::initialize()) {
-        LOG_ERROR("AXP2101 PMIC initialization failed — peripherals will not have power");
+        LOG_ERROR("AXP2101 PMIC initialization failed  -  peripherals will not have power");
         return false;
     }
 #endif
@@ -137,7 +137,7 @@ bool LoRaReconTool::initialize() {
     
     // Log mode status
     if (reconState.scanState.mode == MODE_TARGETED_CAPTURE) {
-        LOG_INFO("✅ Targeting mode restored - monitoring %s @ %.3f MHz", 
+        LOG_INFO("[OK] Targeting mode restored - monitoring %s @ %.3f MHz", 
                  cfg.protocol, cfg.frequency);
     } else {
         LOG_INFO("Reconnaissance started");
@@ -151,7 +151,7 @@ bool LoRaReconTool::initialize() {
         LOG_INFO("SD card not present - continuing without logging");
     }
     
-    // Initialize GPS controller (T-Beam Supreme only — no-op on other boards).
+    // Initialize GPS controller (T-Beam Supreme only  -  no-op on other boards).
     // Requires AXP2101 ALDO4 to be on (done above).
 #ifdef HAS_GPS
     g_gpsController = new GpsController();
@@ -160,7 +160,7 @@ bool LoRaReconTool::initialize() {
         delete g_gpsController;
         g_gpsController = nullptr;
     } else {
-        LOG_INFO("GPS initialized — waiting for fix (go outside for best results)");
+        LOG_INFO("GPS initialized  -  waiting for fix (go outside for best results)");
     }
 #endif
 
@@ -182,7 +182,7 @@ void LoRaReconTool::update() {
     static OperationMode lastKnownMode = reconState.scanState.mode;
     if (reconState.scanState.mode != lastKnownMode) {
         // Mode changed - log immediately with timestamp
-        LOG_WARN("🔀 MODE CHANGED: %d→%d at uptime %lu ms (%.1f hours)",
+        LOG_WARN(">> MODE CHANGED: %d->%d at uptime %lu ms (%.1f hours)",
                  (int)lastKnownMode, (int)reconState.scanState.mode.load(), now, now / 3600000.0f);
         
         // Log the mode transition to NVS for persistence
@@ -212,7 +212,7 @@ void LoRaReconTool::update() {
     // Pet the watchdog
     esp_task_wdt_reset();
 
-    // Drain GPS UART buffer (non-blocking — just feeds bytes to TinyGPS++)
+    // Drain GPS UART buffer (non-blocking  -  just feeds bytes to TinyGPS++)
 #ifdef HAS_GPS
     if (g_gpsController) {
         g_gpsController->update();
@@ -224,7 +224,7 @@ void LoRaReconTool::update() {
     }
 #endif
 
-    // Update display — rate-limited to 10 Hz to prevent I2C flooding
+    // Update display  -  rate-limited to 10 Hz to prevent I2C flooding
     if (oledDisplay && oledDisplay->isOn() && (now - lastDisplayUpdateMs >= 100)) {
         lastDisplayUpdateMs = now;
         oledDisplay->update();
@@ -241,7 +241,7 @@ void LoRaReconTool::update() {
         return;
     }
     
-    // Poll SX1262 IRQ register directly — fallback for boards where DIO1 interrupt
+    // Poll SX1262 IRQ register directly  -  fallback for boards where DIO1 interrupt
     // does not fire (e.g. V4 pin mapping mismatch). Harmless on boards where DIO1
     // works: the IRQ flag will already be cleared by the time we poll.
     if (radioController) radioController->pollIrqStatus();
@@ -306,7 +306,7 @@ void LoRaReconTool::handleReconnaissanceMode(uint32_t now) {
         if (radioController->applyConfig(cfg)) {
             radioController->startReceive();
 
-            // Update display with new scanning config — also resets the
+            // Update display with new scanning config  -  also resets the
             // periodic-refresh timer so packet RX info never holds longer
             // than the 2-second fallback below.
             if (oledDisplay && oledDisplay->isOn()) {
@@ -449,7 +449,7 @@ void LoRaReconTool::startTargetedCapture(uint8_t deviceIndex) {
 // Start frequency targeting mode
 void LoRaReconTool::startFrequencyTargeting(uint8_t configIndex) {
     if (configIndex >= reconState.getNumConfigs()) {
-        Serial.println("❌ Invalid frequency selection");
+        Serial.println("[FAIL] Invalid frequency selection");
         return;
     }
     
@@ -472,9 +472,9 @@ void LoRaReconTool::startFrequencyTargeting(uint8_t configIndex) {
     }
     
     if (activityCount > 0) {
-        Serial.printf("📊 Known devices on this frequency: %d\n", activityCount);
+        Serial.printf(" Known devices on this frequency: %d\n", activityCount);
     } else {
-        Serial.println("⚠️ No previous activity detected on this frequency");
+        Serial.println("[!] No previous activity detected on this frequency");
         Serial.println("   Will monitor for new transmissions...");
     }
     
@@ -509,9 +509,9 @@ void LoRaReconTool::startFrequencyTargeting(uint8_t configIndex) {
     
     if (radioController->applyConfig(cfg)) {
         radioController->startReceive();
-        Serial.println("✅ Frequency targeting active");
+        Serial.println("[OK] Frequency targeting active");
     } else {
-        Serial.println("❌ Failed to configure radio for targeting");
+        Serial.println("[FAIL] Failed to configure radio for targeting");
         reconState.scanState.mode = MODE_INTERACTIVE_MENU;
         setMenuModeEntered();
     }
@@ -523,7 +523,7 @@ void LoRaReconTool::showReplayMenu() {
     OperationMode previousMode = reconState.scanState.mode;
 
     while (true) {
-        Serial.println("\n📡 PACKET REPLAY MENU");
+        Serial.println("\n PACKET REPLAY MENU");
         Serial.println("====================");
 
         if (reconState.getNumCapturedPackets() == 0) {
@@ -602,7 +602,7 @@ void LoRaReconTool::showReplayMenu() {
                 replayPacket(slotIndex);
                 // replayPacket() returns normally; loop back to show menu again
             } else {
-                Serial.println("❌ Invalid slot number");
+                Serial.println("[FAIL] Invalid slot number");
                 delay(2000);
             }
         } else if (cmd == 'c' || cmd == 'C') {
@@ -622,7 +622,7 @@ void LoRaReconTool::showReplayMenu() {
                 Serial.println(confirm);
                 if (confirm == 'y' || confirm == 'Y') {
                     reconState.clearReplaySlots();
-                    Serial.println("✅ All replay slots cleared");
+                    Serial.println("[OK] All replay slots cleared");
                     delay(1000);
                 }
             }
@@ -638,7 +638,7 @@ void LoRaReconTool::showReplayMenu() {
             }
             return;
         } else {
-            Serial.println("❌ Invalid option");
+            Serial.println("[FAIL] Invalid option");
             delay(1000);
         }
     } // while(true)
@@ -646,7 +646,7 @@ void LoRaReconTool::showReplayMenu() {
 
 void LoRaReconTool::replayPacket(uint8_t slotIndex) {
     if (slotIndex >= reconState.getNumCapturedPackets()) {
-        Serial.printf("❌ Slot index %d out of range (have %d packets)\n",
+        Serial.printf("[FAIL] Slot index %d out of range (have %d packets)\n",
                       slotIndex, reconState.getNumCapturedPackets());
         return;
     }
@@ -654,11 +654,11 @@ void LoRaReconTool::replayPacket(uint8_t slotIndex) {
     const CapturedPacket& pkt = reconState.getReplayPacket(slotIndex);
 
     if (!pkt.valid) {
-        Serial.println("❌ Invalid packet slot");
+        Serial.println("[FAIL] Invalid packet slot");
         return;
     }
     
-    Serial.println("\n📡 REPLAYING PACKET");
+    Serial.println("\n REPLAYING PACKET");
     Serial.println("===================");
     Serial.printf("Slot: #%d\n", slotIndex + 1);
     Serial.printf("Protocol: %s\n", pkt.protocol);
@@ -714,7 +714,7 @@ void LoRaReconTool::replayPacket(uint8_t slotIndex) {
     Serial.printf("\n[INPUT] Received: %d\n", repeatCount);
     
     if (repeatCount <= 0 || repeatCount > 100) {
-        Serial.println("❌ Cancelled or invalid count");
+        Serial.println("[FAIL] Cancelled or invalid count");
         delay(1000);
         return;
     }
@@ -771,7 +771,7 @@ void LoRaReconTool::replayPacket(uint8_t slotIndex) {
     // Apply the correct radio configuration
     const ScanConfig& replayCfg = reconState.getScanConfig(pkt.configIndex);
     if (!radioController->applyConfig(replayCfg)) {
-        Serial.println("❌ Failed to apply radio configuration");
+        Serial.println("[FAIL] Failed to apply radio configuration");
         delay(2000);
         return;
     }
@@ -781,7 +781,7 @@ void LoRaReconTool::replayPacket(uint8_t slotIndex) {
     memcpy(txBuffer, pkt.data, pkt.length);
     
     // Transmit the packet multiple times
-    Serial.printf("\n📡 Transmitting %d time(s) with %d ms delay...\n", repeatCount, delayMs);
+    Serial.printf("\n Transmitting %d time(s) with %d ms delay...\n", repeatCount, delayMs);
     radioController->setOutputPower(10);
     
     int successCount = 0;
@@ -796,10 +796,10 @@ void LoRaReconTool::replayPacket(uint8_t slotIndex) {
         esp_task_wdt_reset();  // Feed again after transmission completes
         
         if (state == RADIOLIB_ERR_NONE) {
-            Serial.println("✅");
+            Serial.println("[OK]");
             successCount++;
         } else {
-            Serial.printf("❌ (error %d)\n", state);
+            Serial.printf("[FAIL] (error %d)\n", state);
             failCount++;
         }
         
@@ -811,7 +811,7 @@ void LoRaReconTool::replayPacket(uint8_t slotIndex) {
     
     radioController->setOutputPower(Config::Radio::OUTPUT_POWER_DBM);  // Restore default (0 dBm)
     
-    Serial.println("\n📊 REPLAY SUMMARY");
+    Serial.println("\n REPLAY SUMMARY");
     Serial.println("=================");
     Serial.printf("Total attempts: %d\n", repeatCount);
     float successPct = repeatCount > 0 ? (float)successCount / repeatCount * 100.0f : 0.0f;
@@ -820,11 +820,11 @@ void LoRaReconTool::replayPacket(uint8_t slotIndex) {
     Serial.printf("Failed: %d (%.1f%%)\n", failCount, failPct);
     
     if (successCount == repeatCount) {
-        Serial.println("✅ All packets transmitted successfully!");
+        Serial.println("[OK] All packets transmitted successfully!");
     } else if (successCount > 0) {
-        Serial.println("⚠️ Some packets failed to transmit");
+        Serial.println("[!] Some packets failed to transmit");
     } else {
-        Serial.println("❌ All transmissions failed");
+        Serial.println("[FAIL] All transmissions failed");
     }
     
     Serial.println("\nPress any key to return to replay menu...");
@@ -854,13 +854,13 @@ void LoRaReconTool::performShutdown() {
     Serial.flush();
     delay(Config::UI::SHUTDOWN_WARNING_MS);
 
-    // Blank OLED — SSD1306 retains last frame on its own charge pump otherwise
+    // Blank OLED  -  SSD1306 retains last frame on its own charge pump otherwise
     if (oledDisplay) {
         oledDisplay->clearAndOff();
     }
 
 #ifdef HAS_AXP2101
-    // Hard power-off via PMIC — cuts all rails including the CPU supply
+    // Hard power-off via PMIC  -  cuts all rails including the CPU supply
     LOG_INFO("Cutting PMIC power rails");
     Serial.flush();
     PMUController::shutdown();

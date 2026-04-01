@@ -47,14 +47,14 @@ bool PacketLogger::initialize() {
     
     // Use shared SD initialization (board-specific CS pin from config.h)
     if (!SDUtils::initialize()) {
-        Serial.println("[SD] ⚠️  No SD card detected");
+        Serial.println("[SD] [!]  No SD card detected");
         Serial.println("[SD]   Insert SD card for data logging capability");
         Serial.println("[SD]   Device will continue without logging");
         sdAvailable = false;
         return false;
     }
     
-    Serial.printf("[SD] ✅ SD card detected: %s\n", SDUtils::getCardTypeString());
+    Serial.printf("[SD] [OK] SD card detected: %s\n", SDUtils::getCardTypeString());
     Serial.printf("[SD] Card size: %llu MB\n", SDUtils::getCardSizeMB());
     
     sdAvailable = true;
@@ -104,7 +104,7 @@ bool PacketLogger::startSession(const char* sessionName) {
     // Open file for writing
     sessionFile = SD.open(fullPath.c_str(), FILE_WRITE);
     if (!sessionFile) {
-        Serial.printf("[SD] ❌ Failed to create session file: %s\n", fullPath.c_str());
+        Serial.printf("[SD] [FAIL] Failed to create session file: %s\n", fullPath.c_str());
         return false;
     }
     
@@ -114,15 +114,15 @@ bool PacketLogger::startSession(const char* sessionName) {
     // Write CSV header
     writeCSVHeader();
     
-    Serial.printf("[SD] ✅ Session started: %s\n", fullPath.c_str());
+    Serial.printf("[SD] [OK] Session started: %s\n", fullPath.c_str());
     
     // Start PCAP capture session
     if (Config::Logging::PCAP_EXPORT_ENABLED) {
         String pcapFilename = "/logs/" + currentSessionId + ".pcap";
         if (pcapSession.startSession(pcapFilename.c_str())) {
-            Serial.printf("[PCAP] ✅ PCAP capture started: %s\n", pcapFilename.c_str());
+            Serial.printf("[PCAP] [OK] PCAP capture started: %s\n", pcapFilename.c_str());
         } else {
-            Serial.println("[PCAP] ⚠️  PCAP capture failed to start");
+            Serial.println("[PCAP] [!]  PCAP capture failed to start");
         }
     }
     
@@ -172,7 +172,7 @@ bool PacketLogger::logPacket(const PacketLogRecord& record, const uint8_t* data,
     }
     sessionFile.print(',');
 
-    // lat, lon, alt (3 columns — empty when no position)
+    // lat, lon, alt (3 columns  -  empty when no position)
     if (record.hasPosition) {
         sessionFile.printf("%.6f,%.6f,%.1f,", record.latitudeDeg, record.longitudeDeg, record.altitudeM);
     } else {
@@ -185,7 +185,7 @@ bool PacketLogger::logPacket(const PacketLogRecord& record, const uint8_t* data,
     if (record.powerClass >= 0) sessionFile.print(record.powerClass);
     sessionFile.print(',');
 
-    // Raw hex — write directly to avoid String allocation
+    // Raw hex  -  write directly to avoid String allocation
     size_t safeLen = (length <= Config::PacketProcessing::MAX_PACKET_SIZE)
                      ? length : Config::PacketProcessing::MAX_PACKET_SIZE;
     for (size_t i = 0; i < safeLen; i++) {
@@ -261,17 +261,17 @@ uint32_t PacketLogger::getSessionDuration() const {
 }
 
 void PacketLogger::printStatus() {
-    Serial.println("\n╔════════════════════════════════════════╗");
-    Serial.println("║      PACKET LOGGER STATUS              ║");
-    Serial.println("╚════════════════════════════════════════╝");
+    Serial.println("\n+========================================+");
+    Serial.println("|      PACKET LOGGER STATUS              |");
+    Serial.println("+========================================+");
     
     if (!sdAvailable) {
-        Serial.println("Status: ❌ SD card not available");
+        Serial.println("Status: [FAIL] SD card not available");
         Serial.println("\nInsert SD card and restart for logging capability.");
         return;
     }
     
-    Serial.println("Status: ✅ SD card ready");
+    Serial.println("Status: [OK] SD card ready");
     
     if (sessionFile) {
         Serial.printf("Session: %s\n", currentSessionFile.c_str());
@@ -289,7 +289,7 @@ void PacketLogger::printStatus() {
                   usedBytes / (1024 * 1024), 
                   totalBytes / (1024 * 1024));
     
-    Serial.println("════════════════════════════════════════\n");
+    Serial.println("========================================\n");
 }
 
 // Private helper methods

@@ -18,7 +18,7 @@
 #include "pcap_logger.h"
 #include "data_structures.h"
 
-// SD card chip select — use board-specific config, not a hardcoded pin
+// SD card chip select  -  use board-specific config, not a hardcoded pin
 // NOTE: On T3-S3, the old hardcoded GPIO 5 conflicted with LoRa SPI_SCK!
 
 struct PacketLogRecord {
@@ -114,7 +114,7 @@ private:
     // Helper methods
     String generateSessionFilename();
     bool writeCSVHeader();
-    bool flushBuffer();  // internal — use flush() from outside
+    bool flushBuffer();  // internal  -  use flush() from outside
     String escapeCSV(const String& str);
     String bytesToHex(const uint8_t* data, size_t length);
 };

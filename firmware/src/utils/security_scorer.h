@@ -46,7 +46,7 @@ namespace SecurityScorer {
 struct Assessment {
     uint8_t score;           // 0-100 (100 = secure)
     const char* rating;      // "secure", "moderate", "vulnerable"
-    const char* ratingEmoji; // "✅ SECURE", "⚠️ MODERATE", "🔴 VULNERABLE"
+    const char* ratingEmoji; // "[OK] SECURE", "[!] MODERATE", " VULNERABLE"
     
     // Individual finding flags
     bool physicalProximity;  // Signal too strong
@@ -108,13 +108,13 @@ inline Assessment assess(const TargetableDevice& device) {
     // Determine rating
     if (result.score >= 80) {
         result.rating = "secure";
-        result.ratingEmoji = "✅ SECURE";
+        result.ratingEmoji = "[OK] SECURE";
     } else if (result.score >= 60) {
         result.rating = "moderate";
-        result.ratingEmoji = "⚠️ MODERATE";
+        result.ratingEmoji = "[!] MODERATE";
     } else {
         result.rating = "vulnerable";
-        result.ratingEmoji = "🔴 VULNERABLE";
+        result.ratingEmoji = " VULNERABLE";
     }
     
     return result;

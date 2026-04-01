@@ -71,7 +71,7 @@ void analyzePacket(const uint8_t* data, size_t length, float rssi, float snr) {
         if (gap > 500) {  // More than 500ms gap
             largeGapCount++;
             if (verboseMode) {
-                Serial.printf("[DIAG] ⚠️ Large gap detected: %u ms (packet might have been missed during this time)\n", 
+                Serial.printf("[DIAG] [!] Large gap detected: %u ms (packet might have been missed during this time)\n", 
                              (unsigned int)gap);
             }
         }
@@ -84,18 +84,18 @@ void analyzePacket(const uint8_t* data, size_t length, float rssi, float snr) {
     }
     
     // Print raw packet header analysis (ONLY in verbose mode)
-    Serial.println("\n[DIAG] ═══════ RAW PACKET ANALYSIS ═══════");
+    Serial.println("\n[DIAG] ======= RAW PACKET ANALYSIS =======");
     Serial.printf("[DIAG] Length: %d bytes, RSSI: %.1f dBm, SNR: %.1f dB\n", length, rssi, snr);
     
     if (length < 8) {
-        Serial.println("[DIAG] ⚠️ Packet too short for Meshtastic");
+        Serial.println("[DIAG] [!] Packet too short for Meshtastic");
         unknownPacketCount++;
         return;
     }
     
     // Check if Meshtastic
     if (!(data[0] == 0xFF && data[1] == 0xFF && data[2] == 0xFF && data[3] == 0xFF)) {
-        Serial.println("[DIAG] ⚠️ Not a Meshtastic packet (header mismatch)");
+        Serial.println("[DIAG] [!] Not a Meshtastic packet (header mismatch)");
         unknownPacketCount++;
         return;
     }
@@ -128,10 +128,10 @@ void analyzePacket(const uint8_t* data, size_t length, float rssi, float snr) {
                      density * 100, highByteCount);
         
         if (likelyEncrypted) {
-            Serial.println("[DIAG] 🔒 HIGH ENTROPY - Likely ENCRYPTED packet");
+            Serial.println("[DIAG]  HIGH ENTROPY - Likely ENCRYPTED packet");
             encryptedPacketCount++;
         } else {
-            Serial.println("[DIAG] 📖 LOW ENTROPY - Might be PLAINTEXT or structured data");
+            Serial.println("[DIAG]  LOW ENTROPY - Might be PLAINTEXT or structured data");
             plaintextPacketCount++;
             
             // Check for protobuf field markers in plaintext
@@ -140,9 +140,9 @@ void analyzePacket(const uint8_t* data, size_t length, float rssi, float snr) {
                 if (data[i] == 0x08) {
                     uint8_t portnum = data[i+1];
                     Serial.printf("[DIAG]   Found field 1 (portnum) at offset %d: 0x%02X", i, portnum);
-                    if (portnum == 0x01) Serial.print(" = TEXT_MESSAGE_APP ✉️");
-                    else if (portnum == 0x03) Serial.print(" = POSITION_APP 📍");
-                    else if (portnum == 0x05 || portnum == 0x07) Serial.print(" = ROUTING 🔄");
+                    if (portnum == 0x01) Serial.print(" = TEXT_MESSAGE_APP ");
+                    else if (portnum == 0x03) Serial.print(" = POSITION_APP ");
+                    else if (portnum == 0x05 || portnum == 0x07) Serial.print(" = ROUTING >>");
                     Serial.println();
                 }
                 if (data[i] == 0x0A) {
@@ -164,7 +164,7 @@ void analyzePacket(const uint8_t* data, size_t length, float rssi, float snr) {
         Serial.println(" (very large - position with extended data)");
     }
     
-    Serial.println("[DIAG] ═══════════════════════════════════");
+    Serial.println("[DIAG] ===================================");
 }
 
 /**
@@ -173,17 +173,17 @@ void analyzePacket(const uint8_t* data, size_t length, float rssi, float snr) {
 void analyzeDecryptedPacket(const uint8_t* decrypted, size_t length, size_t originalLength) {
     if (length < 2) return;
     
-    Serial.println("[DIAG] ─── DECRYPTED CONTENT ANALYSIS ───");
+    Serial.println("[DIAG] --- DECRYPTED CONTENT ANALYSIS ---");
     
     // Look for protobuf field markers
     if (decrypted[0] == 0x08) {
         uint8_t portnum = decrypted[1];
-        Serial.printf("[DIAG] ✓ Valid portnum field found: 0x%02X ", portnum);
+        Serial.printf("[DIAG] + Valid portnum field found: 0x%02X ", portnum);
         
         PacketTypeStats* stats = &otherStats;
         
         if (portnum == 0x01) {
-            Serial.println("= TEXT_MESSAGE_APP ✉️");
+            Serial.println("= TEXT_MESSAGE_APP ");
             stats = &textStats;
             
             // Search for actual text content
@@ -201,10 +201,10 @@ void analyzeDecryptedPacket(const uint8_t* decrypted, size_t length, size_t orig
                 }
             }
         } else if (portnum == 0x03) {
-            Serial.println("= POSITION_APP 📍");
+            Serial.println("= POSITION_APP ");
             stats = &positionStats;
         } else if (portnum == 0x05 || portnum == 0x07) {
-            Serial.println("= ROUTING_APP 🔄");
+            Serial.println("= ROUTING_APP >>");
             stats = &routingStats;
         } else {
             Serial.printf("= Unknown app (0x%02X)\n", portnum);
@@ -218,7 +218,7 @@ void analyzeDecryptedPacket(const uint8_t* decrypted, size_t length, size_t orig
         
     } else {
         // Not a standard protobuf data message
-        Serial.printf("[DIAG] ⚠️ Unexpected first byte: 0x%02X (expected 0x08 for portnum)\n", decrypted[0]);
+        Serial.printf("[DIAG] [!] Unexpected first byte: 0x%02X (expected 0x08 for portnum)\n", decrypted[0]);
         Serial.print("[DIAG]   First 16 bytes: ");
         for (size_t i = 0; i < length && i < 16; i++) {
             Serial.printf("%02X ", decrypted[i]);
@@ -236,38 +236,38 @@ void analyzeDecryptedPacket(const uint8_t* decrypted, size_t length, size_t orig
  * Print comprehensive diagnostic report
  */
 void printReport() {
-    Serial.println("\n╔═══════════════════════════════════════════════════════╗");
-    Serial.println("║       TEXT PACKET DIAGNOSTIC REPORT                  ║");
-    Serial.println("╚═══════════════════════════════════════════════════════╝");
+    Serial.println("\n+=======================================================+");
+    Serial.println("|       TEXT PACKET DIAGNOSTIC REPORT                  |");
+    Serial.println("+=======================================================+");
     
     // Timing analysis
-    Serial.println("\n📊 TIMING ANALYSIS:");
+    Serial.println("\n TIMING ANALYSIS:");
     Serial.printf("  Total packet gaps: %u\n", (unsigned int)gapCount);
     Serial.printf("  Maximum gap: %u ms\n", (unsigned int)maxGapMs);
     Serial.printf("  Large gaps (>500ms): %u\n", (unsigned int)largeGapCount);
     
     if (largeGapCount > 0) {
-        Serial.println("\n  ⚠️  WARNING: Large gaps detected!");
+        Serial.println("\n  [!]  WARNING: Large gaps detected!");
         Serial.println("     Text messages might be transmitted during these gaps.");
         Serial.println("     Your sniffer is NOT in continuous receive mode.");
     } else {
-        Serial.println("\n  ✓ No significant timing gaps detected.");
+        Serial.println("\n  + No significant timing gaps detected.");
     }
     
     // Encryption analysis
-    Serial.println("\n🔒 ENCRYPTION ANALYSIS:");
+    Serial.println("\n ENCRYPTION ANALYSIS:");
     Serial.printf("  Encrypted packets: %u\n", (unsigned int)encryptedPacketCount);
     Serial.printf("  Plaintext packets: %u\n", (unsigned int)plaintextPacketCount);
     Serial.printf("  Unknown packets: %u\n", (unsigned int)unknownPacketCount);
     
     if (plaintextPacketCount > 0) {
-        Serial.println("\n  ⚠️  PLAINTEXT PACKETS DETECTED!");
+        Serial.println("\n  [!]  PLAINTEXT PACKETS DETECTED!");
         Serial.println("     Some packets might be transmitted without encryption.");
         Serial.println("     Check if text messages are in plaintext packets above.");
     }
     
     // Packet type statistics
-    Serial.println("\n📦 PACKET TYPE STATISTICS:");
+    Serial.println("\n PACKET TYPE STATISTICS:");
     
     auto printStats = [](const char* name, const PacketTypeStats& stats) {
         if (stats.count > 0) {
@@ -275,7 +275,7 @@ void printReport() {
             Serial.printf("    Size range: %u - %u bytes (avg: %.1f)\n", 
                          (unsigned int)stats.minSize, (unsigned int)stats.maxSize, stats.avgSize());
         } else {
-            Serial.printf("  %s: NONE ❌\n", name);
+            Serial.printf("  %s: NONE [FAIL]\n", name);
         }
     };
     
@@ -285,39 +285,39 @@ void printReport() {
     printStats("OTHER messages", otherStats);
     
     // Conclusions
-    Serial.println("\n🔍 DIAGNOSTIC CONCLUSIONS:");
+    Serial.println("\n DIAGNOSTIC CONCLUSIONS:");
     
     if (textStats.count == 0) {
-        Serial.println("\n  ❌ NO TEXT MESSAGES CAPTURED");
+        Serial.println("\n  [FAIL] NO TEXT MESSAGES CAPTURED");
         Serial.println("     Possible reasons:");
         
         if (largeGapCount > 0) {
-            Serial.println("     1. ⚠️  TIMING ISSUE (most likely)");
+            Serial.println("     1. [!]  TIMING ISSUE (most likely)");
             Serial.println("        Text packets transmitted during processing gaps");
             Serial.println("        Solution: Implement interrupt-driven buffering");
         }
         
         if (encryptedPacketCount > 0 && plaintextPacketCount == 0) {
-            Serial.println("     2. ⚠️  ALL PACKETS ENCRYPTED");
+            Serial.println("     2. [!]  ALL PACKETS ENCRYPTED");
             Serial.println("        Text might be encrypted with different key");
             Serial.println("        Solution: Verify PSK on sending device");
         }
         
         if (plaintextPacketCount > 0) {
-            Serial.println("     2. ⚠️  TEXT MIGHT BE IN PLAINTEXT");
+            Serial.println("     2. [!]  TEXT MIGHT BE IN PLAINTEXT");
             Serial.println("        Check plaintext packets above for text content");
             Serial.println("        Solution: Modify code to check plaintext packets");
         }
         
-        Serial.println("     3. ⚠️  FREQUENCY/MODULATION MISMATCH");
+        Serial.println("     3. [!]  FREQUENCY/MODULATION MISMATCH");
         Serial.println("        Text packets on different channel parameters");
         Serial.println("        Solution: Verify channel settings match exactly");
     } else {
-        Serial.printf("\n  ✓ SUCCESS: %u text messages captured\n", (unsigned int)textStats.count);
+        Serial.printf("\n  + SUCCESS: %u text messages captured\n", (unsigned int)textStats.count);
         Serial.printf("    Average size: %.1f bytes\n", textStats.avgSize());
     }
     
-    Serial.println("\n═══════════════════════════════════════════════════════\n");
+    Serial.println("\n=======================================================\n");
 }
 
 /**
@@ -326,9 +326,9 @@ void printReport() {
 void enableVerbose(bool enable) {
     verboseMode = enable;
     if (enable) {
-        Serial.println("[DIAG] 📢 Verbose diagnostics ENABLED");
+        Serial.println("[DIAG]  Verbose diagnostics ENABLED");
     } else {
-        Serial.println("[DIAG] 🔇 Verbose diagnostics DISABLED (quiet mode for fast capture)");
+        Serial.println("[DIAG]  Verbose diagnostics DISABLED (quiet mode for fast capture)");
     }
 }
 

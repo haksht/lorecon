@@ -50,7 +50,7 @@ static bool parseUnsigned(const String& str, uint32_t& out, int base = 10, uint3
 }
 
 /**
- * Swap a filename's extension: "session_001.csv" → "session_001.pcap"
+ * Swap a filename's extension: "session_001.csv" -> "session_001.pcap"
  * If the filename has no extension, appends the new one.
  */
 static String changeExtension(const String& filename, const char* newExt) {
@@ -110,7 +110,7 @@ void handleGetDevices(AsyncWebServerRequest* request) {
     
     String response = APIController::getDevices();
     uint32_t heapAfter = ESP.getFreeHeap();
-    LOG_INFO("API /devices response ready (%u bytes, heap: %lu→%lu)", 
+    LOG_INFO("API /devices response ready (%u bytes, heap: %lu->%lu)", 
              response.length(), heapBefore, heapAfter);
     
     request->send(200, "application/json", response);
@@ -516,7 +516,7 @@ void handleListFiles(AsyncWebServerRequest* request) {
     while (entry) {
         if (!entry.isDirectory()) {
             // entry.name() may return the full path ("/logs/foo.csv") on some
-            // ESP32 SDK versions — strip to bare filename so the download
+            // ESP32 SDK versions  -  strip to bare filename so the download
             // endpoint receives a name that passes its path-traversal guard.
             String name = entry.name();
             int slash = name.lastIndexOf('/');

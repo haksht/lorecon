@@ -64,7 +64,7 @@ namespace CrashContext {
             if (prevReason != 255) {
                 LOG_INFO("   Previous boot reason: %s (code %d)", prevReasonStr.c_str(), prevReason);
             }
-            LOG_INFO("   (NVS saves since flash: %lu — interval is 5 min)", saveCount);
+            LOG_INFO("   (NVS saves since flash: %lu  -  interval is 5 min)", saveCount);
         }
     }
 

@@ -99,7 +99,7 @@ void showDeviceTypeSummary() {
 
 // Security vulnerability assessment
 void showSecurityAssessment() {
-  Serial.println("\n🛡️ SECURITY VULNERABILITY ASSESSMENT");
+  Serial.println("\n[SEC] SECURITY VULNERABILITY ASSESSMENT");
   Serial.println("====================================");
   
   if (reconState.getNumTargetableDevices() == 0) {
@@ -164,7 +164,7 @@ void showSecurityAssessment() {
   
   // Detailed breakdowns for vulnerable and moderate devices
   if (vulnerableCount > 0 || moderateCount > 0) {
-    Serial.println("\n🔍 DETAILED VULNERABILITY ANALYSIS:");
+    Serial.println("\n DETAILED VULNERABILITY ANALYSIS:");
     Serial.println("===================================");
     
     for (uint8_t i = 0; i < reconState.getNumTargetableDevices(); i++) {
@@ -179,60 +179,60 @@ void showSecurityAssessment() {
       
       Serial.println("   Findings:");
       if (dev->bestRSSI > -50) {
-        Serial.println("      • Very strong signal (-50+ dBm) = physical proximity risk");
+        Serial.println("      - Very strong signal (-50+ dBm) = physical proximity risk");
       }
       if (dev->isRouter) {
-        Serial.println("      • Router device = higher attack surface (message forwarding)");
+        Serial.println("      - Router device = higher attack surface (message forwarding)");
       }
       if (dev->packetCount > 100) {
-        Serial.println("      • High traffic volume = potential information leakage");
+        Serial.println("      - High traffic volume = potential information leakage");
       }
       if (dev->packetCount < 5) {
-        Serial.println("      • Low packet count = weak battery or intermittent operation");
+        Serial.println("      - Low packet count = weak battery or intermittent operation");
       }
       if (strstr(dev->firmwareVersion, "v1.x") != nullptr || 
           strstr(dev->firmwareVersion, "v2.0") != nullptr) {
-        Serial.printf("      • Outdated firmware: %s (known vulnerabilities)\n", dev->firmwareVersion);
+        Serial.printf("      - Outdated firmware: %s (known vulnerabilities)\n", dev->firmwareVersion);
       }
       
       Serial.println("   Recommended Actions:");
       if (dev->bestRSSI > -50) {
-        Serial.println("      → Increase physical distance or use directional antenna");
+        Serial.println("      -> Increase physical distance or use directional antenna");
       }
       if (dev->isRouter) {
-        Serial.println("      → Monitor for injection/replay attack opportunities");
+        Serial.println("      -> Monitor for injection/replay attack opportunities");
       }
       if (dev->packetCount > 100) {
-        Serial.println("      → Capture and analyze traffic patterns");
+        Serial.println("      -> Capture and analyze traffic patterns");
       }
     }
   }
   
   // Summary
-  Serial.printf("\n📊 NETWORK SUMMARY:\n");
+  Serial.printf("\n NETWORK SUMMARY:\n");
   Serial.printf("   Total Devices: %d\n", reconState.getNumTargetableDevices());
-  Serial.printf("   🚨 Vulnerable: %d\n", vulnerableCount);
-  Serial.printf("   ⚠️  Moderate Risk: %d\n", moderateCount);
-  Serial.printf("   ✅ Secure: %d\n", 
+  Serial.printf("    Vulnerable: %d\n", vulnerableCount);
+  Serial.printf("   [!]  Moderate Risk: %d\n", moderateCount);
+  Serial.printf("   [OK] Secure: %d\n", 
                 reconState.getNumTargetableDevices() - vulnerableCount - moderateCount);
   
   if (vulnerableCount > 0) {
-    Serial.println("\n   Status: 🚨 High-priority targets identified");
+    Serial.println("\n   Status:  High-priority targets identified");
   } else if (moderateCount > 0) {
-    Serial.println("\n   Status: ⚠️ Some devices warrant investigation");
+    Serial.println("\n   Status: [!] Some devices warrant investigation");
   } else {
-    Serial.println("\n   Status: ✅ All devices appear well-secured");
+    Serial.println("\n   Status: [OK] All devices appear well-secured");
   }
   
-  Serial.println("\n💡 RECOMMENDATIONS:");
+  Serial.println("\n RECOMMENDATIONS:");
   if (vulnerableCount > 0) {
-    Serial.println("   • Enable encryption with strong PSK");
-    Serial.println("   • Update firmware to latest version");
-    Serial.println("   • Reduce transmission frequency if possible");
-    Serial.println("   • Monitor for unauthorized devices");
+    Serial.println("   - Enable encryption with strong PSK");
+    Serial.println("   - Update firmware to latest version");
+    Serial.println("   - Reduce transmission frequency if possible");
+    Serial.println("   - Monitor for unauthorized devices");
   } else {
-    Serial.println("   • Continue monitoring for new devices");
-    Serial.println("   • Perform periodic security assessments");
+    Serial.println("   - Continue monitoring for new devices");
+    Serial.println("   - Perform periodic security assessments");
   }
   
   Serial.print("\nPress any key to continue: ");
@@ -245,7 +245,7 @@ void showActivityDetails() {
   // Check if we're in targeted capture mode
   if (reconState.scanState.mode == MODE_TARGETED_CAPTURE) {
     // Show targeted device statistics instead
-    Serial.println("\n🎯 TARGETED CAPTURE STATUS:");
+    Serial.println("\n TARGETED CAPTURE STATUS:");
     Serial.println("============================");
     
     const ScanConfig& config = reconState.getScanConfig(reconState.scanState.targetConfig);
@@ -290,7 +290,7 @@ void showActivityDetails() {
       Serial.println("(No devices identified yet)");
     }
     
-    Serial.println("\n💡 TIP: Use 'c' to capture next packet, 'p' for replay menu");
+    Serial.println("\n TIP: Use 'c' to capture next packet, 'p' for replay menu");
     
     Serial.print("\nPress any key to continue: ");
     if (!waitForSerialInput()) return;
@@ -328,17 +328,17 @@ void showActivityDetails() {
     
     // If we're in menu mode and have no activity, explain why
     if (reconState.scanState.mode == MODE_INTERACTIVE_MENU) {
-      Serial.println("\nℹ️  This command shows frequency scanning activity.");
+      Serial.println("\ni  This command shows frequency scanning activity.");
       Serial.println("   You're currently in menu/targeted mode, not scanning.");
       Serial.println("   Use 'r' to resume reconnaissance and scan all frequencies.");
     }
   }
   
-  Serial.println("\n💡 INTERPRETATION:");
-  Serial.println("• HIGH activity: Strong nearby devices, good targeting potential");
-  Serial.println("• MEDIUM activity: Moderate signals, devices may be distant");
-  Serial.println("• LOW activity: Weak signals or intermittent transmissions");
-  Serial.println("\nℹ️  This shows RF activity per frequency configuration.");
+  Serial.println("\n INTERPRETATION:");
+  Serial.println("- HIGH activity: Strong nearby devices, good targeting potential");
+  Serial.println("- MEDIUM activity: Moderate signals, devices may be distant");
+  Serial.println("- LOW activity: Weak signals or intermittent transmissions");
+  Serial.println("\ni  This shows RF activity per frequency configuration.");
   Serial.println("   Use 'm' to see the full targetable device list.");
   
   Serial.print("\nPress any key to continue: ");
@@ -386,7 +386,7 @@ void showReconResults() {
   // Show Targetable Devices
   if (reconState.getNumTargetableDevices() == 0) {
     Serial.println("TARGETABLE DEVICES: None\n");
-    Serial.println("ℹ️  No devices with decoded packets found.");
+    Serial.println("i  No devices with decoded packets found.");
     Serial.println("   RF activity detected above, but no targetable node IDs captured.");
     Serial.println("   Press 'r' to resume reconnaissance or wait longer for packet capture.");
   } else {
@@ -483,7 +483,7 @@ void displayReconStartMessage() {
 
 // Frequency targeting menu for direct frequency selection
 void showFrequencyTargetingMenu() {
-  Serial.println("\n📡 FREQUENCY TARGETING");
+  Serial.println("\n FREQUENCY TARGETING");
   Serial.println("======================");
   Serial.println("Select frequency configuration to target directly:");
   Serial.println("(Based on recon activity detections)");
@@ -503,15 +503,15 @@ void showFrequencyTargetingMenu() {
     }
     
     // Display with activity indicator
-    const char* activityIcon = hasActivity ? "🔥" : "⚪";
+    const char* activityIcon = hasActivity ? "" : "o";
     Serial.printf("%2d %s : %s (%.3f MHz, SF%d, BW%.0f)\n",
                   i + 1, activityIcon, cfg.protocol, cfg.frequency, 
                   cfg.spreadingFactor, cfg.bandwidth);
   }
   
   Serial.println();
-  Serial.println("🔥 = Activity detected during recon");
-  Serial.println("⚪ = No activity detected"); 
+  Serial.println(" = Activity detected during recon");
+  Serial.println("o = No activity detected"); 
   Serial.println();
   Serial.println("f  : Show frequency activity summary");
   Serial.println("r  : Return to main menu");
@@ -539,12 +539,12 @@ void handleFrequencyTargetingInput() {
     if (configIndex < reconState.getNumConfigs()) {
       startFrequencyTargeting(configIndex);
     } else {
-      Serial.println("❌ Invalid frequency selection");
+      Serial.println("[FAIL] Invalid frequency selection");
       showFrequencyTargetingMenu();
     }
   } else if (cmd == 'f' || cmd == 'F') {
     // Show frequency activity summary
-    Serial.println("\n📊 FREQUENCY ACTIVITY SUMMARY:");
+    Serial.println("\n FREQUENCY ACTIVITY SUMMARY:");
     for (uint8_t i = 0; i < reconState.getNumConfigs(); i++) {
       const ScanConfig& cfg = reconState.getScanConfig(i);
       uint8_t deviceCount = 0;
@@ -556,7 +556,7 @@ void handleFrequencyTargetingInput() {
       }
       
       if (deviceCount > 0) {
-        Serial.printf("🔥 %s: %d devices detected\n", cfg.protocol, deviceCount);
+        Serial.printf(" %s: %d devices detected\n", cfg.protocol, deviceCount);
       }
     }
     
@@ -582,7 +582,7 @@ void handleFrequencyTargetingInput() {
     }
     showReconResults();
   } else {
-    Serial.println("❌ Invalid selection");
+    Serial.println("[FAIL] Invalid selection");
     showFrequencyTargetingMenu();
   }
 }
@@ -593,6 +593,6 @@ void startFrequencyTargeting(uint8_t configIndex) {
   if (g_reconTool) {
     g_reconTool->startFrequencyTargeting(configIndex);
   } else {
-    Serial.println("❌ System error: Tool not initialized");
+    Serial.println("[FAIL] System error: Tool not initialized");
   }
 }

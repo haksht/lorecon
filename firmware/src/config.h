@@ -71,10 +71,10 @@ namespace Hardware {
         // ========================================================================
         // Board: ESP32-S3FN8 (8MB QIO flash, 8MB Quad PSRAM) + SX1262 + SH1106 OLED
         //        + SD Card + GPS (L76K/MAX-M10S) + AXP2101 PMIC
-        // GPIO 33-37 are safe (Quad PSRAM, NOT Octal — no OPI conflict)
+        // GPIO 33-37 are safe (Quad PSRAM, NOT Octal  -  no OPI conflict)
         // AXP2101 powers all peripherals; must initialize before radio/SD/GPS.
 
-        // SX1262 LoRa Radio Pins (FSPI/SPI2 — default FSPI pins on ESP32-S3)
+        // SX1262 LoRa Radio Pins (FSPI/SPI2  -  default FSPI pins on ESP32-S3)
         constexpr uint8_t LORA_NSS = 10;     // SPI chip select
         constexpr uint8_t LORA_DIO1 = 1;     // Interrupt pin (DIO1)
         constexpr uint8_t LORA_RST = 5;      // Reset pin
@@ -85,20 +85,20 @@ namespace Hardware {
         constexpr uint8_t SPI_MISO = 13;     // Master In Slave Out
         constexpr uint8_t SPI_MOSI = 11;     // Master Out Slave In
 
-        // SD Card Pins (HSPI/SPI3 — separate bus to avoid LoRa SPI conflict)
+        // SD Card Pins (HSPI/SPI3  -  separate bus to avoid LoRa SPI conflict)
         constexpr uint8_t SD_CS = 47;        // SD card chip select
         constexpr uint8_t SD_SCK = 36;       // SD card clock
         constexpr uint8_t SD_MISO = 37;      // SD card MISO
         constexpr uint8_t SD_MOSI = 35;      // SD card MOSI
 
-        // I2C Display Bus (SH1106 OLED 128×64 @ 0x3C)
+        // I2C Display Bus (SH1106 OLED 128x64 @ 0x3C)
         constexpr uint8_t OLED_SDA = 17;     // I2C data
         constexpr uint8_t OLED_SCL = 18;     // I2C clock
         constexpr uint8_t OLED_RST = PIN_UNUSED;
 
         // GPS UART (L76K or MAX-M10S)
-        constexpr uint8_t GPS_RX = 9;        // GPS TX → ESP32 RX
-        constexpr uint8_t GPS_TX = 8;        // ESP32 TX → GPS RX
+        constexpr uint8_t GPS_RX = 9;        // GPS TX -> ESP32 RX
+        constexpr uint8_t GPS_TX = 8;        // ESP32 TX -> GPS RX
         constexpr uint8_t GPS_EN = 7;        // Pull HIGH to enable GPS module
         constexpr uint8_t GPS_EN_LEVEL = HIGH; // Active HIGH on T-Beam Supreme
 
@@ -122,7 +122,7 @@ namespace Hardware {
         // Heltec WiFi LoRa 32 V3 / V4 Pin Configuration
         // ========================================================================
         // Board: ESP32-S3 + SX1262 + SSD1306 OLED (I2C)
-        // V3 and V4 share identical LoRa/OLED/button pins — both use this block.
+        // V3 and V4 share identical LoRa/OLED/button pins  -  both use this block.
         // V4 adds a dedicated SH1.25-8P GPS connector (L76K module); use the
         // heltec_v4 PlatformIO environment to enable GPS support.
         // Display: 0.96" OLED on I2C
@@ -155,10 +155,10 @@ namespace Hardware {
         constexpr uint8_t USER_BUTTON = 0;   // PRG button (active low)
         constexpr uint8_t USER_LED = 35;     // Onboard LED (if present)
 
-        // GPS UART — V4 only (dedicated SH1.25-8P connector; not present on V3)
+        // GPS UART  -  V4 only (dedicated SH1.25-8P connector; not present on V3)
         // Enable this block by building with the heltec_v4 environment.
-        constexpr uint8_t GPS_RX = 38;       // GPS TX → ESP32 RX
-        constexpr uint8_t GPS_TX = 39;       // ESP32 TX → GPS RX
+        constexpr uint8_t GPS_RX = 38;       // GPS TX -> ESP32 RX
+        constexpr uint8_t GPS_TX = 39;       // ESP32 TX -> GPS RX
         constexpr uint8_t GPS_EN = 34;       // Pull LOW to enable L76K module (active low)
         constexpr uint8_t GPS_EN_LEVEL = LOW; // Active LOW on Heltec V4
 
@@ -186,7 +186,7 @@ namespace Scanning {
     // Number of frequency configurations to scan
     constexpr uint8_t NUM_CONFIGURATIONS = 26;
     
-    // Total reconnaissance cycle time: 26 configs × 12s = ~5 minutes
+    // Total reconnaissance cycle time: 26 configs x 12s = ~5 minutes
 }
 
 // ============================================================================
@@ -421,7 +421,7 @@ namespace Anomaly {
     // Temporal analysis
     constexpr uint32_t BEACON_INTERVAL_MIN_MS = 30000;    // 30 seconds
     constexpr uint32_t BEACON_INTERVAL_MAX_MS = 3600000;  // 1 hour (requires uint32_t)
-    constexpr float BEACON_JITTER_TOLERANCE = 0.10f;      // ±10% interval variation
+    constexpr float BEACON_JITTER_TOLERANCE = 0.10f;      // +/-10% interval variation
     constexpr uint8_t MIN_PACKETS_FOR_PERIODICITY = 3;    // Min packets to detect beacon
     constexpr uint8_t MIN_BEACON_CONFIDENCE = 70;         // Min score to classify as beacon
 }

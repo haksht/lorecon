@@ -136,11 +136,11 @@ bool PCAPLogger::writePacket(const uint8_t* data, size_t length,
     PCAPPacketHeader pktHeader;
     time_t now = time(nullptr);
     if (now > 1700000000) {
-        // NTP synced — use wall-clock time with ms precision
+        // NTP synced  -  use wall-clock time with ms precision
         pktHeader.ts_sec = (uint32_t)now;
         pktHeader.ts_usec = (timestampMs % 1000) * 1000;
     } else {
-        // No NTP — fall back to millis-since-boot
+        // No NTP  -  fall back to millis-since-boot
         pktHeader.ts_sec = timestampMs / 1000;
         pktHeader.ts_usec = (timestampMs % 1000) * 1000;
     }

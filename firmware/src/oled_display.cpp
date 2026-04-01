@@ -38,7 +38,7 @@ bool OLEDDisplay::initialize() {
         // After a software restart, the I2C slave may be stuck mid-transaction
         // (e.g., if restart happened during showReboot() rendering).
         // Send 9 SCL pulses to clock out any stuck slave state, then a STOP
-        // condition — this is the standard I2C bus recovery sequence.
+        // condition  -  this is the standard I2C bus recovery sequence.
         #if defined(BOARD_T3_S3)
         Serial.println("[DISPLAY] T3-S3: I2C bus recovery + software reset");
         #else
@@ -53,7 +53,7 @@ bool OLEDDisplay::initialize() {
             digitalWrite(OLED_SCL, HIGH);
             delayMicroseconds(5);
         }
-        // STOP condition: SDA transitions LOW→HIGH while SCL is HIGH
+        // STOP condition: SDA transitions LOW->HIGH while SCL is HIGH
         digitalWrite(OLED_SDA, LOW);
         delayMicroseconds(5);
         digitalWrite(OLED_SCL, HIGH);
@@ -85,7 +85,7 @@ bool OLEDDisplay::initialize() {
         
         if (error == 0) {
             deviceFound = true;
-            Serial.printf("[DISPLAY] ✓ OLED found at 0x3C (attempt %d)\n", attempt);
+            Serial.printf("[DISPLAY] + OLED found at 0x3C (attempt %d)\n", attempt);
             break;
         }
         
@@ -94,7 +94,7 @@ bool OLEDDisplay::initialize() {
             esp_task_wdt_reset();  // Prevent watchdog timeout during I2C retry delays
             delay(50 * attempt);  // Progressive delay: 50ms, 100ms
         } else {
-            Serial.printf("[DISPLAY] ❌ No device found at 0x3C after %d attempts (error %d)\n", attempt, error);
+            Serial.printf("[DISPLAY] [FAIL] No device found at 0x3C after %d attempts (error %d)\n", attempt, error);
         }
     }
     
@@ -121,7 +121,7 @@ bool OLEDDisplay::initialize() {
         // Initialize display
         if (display.begin()) {
             initSuccess = true;
-            Serial.printf("[DISPLAY] ✓ U8g2 initialized successfully (attempt %d)\n", attempt);
+            Serial.printf("[DISPLAY] + U8g2 initialized successfully (attempt %d)\n", attempt);
             break;
         }
         
@@ -137,7 +137,7 @@ bool OLEDDisplay::initialize() {
             delay(50);
             #endif
         } else {
-            Serial.println("[DISPLAY] ❌ U8g2 begin() failed after retries");
+            Serial.println("[DISPLAY] [FAIL] U8g2 begin() failed after retries");
         }
     }
     
@@ -259,12 +259,12 @@ bool OLEDDisplay::reinitialize() {
     // Try to reinit U8g2
     display.setBusClock(100000);
     if (display.begin()) {
-        Serial.println("[DISPLAY] ✓ Reinitialize successful!");
+        Serial.println("[DISPLAY] + Reinitialize successful!");
         displayOn = false;  // Start in off state
         return true;
     }
 
-    Serial.println("[DISPLAY] ✗ Reinitialize failed");
+    Serial.println("[DISPLAY] x Reinitialize failed");
     return false;
 }
 
@@ -325,8 +325,8 @@ void OLEDDisplay::showBootProgress(const char* stage, uint8_t step, uint8_t tota
     info.bootStage[sizeof(info.bootStage) - 1] = '\0';
     info.bootStep = step;
     info.bootTotalSteps = totalSteps;
-    needsRedraw_ = true;  // Must set explicitly — update() returns early if false
-    update();  // Render immediately — we're in setup(), no main loop yet
+    needsRedraw_ = true;  // Must set explicitly  -  update() returns early if false
+    update();  // Render immediately  -  we're in setup(), no main loop yet
 }
 
 void OLEDDisplay::showScanningStatus(const char* frequency, uint8_t sf, uint8_t configIndex, uint8_t totalConfigs) {

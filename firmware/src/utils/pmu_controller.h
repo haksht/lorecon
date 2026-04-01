@@ -1,5 +1,5 @@
 /**
- * PMU Controller — AXP2101 Power Management for T-Beam Supreme
+ * PMU Controller  -  AXP2101 Power Management for T-Beam Supreme
  *
  * The T-Beam Supreme uses an AXP2101 PMIC to power all peripherals.
  * NOTHING works (radio, GPS, SD, display) unless the PMIC is initialized
@@ -8,11 +8,11 @@
  * PMIC I2C bus: SDA=42, SCL=41 (separate from display I2C at 17/18)
  *
  * Channel assignments:
- *   ALDO1 → 3300 mV  display + onboard sensors
- *   ALDO2 → 3300 mV  additional sensors
- *   ALDO3 → 3300 mV  SX1262 LoRa radio (also provides TCXO reference)
- *   ALDO4 → 3300 mV  GPS module (L76K / MAX-M10S)
- *   BLDO1 → 3300 mV  SD card
+ *   ALDO1 -> 3300 mV  display + onboard sensors
+ *   ALDO2 -> 3300 mV  additional sensors
+ *   ALDO3 -> 3300 mV  SX1262 LoRa radio (also provides TCXO reference)
+ *   ALDO4 -> 3300 mV  GPS module (L76K / MAX-M10S)
+ *   BLDO1 -> 3300 mV  SD card
  *
  * Only compiled when HAS_AXP2101 is defined.
  */

@@ -14,7 +14,7 @@
 class PSKTests {
 public:
     static void runAll() {
-        Serial.println("\n🧪 PSK DECRYPTION TEST SUITE");
+        Serial.println("\n PSK DECRYPTION TEST SUITE");
         Serial.println("============================\n");
         
         int passed = 0;
@@ -25,7 +25,7 @@ public:
         passed += testDefaultPSKs(); total++;
         passed += testMessageExtraction(); total++;
         
-        Serial.printf("\n📊 Test Results: %d/%d passed (%.1f%%)\n\n",
+        Serial.printf("\n Test Results: %d/%d passed (%.1f%%)\n\n",
                       passed, total, (float)passed/total * 100.0);
     }
     
@@ -38,12 +38,12 @@ private:
         
         if (PSKDecryption::decodeBase64(testKey, output, sizeof(output))) {
             if (output[0] == 0x01) {
-                Serial.println("✅ PASS");
+                Serial.println("[OK] PASS");
                 return 1;
             }
         }
         
-        Serial.println("❌ FAIL");
+        Serial.println("[FAIL] FAIL");
         return 0;
     }
     
@@ -61,11 +61,11 @@ private:
         // Should detect as Meshtastic
         if (packet[0] == 0xFF && packet[1] == 0xFF && 
             packet[2] == 0xFF && packet[3] == 0xFF) {
-            Serial.println("✅ PASS");
+            Serial.println("[OK] PASS");
             return 1;
         }
         
-        Serial.println("❌ FAIL");
+        Serial.println("[FAIL] FAIL");
         return 0;
     }
     
@@ -74,11 +74,11 @@ private:
         
         // Verify PSK database is accessible - use Config constant, not hardcoded value
         if (PSKDecryption::getDefaultPSKCount() == Config::PSK::NUM_DEFAULT_KEYS) {
-            Serial.println("✅ PASS");
+            Serial.println("[OK] PASS");
             return 1;
         }
         
-        Serial.printf("❌ FAIL (expected %d, got %d)\n", 
+        Serial.printf("[FAIL] FAIL (expected %d, got %d)\n", 
             Config::PSK::NUM_DEFAULT_KEYS, PSKDecryption::getDefaultPSKCount());
         return 0;
     }
@@ -99,11 +99,11 @@ private:
         }
         
         if (found) {
-            Serial.println("✅ PASS");
+            Serial.println("[OK] PASS");
             return 1;
         }
         
-        Serial.println("❌ FAIL");
+        Serial.println("[FAIL] FAIL");
         return 0;
     }
 };

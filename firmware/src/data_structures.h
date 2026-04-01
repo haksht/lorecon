@@ -116,9 +116,9 @@ struct ScanState {
   std::atomic<bool> packetPending;       // Written by API task, read by main loop
   uint8_t lastPacket[Config::PacketProcessing::MAX_PACKET_SIZE];  // Raw binary packet bytes
   size_t lastPacketLength;           // Track actual length
-  // NOTE: lastPacket/lastPacketLength are NOT atomic — all readers AND writers must
+  // NOTE: lastPacket/lastPacketLength are NOT atomic  -  all readers AND writers must
   // hold ReconState::ScopedLock. See packet_processor.cpp and command_handler.cpp.
-  uint32_t reconStartTime;           // Set once before tasks start — no race
+  uint32_t reconStartTime;           // Set once before tasks start  -  no race
   std::atomic<bool> waitingForUserInput; // Written by API task, read by main loop
 };
 
@@ -149,7 +149,7 @@ struct GeoPoint {
 
 // Anomaly types
 enum class AnomalyType : uint8_t {
-    PACKET_SIZE_OUTLIER,      // Packet size >2σ from mean
+    PACKET_SIZE_OUTLIER,      // Packet size >2sigma from mean
     EXCESSIVE_RELAY_HOPS,     // >5 relay hops detected
     RATE_VIOLATION,           // >20 packets/min
     RSSI_INCONSISTENCY,       // Same node, wildly different RSSI

@@ -94,7 +94,7 @@ bool WebServer::begin(IReconTool* tool, uint16_t port) {
     DefaultHeaders::Instance().addHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
     DefaultHeaders::Instance().addHeader("Access-Control-Allow-Headers", "Content-Type, " + String(Config::Security::AUTH_HEADER));
     // Force browsers to revalidate cached files on each request.
-    // Local device on LAN — latency is negligible, prevents stale JS/CSS after OTA updates.
+    // Local device on LAN  -  latency is negligible, prevents stale JS/CSS after OTA updates.
     DefaultHeaders::Instance().addHeader("Cache-Control", "no-cache");
     
     // Initialize API security
@@ -105,13 +105,13 @@ bool WebServer::begin(IReconTool* tool, uint16_t port) {
         dnsServer = new DNSServer();
         dnsServer->setErrorReplyCode(DNSReplyCode::NoError);
         dnsServer->start(53, "*", WiFi.softAPIP());
-        LOG_INFO("✓ Captive portal DNS started (all domains → %s)", WiFi.softAPIP().toString().c_str());
+        LOG_INFO("+ Captive portal DNS started (all domains -> %s)", WiFi.softAPIP().toString().c_str());
     }
     
     // Start server
     server->begin();
     
-    LOG_INFO("✓ Web server started on port %d", port);
+    LOG_INFO("+ Web server started on port %d", port);
     LOG_INFO("  REST API: http://<ip>/api/");
     LOG_INFO("  WebSocket: ws://<ip>/ws");
     LOG_INFO("  Web App: http://<ip>/");
@@ -358,7 +358,7 @@ void WebServer::setupRoutes() {
         request->send(200, "application/json", JsonUtils::healthOk());
     });
     
-    // Token retrieval — AP subnet clients get unconditional access (physical proximity);
+    // Token retrieval  -  AP subnet clients get unconditional access (physical proximity);
     // auto-trusted LAN clients (STA/AP_STA mode, private network) also receive the token
     // since they already have full API access via isAuthenticated().
     server->on("/api/auth/token", HTTP_GET, [](AsyncWebServerRequest* request) {
@@ -393,7 +393,7 @@ void WebServer::setupRoutes() {
         request->send(200, "application/json", json);
     });
     
-    LOG_INFO("✓ REST API routes configured");
+    LOG_INFO("+ REST API routes configured");
 }
 
 /**
@@ -401,7 +401,7 @@ void WebServer::setupRoutes() {
  */
 void WebServer::setupWebSocket() {
     ws->onEvent(handleWebSocketEvent);
-    LOG_INFO("✓ WebSocket configured at /ws");
+    LOG_INFO("+ WebSocket configured at /ws");
 }
 
 /**
@@ -462,7 +462,7 @@ void WebServer::serveStaticFiles() {
         request->send(LittleFS, "/webapp/index.html", "text/html");
     });
     
-    LOG_INFO("✓ Static file serving configured");
+    LOG_INFO("+ Static file serving configured");
 }
 
 // =============================================================================

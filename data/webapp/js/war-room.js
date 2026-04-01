@@ -132,7 +132,7 @@ class WarRoom {
 
         const html = `
             <div class="war-room-dashboard">
-                ${isTargeted ? '<div class="war-room-alert">🎯 In Targeting Mode <button class="btn btn-primary btn-sm" data-action="stop-capture">↩ Resume Scan</button></div>' : ''}
+                ${isTargeted ? '<div class="war-room-alert">🎯 In Targeting Mode</div>' : ''}
 
                 <div class="war-room-metrics">
                     <div class="war-metric-card">

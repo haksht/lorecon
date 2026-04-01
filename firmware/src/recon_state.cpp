@@ -75,10 +75,10 @@ ReconState::ReconState() : repoMutex_(nullptr) {
 bool ReconState::lock(uint32_t timeoutMs) const {
     if (!repoMutex_) {
         // Mutex creation failed at construction time (OOM).  State is completely
-        // unprotected — report once so the problem is visible in serial output.
+        // unprotected  -  report once so the problem is visible in serial output.
         static bool reported = false;
         if (!reported) {
-            Serial.println("[CRITICAL] ReconState mutex was never created — all state unprotected!");
+            Serial.println("[CRITICAL] ReconState mutex was never created  -  all state unprotected!");
             reported = true;
         }
         return false;

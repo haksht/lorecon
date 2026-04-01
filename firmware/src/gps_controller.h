@@ -37,11 +37,11 @@ public:
 
     /**
      * Drain the GPS UART buffer into TinyGPS++.
-     * Non-blocking — call every main loop iteration.
+     * Non-blocking  -  call every main loop iteration.
      */
     void update();
 
-    // Note: none of these are const — TinyGPS++ accessors mutate internal state.
+    // Note: none of these are const  -  TinyGPS++ accessors mutate internal state.
 
     /** True if GPS has a valid location fix with age < 5 seconds */
     bool hasFix();
@@ -62,7 +62,7 @@ public:
     uint32_t getAge();
 
     /**
-     * True if GPS HDOP is reasonable (< 5.0) — indicates good geometry.
+     * True if GPS HDOP is reasonable (< 5.0)  -  indicates good geometry.
      * Use alongside hasFix() for quality-gated packet tagging.
      */
     bool hasGoodFix();
@@ -75,7 +75,7 @@ private:
     // Baud rate: 9600 (L76K default), pins from Config::Hardware
 };
 
-// Global singleton — set by lora_recon_tool.cpp after initialization
+// Global singleton  -  set by lora_recon_tool.cpp after initialization
 extern GpsController* g_gpsController;
 
 #endif // HAS_GPS

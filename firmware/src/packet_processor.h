@@ -36,7 +36,7 @@ struct PacketEvent {
 };
 
 /**
- * Static ring buffer for packet queue — zero heap allocations.
+ * Static ring buffer for packet queue  -  zero heap allocations.
  * Replaces std::queue<QueuedPacket> which used std::deque internally,
  * causing heap fragmentation over days of continuous operation.
  */
@@ -99,7 +99,7 @@ public:
     ProtocolAnalyzer& getProtocolAnalyzer() { return protocolAnalyzer; }
 
 private:
-    // Static ring buffer — no heap allocations, no fragmentation
+    // Static ring buffer  -  no heap allocations, no fragmentation
     StaticRingBuffer<QueuedPacket, Config::PacketProcessing::QUEUE_SIZE> packetQueue;
 
     // Last packet storage (static buffer instead of vector)
