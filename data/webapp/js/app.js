@@ -502,9 +502,8 @@ class ReconApp {
         this.ws = null;
         this.wsRetryCount = 0;
 
-        // Device filter/sort state (persists across tab refreshes)
+        // Device sort state (persists across tab refreshes)
         this.allDevices = null;
-        this.deviceFilter = { text: '', protocol: 'all', risk: 'all' };
         this.deviceSort = { col: 'securityScore', dir: 'asc' };
 
         // War room event tracking (detect mode/device-count changes)
@@ -871,49 +870,13 @@ class ReconApp {
 
             this.allDevices = data.devices;
 
-            // On subsequent refreshes the filter bar already exists — only re-render
-            // the table so the search input is never destroyed/recreated (avoids mobile
-            // Firefox raising the keyboard every 15 s when the new <input> appears).
-            if (document.getElementById('device-search')) {
-                const countEl = document.getElementById('devices-header-count');
-                if (countEl) countEl.textContent = `${this.allDevices.length} device${this.allDevices.length !== 1 ? 's' : ''}`;
-                this.renderDeviceTable();
-                return;
-            }
-
-            // First render: build full header + filter bar + table skeleton.
-            const protocols = [...new Set(this.allDevices.map(d => d.protocol || 'Unknown'))].sort();
-            const protoOptions = protocols.map(p =>
-                `<option value="${escapeHtml(p)}" ${this.deviceFilter.protocol === p ? 'selected' : ''}>${escapeHtml(p)}</option>`
-            ).join('');
-
             this.el.devicesContent.innerHTML = `
                 <div class="devices-header" aria-hidden="true">
                     <span class="devices-title">Discovered Devices</span>
-                    <span class="devices-count" id="devices-header-count">${this.allDevices.length} device${this.allDevices.length !== 1 ? 's' : ''}</span>
-                </div>
-                <div class="device-filter-bar">
-                    <input type="text" id="device-search" class="filter-input" placeholder="Search Node ID…" value="${escapeHtml(this.deviceFilter.text)}">
-                    <select id="device-proto-filter" class="filter-select">
-                        <option value="all">All Protocols</option>
-                        ${protoOptions}
-                    </select>
-                    <select id="device-risk-filter" class="filter-select">
-                        <option value="all">All Risk</option>
-                        <option value="vulnerable" ${this.deviceFilter.risk === 'vulnerable' ? 'selected' : ''}>High Risk</option>
-                        <option value="moderate"   ${this.deviceFilter.risk === 'moderate'   ? 'selected' : ''}>Medium</option>
-                        <option value="secure"     ${this.deviceFilter.risk === 'secure'     ? 'selected' : ''}>Low Risk</option>
-                        <option value="unknown"    ${this.deviceFilter.risk === 'unknown'    ? 'selected' : ''}>Unknown</option>
-                    </select>
-                    <span class="filter-count" id="device-filter-count"></span>
+                    <span class="devices-count">${this.allDevices.length} device${this.allDevices.length !== 1 ? 's' : ''}</span>
                 </div>
                 <div id="device-table-wrapper"></div>`;
 
-            // Prevent mobile browsers (Firefox Android) from auto-focusing the
-            // newly-injected search input and raising the soft keyboard.
-            document.getElementById('device-search')?.blur();
-
-            this.setupDeviceFilterHandlers();
             this.renderDeviceTable();
 
         } catch (error) {
