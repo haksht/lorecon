@@ -302,6 +302,17 @@ const CardRenderer = {
  * @namespace ModalRenderer
  */
 const ModalRenderer = {
+    /** Shared modal shell — header/body/footer wrapper */
+    _buildModal(id, titleClass, title, body, footer) {
+        return `<div class="modal-backdrop" id="${id}">
+            <div class="modal-box">
+                <div class="modal-header-section"><h3 class="${titleClass}">${title}</h3></div>
+                <div class="modal-body-section">${body}</div>
+                <div class="modal-footer-section">${footer}</div>
+            </div>
+        </div>`;
+    },
+
     /**
      * Create modal HTML structure
      * @param {string} id - Unique modal ID for targeting
@@ -309,23 +320,12 @@ const ModalRenderer = {
      * @param {string} content - Modal body HTML content
      * @param {string} [titleColor='text-primary'] - CSS class for title color
      * @returns {string} Complete modal HTML string
-     * @example
-     * const html = ModalRenderer.create('my-modal', 'Settings', '<p>Content</p>');
      */
     create(id, title, content, titleColor = 'text-primary') {
-        return `<div class="modal-backdrop" id="${id}">
-            <div class="modal-box">
-                <div class="modal-header-section">
-                    <h3 class="${titleColor}">${title}</h3>
-                </div>
-                <div class="modal-body-section">${content}</div>
-                <div class="modal-footer-section">
-                    <button onclick="document.getElementById('${id}').remove()" class="btn btn-primary">Close</button>
-                </div>
-            </div>
-        </div>`;
+        return this._buildModal(id, titleColor, title, content,
+            `<button onclick="document.getElementById('${id}').remove()" class="btn btn-primary">Close</button>`);
     },
-    
+
     /**
      * Show a modal by injecting HTML into DOM
      * Automatically sets up backdrop click to close
@@ -356,22 +356,13 @@ const ModalRenderer = {
         return new Promise((resolve) => {
             const id = 'prompt-modal-' + Date.now();
             const inputId = 'prompt-input-' + Date.now();
-            const html = `<div class="modal-backdrop" id="${id}">
-                <div class="modal-box">
-                    <div class="modal-header-section">
-                        <h3 class="text-primary">${title}</h3>
-                    </div>
-                    <div class="modal-body-section">
-                        <p>${message}</p>
-                        <input type="${inputType}" id="${inputId}" class="modal-input" placeholder="${placeholder}"
-                            style="width:100%;margin-top:12px;padding:8px;background:var(--bg-secondary);border:1px solid var(--border);border-radius:var(--radius);color:var(--text-primary);font-size:0.95rem;">
-                    </div>
-                    <div class="modal-footer-section">
-                        <button data-confirm="cancel" class="btn btn-secondary">Cancel</button>
-                        <button data-confirm="ok" class="btn btn-primary">OK</button>
-                    </div>
-                </div>
-            </div>`;
+            const html = this._buildModal(id, 'text-primary', title,
+                `<p>${message}</p>
+                <input type="${inputType}" id="${inputId}" class="modal-input" placeholder="${placeholder}"
+                    style="width:100%;margin-top:12px;padding:8px;background:var(--bg-secondary);border:1px solid var(--border);border-radius:var(--radius);color:var(--text-primary);font-size:0.95rem;">`,
+                `<button data-confirm="cancel" class="btn btn-secondary">Cancel</button>
+                <button data-confirm="ok" class="btn btn-primary">OK</button>`
+            );
 
             const container = document.createElement('div');
             container.innerHTML = html;
@@ -416,18 +407,11 @@ const ModalRenderer = {
     confirm(title, message, confirmLabel = 'Confirm') {
         return new Promise((resolve) => {
             const id = 'confirm-modal-' + Date.now();
-            const html = `<div class="modal-backdrop" id="${id}">
-                <div class="modal-box">
-                    <div class="modal-header-section">
-                        <h3 class="text-warning">${title}</h3>
-                    </div>
-                    <div class="modal-body-section"><p>${message}</p></div>
-                    <div class="modal-footer-section">
-                        <button data-confirm="cancel" class="btn btn-secondary">Cancel</button>
-                        <button data-confirm="ok" class="btn btn-primary">${confirmLabel}</button>
-                    </div>
-                </div>
-            </div>`;
+            const html = this._buildModal(id, 'text-warning', title,
+                `<p>${message}</p>`,
+                `<button data-confirm="cancel" class="btn btn-secondary">Cancel</button>
+                <button data-confirm="ok" class="btn btn-primary">${confirmLabel}</button>`
+            );
 
             const container = document.createElement('div');
             container.innerHTML = html;
@@ -611,9 +595,7 @@ class ReconApp {
         // Update sidebar stats
         if (this.el.mode) {
             if (isTargeted && data.target && data.target.frequency) {
-                const cfgIdx = data.target.configIndex;
-                const cfgSuffix = cfgIdx !== undefined ? ` #${cfgIdx}` : '';
-                this.el.mode.textContent = `🎯 ${data.target.frequency.toFixed(3)} MHz${cfgSuffix}`;
+                this.el.mode.textContent = `🎯 ${this.formatTargetLabel(data.target, 'short')}`;
             } else {
                 this.el.mode.textContent = '🔍 Scanning';
             }
@@ -640,10 +622,8 @@ class ReconApp {
         if (this.currentTab === 'info') {
             if (this.el.infoTargetingNotice) {
                 if (isTargeted && data.target && data.target.frequency) {
-                    const cfgIdx = data.target.configIndex;
-                    const cfgSuffix = cfgIdx !== undefined ? ` (config #${cfgIdx})` : '';
                     if (this.el.infoTargetingFreq) {
-                        this.el.infoTargetingFreq.textContent = `${data.target.frequency.toFixed(3)} MHz${cfgSuffix}`;
+                        this.el.infoTargetingFreq.textContent = this.formatTargetLabel(data.target);
                     }
                     this.el.infoTargetingNotice.style.display = '';
                 } else {
@@ -710,10 +690,8 @@ class ReconApp {
         if (!this.el.targetingBar) return;
         const isTargeted = isTargetedMode(data.mode);
         if (isTargeted && data.target && data.target.frequency) {
-            const cfgIdx = data.target.configIndex;
-            const cfgSuffix = cfgIdx !== undefined ? ` (config #${cfgIdx})` : '';
             if (this.el.targetingBarFreq) {
-                this.el.targetingBarFreq.textContent = `${data.target.frequency.toFixed(3)} MHz${cfgSuffix}`;
+                this.el.targetingBarFreq.textContent = this.formatTargetLabel(data.target);
             }
             this.el.targetingBar.style.display = '';
         } else {
@@ -809,11 +787,7 @@ class ReconApp {
     }
 
     // ============ Tab Content Loaders ============
-    // Each show* method handles loading and rendering for one tab.
-    // Tab handlers: showDevices (line ~581), showPackets (line ~693), 
-    //               showNetwork (line ~858), showStats (line ~958),
-    //               showInfo (line ~1059), showSettings (line ~1254)
-    
+
     /**
      * Fetch devices enriched with security scores from /api/recon/security.
      * Shared by showDevices() and showNetwork() to avoid duplicate fetches.
@@ -1675,8 +1649,16 @@ class ReconApp {
         }
         
         // Setup OTA form handlers
-        this.setupOTAUpload();
-        this.setupFilesystemUpload();
+        this.setupOTAForm({
+            formId: 'ota-form', fileInputId: 'firmware-file', btnId: 'ota-upload-btn',
+            progressId: 'ota-progress', progressBarId: 'ota-progress-bar', progressTextId: 'ota-progress-text',
+            fieldName: 'firmware', endpoint: '/api/firmware/upload', maxSizeMB: 4, label: 'Firmware'
+        });
+        this.setupOTAForm({
+            formId: 'ota-fs-form', fileInputId: 'filesystem-file', btnId: 'ota-fs-upload-btn',
+            progressId: 'ota-fs-progress', progressBarId: 'ota-fs-progress-bar', progressTextId: 'ota-fs-progress-text',
+            fieldName: 'filesystem', endpoint: '/api/filesystem/upload', maxSizeMB: 2, label: 'Filesystem'
+        });
         this.setupAPPasswordForm();
 
         // Show stored token
@@ -1695,18 +1677,17 @@ class ReconApp {
             }
             if (section) section.style.display = '';
             const s = data.storage;
-            const setEl = (id, text) => { const el = document.getElementById(id); if (el) el.textContent = text; };
-            setEl('sd-type', s.type);
-            setEl('sd-total', this.formatStorageMB(s.totalMB));
-            setEl('sd-used', this.formatStorageMB(s.usedMB));
-            setEl('sd-free', this.formatStorageMB(s.freeMB));
+            this._setElText('sd-type', s.type);
+            this._setElText('sd-total', this.formatStorageMB(s.totalMB));
+            this._setElText('sd-used', this.formatStorageMB(s.usedMB));
+            this._setElText('sd-free', this.formatStorageMB(s.freeMB));
             const pct = s.totalMB > 0 ? ((s.usedMB / s.totalMB) * 100).toFixed(1) : 0;
             const bar = document.getElementById('sd-usage-bar');
             if (bar) {
                 bar.style.width = pct + '%';
                 bar.style.background = pct > 90 ? 'var(--danger)' : pct > 75 ? 'var(--warning)' : 'var(--accent-primary)';
             }
-            setEl('sd-usage-text', pct + '% used');
+            this._setElText('sd-usage-text', pct + '% used');
         } catch (error) {
             DEBUG.warn('Failed to load SD storage:', error);
         }
@@ -1723,18 +1704,13 @@ class ReconApp {
             DEBUG.log('WiFi Status:', wifi);
             
             // Update WiFi status elements
-            const deviceIdEl = document.getElementById('wifi-device-id');
+            this._setElHTML('wifi-device-id', `<code class="code-inline">${escapeHtml(wifi.deviceId || '—')}</code>`);
+            this._setElHTML('wifi-ap-ssid',   `<code class="code-inline">${escapeHtml(wifi.apSSID || 'LoRa-XXXXXX')}</code>`);
+            this._setElText('wifi-ssid',   wifi.ssid || '—');
+            this._setElText('wifi-ip',     wifi.ip || '—');
+            this._setElText('wifi-stored', wifi.hasStoredCredentials ? wifi.storedSSID : 'None');
+
             const modeEl = document.getElementById('wifi-mode');
-            const ssidEl = document.getElementById('wifi-ssid');
-            const ipEl = document.getElementById('wifi-ip');
-            const rssiEl = document.getElementById('wifi-rssi');
-            const storedEl = document.getElementById('wifi-stored');
-            const apSsidEl = document.getElementById('wifi-ap-ssid');
-            
-            if (deviceIdEl) {
-                deviceIdEl.innerHTML = '<code class="code-inline">' + 
-                    escapeHtml(wifi.deviceId || '—') + '</code>';
-            }
             if (modeEl) {
                 if (wifi.mode === 'setup') {
                     modeEl.innerHTML = '<span class="text-warning">📱 Setup Mode (AP)</span>';
@@ -1744,32 +1720,17 @@ class ReconApp {
                     modeEl.textContent = wifi.wifiMode || 'AP';
                 }
             }
-            if (ssidEl) ssidEl.textContent = wifi.ssid || '—';
-            if (ipEl) ipEl.textContent = wifi.ip || '—';
-            if (rssiEl) {
-                if (wifi.wifiMode === 'STA' && wifi.rssi) {
-                    const rssiVal = wifi.rssi;
-                    const rssiClass = rssiVal > -60 ? 'text-success' : rssiVal > -75 ? 'text-warning' : 'text-danger';
-                    rssiEl.innerHTML = '<span class="' + rssiClass + '">' + rssiVal + ' dBm</span>';
-                } else {
-                    rssiEl.textContent = 'N/A';
-                }
+
+            if (wifi.wifiMode === 'STA' && wifi.rssi) {
+                const rssiClass = wifi.rssi > -60 ? 'text-success' : wifi.rssi > -75 ? 'text-warning' : 'text-danger';
+                this._setElHTML('wifi-rssi', `<span class="${rssiClass}">${wifi.rssi} dBm</span>`);
+            } else {
+                this._setElText('wifi-rssi', 'N/A');
             }
-            if (storedEl) {
-                storedEl.textContent = wifi.hasStoredCredentials ? wifi.storedSSID : 'None';
-            }
-            if (apSsidEl) {
-                apSsidEl.innerHTML = '<code class="code-inline">' + 
-                    escapeHtml(wifi.apSSID || 'LoRa-XXXXXX') + '</code>';
-            }
-            
+
             // Update button text based on connection state
-            const btnText = document.getElementById('wifi-setup-btn-text');
-            if (btnText) {
-                // STA or AP_STA means we're connected to a hotspot
-                const connectedToHotspot = wifi.wifiMode === 'STA' || wifi.wifiMode === 'AP_STA';
-                btnText.textContent = connectedToHotspot ? 'Change Hotspot' : 'Configure Hotspot';
-            }
+            const connectedToHotspot = wifi.wifiMode === 'STA' || wifi.wifiMode === 'AP_STA';
+            this._setElText('wifi-setup-btn-text', connectedToHotspot ? 'Change Hotspot' : 'Configure Hotspot');
             
             // Show setup banner if in setup mode
             this.updateSetupBanner(wifi.mode === 'setup', wifi.apSSID);
@@ -1863,146 +1824,39 @@ class ReconApp {
         }
     }
 
-    setupOTAUpload() {
-        const otaForm = document.getElementById('ota-form');
-        if (!otaForm || otaForm.dataset.initialized) return;
-        otaForm.dataset.initialized = 'true';
+    setupOTAForm({ formId, fileInputId, btnId, progressId, progressBarId, progressTextId, fieldName, endpoint, maxSizeMB, label }) {
+        const form = document.getElementById(formId);
+        if (!form || form.dataset.initialized) return;
+        form.dataset.initialized = 'true';
 
-        otaForm.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            
-            const fileInput = document.getElementById('firmware-file');
-            const file = fileInput.files[0];
-            
-            if (!file) {
-                showToast('Please select a firmware file', 'warning');
-                return;
-            }
-            
-            if (!file.name.endsWith('.bin')) {
-                showToast('Only .bin files are supported', 'error');
-                return;
-            }
-            
-            if (file.size > 4 * 1024 * 1024) {
-                showToast('Firmware file is too large (max 4MB)', 'error');
-                return;
-            }
-
-            const confirmed = await ModalRenderer.confirm(
-                'Upload Firmware',
-                'Upload firmware and reboot device? This will disconnect temporarily.',
-                'Upload & Reboot'
-            );
-            if (!confirmed) {
-                return;
-            }
-            
-            const uploadBtn = document.getElementById('ota-upload-btn');
-            const progressContainer = document.getElementById('ota-progress');
-            const progressBar = document.getElementById('ota-progress-bar');
-            const progressText = document.getElementById('ota-progress-text');
-            
-            try {
-                // Disable button and show progress
-                uploadBtn.disabled = true;
-                progressContainer.style.display = 'block';
-                
-                const formData = new FormData();
-                formData.append('firmware', file);
-                
-                const xhr = new XMLHttpRequest();
-                
-                xhr.upload.addEventListener('progress', (e) => {
-                    if (e.lengthComputable) {
-                        const percent = Math.round((e.loaded / e.total) * 100);
-                        progressBar.style.width = percent + '%';
-                        progressText.textContent = percent + '%';
-                    }
-                });
-                
-                xhr.addEventListener('load', () => {
-                    if (xhr.status === 200) {
-                        showToast('Firmware uploaded successfully! Device rebooting...', 'success');
-                        progressText.textContent = 'Rebooting...';
-                        
-                        // Wait 10 seconds then try to reconnect
-                        setTimeout(() => {
-                            window.location.reload();
-                        }, 10000);
-                    } else {
-                        showToast('Upload failed: HTTP ' + xhr.status, 'error');
-                        uploadBtn.disabled = false;
-                        progressContainer.style.display = 'none';
-                    }
-                });
-                
-                xhr.addEventListener('error', () => {
-                    showToast('Upload failed: Network error', 'error');
-                    uploadBtn.disabled = false;
-                    progressContainer.style.display = 'none';
-                });
-                
-                xhr.open('POST', '/api/firmware/upload');
-                const token = getStoredToken();
-                if (token) xhr.setRequestHeader('X-API-Token', token);
-                xhr.send(formData);
-                
-            } catch (error) {
-                showToast('Upload failed: ' + error.message, 'error');
-                uploadBtn.disabled = false;
-                progressContainer.style.display = 'none';
-            }
-        });
-    }
-
-    setupFilesystemUpload() {
-        const fsForm = document.getElementById('ota-fs-form');
-        if (!fsForm || fsForm.dataset.initialized) return;
-        fsForm.dataset.initialized = 'true';
-
-        fsForm.addEventListener('submit', async (e) => {
+        form.addEventListener('submit', async (e) => {
             e.preventDefault();
 
-            const fileInput = document.getElementById('filesystem-file');
-            const file = fileInput.files[0];
-
-            if (!file) {
-                showToast('Please select a filesystem file', 'warning');
-                return;
-            }
-
-            if (!file.name.endsWith('.bin')) {
-                showToast('Only .bin files are supported', 'error');
-                return;
-            }
-
-            if (file.size > 2 * 1024 * 1024) {
-                showToast('Filesystem file is too large (max 2MB)', 'error');
-                return;
-            }
+            const file = document.getElementById(fileInputId)?.files[0];
+            if (!file) { showToast(`Please select a ${label.toLowerCase()} file`, 'warning'); return; }
+            if (!file.name.endsWith('.bin')) { showToast('Only .bin files are supported', 'error'); return; }
+            if (file.size > maxSizeMB * 1024 * 1024) { showToast(`${label} file is too large (max ${maxSizeMB}MB)`, 'error'); return; }
 
             const confirmed = await ModalRenderer.confirm(
-                'Upload Filesystem',
-                'Upload filesystem and reboot device? This will disconnect temporarily.',
+                `Upload ${label}`,
+                `Upload ${label.toLowerCase()} and reboot device? This will disconnect temporarily.`,
                 'Upload & Reboot'
             );
             if (!confirmed) return;
 
-            const uploadBtn = document.getElementById('ota-fs-upload-btn');
-            const progressContainer = document.getElementById('ota-fs-progress');
-            const progressBar = document.getElementById('ota-fs-progress-bar');
-            const progressText = document.getElementById('ota-fs-progress-text');
+            const uploadBtn = document.getElementById(btnId);
+            const progressContainer = document.getElementById(progressId);
+            const progressBar = document.getElementById(progressBarId);
+            const progressText = document.getElementById(progressTextId);
 
             try {
                 uploadBtn.disabled = true;
                 progressContainer.style.display = 'block';
 
                 const formData = new FormData();
-                formData.append('filesystem', file);
+                formData.append(fieldName, file);
 
                 const xhr = new XMLHttpRequest();
-
                 xhr.upload.addEventListener('progress', (e) => {
                     if (e.lengthComputable) {
                         const percent = Math.round((e.loaded / e.total) * 100);
@@ -2010,10 +1864,9 @@ class ReconApp {
                         progressText.textContent = percent + '%';
                     }
                 });
-
                 xhr.addEventListener('load', () => {
                     if (xhr.status === 200) {
-                        showToast('Filesystem uploaded successfully! Device rebooting...', 'success');
+                        showToast(`${label} uploaded successfully! Device rebooting...`, 'success');
                         progressText.textContent = 'Rebooting...';
                         setTimeout(() => { window.location.reload(); }, 10000);
                     } else {
@@ -2022,14 +1875,12 @@ class ReconApp {
                         progressContainer.style.display = 'none';
                     }
                 });
-
                 xhr.addEventListener('error', () => {
                     showToast('Upload failed: Network error', 'error');
                     uploadBtn.disabled = false;
                     progressContainer.style.display = 'none';
                 });
-
-                xhr.open('POST', '/api/filesystem/upload');
+                xhr.open('POST', endpoint);
                 const token = getStoredToken();
                 if (token) xhr.setRequestHeader('X-API-Token', token);
                 xhr.send(formData);
@@ -2188,17 +2039,8 @@ class ReconApp {
         }
         showToast(`Exporting ${gpsData.positions.length} GPS location(s) as KML...`, 'info');
         try {
-            const response = await fetch('/api/export/kml');
-            if (!response.ok) { showToast('KML export failed: HTTP ' + response.status, 'error'); return; }
-            const blob = await response.blob();
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = 'lora-positions-' + Date.now() + '.kml';
-            document.body.appendChild(a);
-            a.click();
-            window.URL.revokeObjectURL(url);
-            a.remove();
+            const r = await this._fetchAndDownload('/api/export/kml', `lora-positions-${Date.now()}.kml`);
+            if (!r.ok) { showToast('KML export failed: HTTP ' + r.status, 'error'); return; }
             showToast('KML downloaded successfully', 'success');
         } catch (err) {
             showToast('KML export failed: ' + err.message, 'error');
@@ -2213,17 +2055,8 @@ class ReconApp {
         }
         showToast(`Exporting ${gpsData.positions.length} GPS location(s) as GeoJSON...`, 'info');
         try {
-            const response = await fetch('/api/export/geojson');
-            if (!response.ok) { showToast('GeoJSON export failed: HTTP ' + response.status, 'error'); return; }
-            const blob = await response.blob();
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = 'lora-positions-' + Date.now() + '.geojson';
-            document.body.appendChild(a);
-            a.click();
-            window.URL.revokeObjectURL(url);
-            a.remove();
+            const r = await this._fetchAndDownload('/api/export/geojson', `lora-positions-${Date.now()}.geojson`);
+            if (!r.ok) { showToast('GeoJSON export failed: HTTP ' + r.status, 'error'); return; }
             showToast('GeoJSON downloaded successfully', 'success');
         } catch (err) {
             showToast('GeoJSON export failed: ' + err.message, 'error');
@@ -2233,46 +2066,25 @@ class ReconApp {
     async actionExportCSV() {
         showToast('Downloading CSV log from SD card...', 'info');
         try {
-            const response = await fetch('/api/export/csv');
-            if (response.status === 404) {
-                const error = await response.json();
-                showToast(error.message || 'No CSV file available', 'error');
-            } else if (response.ok) {
-                const blob = await response.blob();
-                const url = window.URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = 'lora_capture_' + Date.now() + '.csv';
-                document.body.appendChild(a);
-                a.click();
-                window.URL.revokeObjectURL(url);
-                a.remove();
+            const r = await this._fetchAndDownload('/api/export/csv', `lora_capture_${Date.now()}.csv`);
+            if (r.status === 404) {
+                const err = await r.json();
+                showToast(err.message || 'No CSV file available', 'error');
+            } else if (r.ok) {
                 showToast('CSV downloaded successfully', 'success');
             } else {
-                showToast('CSV export failed: HTTP ' + response.status, 'error');
+                showToast('CSV export failed: HTTP ' + r.status, 'error');
             }
         } catch (err) {
             showToast('CSV download failed: ' + err.message, 'error');
         }
     }
-    
+
     async actionDownloadReport() {
         showToast('Downloading consolidated report...', 'info');
         try {
-            const response = await fetch('/api/export/report');
-            if (!response.ok) {
-                showToast('Failed to generate report: HTTP ' + response.status, 'error');
-                return;
-            }
-            const blob = await response.blob();
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = 'lora-recon-report-' + Date.now() + '.json';
-            document.body.appendChild(a);
-            a.click();
-            window.URL.revokeObjectURL(url);
-            a.remove();
+            const r = await this._fetchAndDownload('/api/export/report', `lora-recon-report-${Date.now()}.json`);
+            if (!r.ok) { showToast('Failed to generate report: HTTP ' + r.status, 'error'); return; }
             showToast('Report downloaded successfully', 'success');
         } catch (err) {
             showToast('Report download failed: ' + err.message, 'error');
@@ -2295,25 +2107,16 @@ class ReconApp {
     async actionExportPCAP() {
         showToast('Downloading PCAP capture...', 'info');
         try {
-            const response = await fetch('/api/export/pcap');
-            if (response.status === 404) {
-                const error = await response.json();
-                showToast(error.message || 'No PCAP file available', 'error');
-            } else if (response.status === 501) {
+            const r = await this._fetchAndDownload('/api/export/pcap', `lora_capture_${Date.now()}.pcap`);
+            if (r.status === 404) {
+                const err = await r.json();
+                showToast(err.message || 'No PCAP file available', 'error');
+            } else if (r.status === 501) {
                 showToast('PCAP export is disabled on this device', 'error');
-            } else if (response.ok) {
-                const blob = await response.blob();
-                const url = window.URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = 'lora_capture_' + Date.now() + '.pcap';
-                document.body.appendChild(a);
-                a.click();
-                window.URL.revokeObjectURL(url);
-                a.remove();
+            } else if (r.ok) {
                 showToast('PCAP downloaded successfully', 'success');
             } else {
-                showToast('PCAP export failed: HTTP ' + response.status, 'error');
+                showToast('PCAP export failed: HTTP ' + r.status, 'error');
             }
         } catch (err) {
             showToast('PCAP download failed: ' + err.message, 'error');
@@ -2520,6 +2323,25 @@ class ReconApp {
         }
     }
 
+    // Set text/HTML on an element by ID, silently skipping if element not found
+    _setElText(id, text) { const el = document.getElementById(id); if (el) el.textContent = text; }
+    _setElHTML(id, html) { const el = document.getElementById(id); if (el) el.innerHTML = html; }
+
+    // Fetch a URL and trigger a browser download if response is ok.
+    // Returns the Response so callers can check status codes for custom error handling.
+    // NOTE: blob() is only consumed on success — callers may still call .json() on non-ok responses.
+    async _fetchAndDownload(url, filename) {
+        const response = await fetch(url);
+        if (response.ok) {
+            const blob = await response.blob();
+            const href = window.URL.createObjectURL(blob);
+            const a = Object.assign(document.createElement('a'), { href, download: filename });
+            document.body.appendChild(a); a.click();
+            window.URL.revokeObjectURL(href); a.remove();
+        }
+        return response;
+    }
+
     async post(endpoint, body = {}, retry = true) {
         const formData = new URLSearchParams();
         Object.entries(body).forEach(([key, value]) => {
@@ -2598,6 +2420,15 @@ class ReconApp {
         if (bytes < 1024) return bytes + ' B';
         if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
         return (bytes / 1048576).toFixed(1) + ' MB';
+    }
+
+    // Format a targeting label: "915.000 MHz #3" (short) or "915.000 MHz (config #3)" (long)
+    formatTargetLabel(target, style = 'long') {
+        const cfgIdx = target.configIndex;
+        const suffix = cfgIdx !== undefined
+            ? (style === 'short' ? ` #${cfgIdx}` : ` (config #${cfgIdx})`)
+            : '';
+        return `${target.frequency.toFixed(3)} MHz${suffix}`;
     }
 }
 
