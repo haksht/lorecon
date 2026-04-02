@@ -64,7 +64,7 @@ class SecurityAssessment:
     
     def load_csv(self, filepath):
         """Load data from CSV capture file"""
-        with open(filepath, 'r') as f:
+        with open(filepath, 'r', encoding='utf-8') as f:
             reader = csv.DictReader(f)
             for row in reader:
                 self._process_row(row)
@@ -155,45 +155,55 @@ class SecurityAssessment:
         total_decrypted = sum(self.psk_success.values())
         if total_decrypted > 0:
             psk_names = list(self.psk_success.keys())
+            # List node IDs that were decrypted with default keys
+            vuln_nodes = sorted(nid for nid, d in self.devices.items() if d['psk_used'])
+            node_list = ', '.join(f'`{n}`' for n in vuln_nodes[:8])
+            if len(vuln_nodes) > 8:
+                node_list += f' (+{len(vuln_nodes) - 8} more)'
             self.findings.append({
                 'severity': 'HIGH',
                 'title': 'Default PSK Encryption Detected',
-                'description': f'{total_decrypted} packets decrypted with known default keys: {", ".join(psk_names)}',
+                'description': (
+                    f'{total_decrypted} packets decrypted with known default keys: '
+                    f'{", ".join(psk_names)}. '
+                    f'Affected nodes: {node_list}'
+                ),
                 'recommendation': 'Configure unique channel PSKs. Do not use factory defaults.',
                 'cwe': 'CWE-1392: Use of Default Credentials',
             })
-        
+
         # Check for legacy admin key
-        if 'ADMIN CHANNEL' in str(self.psk_success.keys()):
+        if any('admin' in k.lower() for k in self.psk_success):
+            admin_nodes = sorted(
+                nid for nid, d in self.devices.items()
+                if any('admin' in p.lower() for p in d['psk_used'])
+            )
+            node_list = ', '.join(f'`{n}`' for n in admin_nodes)
             self.findings.append({
                 'severity': 'CRITICAL',
                 'title': 'Legacy Admin Key Vulnerability',
-                'description': 'Devices using pre-2.5 admin channel default key detected. Remote configuration attack possible.',
+                'description': (
+                    f'Devices using pre-2.5 admin channel default key detected — '
+                    f'remote configuration attack possible. '
+                    f'Node(s): {node_list}'
+                ),
                 'recommendation': 'Update firmware to 2.5+ and regenerate admin channel key.',
                 'cwe': 'CWE-798: Use of Hard-coded Credentials',
             })
-        
+
         # Check for unencrypted traffic
-        unencrypted_devices = [nid for nid, d in self.devices.items() 
+        unencrypted_devices = [nid for nid, d in self.devices.items()
                                if d['encrypted_count'] == 0 and d['packets'] > 0]
         if unencrypted_devices:
+            node_list = ', '.join(f'`{n}`' for n in sorted(unencrypted_devices)[:8])
+            if len(unencrypted_devices) > 8:
+                node_list += f' (+{len(unencrypted_devices) - 8} more)'
             self.findings.append({
                 'severity': 'MEDIUM',
                 'title': 'Unencrypted Traffic Detected',
-                'description': f'{len(unencrypted_devices)} devices transmitting without encryption.',
+                'description': f'{len(unencrypted_devices)} devices transmitting without encryption: {node_list}',
                 'recommendation': 'Enable channel encryption on all devices.',
                 'cwe': 'CWE-319: Cleartext Transmission of Sensitive Information',
-            })
-        
-        # Check for GPS position exposure
-        gps_devices = [nid for nid, d in self.devices.items() if d['has_gps']]
-        if gps_devices:
-            self.findings.append({
-                'severity': 'MEDIUM',
-                'title': 'GPS Position Broadcast Exposure',
-                'description': f'{len(gps_devices)} devices broadcasting GPS coordinates.',
-                'recommendation': 'Disable position broadcasts if operational security required.',
-                'cwe': 'CWE-359: Exposure of Private Personal Information',
             })
         
         # Check for high-value targets (routers, base stations)
@@ -282,27 +292,28 @@ class SecurityAssessment:
         # Device Inventory
         lines.append("## Device Inventory")
         lines.append("")
-        lines.append("| Node ID | Protocol | Packets | Avg RSSI | Encrypted | GPS |")
-        lines.append("|---------|----------|---------|----------|-----------|-----|")
-        
-        for node_id, data in sorted(self.devices.items(), 
+        lines.append("| Node ID | Protocol | Packets | Avg RSSI | Encrypted | PSK | GPS |")
+        lines.append("|---------|----------|---------|----------|-----------|-----|-----|")
+
+        for node_id, data in sorted(self.devices.items(),
                                     key=lambda x: x[1]['packets'], reverse=True):
             proto = ', '.join(data['protocols'])
             avg_rssi = mean(data['rssi_values']) if data['rssi_values'] else 'N/A'
             if isinstance(avg_rssi, float):
                 avg_rssi = f"{avg_rssi:.1f}"
-            encrypted = '✅' if data['encrypted_count'] > 0 else '❌'
-            gps = '📍' if data['has_gps'] else ''
-            lines.append(f"| {node_id} | {proto} | {data['packets']} | {avg_rssi} | {encrypted} | {gps} |")
+            encrypted = 'yes' if data['encrypted_count'] > 0 else 'no'
+            psk_names = ', '.join(sorted(data['psk_used'])) if data['psk_used'] else ''
+            gps = 'yes' if data['has_gps'] else ''
+            lines.append(f"| `{node_id}` | {proto} | {data['packets']} | {avg_rssi} | {encrypted} | {psk_names} | {gps} |")
         lines.append("")
         
         # GPS Observations
         gps_devices = {nid: d for nid, d in self.devices.items() if d['has_gps'] and d['positions']}
         if gps_devices:
-            lines.append("## GPS Observations")
+            lines.append("## Capture Locations")
             lines.append("")
-            lines.append("The following devices broadcast GPS coordinates during the observation window.")
-            lines.append("Coordinates are extracted from unencrypted position packets.")
+            lines.append("GPS coordinates stamped by the sniffer device at packet receive time.")
+            lines.append("Each entry shows where the sniffer was when it heard packets from this device.")
             lines.append("")
             lines.append("| Node ID | Fixes | Lat Range | Lon Range |")
             lines.append("|---------|-------|-----------|-----------|")
@@ -314,8 +325,8 @@ class SecurityAssessment:
                     lat_str = f"{lats[0]:.6f}"
                     lon_str = f"{lons[0]:.6f}"
                 else:
-                    lat_str = f"{min(lats):.6f} – {max(lats):.6f}"
-                    lon_str = f"{min(lons):.6f} – {max(lons):.6f}"
+                    lat_str = f"{min(lats):.6f} to {max(lats):.6f}"
+                    lon_str = f"{min(lons):.6f} to {max(lons):.6f}"
                 lines.append(f"| {node_id} | {len(positions)} | {lat_str} | {lon_str} |")
             lines.append("")
 

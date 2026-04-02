@@ -583,29 +583,32 @@ def decode_varint(data: bytes, offset: int = 0) -> Tuple[int, int]:
 def parse_meshtastic_header(raw_data: bytes) -> Optional[Dict]:
     """
     Parse Meshtastic packet header (unencrypted part).
-    
+
     Header format (16 bytes):
-    - 4 bytes: Magic 0xFFFFFFFF
-    - 4 bytes: Node ID (sender, little-endian)
+    - 4 bytes: Destination node ID (0xFFFFFFFF = broadcast, otherwise specific node)
+    - 4 bytes: Source node ID (sender, little-endian)
     - 4 bytes: Packet ID (little-endian)
-    - 1 byte: Flags/hop limit
+    - 1 byte: Flags (hop_limit[2:0] | want_ack[3] | via_mqtt[4])
     - 1 byte: Channel hash
-    - 2 bytes: Reserved
+    - 2 bytes: Reserved/padding
     """
     if len(raw_data) < 16:
         return None
-    
-    # Check magic
-    if raw_data[0:4] != b'\xff\xff\xff\xff':
-        return None
-    
+
+    dest_raw = struct.unpack('<I', raw_data[0:4])[0]
     node_id = struct.unpack('<I', raw_data[4:8])[0]
+
+    # Sanity check: source node ID must be non-zero
+    if node_id == 0:
+        return None
+
     packet_id = struct.unpack('<I', raw_data[8:12])[0]
     flags = raw_data[12]
     channel_hash = raw_data[13]
-    
+
     return {
         'node_id': f"!{node_id:08x}",
+        'dest': f"!{dest_raw:08x}" if dest_raw != 0xFFFFFFFF else '!ffffffff',
         'packet_id': packet_id,
         'hop_limit': flags & 0x07,
         'want_ack': bool(flags & 0x08),
@@ -804,17 +807,42 @@ def load_csv(filepath: Path, try_decrypt: bool = True) -> List[Dict]:
         except Exception as e:
             print(f"[!] PSK decryption unavailable: {e}")
     
+    has_raw_column = None  # determined on first row
+
     with open(filepath, 'r', encoding='utf-8') as f:
         reader = csv.DictReader(f)
         for row in reader:
-            # Skip non-Meshtastic
+            # Process Meshtastic and Unknown rows (Unknown = directed Meshtastic
+            # packets that pcap_analyzer couldn't identify as broadcast)
             protocol = row.get('protocol', '').lower()
-            if protocol != 'meshtastic':
+            if protocol not in ('meshtastic', 'unknown'):
                 continue
-            
+
+            # Detect whether this CSV has raw packet bytes
+            if has_raw_column is None:
+                has_raw_column = bool(
+                    row.get('raw_hex') or row.get('raw') or row.get('data') or row.get('dataHex')
+                )
+                if not has_raw_column:
+                    print("[!] CSV has no raw packet column (raw_hex/data) — "
+                          "showing device inventory only (no routing topology)")
+
             # Get raw hex data
-            raw_hex = row.get('raw_hex', row.get('raw', row.get('data', '')))
+            raw_hex = row.get('raw_hex', row.get('raw', row.get('data', row.get('dataHex', ''))))
             if not raw_hex:
+                # Fallback: build a minimal node-seen record from CSV columns
+                node_id = row.get('node_id_hex', row.get('nodeId', row.get('node_id', '')))
+                if not node_id:
+                    continue
+                # Normalize to !xxxxxxxx format
+                nid = node_id[2:].lower() if node_id.lower().startswith('0x') else node_id.lower()
+                packet = {
+                    'timestamp_ms': int(row['timestamp_ms']) if row.get('timestamp_ms') else 0,
+                    'protocol': 'Meshtastic',
+                    'from': f"!{nid}",
+                    'rssi': float(row.get('rssi_dbm', row.get('rssi', -100)) or -100),
+                }
+                packets.append(packet)
                 continue
             
             try:
@@ -1012,89 +1040,72 @@ def monitor_live(host: str, analyzer: MeshTopologyAnalyzer, watch: bool = False)
 
 
 def generate_demo_topology(analyzer):
-    """Generate a realistic demo mesh network for presentations
-    
-    Creates a multi-hop mesh with:
-    - 2 gateway nodes (high connectivity)
-    - 4 relay nodes (medium connectivity)
-    - 6 edge nodes (low connectivity)
-    - Realistic traceroute paths
-    - SNR/neighbor relationships
+    """Generate a realistic demo mesh network for presentations.
+
+    Uses the same five canonical node IDs as DemoDataGenerator in
+    enhanced_live_visualizer.py so the audience recognises the same
+    devices across every demo step of the talk.
+
+    Network layout:
+      !a42b8c56  ROUTER   — gateway, highest connectivity
+      !401acd4e  PRESENTER— relay, presenter's own node
+      !598b29ce  ATTENDEE — relay, nearby attendee
+      !b3f42a10  MOBILE   — edge node (mobile)
+      !7c891def  HIDDEN   — edge node (low signal)
     """
     import random
-    
-    print("  🕸️  Generating demo mesh topology...\n")
-    
-    # Define network structure - simulates a neighborhood mesh
-    # Node ID, short_name, role, neighbors
+    rng = random.Random(42)
+
+    print("  Generating demo mesh topology...\n")
+
+    # Canonical nodes matching enhanced_live_visualizer.py DEMO_NODES
+    # (node_id, short_name, role, neighbors)
     nodes = [
-        # Gateway nodes - connected to many others
-        ("!aabbcc01", "GATE-1", "gateway", ["!aabbcc02", "!aabbcc03", "!aabbcc04", "!aabbcc05"]),
-        ("!aabbcc02", "GATE-2", "gateway", ["!aabbcc01", "!aabbcc03", "!aabbcc06", "!aabbcc07"]),
-        
-        # Relay nodes - connect gateways to edges
-        ("!aabbcc03", "RELAY-A", "relay", ["!aabbcc01", "!aabbcc02", "!aabbcc08", "!aabbcc09"]),
-        ("!aabbcc04", "RELAY-B", "relay", ["!aabbcc01", "!aabbcc05", "!aabbcc10"]),
-        ("!aabbcc05", "RELAY-C", "relay", ["!aabbcc01", "!aabbcc04", "!aabbcc11"]),
-        ("!aabbcc06", "RELAY-D", "relay", ["!aabbcc02", "!aabbcc07", "!aabbcc12"]),
-        
-        # Edge nodes - limited connectivity  
-        ("!aabbcc07", "EDGE-1", "edge", ["!aabbcc02", "!aabbcc06"]),
-        ("!aabbcc08", "EDGE-2", "edge", ["!aabbcc03"]),
-        ("!aabbcc09", "EDGE-3", "edge", ["!aabbcc03"]),
-        ("!aabbcc10", "EDGE-4", "edge", ["!aabbcc04"]),
-        ("!aabbcc11", "EDGE-5", "edge", ["!aabbcc05"]),
-        ("!aabbcc12", "EDGE-6", "edge", ["!aabbcc06"]),
+        ("!a42b8c56", "ROUTER",    "gateway", ["!401acd4e", "!598b29ce", "!b3f42a10", "!7c891def"]),
+        ("!401acd4e", "PRESENTER", "relay",   ["!a42b8c56", "!598b29ce", "!b3f42a10"]),
+        ("!598b29ce", "ATTENDEE",  "relay",   ["!a42b8c56", "!401acd4e", "!7c891def"]),
+        ("!b3f42a10", "MOBILE",    "edge",    ["!401acd4e", "!a42b8c56"]),
+        ("!7c891def", "HIDDEN",    "edge",    ["!598b29ce"]),
     ]
-    
+
     base_time = int(datetime.now().timestamp() * 1000)
-    
-    # Create nodes with neighbor info
+
     for node_id, short_name, role, neighbors in nodes:
         node = analyzer.get_or_create_node(node_id)
         node.short_name = short_name
-        node.update_seen(base_time + random.randint(0, 60000))
-        
-        # Mark gateway/edge status
+        node.update_seen(base_time + rng.randint(0, 60000))
+
         if role == "gateway":
             node.is_gateway = True
         elif role == "edge":
             node.is_edge = True
-        
-        # Add neighbor relationships
+
         for neighbor_id in neighbors:
-            snr = random.uniform(-5, 10)  # Realistic SNR range
+            snr = rng.uniform(-3, 9)
             analyzer.process_neighborinfo(
-                base_time + random.randint(0, 60000),
+                base_time + rng.randint(0, 60000),
                 node_id,
                 [{'node_id': neighbor_id, 'snr': snr}]
             )
-    
-    # Generate some traceroutes showing multi-hop paths
+
+    # Traceroutes demonstrating multi-hop paths through the mesh
     traceroutes = [
-        # Edge to edge via gateways
-        ("!aabbcc08", "!aabbcc12", ["!aabbcc03", "!aabbcc02", "!aabbcc06"]),  # 4 hops
-        ("!aabbcc11", "!aabbcc07", ["!aabbcc05", "!aabbcc01", "!aabbcc02"]),  # 4 hops
-        ("!aabbcc10", "!aabbcc09", ["!aabbcc04", "!aabbcc01", "!aabbcc03"]),  # 4 hops
-        
-        # Shorter paths
-        ("!aabbcc08", "!aabbcc09", ["!aabbcc03"]),  # 2 hops (same relay)
-        ("!aabbcc01", "!aabbcc07", ["!aabbcc02"]),  # 2 hops (gateway to edge)
-        ("!aabbcc04", "!aabbcc06", ["!aabbcc01", "!aabbcc02"]),  # 3 hops
-        
-        # Direct neighbors
-        ("!aabbcc01", "!aabbcc02", []),  # 1 hop (gateway to gateway)
-        ("!aabbcc03", "!aabbcc08", []),  # 1 hop (relay to edge)
+        ("!7c891def", "!b3f42a10", ["!598b29ce", "!a42b8c56", "!401acd4e"]),  # 4 hops
+        ("!b3f42a10", "!7c891def", ["!401acd4e", "!a42b8c56", "!598b29ce"]),  # 4 hops
+        ("!b3f42a10", "!598b29ce", ["!401acd4e"]),                             # 2 hops
+        ("!401acd4e", "!7c891def", ["!598b29ce"]),                             # 2 hops
+        ("!401acd4e", "!a42b8c56", []),                                        # 1 hop (direct)
+        ("!598b29ce", "!a42b8c56", []),                                        # 1 hop (direct)
     ]
-    
+
     for source, dest, route in traceroutes:
         analyzer.process_traceroute(
-            base_time + random.randint(0, 120000),
+            base_time + rng.randint(0, 120000),
             source, dest, route
         )
-    
-    print(f"  ✅ Created {len(analyzer.nodes)} nodes, {len(analyzer.edges)} links")
-    print(f"  📊 {len(traceroutes)} traceroute paths simulated\n")
+
+    print(f"  Created {len(analyzer.nodes)} nodes, {len(analyzer.edges)} links")
+    print(f"  {len(traceroutes)} traceroute paths simulated\n")
 
 
 def main():
@@ -1114,11 +1125,13 @@ Examples:
     
     parser.add_argument('input', nargs='?', help='Input file (CSV or PCAP)')
     parser.add_argument('--live', metavar='HOST',
-                       help='Monitor live from ESP32 at IP address')
+                       help='Connect to ESP32 WebSocket and build topology from live packets (replaces file input)')
     parser.add_argument('--watch', action='store_true',
-                       help='Continuous refresh in live mode')
+                       help='Auto-refresh the topology display after each packet (use with --live; without this, results print only on Ctrl+C)')
     parser.add_argument('--format', choices=['json', 'graphviz', 'ascii', 'networkx'],
                        default='ascii', help='Output format (default: ascii)')
+    parser.add_argument('--ascii', action='store_true',
+                       help='ASCII visualization (shorthand for --format ascii)')
     parser.add_argument('-o', '--output', help='Output file path')
     parser.add_argument('-v', '--verbose', action='store_true',
                        help='Verbose output')
@@ -1128,7 +1141,9 @@ Examples:
                        help='Demo mode: generate simulated mesh topology (no input needed)')
     
     args = parser.parse_args()
-    
+    if args.ascii:
+        args.format = 'ascii'
+
     analyzer = MeshTopologyAnalyzer(verbose=args.verbose)
     
     # Demo mode - generate synthetic mesh topology
@@ -1142,7 +1157,7 @@ Examples:
         elif args.format == 'json':
             output = json.dumps(analyzer.to_json(), indent=2)
             if args.output:
-                with open(args.output, 'w') as f:
+                with open(args.output, 'w', encoding='utf-8') as f:
                     f.write(output)
                 print(f"Saved to {args.output}")
             else:
@@ -1150,7 +1165,7 @@ Examples:
         elif args.format == 'graphviz':
             output = analyzer.to_graphviz()
             if args.output:
-                with open(args.output, 'w') as f:
+                with open(args.output, 'w', encoding='utf-8') as f:
                     f.write(output)
                 print(f"Saved to {args.output}")
                 print("Render with: dot -Tpng -o mesh.png", args.output)

@@ -448,8 +448,8 @@ def analyze_packets(packets):
             if len(positions) == 1:
                 print(f"   {node_id}: {lats[0]:.6f}, {lons[0]:.6f}")
             else:
-                lat_range = f"{min(lats):.6f} – {max(lats):.6f}"
-                lon_range = f"{min(lons):.6f} – {max(lons):.6f}"
+                lat_range = f"{min(lats):.6f} to {max(lats):.6f}"
+                lon_range = f"{min(lons):.6f} to {max(lons):.6f}"
                 print(f"   {node_id}: {len(positions)} fixes  lat {lat_range}  lon {lon_range}")
 
     # Packet sizes
@@ -467,7 +467,7 @@ def export_csv(packets, output_path):
                   'frequency_mhz', 'spreading_factor', 'bandwidth_hz', 'coding_rate',
                   'length', 'protocol', 'node_id', 'data_hex']
     
-    with open(output_path, 'w', newline='') as f:
+    with open(output_path, 'w', newline='', encoding='utf-8') as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames)
         writer.writeheader()
         

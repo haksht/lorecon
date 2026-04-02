@@ -394,7 +394,7 @@ def load_csv(filepath):
     import csv
     packets = []
     
-    with open(filepath, 'r') as f:
+    with open(filepath, 'r', encoding='utf-8') as f:
         reader = csv.DictReader(f)
         for row in reader:
             # Only audit packets the firmware identified as Meshtastic
@@ -467,6 +467,65 @@ def monitor_live(host, auditor, duration=None):
     ws.run_forever()
 
 
+def dramatic_key_scan(auditor, packets, no_color=False):
+    """Animate each PSK attempt with 50ms pacing — optimised for live demos.
+
+    For each packet, iterates the PSK database visually before calling
+    the real auditor. Shows MISS in gray and HIT in red with a bell,
+    then drops back to normal audit output.
+    """
+    import time
+
+    RED    = '' if no_color else '\033[91m'
+    GRAY   = '' if no_color else '\033[90m'
+    GREEN  = '' if no_color else '\033[92m'
+    YELLOW = '' if no_color else '\033[93m'
+    RESET  = '' if no_color else '\033[0m'
+    CLEAR  = '\r\033[K'
+
+    hits = {}    # psk_name -> risk
+    seen_hits = set()
+
+    print(f"\n{YELLOW}Scanning {len(packets)} packets against {len(PSK_DATABASE)} known PSKs...{RESET}\n")
+    time.sleep(0.3)
+
+    for pkt_idx, (pkt_data, timestamp) in enumerate(packets):
+        for psk_b64, psk_name, risk, description in PSK_DATABASE:
+            try:
+                key_bytes = __import__('base64').b64decode(psk_b64)
+            except Exception:
+                continue
+
+            # Animate attempt
+            label = f"{GRAY}  [{pkt_idx+1:3}/{len(packets)}] Testing {psk_name:<35} ...{RESET}"
+            print(label, end='', flush=True)
+            time.sleep(0.05)
+
+            # Check result
+            node_id = __import__('struct').unpack('<I', pkt_data[4:8])[0]
+            packet_id = __import__('struct').unpack('<I', pkt_data[8:12])[0]
+            encrypted = pkt_data[16:]
+            portnum = auditor.try_decrypt(encrypted, key_bytes, packet_id, node_id)
+
+            if portnum is not None:
+                color = RED if risk in ('CRITICAL', 'HIGH') else YELLOW
+                mark = '\a' if risk == 'CRITICAL' else ''  # bell on critical
+                print(f"{CLEAR}{color}  [{pkt_idx+1:3}/{len(packets)}] HIT  {psk_name:<35} [{risk}]{mark}{RESET}")
+                hits[psk_name] = risk
+                if psk_name not in seen_hits:
+                    seen_hits.add(psk_name)
+                    time.sleep(0.4)   # pause to let the audience read the hit
+                break
+            else:
+                print(CLEAR, end='', flush=True)
+
+    # Run the real audit quietly to populate auditor state
+    print(f"\n{GREEN}Scan complete. Running full audit...{RESET}\n")
+    time.sleep(0.2)
+    for pkt_data, timestamp in packets:
+        auditor.audit_packet(pkt_data, timestamp)
+
+
 def main():
     parser = argparse.ArgumentParser(
         description='PSK Vulnerability Auditor for Meshtastic Networks',
@@ -487,6 +546,8 @@ def main():
                        help='List all known PSKs in database')
     parser.add_argument('--demo', action='store_true',
                        help='Demo mode: simulated audit results (no input needed)')
+    parser.add_argument('--dramatic', action='store_true',
+                       help='Dramatic pacing: animate each key attempt (great for live demos)')
     
     args = parser.parse_args()
     
@@ -537,8 +598,25 @@ def main():
         auditor.unencrypted = 0
         auditor.failed = total_packets - vuln_packets
         
+        if args.dramatic:
+            # For demo mode, build a minimal packet list from the simulated findings
+            # so the dramatic scanner has something to animate against
+            import struct as _struct
+            import base64 as _b64
+            import random as _rng
+            demo_packets = []
+            for _psk_b64, _name, _risk, _desc in PSK_DATABASE[:6]:
+                # Craft a fake encrypted packet with valid Meshtastic header
+                _key = _b64.b64decode(_psk_b64)
+                _nid = _rng.randint(0x10000000, 0xFFFFFFFF)
+                _pid = _rng.randint(1, 0xFFFFFF)
+                _hdr = b'\xff\xff\xff\xff' + _struct.pack('<II', _nid, _pid) + b'\x03\x00\x00\x00'
+                _enc = bytes([_rng.randint(0, 255) for _ in range(24)])
+                demo_packets.append((_hdr + _enc, None))
+            dramatic_key_scan(auditor, demo_packets, no_color=args.no_color)
+
         print(f"✅ Analyzed {total_packets} encrypted packets\n")
-        
+
         if args.json:
             print(auditor.export_json())
         else:
@@ -575,17 +653,20 @@ def main():
             return 1
         
         print(f"Loaded {len(packets)} packets from {filepath}")
-        print("Auditing for PSK vulnerabilities...\n")
-        
-        # Audit each packet
-        for i, (pkt_data, timestamp) in enumerate(packets):
-            result = auditor.audit_packet(pkt_data, timestamp)
-            
-            if args.verbose and result:
-                if result.get('vulnerable'):
-                    print(f"  [{i+1}] VULNERABLE: {result['psk_name']} ({result['risk']})")
-                else:
-                    print(f"  [{i+1}] Unknown PSK")
+
+        if args.dramatic:
+            dramatic_key_scan(auditor, packets, no_color=args.no_color)
+        else:
+            print("Auditing for PSK vulnerabilities...\n")
+            # Audit each packet
+            for i, (pkt_data, timestamp) in enumerate(packets):
+                result = auditor.audit_packet(pkt_data, timestamp)
+
+                if args.verbose and result:
+                    if result.get('vulnerable'):
+                        print(f"  [{i+1}] VULNERABLE: {result['psk_name']} ({result['risk']})")
+                    else:
+                        print(f"  [{i+1}] Unknown PSK")
         
         # Output results
         if args.json:

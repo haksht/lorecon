@@ -844,6 +844,10 @@ def main():
                        help='Auto-save screenshots at milestones')
     parser.add_argument('--demo', action='store_true',
                        help='Demo mode: generate simulated traffic (no hardware needed)')
+    parser.add_argument('--venue-lat', type=float, metavar='LAT',
+                       help='Shift demo GPS positions to this latitude (default: 35.869)')
+    parser.add_argument('--venue-lon', type=float, metavar='LON',
+                       help='Shift demo GPS positions to this longitude (default: -78.845)')
     parser.add_argument('--web', action='store_true',
                        help='Open web UI in browser')
     parser.add_argument('--web-ip', default='192.168.4.1',
@@ -868,8 +872,20 @@ def main():
     
     # Demo mode doesn't need hardware
     if args.demo:
-        print("[*] 🎮 DEMO MODE ACTIVATED")
+        print("[*] DEMO MODE ACTIVATED")
         print("[*] Simulating realistic LoRa traffic for conference presentation")
+        # Shift GPS positions to the supplied venue coordinates
+        if args.venue_lat is not None or args.venue_lon is not None:
+            base_lat = DemoDataGenerator.DEMO_POSITIONS['401ACD4E'][0]
+            base_lon = DemoDataGenerator.DEMO_POSITIONS['401ACD4E'][1]
+            lat_offset = (args.venue_lat or base_lat) - base_lat
+            lon_offset = (args.venue_lon or base_lon) - base_lon
+            DemoDataGenerator.DEMO_POSITIONS = {
+                nid: (lat + lat_offset, lon + lon_offset, kind)
+                for nid, (lat, lon, kind) in DemoDataGenerator.DEMO_POSITIONS.items()
+            }
+            print(f"[*] GPS center: {args.venue_lat or base_lat:.4f}, "
+                  f"{args.venue_lon or base_lon:.4f}")
         print()
     elif args.auto_detect:
         print("[*] Auto-detecting ESP32...")

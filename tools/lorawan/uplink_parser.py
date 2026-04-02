@@ -233,8 +233,8 @@ class UplinkScanner:
         for dev_addr, info in sorted(self.devices.items(), key=lambda x: -x[1]['packets']):
             avg_rssi = sum(info['rssi_values']) / len(info['rssi_values']) if info['rssi_values'] else 0
             fcnt_vals = info['fcnt_values']
-            fcnt_range = f"{min(fcnt_vals)}–{max(fcnt_vals)}" if fcnt_vals else 'N/A'
-            fports = ','.join(str(p) for p in sorted(info['fports'])) or '—'
+            fcnt_range = f"{min(fcnt_vals)}-{max(fcnt_vals)}" if fcnt_vals else 'N/A'
+            fports = ','.join(str(p) for p in sorted(info['fports'])) or '-'
             print(f"  {dev_addr:<14} {info['packets']:>6} {fcnt_range:<16} {fports:<12} {avg_rssi:>8.1f} dBm")
 
         # FCnt gap detection (potential packet loss or replay)
@@ -302,9 +302,9 @@ def run_demo():
     print(f"\n{'─'*60}")
     print(f"  {'DevAddr':<14} {'Frames':>6} {'FCnt Range':<16} {'FPorts':<12} {'Avg RSSI':>9}")
     print(f"{'─'*60}")
-    print(f"  0x260B1234     {23:>6} {'100–122':<16} {'1,2':<12} {-71.3:>8.1f} dBm")
-    print(f"  0x260BABCD     {18:>6} {'55–72':<16} {'1':<12}  {-83.7:>8.1f} dBm")
-    print(f"  0x260BFF00     { 6:>6} {'1–6':<16}   {'10':<12} {-92.1:>8.1f} dBm")
+    print(f"  0x260B1234     {23:>6} {'100-122':<16} {'1,2':<12} {-71.3:>8.1f} dBm")
+    print(f"  0x260BABCD     {18:>6} {'55-72':<16} {'1':<12}  {-83.7:>8.1f} dBm")
+    print(f"  0x260BFF00     { 6:>6} {'1-6':<16}   {'10':<12} {-92.1:>8.1f} dBm")
     print()
     print("⚠️  0x260B1234: large FCnt gaps (packet loss or missed traffic):")
     print("     108 → 119 (gap: 11)")

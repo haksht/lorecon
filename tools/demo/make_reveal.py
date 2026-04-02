@@ -179,6 +179,86 @@ def decode_packets(packets, all_ports=False):
     return stats, text_messages
 
 
+# Canonical demo node IDs — must stay in sync with DemoDataGenerator.DEMO_NODES
+# in enhanced_live_visualizer.py so the same nodes appear across all demo modes.
+DEMO_NODES = ['401ACD4E', '598B29CE', 'B3F42A10', '7C891DEF', 'A42B8C56']
+
+DEFAULT_PUNCHLINE = (
+    'Every message encrypted with the factory default key.<br>'
+    '&#34;Encrypted&#34; does not mean &#34;secure.&#34;'
+)
+
+
+def generate_demo_data(max_messages=5):
+    """Return (stats, messages) with synthetic conference-context content.
+
+    Uses the same five node IDs as DemoDataGenerator in the visualizer so
+    the audience recognises the same devices across every demo step.
+    """
+    import random
+    rng = random.Random(42)
+
+    def fake_hex(nbytes):
+        return ' '.join(f'{rng.randint(0, 255):02x}' for _ in range(nbytes))
+
+    all_messages = [
+        {
+            "node": DEMO_NODES[1],   # 598B29CE — nearby attendee
+            "text": "Anyone near the badge-hacking village? Come find me",
+            "hex": fake_hex(28),
+            "psk": "LongFast public channel",
+            "port": "TEXT_MESSAGE_APP",
+            "rssi": -71.3,
+        },
+        {
+            "node": DEMO_NODES[0],   # 401ACD4E — presenter node
+            "text": "Meeting in room 214 in 10 min. Bring your kit",
+            "hex": fake_hex(26),
+            "psk": "LongFast public channel",
+            "port": "TEXT_MESSAGE_APP",
+            "rssi": -58.7,
+        },
+        {
+            "node": DEMO_NODES[2],   # B3F42A10 — mobile node
+            "text": "Just walked past vendor area. Strong signal from level 2",
+            "hex": fake_hex(32),
+            "psk": "LongFast public channel",
+            "port": "TEXT_MESSAGE_APP",
+            "rssi": -79.1,
+        },
+        {
+            "node": DEMO_NODES[3],   # 7C891DEF — hidden node
+            "text": "Range test from stairwell - still on the mesh",
+            "hex": fake_hex(24),
+            "psk": "LongFast public channel",
+            "port": "TEXT_MESSAGE_APP",
+            "rssi": -88.4,
+        },
+        {
+            "node": DEMO_NODES[4],   # A42B8C56 — router node
+            "text": "23 nodes in range. Mesh density high. All traffic visible",
+            "hex": fake_hex(22),
+            "psk": "LongFast public channel",
+            "port": "TEXT_MESSAGE_APP",
+            "rssi": -64.2,
+        },
+    ]
+
+    stats = {
+        "total": 1247,
+        "meshtastic": 892,
+        "decrypted": 741,
+        "unencrypted": 23,
+        "failed": 128,
+        "decrypt_pct": 85.7,
+        "device_count": 23,
+        "position_count": 14,
+        "top_psk": "LongFast public channel",
+    }
+
+    return stats, all_messages[:max(1, min(max_messages, len(all_messages)))]
+
+
 # --- HTML generation --------------------------------------------------------
 
 HTML_TEMPLATE = r"""<!DOCTYPE html>
@@ -433,6 +513,7 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
   <div>DEVICES <span class="val">%%DEVICE_COUNT%%</span></div>
   <div>DECRYPTED <span class="crit">%%DECRYPT_PCT%%%</span></div>
   <div>PSK <span class="crit">%%TOP_PSK%%</span></div>
+  %%DEMO_BANNER%%
 </div>
 
 <div class="container" id="cards"></div>
@@ -449,11 +530,8 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
   <div class="stat-row"><span class="num">%%DECRYPT_PCT%%%</span> of traffic decrypted</div>
   <div class="stat-row"><span class="num">%%MSG_COUNT%%</span> private text messages read</div>
   <div class="stat-row"><span class="num">%%POSITION_COUNT%%</span> GPS positions extracted</div>
-  <div class="stat-row"><span class="num">$25</span> hardware cost</div>
-  <div class="punchline">
-    Every message encrypted with the factory default key.<br>
-    "Encrypted" does not mean "secure."
-  </div>
+  <div class="stat-row"><span class="num">%%HARDWARE_COST%%</span> hardware cost</div>
+  <div class="punchline">%%PUNCHLINE%%</div>
 </div>
 
 <div class="prompt" id="prompt">
@@ -588,7 +666,8 @@ document.addEventListener('click', () => advance());
 </html>"""
 
 
-def generate_html(stats, messages, output_path):
+def generate_html(stats, messages, output_path, punchline=None, is_demo=False,
+                  hardware_cost='$25'):
     """Fill template with data and write HTML file."""
     # Prepare messages for JSON embedding — escape for safe HTML injection
     js_messages = []
@@ -601,6 +680,15 @@ def generate_html(stats, messages, output_path):
             "port": m["port"],
         })
 
+    if punchline is None:
+        punchline = DEFAULT_PUNCHLINE
+
+    demo_banner = (
+        '<div style="color:#ff6600;letter-spacing:1px;">SOURCE '
+        '<span style="color:#ff6600;font-weight:bold;">&#x25B6; DEMO DATA</span></div>'
+        if is_demo else ''
+    )
+
     content = HTML_TEMPLATE
     content = content.replace("%%TOTAL_PACKETS%%", f"{stats['total']:,}")
     content = content.replace("%%DEVICE_COUNT%%", f"{stats['device_count']:,}")
@@ -608,6 +696,9 @@ def generate_html(stats, messages, output_path):
     content = content.replace("%%TOP_PSK%%", stats["top_psk"])
     content = content.replace("%%MSG_COUNT%%", str(len(messages)))
     content = content.replace("%%POSITION_COUNT%%", f"{stats['position_count']:,}")
+    content = content.replace("%%HARDWARE_COST%%", hardware_cost)
+    content = content.replace("%%PUNCHLINE%%", punchline)
+    content = content.replace("%%DEMO_BANNER%%", demo_banner)
     content = content.replace("%%MESSAGES_JSON%%", json.dumps(js_messages, ensure_ascii=False, indent=2))
 
     Path(output_path).write_text(content, encoding="utf-8")
@@ -625,23 +716,62 @@ Examples:
   python tools/demo/make_reveal.py capture.pcap
   python tools/demo/make_reveal.py capture.pcap -o talk_demo.html
   python tools/demo/make_reveal.py capture.pcap --all-ports
+  python tools/demo/make_reveal.py --demo                    # no PCAP needed
+  python tools/demo/make_reveal.py --demo --max-messages 3
         """,
     )
-    parser.add_argument("pcap", help="PCAP file from ESP32 LoRa Sniffer")
+    parser.add_argument("pcap", nargs="?", help="PCAP file from ESP32 LoRa Sniffer")
     parser.add_argument("-o", "--output", help="Output HTML file (default: decrypt_reveal.html)")
     parser.add_argument(
         "--all-ports",
         action="store_true",
         help="Include position/telemetry decrypts (not just text messages)",
     )
+    parser.add_argument(
+        "--demo",
+        action="store_true",
+        help="Demo mode: use synthetic messages (no PCAP needed)",
+    )
+    parser.add_argument(
+        "--max-messages", type=int, default=5, metavar="N",
+        help="Maximum messages to include in reveal (default: 5)",
+    )
+    parser.add_argument(
+        "--punchline",
+        help="Custom closing punchline (replaces default)",
+    )
+    parser.add_argument(
+        "--hardware-cost", default="$25", metavar="COST",
+        help='Hardware cost shown on summary slide (default: "$25")',
+    )
     args = parser.parse_args()
+
+    output_path = args.output or "decrypt_reveal.html"
+
+    # ── Demo mode ──────────────────────────────────────────────────────────
+    if args.demo:
+        print("[DEMO MODE] Generating synthetic reveal page (no PCAP needed)...")
+        stats, messages = generate_demo_data(max_messages=args.max_messages)
+        print(f"  {len(messages)} demo messages / {stats['device_count']} devices / "
+              f"{stats['decrypt_pct']}% decrypted")
+        out = generate_html(stats, messages, output_path,
+                            punchline=args.punchline,
+                            is_demo=True,
+                            hardware_cost=args.hardware_cost)
+        print(f"\nGenerated: {out}")
+        print("Open in browser. SPACE or click to advance.")
+        return
+
+    # ── PCAP mode ──────────────────────────────────────────────────────────
+    if not args.pcap:
+        print("Error: PCAP file required (or use --demo for offline mode)")
+        parser.print_help()
+        sys.exit(1)
 
     pcap_path = Path(args.pcap)
     if not pcap_path.exists():
         print(f"Error: {pcap_path} not found")
         sys.exit(1)
-
-    output_path = args.output or "decrypt_reveal.html"
 
     print(f"Loading {pcap_path} ({pcap_path.stat().st_size:,} bytes)...")
     packets = parse_pcap(pcap_path)
@@ -649,6 +779,9 @@ Examples:
 
     print("Decoding and decrypting...")
     stats, messages = decode_packets(packets, all_ports=args.all_ports)
+
+    if args.max_messages:
+        messages = messages[:args.max_messages]
 
     print(f"\nResults:")
     print(f"  Meshtastic packets: {stats['meshtastic']:,}")
@@ -662,7 +795,9 @@ Examples:
             print("Try --all-ports to include position/telemetry decrypts.")
         sys.exit(0)
 
-    out = generate_html(stats, messages, output_path)
+    out = generate_html(stats, messages, output_path,
+                        punchline=args.punchline,
+                        hardware_cost=args.hardware_cost)
     print(f"\nGenerated: {out}")
     print(f"Open in browser for presentation. SPACE/click to advance.")
 

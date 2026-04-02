@@ -441,7 +441,7 @@ def load_csv(filepath):
     import csv
     packets = []
     
-    with open(filepath, 'r') as f:
+    with open(filepath, 'r', encoding='utf-8') as f:
         reader = csv.DictReader(f)
         for row in reader:
             hex_data = row.get('hex_data') or row.get('data') or row.get('raw_hex')

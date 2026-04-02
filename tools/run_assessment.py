@@ -174,31 +174,50 @@ def run_tool(script: Path, args: list[str], output_file: Path | None = None) -> 
         return 1, str(e)
 
 
-def run_demo(output_dir: Path, report_format: str):
+def run_demo(output_dir: Path, report_format: str, no_open: bool = False):
     """Run a demo assessment with simulated data."""
     print("\n[DEMO MODE — simulated capture + analysis]\n")
 
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    # Generate demo CSV
+    # Generate demo CSV — canonical node IDs match the visualizer/topology/reveal demos
     demo_csv = output_dir / 'capture.csv'
     demo_rows = [
         'timestamp_ms,node_id_hex,protocol,rssi_dbm,snr_db,frequency_mhz,encrypted,psk_result,lat_deg,lon_deg',
-        '1700000001000,0x401ACD4E,Meshtastic,-72.3,8.1,906.875,1,LongFast public channel,35.869000,-78.845000',
-        '1700000002500,0x401ACD4E,Meshtastic,-73.1,7.8,906.875,1,LongFast public channel,,',
-        '1700000004000,0xDEADBEEF,Meshtastic,-85.7,3.2,906.875,1,LongFast public channel,,',
-        '1700000006000,0x12345678,LoRaWAN,-91.2,1.1,903.900,0,none,,',
-        '1700000008000,0x401ACD4E,Meshtastic,-71.9,8.4,906.875,1,LongFast public channel,35.869100,-78.844900',
-        '1700000010000,0xCAFEBABE,Meshtastic,-68.1,10.2,906.875,1,Admin channel (legacy),35.870000,-78.843000',
+        # 0x401ACD4E — PRESENTER node (high activity, default PSK decrypted, GPS)
+        '1700000001000,0x401ACD4E,Meshtastic,-58.7,9.2,906.875,1,LongFast public channel,35.869000,-78.845000',
+        '1700000004500,0x401ACD4E,Meshtastic,-59.1,9.0,906.875,1,LongFast public channel,35.869050,-78.844980',
+        '1700000009000,0x401ACD4E,Meshtastic,-57.8,9.4,906.875,1,LongFast public channel,35.869100,-78.844900',
+        '1700000014000,0x401ACD4E,Meshtastic,-58.3,9.1,906.875,1,LongFast public channel,,',
+        '1700000022000,0x401ACD4E,Meshtastic,-59.5,8.8,906.875,1,LongFast public channel,,',
+        # 0x598B29CE — ATTENDEE node (default PSK decrypted, GPS)
+        '1700000002500,0x598B29CE,Meshtastic,-71.3,7.1,906.875,1,LongFast public channel,35.868300,-78.844100',
+        '1700000007000,0x598B29CE,Meshtastic,-72.0,6.9,906.875,1,LongFast public channel,,',
+        '1700000015000,0x598B29CE,Meshtastic,-71.8,7.2,906.875,1,LongFast public channel,35.868320,-78.844080',
+        '1700000025000,0x598B29CE,Meshtastic,-72.5,6.7,906.875,1,LongFast public channel,,',
+        # 0xB3F42A10 — MOBILE node (default PSK, moving GPS positions)
+        '1700000003000,0xB3F42A10,Meshtastic,-79.1,5.3,906.875,1,LongFast public channel,35.869700,-78.845800',
+        '1700000011000,0xB3F42A10,Meshtastic,-80.4,4.9,906.875,1,LongFast public channel,35.869820,-78.845600',
+        '1700000018000,0xB3F42A10,Meshtastic,-78.8,5.5,906.875,1,LongFast public channel,35.870100,-78.845300',
+        # 0x7C891DEF — HIDDEN node (weak signal, default PSK)
+        '1700000005000,0x7C891DEF,Meshtastic,-88.4,2.1,906.875,1,LongFast public channel,,',
+        '1700000016000,0x7C891DEF,Meshtastic,-89.2,1.8,906.875,1,LongFast public channel,,',
+        # 0xA42B8C56 — ROUTER node (strong signal, CRITICAL: legacy admin key, GPS)
+        '1700000006000,0xA42B8C56,Meshtastic,-42.1,14.3,906.875,1,Admin channel (legacy),35.869300,-78.846300',
+        '1700000012000,0xA42B8C56,Meshtastic,-41.8,14.5,906.875,1,Admin channel (legacy),,',
+        '1700000020000,0xA42B8C56,Meshtastic,-42.5,14.1,906.875,1,Admin channel (legacy),,',
+        # LoRaWAN sensor (unencrypted)
+        '1700000008000,0x260B1234,LoRaWAN,-91.2,1.1,903.900,0,none,,',
+        '1700000017000,0x260B1234,LoRaWAN,-90.8,1.3,903.900,0,none,,',
     ]
     demo_csv.write_text('\n'.join(demo_rows))
     print(f"✅ Demo capture written: {demo_csv}")
 
-    _run_analysis(output_dir, demo_csv, None, report_format, demo=True)
+    _run_analysis(output_dir, demo_csv, None, report_format, demo=True, no_open=no_open)
 
 
 def _run_analysis(output_dir: Path, csv_path: Path, pcap_path: Path | None,
-                  report_format: str, demo: bool = False):
+                  report_format: str, demo: bool = False, no_open: bool = False):
     """Run audit + report on downloaded (or demo) data."""
 
     # Step 1: PSK Audit
@@ -247,11 +266,12 @@ def _run_analysis(output_dir: Path, csv_path: Path, pcap_path: Path | None,
 
     # Step 4: Open report
     print(f"\n{'─'*50}")
-    print(f"🌐 Opening report...")
-    if report_format == 'html':
-        webbrowser.open(report_path.resolve().as_uri())
+    uri = report_path.resolve().as_uri()
+    if report_format == 'html' and not no_open:
+        print(f"🌐 Opening report...")
+        webbrowser.open(uri)
     else:
-        print(f"   Report: {report_path.resolve()}")
+        print(f"📄 Report: {uri}")
 
     # Summary
     print(f"\n{'='*50}")
@@ -289,6 +309,8 @@ Examples:
                         help='Output directory (default: assessment_<timestamp>)')
     parser.add_argument('--demo', action='store_true',
                         help='Demo run with simulated data (no device needed)')
+    parser.add_argument('--no-open', action='store_true',
+                        help='Do not auto-open the report in a browser (print path instead)')
 
     args = parser.parse_args()
 
@@ -311,7 +333,7 @@ Examples:
     print(f"{'='*50}")
 
     if args.demo:
-        run_demo(output_dir, args.report_format)
+        run_demo(output_dir, args.report_format, no_open=args.no_open)
         return 0
 
     if not check_deps():
@@ -346,7 +368,7 @@ Examples:
         print("❌ No CSV data to analyze. Exiting.")
         return 1
 
-    _run_analysis(output_dir, csv_path, pcap_path, args.report_format)
+    _run_analysis(output_dir, csv_path, pcap_path, args.report_format, no_open=args.no_open)
     return 0
 
 

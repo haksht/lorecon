@@ -28,10 +28,9 @@ from pathlib import Path
 
 try:
     import websocket
+    WEBSOCKET_AVAILABLE = True
 except ImportError:
-    print("Error: websocket-client library required.")
-    print("Install with: pip install websocket-client")
-    sys.exit(1)
+    WEBSOCKET_AVAILABLE = False
 
 # PSK decryption (optional)
 sys.path.insert(0, str(Path(__file__).parent / 'meshtastic'))
@@ -324,6 +323,79 @@ class WebSocketMonitor:
             sys.exit(1)
 
 
+# Canonical demo nodes — same IDs used by topology, reveal, and visualizer demos
+_DEMO_NODES = [
+    ('401ACD4E', 'PRESENTER', 'Meshtastic', -58.7,  9.2),
+    ('598B29CE', 'ATTENDEE',  'Meshtastic', -71.3,  7.1),
+    ('B3F42A10', 'MOBILE',    'Meshtastic', -79.1,  5.3),
+    ('7C891DEF', 'HIDDEN',    'Meshtastic', -88.4,  2.1),
+    ('A42B8C56', 'ROUTER',    'Meshtastic', -42.1, 14.3),
+    ('260B1234', 'SENSOR',    'LoRaWAN',   -91.2,  1.1),
+]
+
+_DEMO_PSK_RESULTS = ['LongFast public channel', 'none', 'none',
+                     'LongFast public channel', 'Admin channel (legacy)', 'none']
+
+
+def _run_demo(args):
+    """Simulate a live WebSocket packet stream for offline presentations."""
+    import time
+    import random
+
+    monitor = WebSocketMonitor(
+        host='demo',
+        json_output=args.json,
+        protocol_filter=args.filter,
+        quiet=args.quiet,
+        no_color=args.no_color,
+        decrypt=False,   # demo generates pre-formatted output
+        messages=False,
+    )
+
+    if not args.json and not args.quiet:
+        print(f"{Colors.GREEN}[DEMO MODE] Simulated packet stream — Ctrl+C to stop{Colors.RESET}")
+        print(f"{'='*70}")
+
+    rng = random.Random(42)
+    packet_num = 0
+
+    try:
+        while True:
+            idx = rng.choices(range(len(_DEMO_NODES)),
+                              weights=[3, 2, 2, 1, 3, 1])[0]
+            node_hex, name, protocol, base_rssi, base_snr = _DEMO_NODES[idx]
+            psk_result = _DEMO_PSK_RESULTS[idx]
+
+            rssi = base_rssi + rng.uniform(-3, 3)
+            snr  = base_snr  + rng.uniform(-1, 1)
+            length = rng.randint(24, 180)
+            packet_num += 1
+
+            pkt = {
+                'protocol':  protocol,
+                'nodeId':    node_hex,
+                'rssi':      round(rssi, 1),
+                'snr':       round(snr, 1),
+                'length':    length,
+                'encrypted': 1 if protocol == 'Meshtastic' else 0,
+                'pskResult': psk_result,
+                'frequency': 906.875 if protocol == 'Meshtastic' else 903.9,
+                'timestamp': int(time.time() * 1000),
+            }
+
+            if args.json:
+                print(json.dumps(pkt))
+            else:
+                monitor._print_packet(pkt)
+
+            delay = rng.uniform(0.3, 1.8)
+            time.sleep(delay)
+
+    except KeyboardInterrupt:
+        if not args.json:
+            monitor._print_summary()
+
+
 def main():
     parser = argparse.ArgumentParser(
         description='ESP32 LoRa Sniffer WebSocket Monitor (Headless)',
@@ -358,8 +430,14 @@ Keyboard:
                        help='Attempt PSK decryption on Meshtastic packets (requires: pip install cryptography)')
     parser.add_argument('--messages', action='store_true',
                        help='Show decrypted text messages only — implies --decrypt, suppresses all other output')
+    parser.add_argument('--demo', action='store_true',
+                       help='Demo mode: simulate live packet stream (no hardware needed)')
 
     args = parser.parse_args()
+
+    if args.demo:
+        _run_demo(args)
+        return
 
     monitor = WebSocketMonitor(
         host=args.host,
@@ -370,7 +448,12 @@ Keyboard:
         decrypt=args.decrypt,
         messages=args.messages,
     )
-    
+
+    if not WEBSOCKET_AVAILABLE:
+        print("Error: websocket-client library required.")
+        print("Install with: pip install websocket-client")
+        sys.exit(1)
+
     monitor.run()
 
 
