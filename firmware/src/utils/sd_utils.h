@@ -27,7 +27,6 @@ struct SDState {
     bool initialized = false;
     bool available = false;
     uint8_t cardType = CARD_NONE;
-    uint64_t cardSizeMB = 0;
 };
 
 /**
@@ -102,7 +101,6 @@ inline bool initialize(int csPin = Config::Hardware::SD_CS) {
         return false;
     }
 
-    state.cardSizeMB = SD.cardSize() / (1024 * 1024);
     state.initialized = true;
     state.available = true;
 
@@ -133,10 +131,13 @@ inline const char* getCardTypeString() {
 }
 
 /**
- * Get card size in MB
+ * Get filesystem total size in MB.
+ * Uses SD.totalBytes() (filesystem partition size), NOT SD.cardSize() (raw card capacity).
+ * These differ when the card has a small FAT partition on a large physical card.
  */
 inline uint64_t getCardSizeMB() {
-    return getState().cardSizeMB;
+    if (!isAvailable()) return 0;
+    return SD.totalBytes() / (1024 * 1024);
 }
 
 /**

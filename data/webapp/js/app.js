@@ -469,6 +469,8 @@ class ReconApp {
             infoPackets: document.getElementById('info-packets'),
             infoDevices: document.getElementById('info-devices'),
             infoHeap: document.getElementById('info-heap'),
+            infoDroppedRow: document.getElementById('info-dropped-row'),
+            infoDropped: document.getElementById('info-dropped'),
             infoGpsRow: document.getElementById('info-gps-row'),
             infoGps: document.getElementById('info-gps'),
             mobileMenuToggle: document.getElementById('mobile-menu-toggle'),
@@ -641,6 +643,14 @@ class ReconApp {
             if (this.el.infoPackets) this.el.infoPackets.textContent = data.totalPackets || 0;
             if (this.el.infoDevices) this.el.infoDevices.textContent = data.devices || 0;
             if (this.el.infoHeap) this.el.infoHeap.textContent = this.formatBytes(data.freeHeap || 0);
+            if (this.el.infoDroppedRow && this.el.infoDropped) {
+                const dropped = data.droppedPackets || 0;
+                const total = (data.totalPackets || 0) + dropped;
+                const pct = total > 0 ? ((dropped / total) * 100).toFixed(1) : 0;
+                this.el.infoDroppedRow.style.display = dropped > 0 ? '' : 'none';
+                this.el.infoDropped.textContent = `${dropped} (${pct}%)`;
+                this.el.infoDropped.className = 'status-value text-danger';
+            }
             if (this.el.infoGpsRow && this.el.infoGps) {
                 if (data.gps) {
                     this.el.infoGpsRow.style.display = '';
@@ -774,8 +784,8 @@ class ReconApp {
                 await this.showFrequency();
                 break;
             case 'network':
-                // Dashboard tab: load both network map and stats in parallel
-                await Promise.all([this.showNetwork(), this.showStats()]);
+                // Dashboard tab: load network map, stats, and GPS positions in parallel
+                await Promise.all([this.showNetwork(), this.showStats(), this.showGPS()]);
                 break;
             case 'settings':
                 await this.showSettings();
@@ -1138,7 +1148,7 @@ class ReconApp {
 
             html += '<div class="table-wrapper">';
             html += '<table class="table freq-table"><thead><tr>';
-            html += '<th>Protocol</th><th>Frequency</th><th>SF</th><th>BW</th><th>Packets</th><th>RSSI</th><th>Actions</th>';
+            html += '<th>Protocol</th><th>Frequency</th><th>SF</th><th>BW</th><th>Packets</th><th>Avg RSSI</th><th>Peak RSSI</th><th>Actions</th>';
             html += '</tr></thead><tbody>';
 
             allConfigs.forEach(act => {
@@ -1154,7 +1164,9 @@ class ReconApp {
                 if (isActive) {
                     html += `<td>${act.packets}</td>`;
                     html += `<td><span class="${rssiClass}">${act.avgRSSI} dBm</span></td>`;
+                    html += `<td><span class="${formatRSSI(act.peakRSSI, false)}">${act.peakRSSI} dBm</span></td>`;
                 } else {
+                    html += '<td class="text-muted">—</td>';
                     html += '<td class="text-muted">—</td>';
                     html += '<td class="text-muted">—</td>';
                 }
@@ -1442,13 +1454,11 @@ class ReconApp {
     }
 
     /**
-     * Load and display the Info tab
-     * Loads GPS positions, security assessment, and frequency analysis
+     * Load GPS positions into #gps-content (lives in Dashboard tab).
+     * Called from both showInfo() and showNetwork() so the table stays
+     * fresh regardless of which tab the user is on.
      */
-    async showInfo() {
-        // Status already updated via handleStatusUpdate
-        
-        // Load GPS data from /api/positions
+    async showGPS() {
         try {
             const gpsData = await this.get('/api/positions');
             // Build display list: sniffer's own GPS first (if fix), then remote device positions
@@ -1469,7 +1479,6 @@ class ReconApp {
                 html += '<th>Source</th><th>Node ID</th><th>Latitude</th><th>Longitude</th><th>Altitude</th>';
                 html += '</tr></thead><tbody>';
 
-                // Sniffer's own position (from integrated GPS module)
                 if (hasSnifferFix) {
                     html += '<tr>';
                     html += '<td><span class="badge-sniffer">Sniffer</span></td>';
@@ -1480,7 +1489,6 @@ class ReconApp {
                     html += '</tr>';
                 }
 
-                // Remote device positions (decoded from Meshtastic position packets)
                 devicePositions.forEach(pos => {
                     html += '<tr>';
                     html += '<td><span class="badge-device">Device</span></td>';
@@ -1498,6 +1506,15 @@ class ReconApp {
             DEBUG.error('Failed to load GPS:', error);
             this.el.gpsContent.innerHTML = renderErrorState('Failed to load GPS data', 'retry-gps');
         }
+    }
+
+    /**
+     * Load and display the Info tab
+     * Loads GPS positions, security assessment, and frequency analysis
+     */
+    async showInfo() {
+        // Status already updated via handleStatusUpdate
+        await this.showGPS();
         
         // Load security analysis from /api/recon/security
         try {
