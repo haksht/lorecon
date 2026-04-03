@@ -253,3 +253,4 @@ Before demonstrating at any venue:
 4. Remind audience this is for research/education
 
 *"What we're doing is the LoRa equivalent of passive WiFi monitoring - observing RF spectrum activity for research purposes."*
+

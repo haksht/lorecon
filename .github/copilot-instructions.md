@@ -144,3 +144,4 @@ No unit test framework (embedded constraints). Validation via:
 - API surface: `docs/developers/API.md` — all HTTP/WebSocket endpoints
 - User workflows: `docs/SETUP.md` (flash/connect), `docs/USAGE.md` (web UI/tools)
 - Encryption: `docs/reference/ENCRYPTION.md` for Meshtastic PSK details
+

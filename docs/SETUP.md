@@ -167,3 +167,4 @@ The device starts scanning 26 LoRa configurations immediately on boot. You shoul
 - Try the mDNS address: `http://lora-xxyyzz.local`
 
 See [TROUBLESHOOTING.md](TROUBLESHOOTING.md) for more.
+

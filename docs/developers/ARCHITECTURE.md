@@ -1713,3 +1713,4 @@ Two hardware design issues make it incompatible with no software workaround:
 2. **Shared SPI bus:** HSPI (SCK=40, MISO=38, MOSI=41) is shared among the LoRa radio, TFT display, and SD card with no hardware CS arbitration. LoRa SPI transactions corrupt the display framebuffer within seconds; the display goes black and cannot recover without a full power cycle.
 
 Both are silicon/PCB constraints — no driver or firmware change can resolve them.
+

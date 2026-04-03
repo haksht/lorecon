@@ -221,3 +221,4 @@ Before field deployment:
 
 Packet received: radio working, deploy.
 Nothing: check antenna, region setting, confirm test device is transmitting.
+

@@ -111,3 +111,4 @@ Never power on the radio without an antenna connected.
 ## Unsupported boards
 
 The T-Deck Plus is not supported due to hardware design issues that cannot be worked around in software. If you're interested in porting to another ESP32-S3 board, see [developers/ARCHITECTURE.md](developers/ARCHITECTURE.md).
+

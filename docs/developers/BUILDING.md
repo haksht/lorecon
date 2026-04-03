@@ -219,3 +219,4 @@ pio run
 - FEM (external front-end module) must be enabled: GPIO 2 HIGH (chip enable), GPIO 5 LOW (RX mode)
 - `setDio2AsRfSwitch(true)` must be set for V4
 - Verify `USB_CDC_ON_BOOT=0` — USB PHY noise kills radio reception on V4
+

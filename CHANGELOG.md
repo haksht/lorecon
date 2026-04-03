@@ -201,3 +201,4 @@ All notable changes to the ESP32 LoRa Sniffer project.
 
 For detailed API documentation, see [docs/developers/API.md](docs/developers/API.md)
 For architecture details, see [docs/developers/ARCHITECTURE.md](docs/developers/ARCHITECTURE.md)
+

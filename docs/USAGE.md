@@ -166,3 +166,4 @@ Stats (total packets, devices, dropped packets) are in the Info tab and `/api/st
 - [reference/ENCRYPTION.md](reference/ENCRYPTION.md) — what the PSK decryption can and cannot decrypt
 - [reference/NETWORK_HUNTING.md](reference/NETWORK_HUNTING.md) — hunting strategies by network type
 - [developers/API.md](developers/API.md) — full REST and WebSocket reference
+

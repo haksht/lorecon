@@ -62,3 +62,4 @@ This tool is designed for **authorized security research** on networks you own o
 - [ ] Change default WiFi credentials via web UI Settings
 - [ ] Note your API token from serial output or `t` command
 - [ ] Use AP mode (192.168.4.1) for isolated operation
+
