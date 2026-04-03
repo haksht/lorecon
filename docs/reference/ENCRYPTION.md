@@ -137,4 +137,3 @@ If this fails: confirm the message went to the channel tab, not the DM tab.
 ```
 
 This is correct -- DMs are PKC-protected and cannot be decrypted passively.
-

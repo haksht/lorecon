@@ -201,4 +201,3 @@ If a security incident occurs:
 2. **Preserve** — Save SD card logs if applicable
 3. **Report** — File GitHub security advisory
 4. **Reset** — Factory reset clears NVS credentials
-

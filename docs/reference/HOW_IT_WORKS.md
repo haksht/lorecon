@@ -287,4 +287,3 @@ but the total number of logged packets is unlimited.
 
 The replay store operates as a **ring buffer**: when all 10 slots are full, the oldest is overwritten
 by the newest captured packet, regardless of which device it came from. You can select any of the 10 stored packets for replay from the web UI or serial menu.
-
