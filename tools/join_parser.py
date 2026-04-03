@@ -38,8 +38,6 @@ from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
 
-# Re-use PCAP parsing from parent tools directory
-sys.path.insert(0, str(Path(__file__).parent.parent))
 from pcap_analyzer import parse_pcap_native
 
 # MType definitions (bits 7-5 of MHDR)

@@ -95,3 +95,8 @@ DEMO_OUTLINE.md
 
 # Generated map exports
 lora_map.html
+
+# Generated tool output
+tools/assessment_*/
+tools/*.html
+tools/meshtastic/*.dot

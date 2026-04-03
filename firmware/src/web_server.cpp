@@ -531,6 +531,7 @@ void WebServer::handlePacketEvent(const PacketEvent& evt) {
     aggStats.lastProtocol = evt.protocol;
     aggStats.lastRSSI = evt.rssi;
     aggStats.lastSNR = evt.snr;
+    aggStats.lastLength = (uint16_t)evt.length;
     
     if (evt.message && strlen(evt.message) > 0) {
         strncpy(aggStats.lastMessage, evt.message, sizeof(aggStats.lastMessage) - 1);
@@ -576,7 +577,10 @@ void WebServer::broadcastAggregatedUpdate() {
     JsonDocument doc;
     doc["type"] = "packet";
     doc["nodeId"] = FormatUtils::formatNodeIdJson(aggStats.lastNodeId);
+    doc["protocol"] = aggStats.lastProtocol;
     doc["rssi"] = aggStats.lastRSSI;
+    doc["snr"] = aggStats.lastSNR;
+    doc["length"] = aggStats.lastLength;
     doc["count"] = aggStats.packetCount;
     if (aggStats.hasPosition) {
         doc["lat"] = aggStats.lastLat;

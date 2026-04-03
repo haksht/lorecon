@@ -14,9 +14,9 @@ TOOLS_DIR = Path(__file__).parent
 STORY_COMMANDS = {
     'story':    (None,                                                          'Guided presenter mode — start here'),
     'demo':     (TOOLS_DIR / 'enhanced_live_visualizer.py',                    '5-panel live dashboard (no hardware needed)'),
-    'topology': (TOOLS_DIR / 'meshtastic' / 'mesh_topology_analyzer.py',       'Mesh network map (--demo for offline)'),
-    'reveal':   (TOOLS_DIR / 'demo' / 'make_reveal.py',                        'Decrypt reveal presentation (--demo for offline)'),
-    'lorawan':  (TOOLS_DIR / 'lorawan' / 'join_parser.py',                     'LoRaWAN join request / DevEUI scanner (--demo)'),
+    'topology': (TOOLS_DIR / 'meshtastic' / 'mesh_topology_analyzer.py',       'Mesh network map (--demo or file input)'),
+    'reveal':   (TOOLS_DIR / 'meshtastic' / 'make_reveal.py',                  'Decrypt reveal presentation (--demo or pcap input)'),
+    'lorawan':  (TOOLS_DIR / 'join_parser.py',                                 'LoRaWAN join request / DevEUI scanner (--demo)'),
     'assess':   (TOOLS_DIR / 'run_assessment.py',                              'Full pipeline: capture -> audit -> report (--demo)'),
 }
 
@@ -29,8 +29,7 @@ ANALYSIS_COMMANDS = {
 DEV_COMMANDS = {
     'analyze':  (TOOLS_DIR / 'pcap_analyzer.py',                               'Raw PCAP inspector'),
     'decode':   (TOOLS_DIR / 'meshtastic' / 'meshtastic_decoder.py',           'Batch Meshtastic decryptor'),
-    'uplink':   (TOOLS_DIR / 'lorawan' / 'uplink_parser.py',                   'LoRaWAN uplink frame parser + decryptor'),
-    'api':      (TOOLS_DIR / 'api_client.py',                                  'REST API client (~30 subcommands)'),
+    'api':      (TOOLS_DIR / 'dev' / 'api_client.py',                          'REST API client (~30 subcommands)'),
     'visualize':(TOOLS_DIR / 'enhanced_live_visualizer.py',                    '5-panel dashboard (serial or WebSocket)'),
 }
 

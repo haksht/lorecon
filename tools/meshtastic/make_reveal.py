@@ -24,8 +24,8 @@ sys.stderr.reconfigure(encoding='utf-8', errors='replace')
 from collections import defaultdict
 from pathlib import Path
 
-# Add parent dirs so we can import sibling modules
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "meshtastic"))
+# Add parent dir so we can import sibling modules
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from meshtastic_decoder import MeshtasticDecoder, PORT_NAMES

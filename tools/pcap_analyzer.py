@@ -33,8 +33,8 @@ from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
 
-# Wireshark exporter (same repo, export/ subdirectory)
-sys.path.insert(0, str(Path(__file__).parent / 'export'))
+# Wireshark exporter (same repo, dev/ subdirectory)
+sys.path.insert(0, str(Path(__file__).parent / 'dev'))
 try:
     from wireshark_exporter import parse_esp32_pcap, write_loratap_pcap, open_wireshark as _ws_open
     EXPORTER_AVAILABLE = True
@@ -463,9 +463,9 @@ def export_csv(packets, output_path):
     """Export packets to CSV"""
     import csv
     
-    fieldnames = ['timestamp_ms', 'pcap_timestamp', 'rssi', 'snr', 
+    fieldnames = ['timestamp_ms', 'pcap_timestamp', 'rssi', 'snr',
                   'frequency_mhz', 'spreading_factor', 'bandwidth_hz', 'coding_rate',
-                  'length', 'protocol', 'node_id', 'data_hex']
+                  'length', 'protocol', 'node_id', 'lat', 'lon', 'data_hex']
     
     with open(output_path, 'w', newline='', encoding='utf-8') as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames)
