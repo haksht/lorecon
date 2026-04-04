@@ -1,6 +1,6 @@
 # ESP32 LoRa Packet Sniffer & Reconnaissance Tool
 
-Passive LoRa reconnaissance firmware for ESP32-S3 + SX1262 hardware. Scans 26 frequency configurations, captures and replays packets, tests 23 default Meshtastic PSKs, extracts GPS coordinates, and serves a phone-accessible web UI — all from a $30 board.
+Passive LoRa reconnaissance firmware for ESP32-S3 + SX1262 hardware. Scans 29 frequency configurations, captures and replays packets, tests 23 default Meshtastic PSKs, decrypts MeshCore public channels and hashtag rooms, extracts GPS coordinates, and serves a phone-accessible web UI — all from a $30 board.
 
 **Version:** 2.4.1 | **Status:** Production
 
@@ -41,9 +41,9 @@ See [docs/HARDWARE.md](docs/HARDWARE.md) for specs, pin maps, and purchase links
 
 | Area | What it does |
 |------|-------------|
-| Reconnaissance | Cycles 26 LoRa configs (Meshtastic, LoRaWAN/TTN, Helium, ISM) on a 5-minute scan |
+| Reconnaissance | Cycles 29 LoRa configs (Meshtastic, LoRaWAN/TTN, Helium, ISM, MeshCore) on a ~6-minute scan |
 | Packet capture | Interrupt-driven, <50 ms latency, 100-packet queue |
-| PSK decryption | Tests 23 Meshtastic default keys including legacy admin channel defaults |
+| PSK decryption | Tests 23 Meshtastic default keys; decrypts MeshCore public channel and common hashtag rooms |
 | LoRaWAN testing | Verifies 16 default AppKeys against captured Join Requests |
 | GPS extraction | Extracts coordinates from Meshtastic POSITION_APP packets |
 | Packet replay | 10 slots, configurable repeat count and delay |

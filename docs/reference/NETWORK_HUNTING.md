@@ -2,7 +2,7 @@
 
 ## What networks the sniffer covers
 
-The sniffer scans **four LoRa network types** across 26 frequency configurations:
+The sniffer scans **five LoRa network types** across 29 frequency configurations:
 
 ### 1. **Meshtastic** (10 configs)
 **What it is**: Peer-to-peer mesh network for off-grid text messaging
@@ -22,7 +22,16 @@ The sniffer scans **four LoRa network types** across 26 frequency configurations
 **Why to hunt**: Huge deployment (millions of hotspots), active in urban/suburban areas
 **You'll find it**: Residential neighborhoods, businesses with Helium miners
 
-### 4. **ISM Band General** (2 configs)
+### 4. **MeshCore** (3 configs)
+**What it is**: Lightweight LoRa mesh network with a hybrid repeater/companion architecture
+**Frequencies**: 910.525 MHz (US recommended), 915.0 MHz (unconfigured default), 869.618 MHz (EU/UK)
+**Bandwidth**: 62.5 kHz narrow (US/EU); 250 kHz for unconfigured default
+**Sync word**: `0x12` (RadioLib private, hardcoded in firmware)
+**Why important**: Growing alternative to Meshtastic, distinct physical layer; public channel and hashtag rooms are decryptable
+**You'll find it**: Ham radio operators, mesh networking enthusiasts, outdoor/hiking communities
+**Decryption**: Public channel PSK and hashtag room keys decrypted automatically — see [ENCRYPTION.md](ENCRYPTION.md)
+
+### 5. **ISM Band General** (2 configs)
 **What it is**: Exploring common ISM band frequencies for unknown/proprietary protocols
 **Frequencies**: 915 MHz, 920 MHz
 **Why scan**: Catch experimental projects, proprietary sensors, unlabeled devices
@@ -81,6 +90,9 @@ Before going to a location, check these maps:
 3. **Meshtastic Map** (if public nodes): https://meshtastic.org/docs/introduction/
    - Less useful (most nodes don't share location publicly)
    - But check local groups on Discord/Reddit
+
+4. **MeshCore community**: Check Discord/local groups — no public node map
+   - Growing overlap with Meshtastic users at ham and hacker events
 
 ### Step 2: Strategic Location Selection
 
@@ -192,7 +204,7 @@ python tools/recon_report.py your_capture.csv
 
 ## Scan configuration summary
 
-The sniffer covers **26 frequency configurations**:
+The sniffer covers **29 frequency configurations**:
 
 | Config | Frequency | Protocol | Notes |
 |--------|-----------|----------|-------|
@@ -204,8 +216,11 @@ The sniffer covers **26 frequency configurations**:
 | 19-20  | 904 MHz | Helium Uplink | Sensor transmissions (sync 0x34) |
 | 21-24  | 923-925 MHz | Helium Downlink | Hotspot transmissions (sync 0x34) |
 | 25-26  | 915-920 MHz | ISM General | Private LoRa / RadioHead (sync 0x12) |
+| 27     | 910.525 MHz | MeshCore US | BW 62.5 kHz, SF7 — US/Canada recommended (sync 0x12) |
+| 28     | 915.0 MHz | MeshCore US Default | BW 250 kHz, SF10 — unconfigured firmware default (sync 0x12) |
+| 29     | 869.618 MHz | MeshCore EU | BW 62.5 kHz, SF8 — EU/UK narrow (sync 0x12) |
 
-**Total scan cycle**: ~5 minutes (26 configs × 12 seconds each)
+**Total scan cycle**: ~6 minutes (29 configs × 12 seconds each)
 
 ---
 

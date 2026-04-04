@@ -14,11 +14,11 @@ Browse to the device IP or `http://lora-xxyyzz.local` (replace `xxyyzz` with you
 
 **Info** — System overview: uptime, free memory, GPS fix status, security assessment summary, quick-action buttons.
 
-**Devices** — All discovered LoRa devices sorted by vulnerability score. Click any device to target it for focused capture.
+**Devices** — All discovered LoRa devices sorted by vulnerability score. RSSI column shows Last / Avg / Best dBm; hover for standard deviation. Click any device to target it for focused capture.
 
 **Packets** — Live Wireshark-style packet stream with protocol badges, RSSI indicators, and encryption status. Controls: pause, resume, clear, auto-scroll. Replay slots below.
 
-**Frequencies** — All 26 scan configurations with activity indicators. Click any config to lock the radio to that frequency and modulation.
+**Frequencies** — All 29 scan configurations with activity indicators. Click any config to lock the radio to that frequency and modulation.
 
 **Dashboard** — War-room stats (protocol breakdown, live packet counts), interactive canvas network map (nodes placed by signal strength), and GPS positions. Updates every 2 seconds.
 
@@ -114,7 +114,7 @@ python tools/sniffer.py audit capture.csv
 
 ### Modes
 
-**Reconnaissance mode** (default): scans all 26 configurations in a 5-minute cycle, discovers new devices automatically. Mode persists across reboots via NVS.
+**Reconnaissance mode** (default): scans all 29 configurations in a ~6-minute cycle, discovers new devices automatically. Mode persists across reboots via NVS.
 
 **Targeted mode**: lock to a specific device or frequency. Press `f` in serial or click a configuration in the Frequency tab. Also persists across reboots.
 

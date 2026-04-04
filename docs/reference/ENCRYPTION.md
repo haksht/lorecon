@@ -1,6 +1,6 @@
-# Meshtastic Encryption Reference
+# Encryption Reference
 
-What the sniffer can and cannot decrypt, and why.
+What the sniffer can and cannot decrypt, and why. Covers Meshtastic and MeshCore.
 
 ---
 
@@ -137,3 +137,51 @@ If this fails: confirm the message went to the channel tab, not the DM tab.
 ```
 
 This is correct -- DMs are PKC-protected and cannot be decrypted passively.
+
+---
+
+## MeshCore encryption
+
+MeshCore uses a different algorithm from Meshtastic: **AES-128-ECB** with a 2-byte HMAC-SHA256 MAC for authentication. There is no nonce or IV -- each 16-byte block is encrypted independently.
+
+### What you can decrypt
+
+| Channel type | Key source | Decryptable? |
+|---|---|---|
+| **Public channel** | Fixed PSK shipped on every device (`izOH6cXN6mrJ5e26oRXNcg==`) | **Yes -- automatically** |
+| **Hashtag rooms** (`#general`, `#emergency`, etc.) | `SHA256("#roomname")[0:16]` -- derivable from the room name | **Yes -- automatically** |
+| **Private channels** | 256-bit random key shared out-of-band via QR code | No |
+| **Direct messages** | X25519 ECDH shared secret -- requires one party's private key | No |
+
+### What you cannot decrypt
+
+- Private channels with user-generated keys
+- Direct messages (end-to-end encrypted with X25519/AES)
+
+### Channel hash fast-filter
+
+Every MeshCore group packet contains a 1-byte channel hash (`SHA256(key)[0]`). The sniffer uses this to quickly rule out non-matching keys before attempting HMAC verification and AES decryption, avoiding unnecessary computation.
+
+### Hashtag room keys built in
+
+The sniffer derives and tests keys for these common room names automatically:
+`#general`, `#emergency`, `#local`, `#mesh`, `#public`, `#chat`, `#help`, `#info`, `#sos`, `#weather`, `#news`
+
+Hashtag rooms are insecure by design -- the key is computable from the room name alone by anyone.
+
+### Decrypted packet format
+
+After AES-128-ECB decryption, the plaintext is:
+```
+[4B LE timestamp][1B flags][message text...]
+```
+
+### MeshCore physical layer
+
+MeshCore uses sync word `0x12` (`RADIOLIB_SX126X_SYNC_WORD_PRIVATE`), hardcoded in firmware. Configs scanned:
+
+| Config | Frequency | BW | SF | Notes |
+|--------|-----------|----|----|-------|
+| `MeshCore_US` | 910.525 MHz | 62.5 kHz | 7 | US/Canada recommended |
+| `MeshCore_US_Default` | 915.0 MHz | 250 kHz | 10 | Unconfigured firmware default |
+| `MeshCore_EU` | 869.618 MHz | 62.5 kHz | 8 | EU/UK narrow |

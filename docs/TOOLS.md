@@ -117,11 +117,12 @@ Low-overhead monitor for unattended logging or scripting. Runs over WiFi only.
 python tools/ws_monitor.py --host 192.168.4.1
 python tools/ws_monitor.py --host 192.168.4.1 --json          # machine-readable output
 python tools/ws_monitor.py --host 192.168.4.1 --filter meshtastic
+python tools/ws_monitor.py --host 192.168.4.1 --filter meshcore
 python tools/ws_monitor.py --host 192.168.4.1 --decrypt       # try all 23 PSKs live
 python tools/ws_monitor.py --host 192.168.4.1 --messages      # decrypted text messages only
 ```
 
-**`--decrypt`**: Attempts PSK decryption on every Meshtastic packet as it arrives. Prints `🔓 key#N name: <plaintext>` on success, `🔒 no default PSK matched` on failure. Requires `pip install cryptography`.
+**`--decrypt`**: Attempts PSK decryption on every Meshtastic packet as it arrives, and channel decryption on MeshCore packets (public channel + common hashtag rooms). Prints `🔓 key#N name: <plaintext>` on success, `🔒 no default PSK matched` on failure. Requires `pip install cryptography`.
 
 **`--messages`**: Implies `--decrypt`. Suppresses all packet headers, status updates, and non-text traffic — only prints a line when a Meshtastic packet decrypts successfully as a TEXT_MESSAGE. Useful for passive message interception without noise.
 

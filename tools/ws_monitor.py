@@ -59,6 +59,7 @@ PROTOCOL_COLORS = {
     'Meshtastic': Colors.BLUE,
     'LoRaWAN': Colors.YELLOW,
     'Helium': Colors.GREEN,
+    'MeshCore': Colors.CYAN,
     'Unknown': Colors.GRAY,
     'Beacon': Colors.MAGENTA,
 }
