@@ -9,6 +9,7 @@
 #include "oled_display.h"
 #include "text_packet_diagnostic.h"
 #include "psk_decryption_simple.h"
+#include "meshcore_decryption.h"
 #include "lorawan_keys.h"
 #include "config.h"
 #include "logger.h"
@@ -300,7 +301,18 @@ void PacketProcessor::handlePacket(const PacketInfo& info, const uint8_t* data, 
     }
 
     // Try decryption and capture packet for replay
-    if (length >= 20) {
+    if (strcmp(info.protocol, "MeshCore") == 0) {
+        // MeshCore: AES-128-ECB with known public channel / hashtag room keys
+        bool decrypted = MeshCoreDecryption::tryDecrypt(data, length);
+        char decryptedTextBuf[256] = {0};
+        if (decrypted) {
+            MeshCoreDecryption::getLastMessageSafe(decryptedTextBuf, sizeof(decryptedTextBuf));
+            Serial.printf("   [MeshCore] Decrypted: \"%s\"\n", decryptedTextBuf);
+        }
+        reconState.capturePacketForReplay(data, length, reconState.scanState.currentConfig,
+                                           rssi, snr, "MeshCore", decryptedTextBuf,
+                                           0, 0, 0, 0, 0, false, false, 0);
+    } else if (length >= 20) {
         MeshtasticHeader hdr = findAndExtractMeshtasticHeader(data, length);
         tryDecryptAndCapture(data, length, rssi, snr, info.protocol, hdr);
     }

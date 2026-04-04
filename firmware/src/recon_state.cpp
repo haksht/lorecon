@@ -52,6 +52,14 @@ const ScanConfig ReconState::scanConfigs[] = {
   // ISM band exploration
   {915.0,   125.0,  7, 0x12, "ISM_915_SF7"},
   {920.0,   250.0,  8, 0x12, "ISM_920_SF8"},
+
+  // MeshCore (sync word 0x12 = RADIOLIB_SX126X_SYNC_WORD_PRIVATE, hardcoded in firmware)
+  // US/Canada recommended: 910.525 MHz, BW 62.5 kHz, SF7, CR 4/5 (matches radio default)
+  {910.525,  62.5,  7, 0x12, "MeshCore_US"},
+  // US firmware default (devices not yet configured via app)
+  {915.0,   250.0, 10, 0x12, "MeshCore_US_Default"},
+  // EU/UK narrow: 869.618 MHz, BW 62.5 kHz, SF8 (in-header CR may override hardcoded 4/5)
+  {869.618,  62.5,  8, 0x12, "MeshCore_EU"},
 };
 
 const uint8_t ReconState::NUM_CONFIGS = sizeof(scanConfigs) / sizeof(ScanConfig);

@@ -99,6 +99,7 @@ void DeviceRepository::initializeNewDevice(
     device->packetCount = 1;
     device->avgRSSI = rssi;
     device->bestRSSI = rssi;
+    device->lastRSSI = rssi;
     device->rssiStdDev = 0.0f;
     device->rssiM2 = 0.0f;
     device->avgPacketInterval = 0;
@@ -191,6 +192,9 @@ void DeviceRepository::updateExistingDevice(
         }
     }
     
+    // Always record the most recent RSSI
+    device->lastRSSI = rssi;
+
     // Update RSSI statistics with running variance calculation (Welford's algorithm)
     float oldAvg = device->avgRSSI;
     device->avgRSSI = oldAvg + (rssi - oldAvg) / device->packetCount;

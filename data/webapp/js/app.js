@@ -900,7 +900,7 @@ class ReconApp {
             { key: 'periodicityScore',     label: 'Beacon' },
             { key: 'powerClass',           label: 'Power' },
             { key: 'packetCount',          label: 'Pkts (Orig/Relay)' },
-            { key: 'avgRSSI',              label: 'RSSI (Avg/Best)' },
+            { key: 'avgRSSI',              label: 'RSSI (Last/Avg/Best)' },
             { key: 'frequency',            label: 'Frequency' },
             { key: 'firstSeenSecondsAgo',  label: 'First Seen' },
             { key: 'lastSeenSecondsAgo',   label: 'Last Seen' },
@@ -942,8 +942,9 @@ class ReconApp {
 
             const avgRssi    = device.avgRSSI || device.rssi || 0;
             const bestRssi   = device.bestRSSI || avgRssi;
+            const lastRssi   = device.lastRSSI !== undefined ? device.lastRSSI : avgRssi;
             const rssiStdDev = device.rssiStdDev || 0;
-            const rssiDisplay  = `${avgRssi.toFixed(0)} / ${bestRssi.toFixed(0)}`;
+            const rssiDisplay  = `${lastRssi.toFixed(0)} / ${avgRssi.toFixed(0)} / ${bestRssi.toFixed(0)}`;
             const rssiTooltip  = rssiStdDev > 10 ? `σ=${rssiStdDev.toFixed(1)} ⚠️ High variance` : `σ=${rssiStdDev.toFixed(1)}`;
 
             const firmware     = escapeHtml(device.firmwareVersion || '—');

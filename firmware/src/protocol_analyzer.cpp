@@ -81,7 +81,19 @@ const char* ProtocolAnalyzer::identifyProtocol(const uint8_t* data, size_t lengt
             }
         }
     }
-    
+
+    // MeshCore: sync word 0x12 + header byte with version bits == 0b01 (version 1).
+    // Header format: 0bVVPPPPRR — VV=version, PPPP=payload type (0-11), RR=route type (0-3).
+    // Minimum packet: 4 bytes (header + path_length + 2 payload bytes).
+    if (syncWord == 0x12 && length >= 4) {
+        uint8_t hdr = data[0];
+        uint8_t version     = (hdr >> 6) & 0x03;
+        uint8_t payloadType = (hdr >> 2) & 0x0F;
+        if (version == 1 && payloadType <= 11) {
+            return "MeshCore";
+        }
+    }
+
     // Meshtastic unicast: destination is a specific node ID (not 0xFFFFFFFF).
     //
     // On Meshtastic-only sync words (0x2B = standard, 0x48 = LongSlow), the SX1262

@@ -184,7 +184,7 @@ namespace Scanning {
     constexpr uint32_t DWELL_TIME_MS = 12000;
     
     // Number of frequency configurations to scan
-    constexpr uint8_t NUM_CONFIGURATIONS = 26;
+    constexpr uint8_t NUM_CONFIGURATIONS = 29;
     
     // Total reconnaissance cycle time: 26 configs x 12s = ~5 minutes
 }

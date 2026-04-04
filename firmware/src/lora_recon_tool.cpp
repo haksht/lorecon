@@ -10,6 +10,7 @@
 #include "mode_manager.h"
 #include "config.h"
 #include "psk_decryption_simple.h"
+#include "meshcore_decryption.h"
 #include "utils/pmu_controller.h"
 #include "gps_controller.h"
 #include <LittleFS.h>
@@ -166,6 +167,7 @@ bool LoRaReconTool::initialize() {
 
     // Initialize PSK decryption system
     PSKDecryption::initialize();
+    MeshCoreDecryption::initialize();
     
     // Initialize command handler
     commandHandler = new CommandHandler(this);

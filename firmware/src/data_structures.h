@@ -79,6 +79,7 @@ struct TargetableDevice {
   uint8_t configIndex;      // Which scan config works best for this device
   float bestRSSI;
   float avgRSSI;
+  float lastRSSI;           // RSSI of the most recently received packet
   float rssiStdDev;         // RSSI standard deviation (for spoofing detection)
   float rssiM2;             // Welford's M2 for variance calculation (internal use)
   uint32_t packetCount;     // Number of successfully decoded packets

@@ -51,6 +51,7 @@ void fillDevice(ArduinoJson::JsonObject& obj, const TargetableDevice& dev, uint8
     obj["relayedPackets"] = dev.relayedPackets;
     obj["avgRSSI"] = dev.avgRSSI;
     obj["bestRSSI"] = dev.bestRSSI;
+    obj["lastRSSI"] = dev.lastRSSI;
     obj["rssiStdDev"] = serialized(String(dev.rssiStdDev, 1));
     obj["rssi"] = dev.avgRSSI;  // UI compatibility alias
     obj["firstSeen"] = dev.firstSeen;
