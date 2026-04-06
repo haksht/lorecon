@@ -82,18 +82,6 @@ const char* ProtocolAnalyzer::identifyProtocol(const uint8_t* data, size_t lengt
         }
     }
 
-    // MeshCore: sync word 0x12 + header byte with version bits == 0b01 (version 1).
-    // Header format: 0bVVPPPPRR — VV=version, PPPP=payload type (0-11), RR=route type (0-3).
-    // Minimum packet: 4 bytes (header + path_length + 2 payload bytes).
-    if (syncWord == 0x12 && length >= 4) {
-        uint8_t hdr = data[0];
-        uint8_t version     = (hdr >> 6) & 0x03;
-        uint8_t payloadType = (hdr >> 2) & 0x0F;
-        if (version == 1 && payloadType <= 11) {
-            return "MeshCore";
-        }
-    }
-
     // Meshtastic unicast: destination is a specific node ID (not 0xFFFFFFFF).
     //
     // On Meshtastic-only sync words (0x2B = standard, 0x48 = LongSlow), the SX1262
@@ -116,9 +104,36 @@ const char* ProtocolAnalyzer::identifyProtocol(const uint8_t* data, size_t lengt
     // RadioHead RH_RF95: 4-byte header [TO][FROM][ID][FLAGS] + payload
     // FLAGS lower 5 bits are reserved and always 0 in valid frames.
     // Max RH_RF95 payload is 251 bytes (255 - 4 header bytes).
-    if (length >= 5 && length <= 251) {
+    // Checked BEFORE MeshCore: both use sync word 0x12, and RadioHead's FLAGS
+    // constraint is a stronger structural test than MeshCore's header bit check.
+    if (syncWord == 0x12 && length >= 5 && length <= 251) {
         if ((data[3] & 0x1F) == 0) {
             return "RadioHead";
+        }
+    }
+
+    // MeshCore: sync word 0x12 + valid header bits + structural validity.
+    // Header format: 0bVVPPPPRR — VV=version (0-1), PPPP=payload type (0-11), RR=route type (0-3).
+    // Structural check: path_length byte must resolve to a payload offset within the packet,
+    // ensuring the packet is actually parseable as MeshCore and not a RadioHead false positive
+    // that slipped through the FLAGS check above.
+    if (syncWord == 0x12 && length >= 4) {
+        uint8_t hdr        = data[0];
+        uint8_t version    = (hdr >> 6) & 0x03;
+        uint8_t payloadType = (hdr >> 2) & 0x0F;
+        if (version <= 1 && payloadType <= 11) {
+            // Validate packet structure: compute payload offset and verify it lands within bounds.
+            uint8_t routeType     = hdr & 0x03;
+            size_t pathLenOffset  = (routeType == 2 || routeType == 3) ? 5 : 1;
+            if (pathLenOffset + 1 <= length) {
+                uint8_t pathLenByte = data[pathLenOffset];
+                uint8_t hopCount    = pathLenByte & 0x3F;
+                uint8_t hashSize    = ((pathLenByte >> 6) & 0x03) + 1;
+                size_t payloadOffset = pathLenOffset + 1 + (size_t)(hopCount * hashSize);
+                if (payloadOffset < length) {
+                    return "MeshCore";
+                }
+            }
         }
     }
 
@@ -142,6 +157,35 @@ uint32_t ProtocolAnalyzer::extractNodeId(const uint8_t* data, size_t length, con
     if (strcmp(protocol, "RadioHead") == 0 && length >= 2) {
         // RH_RF95 FROM address at byte 1 (8-bit, 0-255)
         return data[1];
+    }
+
+    if (strcmp(protocol, "MeshCore") == 0) {
+        uint8_t routeType = data[0] & 0x03;
+
+        // Route types 2/3 (TRANSPORT_FLOOD/DIRECT) carry 4-byte transport_codes at bytes 1-4
+        // set by the originator — stable per sender across all relay copies.
+        if ((routeType == 2 || routeType == 3) && length >= 5) {
+            return ((uint32_t)data[1]) | ((uint32_t)data[2] << 8) |
+                   ((uint32_t)data[3] << 16) | ((uint32_t)data[4] << 24);
+        }
+
+        // Route types 0/1: no transport_codes. Path starts at byte 1.
+        // path_length byte: bits 0-5 = hop_count, bits 6-7 = hash_size - 1.
+        // path[0] is the originator's node hash — stable per sender.
+        // Build a uint32 from up to 4 bytes of the originator hash (zero-padded).
+        if (length >= 3) {
+            uint8_t pathLenByte = data[1];
+            uint8_t hopCount = pathLenByte & 0x3F;
+            uint8_t hashSize = ((pathLenByte >> 6) & 0x03) + 1;
+            if (hopCount > 0 && (size_t)(2 + hashSize) <= length) {
+                uint32_t id = 0;
+                uint8_t take = (hashSize < 4) ? hashSize : 4;
+                for (uint8_t i = 0; i < take; i++) {
+                    id |= ((uint32_t)data[2 + i]) << (i * 8);
+                }
+                return id;
+            }
+        }
     }
 
     return 0;
@@ -168,6 +212,14 @@ uint8_t ProtocolAnalyzer::extractHopCount(const uint8_t* data, size_t length, co
     if (strcmp(protocol, "Meshtastic") == 0 && length >= 13) {
         // Hop count is lower 3 bits of flags byte (byte 12)
         return data[12] & 0x07;
+    }
+    if (strcmp(protocol, "MeshCore") == 0 && length >= 2) {
+        // path_length byte: bits 0-5 = hop_count (number of nodes this packet has traversed)
+        uint8_t routeType = data[0] & 0x03;
+        size_t pathLenOffset = (routeType == 2 || routeType == 3) ? 5 : 1;
+        if (pathLenOffset < length) {
+            return data[pathLenOffset] & 0x3F;
+        }
     }
     return 0;
 }
@@ -248,6 +300,23 @@ const char* ProtocolAnalyzer::identifyDeviceType(const uint8_t* data, size_t len
         if (toAddr == 0xFF) return "RadioHead Broadcast";
         if (isAckReply)     return "RadioHead ACK";
         return "RadioHead Node";
+    }
+
+    if (strcmp(protocol, "MeshCore") == 0 && length >= 1) {
+        // Header byte: 0bVVPPPPRR — PPPP = payload type (bits 2-5)
+        uint8_t payloadType = (data[0] >> 2) & 0x0F;
+        switch (payloadType) {
+            case 0:  return "MeshCore Msg";
+            case 1:  return "MeshCore ACK";
+            case 2:  return "MeshCore Signed Msg";
+            case 3:  return "MeshCore Trace";
+            case 4:  return "MeshCore Advert";
+            case 5:  return "MeshCore Direct";
+            case 6:  return "MeshCore Ping";
+            case 7:  return "MeshCore Pong";
+            case 8:  return "MeshCore Position";
+            default: return "MeshCore Node";
+        }
     }
 
     // Beacon analysis

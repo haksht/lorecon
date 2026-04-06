@@ -281,7 +281,7 @@ void PacketProcessor::tryDecryptAndCapture(const uint8_t* data, size_t length, f
 }
 
 // Handle a captured packet (same pipeline for recon and targeted modes)
-void PacketProcessor::handlePacket(const PacketInfo& info, const uint8_t* data, size_t length,
+void PacketProcessor::handlePacket(PacketInfo& info, const uint8_t* data, size_t length,
                                    float rssi, float snr, OLEDDisplay* display) {
     const char* modeTag = (reconState.scanState.mode == MODE_TARGETED_CAPTURE) ? "CAPTURE" : "RECON";
     Serial.printf("\n[%s] Packet #%d: %s, 0x%08X, %d bytes, %.1f dBm, %.1f dB SNR\n",
@@ -311,7 +311,7 @@ void PacketProcessor::handlePacket(const PacketInfo& info, const uint8_t* data, 
         }
         reconState.capturePacketForReplay(data, length, reconState.scanState.currentConfig,
                                            rssi, snr, "MeshCore", decryptedTextBuf,
-                                           0, 0, 0, 0, 0, false, false, 0);
+                                           info.nodeId, 0, info.hopCount, 0, 0, false, false, 0);
     } else if (length >= 20) {
         MeshtasticHeader hdr = findAndExtractMeshtasticHeader(data, length);
         tryDecryptAndCapture(data, length, rssi, snr, info.protocol, hdr);

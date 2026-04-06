@@ -27,10 +27,11 @@ ANALYSIS_COMMANDS = {
 }
 
 DEV_COMMANDS = {
-    'analyze':  (TOOLS_DIR / 'pcap_analyzer.py',                               'Raw PCAP inspector'),
-    'decode':   (TOOLS_DIR / 'meshtastic' / 'meshtastic_decoder.py',           'Batch Meshtastic decryptor'),
-    'api':      (TOOLS_DIR / 'dev' / 'api_client.py',                          'REST API client (~30 subcommands)'),
-    'visualize':(TOOLS_DIR / 'enhanced_live_visualizer.py',                    '5-panel dashboard (serial or WebSocket)'),
+    'analyze':        (TOOLS_DIR / 'pcap_analyzer.py',                         'Raw PCAP inspector'),
+    'decode':         (TOOLS_DIR / 'meshtastic' / 'meshtastic_decoder.py',     'Batch Meshtastic decryptor (AES-256-CTR)'),
+    'meshcore-decode':(TOOLS_DIR / 'meshcore' / 'meshcore_decoder.py',         'Batch MeshCore decryptor (AES-128-ECB, 12 keys)'),
+    'api':            (TOOLS_DIR / 'dev' / 'api_client.py',                    'REST API client (~30 subcommands)'),
+    'visualize':      (TOOLS_DIR / 'enhanced_live_visualizer.py',              '5-panel dashboard (serial or WebSocket)'),
 }
 
 # Flat lookup for dispatch (story handled separately)

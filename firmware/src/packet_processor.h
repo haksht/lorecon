@@ -137,7 +137,7 @@ private:
 
     // Processing helpers
     void processSinglePacket(const QueuedPacket& qp, OLEDDisplay* display);
-    void handlePacket(const PacketInfo& info, const uint8_t* data, size_t length,
+    void handlePacket(PacketInfo& info, const uint8_t* data, size_t length,
                      float rssi, float snr, OLEDDisplay* display);
 };
 

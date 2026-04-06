@@ -259,6 +259,53 @@ with 0,0 coordinates if the API serializes the raw struct before the `valid` che
 
 ---
 
+## MeshCore Device Classification
+
+**Source**: `firmware/src/protocol_analyzer.cpp` — `identifyDeviceType()`, `extractNodeId()`, `extractHopCount()`
+
+### Detection
+
+MeshCore packets are identified by two conditions checked in order:
+
+1. **RadioHead eliminated first**: sync word `0x12`, `FLAGS & 0x1F == 0` → RadioHead. Both protocols use sync word `0x12`; RadioHead's FLAGS reserved-bit constraint is a stronger structural test.
+2. **MeshCore structural check**: header version ≤ 1, payload type 0–11, AND the path_length byte must produce a payload offset that falls within the packet bounds. This prevents RadioHead packets that slip through the FLAGS check from being misidentified as MeshCore.
+
+### Payload type (device type label)
+
+The header byte encodes `0bVVPPPPRR` — bits 2–5 are the payload type. The device type label is derived directly from this field:
+
+| Payload type | Device type label |
+|---|---|
+| 0 | MeshCore Msg |
+| 1 | MeshCore ACK |
+| 2 | MeshCore Signed Msg |
+| 3 | MeshCore Trace |
+| 4 | MeshCore Advert |
+| 5 | MeshCore Direct |
+| 6 | MeshCore Ping |
+| 7 | MeshCore Pong |
+| 8 | MeshCore Position |
+| 9–11 | MeshCore Node |
+
+### Node ID extraction
+
+MeshCore RT 0/1 (FLOOD / ZERO_HOP) packets do not carry a full sender address. The node ID is extracted from the **path field** — specifically the first hash entry, which is the originator's node hash. This is a SHA256-derived truncation of the real node ID.
+
+- **RT 0/1**: path starts at byte 2. `path_length` byte (byte 1): bits 0–5 = hop_count, bits 6–7 = hash_size − 1. Node ID = first `hash_size` bytes of path, zero-padded to uint32.
+- **RT 2/3** (TRANSPORT_FLOOD / TRANSPORT_DIRECT): bytes 1–4 are `transport_codes` set by the originator — a stable 4-byte sender fingerprint. Used directly as the node ID.
+
+**Collision note**: RT 0/1 hash_size is typically 1 byte (256 possible values). In a small local mesh, collisions are unlikely. In a dense mesh, two nodes could share the same hash and appear as one device.
+
+### Hop count
+
+Extracted from the `path_length` byte (bits 0–5). Represents the number of hops the packet has already traversed — not the remaining hop limit. A zero hop count means the packet came directly from the originator.
+
+### Fields not available in RT 0/1
+
+MeshCore RT 0/1 packets do not carry destination address, channel index, flags, or packet ID. These fields are blank in the packets tab for MeshCore entries. This is a protocol constraint, not a firmware limitation.
+
+---
+
 ## Why Only 10 Packets Are Kept
 
 **Source**: `firmware/src/repositories/packet_store.h:20`, `firmware/src/config.h:153`

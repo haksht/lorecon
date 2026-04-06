@@ -531,18 +531,31 @@ void handleFrequencyTargetingInput() {
     return;
   }
   
-  char cmd = Serial.read();
-  Serial.println(cmd);
-  
-  if (cmd >= '1' && cmd <= '9') {
-    uint8_t configIndex = cmd - '1';
-    if (configIndex < reconState.getNumConfigs()) {
+  String input = Serial.readStringUntil('\n');
+  input.trim();
+  Serial.println(input);
+
+  char cmd = (input.length() == 1) ? input[0] : 0;
+
+  // Numeric input: accept 1- or 2-digit config numbers
+  bool isNumeric = input.length() >= 1 && input.length() <= 2;
+  for (uint8_t i = 0; isNumeric && i < input.length(); i++) {
+    if (input[i] < '0' || input[i] > '9') isNumeric = false;
+  }
+  if (isNumeric && input.length() > 0) {
+    int configNum = input.toInt();
+    uint8_t configIndex = (uint8_t)(configNum - 1);
+    if (configNum >= 1 && configIndex < reconState.getNumConfigs()) {
       startFrequencyTargeting(configIndex);
     } else {
-      Serial.println("[FAIL] Invalid frequency selection");
+      Serial.printf("[FAIL] Invalid frequency selection: %d (valid: 1-%d)\n",
+                    configNum, reconState.getNumConfigs());
       showFrequencyTargetingMenu();
     }
-  } else if (cmd == 'f' || cmd == 'F') {
+    return;
+  }
+
+  if (cmd == 'f' || cmd == 'F') {
     // Show frequency activity summary
     Serial.println("\n FREQUENCY ACTIVITY SUMMARY:");
     for (uint8_t i = 0; i < reconState.getNumConfigs(); i++) {

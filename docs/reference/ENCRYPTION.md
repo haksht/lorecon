@@ -185,3 +185,9 @@ MeshCore uses sync word `0x12` (`RADIOLIB_SX126X_SYNC_WORD_PRIVATE`), hardcoded 
 | `MeshCore_US` | 910.525 MHz | 62.5 kHz | 7 | US/Canada recommended |
 | `MeshCore_US_Default` | 915.0 MHz | 250 kHz | 10 | Unconfigured firmware default |
 | `MeshCore_EU` | 869.618 MHz | 62.5 kHz | 8 | EU/UK narrow |
+
+### Protocol detection reliability
+
+RadioHead also uses sync word `0x12`. To avoid false positives, the firmware checks RadioHead before MeshCore (RadioHead's `FLAGS & 0x1F == 0` constraint eliminates it first). MeshCore detection additionally requires structural validity: the `path_length` byte must produce a payload offset that falls within the received packet. A packet that passes the header bit check but has an impossible path length is classified Unknown rather than MeshCore.
+
+Observed firmware versions use header version bits `0` or `1` (both accepted). The protocol spec originally specified version `1` only; version `0` appears in deployed firmware.

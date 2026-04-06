@@ -63,6 +63,8 @@ tools/
 ├── lorawan/
 │   ├── join_parser.py              # OTAA join request parser (DevEUI exposure, nonce reuse)
 │   └── uplink_parser.py            # Uplink frame parser with optional AppSKey decryption
+├── meshcore/
+│   └── meshcore_decoder.py         # Offline MeshCore AES-128-ECB decryption (12 built-in keys)
 ├── meshtastic/
 │   ├── meshtastic_decoder.py       # Offline packet decryption
 │   ├── mesh_topology_analyzer.py   # Visualize mesh network structure
@@ -191,6 +193,30 @@ Converts the custom PCAP pseudo-header to standard LoRaTap (DLT 270) for Wiresha
 python tools/export/wireshark_exporter.py capture.pcap -o wireshark_capture.pcap
 python tools/export/wireshark_exporter.py capture.pcap --open   # convert and launch
 ```
+
+---
+
+## MeshCore tools
+
+### `meshcore/meshcore_decoder.py` — Offline decryption
+
+Attempts AES-128-ECB decryption of MeshCore packets using the 12 built-in channel keys (public channel + 11 hashtag rooms). Works on PCAP and CSV files, or a single hex string.
+
+```bash
+python tools/meshcore/meshcore_decoder.py capture.pcap
+python tools/meshcore/meshcore_decoder.py capture.csv --format csv
+python tools/meshcore/meshcore_decoder.py AABBCC... --hex
+python tools/meshcore/meshcore_decoder.py --test        # run self-tests
+python tools/meshcore/meshcore_decoder.py --list-keys   # show all 12 channel keys
+```
+
+CSV input: only rows where `protocol` contains `meshcore` are processed. All other rows are skipped.
+
+**Decryption algorithm**: AES-128-ECB with HMAC-SHA256 (2-byte MAC) authentication. A 1-byte channel hash fast-rejects non-matching keys before the HMAC check, keeping per-packet work low.
+
+**What it can decrypt**: public channel and hashtag rooms (`#general`, `#emergency`, `#local`, `#mesh`, `#public`, `#chat`, `#help`, `#info`, `#sos`, `#weather`, `#news`). Private channels and direct messages cannot be decrypted passively.
+
+**Decrypted output format**: `[4B LE timestamp][1B flags][message text...]`. The tool parses and displays timestamp (UTC) and message text.
 
 ---
 

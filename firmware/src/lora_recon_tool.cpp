@@ -484,8 +484,8 @@ void LoRaReconTool::startFrequencyTargeting(uint8_t configIndex) {
     Serial.println("Monitoring for packets...\n");
     
     // Set up targeting mode
-    LOG_INFO("Starting frequency targeting on config %d: %s @ %.3f MHz", 
-             configIndex, cfg.protocol, cfg.frequency);
+    LOG_INFO("Starting frequency targeting on config %d: %s @ %.3f MHz",
+             configIndex + 1, cfg.protocol, cfg.frequency);
     
     // Log the mode transition with source
     OperationMode previousMode = reconState.scanState.mode;
