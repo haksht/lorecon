@@ -21,6 +21,7 @@
 // --- Static member definitions -----------------------------------------------
 
 char MeshCoreDecryption::lastMessage[MeshCoreDecryption::MAX_MESSAGE_LEN] = {0};
+char MeshCoreDecryption::lastChannelName[MeshCoreDecryption::MAX_CHANNEL_LEN] = {0};
 SemaphoreHandle_t MeshCoreDecryption::messageMutex = nullptr;
 uint8_t MeshCoreDecryption::channelKeys[MeshCoreDecryption::NUM_KEYS][16];
 bool MeshCoreDecryption::initialized = false;
@@ -34,7 +35,8 @@ static const char PUBLIC_CHANNEL_KEY_B64[] = "izOH6cXN6mrJ5e26oRXNcg==";
 // Hashtag rooms are insecure by design — key is derivable from the room name alone.
 static const char* const HASHTAG_ROOMS[] = {
     "#general", "#emergency", "#local", "#mesh", "#public",
-    "#chat", "#help", "#info", "#sos", "#weather", "#news"
+    "#chat", "#help", "#info", "#sos", "#weather", "#news",
+    "#test"
 };
 static_assert(sizeof(HASHTAG_ROOMS) / sizeof(HASHTAG_ROOMS[0]) == MeshCoreDecryption::NUM_KEYS - 1,
               "HASHTAG_ROOMS count must equal NUM_KEYS - 1");
@@ -199,16 +201,39 @@ bool MeshCoreDecryption::tryDecrypt(const uint8_t* data, size_t length) {
     if (payloadLen < 19) return false;
 
     clearLastMessage();
+    // Clear channel name for this attempt
+    if (messageMutex && xSemaphoreTake(messageMutex, pdMS_TO_TICKS(10)) == pdTRUE) {
+        lastChannelName[0] = '\0';
+        xSemaphoreGive(messageMutex);
+    }
 
     for (uint8_t i = 0; i < NUM_KEYS; i++) {
         if (tryKey(channelKeys[i], payload, payloadLen)) {
+            const char* name = (i == 0) ? "public" : HASHTAG_ROOMS[i - 1];
             LOG_INFO("MeshCore: decrypted with key[%d] (%s)", i,
                      i == 0 ? "public channel" : HASHTAG_ROOMS[i - 1]);
+            // Store channel name thread-safely
+            if (messageMutex && xSemaphoreTake(messageMutex, pdMS_TO_TICKS(10)) == pdTRUE) {
+                strncpy(lastChannelName, name, MAX_CHANNEL_LEN - 1);
+                lastChannelName[MAX_CHANNEL_LEN - 1] = '\0';
+                xSemaphoreGive(messageMutex);
+            }
             return true;
         }
     }
 
     return false;
+}
+
+void MeshCoreDecryption::getLastChannelName(char* buffer, size_t bufferSize) {
+    if (!buffer || bufferSize == 0) return;
+    buffer[0] = '\0';
+    if (!messageMutex) return;
+    if (xSemaphoreTake(messageMutex, pdMS_TO_TICKS(10)) == pdTRUE) {
+        strncpy(buffer, lastChannelName, bufferSize - 1);
+        buffer[bufferSize - 1] = '\0';
+        xSemaphoreGive(messageMutex);
+    }
 }
 
 // --- Thread-safe message access ----------------------------------------------

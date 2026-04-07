@@ -653,3 +653,44 @@ void ReconState::updateDeviceTemporalMetrics(uint32_t nodeId) {
 
     unlock();
 }
+
+void ReconState::updateDeviceBattery(uint32_t nodeId, int16_t level, float voltage) {
+    if (nodeId == 0) return;
+    if (!lock()) return;
+    TargetableDevice* device = deviceRepo_.findByNodeId(nodeId);
+    if (device) {
+        if (level >= 0) device->batteryLevel = level;
+        if (voltage > 0.0f) device->batteryVoltage = voltage;
+    }
+    unlock();
+}
+
+void ReconState::updateDeviceDecryption(uint32_t nodeId, const char* channel,
+                                        const char* message, const char* senderName) {
+    if (nodeId == 0) return;
+    if (!lock()) return;
+    TargetableDevice* device = deviceRepo_.findByNodeId(nodeId);
+    if (device) {
+        if (channel) {
+            strncpy(device->meshCoreChannel, channel, sizeof(device->meshCoreChannel) - 1);
+            device->meshCoreChannel[sizeof(device->meshCoreChannel) - 1] = '\0';
+        }
+        if (message && message[0] != '\0') {
+            strncpy(device->lastMessage, message, sizeof(device->lastMessage) - 1);
+            device->lastMessage[sizeof(device->lastMessage) - 1] = '\0';
+        }
+        if (senderName && senderName[0] != '\0') {
+            strncpy(device->senderName, senderName, sizeof(device->senderName) - 1);
+            device->senderName[sizeof(device->senderName) - 1] = '\0';
+        }
+    }
+    unlock();
+}
+
+void ReconState::updateDeviceSNR(uint32_t nodeId, float snr) {
+    if (nodeId == 0) return;
+    if (!lock()) return;
+    TargetableDevice* device = deviceRepo_.findByNodeId(nodeId);
+    if (device) device->lastSNR = snr;
+    unlock();
+}

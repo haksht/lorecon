@@ -16,6 +16,10 @@
 char PSKDecryption::lastMessage[PSKDecryption::MAX_MESSAGE_LEN] = {0};
 SemaphoreHandle_t PSKDecryption::messageMutex = nullptr;
 
+// Static storage for last DeviceMetrics battery telemetry
+int16_t PSKDecryption::lastBatteryLevel = -1;
+float PSKDecryption::lastBatteryVoltage = 0.0f;
+
 // Thread-safe setter for lastMessage
 void PSKDecryption::setLastMessage(const char* msg) {
     if (!messageMutex) return;
@@ -34,6 +38,35 @@ void PSKDecryption::getLastMessageSafe(char* buffer, size_t bufferSize) {
     if (xSemaphoreTake(messageMutex, pdMS_TO_TICKS(10)) == pdTRUE) {
         strncpy(buffer, lastMessage, bufferSize - 1);
         buffer[bufferSize - 1] = '\0';
+        xSemaphoreGive(messageMutex);
+    }
+}
+
+void PSKDecryption::clearLastBattery() {
+    if (!messageMutex) return;
+    if (xSemaphoreTake(messageMutex, pdMS_TO_TICKS(10)) == pdTRUE) {
+        lastBatteryLevel = -1;
+        lastBatteryVoltage = 0.0f;
+        xSemaphoreGive(messageMutex);
+    }
+}
+
+void PSKDecryption::setLastBattery(int16_t level, float voltage) {
+    if (!messageMutex) return;
+    if (xSemaphoreTake(messageMutex, pdMS_TO_TICKS(10)) == pdTRUE) {
+        lastBatteryLevel = level;
+        lastBatteryVoltage = voltage;
+        xSemaphoreGive(messageMutex);
+    }
+}
+
+void PSKDecryption::getLastBattery(int16_t& level, float& voltage) {
+    level = -1;
+    voltage = 0.0f;
+    if (!messageMutex) return;
+    if (xSemaphoreTake(messageMutex, pdMS_TO_TICKS(10)) == pdTRUE) {
+        level = lastBatteryLevel;
+        voltage = lastBatteryVoltage;
         xSemaphoreGive(messageMutex);
     }
 }
@@ -231,8 +264,9 @@ int PSKDecryption::decodeBase64(const char* input, uint8_t* output, size_t maxLe
 bool PSKDecryption::testDefaultPSKs(const uint8_t* data, size_t length) {
     pskStats.attempts++;
     
-    // Clear lastMessage to prevent stale data from previous packets (thread-safe)
+    // Clear stale data from previous packets (thread-safe)
     clearLastMessage();
+    clearLastBattery();
     
     // Validate minimum packet structure
     if (length < 20) {
@@ -492,12 +526,15 @@ bool PSKDecryption::testDefaultPSKs(const uint8_t* data, size_t length) {
                     geoIntel.extractPositionFromDecrypted(decrypted, encryptedLen, nodeId);
                 } else if (portnum == 0x08) {  // TELEMETRY_APP (device metrics)
                     // Scan for telemetry fields
+                    int16_t parsedBattery = -1;
+                    float parsedVoltage = 0.0f;
                     for (size_t j = 0; j < encryptedLen - 4; j++) {
                         // Battery level: field 1, varint (0x08 followed by value)
                         if (decrypted[j] == 0x08 && j + 1 < encryptedLen && j > 2) {
                             uint8_t batteryLevel = decrypted[j+1];
                             if (batteryLevel <= 101) {  // Valid battery percentage
                                 Serial.printf("[PSK]    Battery: %d%%\n", batteryLevel);
+                                parsedBattery = (int16_t)batteryLevel;
                             }
                         }
                         // Voltage: field 2, fixed32 (0x15 followed by 4-byte float)
@@ -506,6 +543,7 @@ bool PSKDecryption::testDefaultPSKs(const uint8_t* data, size_t length) {
                             memcpy(&voltage, &decrypted[j+1], 4);
                             if (voltage > 0.0f && voltage < 10.0f) {  // Valid voltage range
                                 Serial.printf("[PSK]   ~ Voltage: %.2fV\n", voltage);
+                                parsedVoltage = voltage;
                             }
                         }
                         // Channel utilization: field 3, fixed32 (0x1d followed by 4-byte float)
@@ -524,6 +562,9 @@ bool PSKDecryption::testDefaultPSKs(const uint8_t* data, size_t length) {
                                 Serial.printf("[PSK]    Air util TX: %.1f%%\n", airUtil);
                             }
                         }
+                    }
+                    if (parsedBattery >= 0 || parsedVoltage > 0.0f) {
+                        setLastBattery(parsedBattery, parsedVoltage);
                     }
                 }
             }

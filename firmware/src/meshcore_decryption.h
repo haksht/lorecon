@@ -32,8 +32,12 @@ public:
     static void getLastMessageSafe(char* buffer, size_t bufferSize);
     static void clearLastMessage();
 
-    // 1 public channel + 11 common hashtag rooms
-    static constexpr uint8_t NUM_KEYS = 12;
+    // Channel name that successfully decrypted the last packet.
+    // "public" for key[0], "#roomname" for hashtag rooms, "" if decryption failed.
+    static void getLastChannelName(char* buffer, size_t bufferSize);
+
+    // 1 public channel + 12 common hashtag rooms
+    static constexpr uint8_t NUM_KEYS = 13;
 
 private:
     // Returns byte offset to payload within a MeshCore packet, or -1 if malformed.
@@ -43,7 +47,9 @@ private:
     static bool tryKey(const uint8_t key[16], const uint8_t* payload, size_t payloadLen);
 
     static constexpr size_t MAX_MESSAGE_LEN = 256;
+    static constexpr size_t MAX_CHANNEL_LEN = 24;
     static char lastMessage[MAX_MESSAGE_LEN];
+    static char lastChannelName[MAX_CHANNEL_LEN];
     static SemaphoreHandle_t messageMutex;
     static uint8_t channelKeys[NUM_KEYS][16];
     static bool initialized;

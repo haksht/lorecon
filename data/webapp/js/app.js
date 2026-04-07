@@ -894,13 +894,15 @@ class ReconApp {
         const cols = [
             { key: 'nodeId',               label: 'Node ID' },
             { key: 'securityScore',        label: 'Risk' },
+            { key: 'meshCoreChannel',      label: 'Channel' },
             { key: 'deviceType',           label: 'Type' },
             { key: 'firmwareVersion',      label: 'Firmware' },
             { key: 'isRouter',             label: 'Router' },
             { key: 'periodicityScore',     label: 'Beacon' },
-            { key: 'powerClass',           label: 'Power' },
+            { key: 'powerClass',           label: 'Signal' },
+            { key: 'batteryLevel',         label: 'Battery' },
             { key: 'packetCount',          label: 'Pkts (Orig/Relay)' },
-            { key: 'avgRSSI',              label: 'RSSI (Last/Avg/Best)' },
+            { key: 'avgRSSI',              label: 'RSSI / SNR' },
             { key: 'frequency',            label: 'Frequency' },
             { key: 'firstSeenSecondsAgo',  label: 'First Seen' },
             { key: 'lastSeenSecondsAgo',   label: 'Last Seen' },
@@ -925,7 +927,16 @@ class ReconApp {
             else                                        { riskBadge = '⚪ —';    riskClass = 'risk-unknown'; }
 
             const routerBadge = device.isRouter ? '✅' : '—';
-            const powerBadge  = device.powerClass >= 2 ? '🔋 High' : (device.powerClass === 1 ? '🔋 Med' : '🪫 Low');
+            const powerBadge  = device.powerClass >= 2 ? '📶 Strong' : (device.powerClass === 1 ? '📶 Med' : '📶 Weak');
+
+            const battLevel = device.batteryLevel !== undefined ? device.batteryLevel : -1;
+            const battVolt  = device.batteryVoltage || 0;
+            let battBadge = '—';
+            if (battLevel >= 0) {
+                const battIcon = battLevel > 60 ? '🔋' : (battLevel > 20 ? '🪫' : '⚠️');
+                const voltStr = battVolt > 0 ? ` (${battVolt.toFixed(2)}V)` : '';
+                battBadge = `${battIcon} ${battLevel}%${voltStr}`;
+            }
 
             const periodicityScore = device.periodicityScore || 0;
             const avgInterval      = device.avgPacketInterval || 0;
@@ -951,16 +962,38 @@ class ReconApp {
             const safeNodeId   = escapeHtml(device.nodeId);
             const safeDevType  = escapeHtml(device.deviceType || 'Unknown');
 
+            // Sender name + last message tooltip on Node ID cell
+            const senderName  = device.senderName || '';
+            const lastMsg     = device.lastMessage || '';
+            const nodeIdTitle = lastMsg ? escapeHtml(lastMsg) : '';
+            const senderSub   = senderName ? `<br><small style="opacity:0.6">${escapeHtml(senderName)}</small>` : '';
+
+            // Channel badge
+            const ch = device.meshCoreChannel || '';
+            let chBadge = '—';
+            if      (ch === 'public')  chBadge = '🔓 public';
+            else if (ch === 'unknown') chBadge = '🔐 custom';
+            else if (ch.startsWith('#')) chBadge = `🔑 ${escapeHtml(ch)}`;
+
+            // SNR display
+            const snr = device.lastSNR !== undefined ? device.lastSNR : null;
+            const snrStr = snr !== null ? ` / ${snr.toFixed(1)} dB` : '';
+            const rssiTooltipFull = rssiStdDev > 10
+                ? `σ=${rssiStdDev.toFixed(1)} ⚠️ High variance`
+                : `σ=${rssiStdDev.toFixed(1)} dB`;
+
             html += '<tr>';
-            html += `<td><code>0x${safeNodeId}</code></td>`;
+            html += `<td title="${nodeIdTitle}"><code>0x${safeNodeId}</code>${senderSub}</td>`;
             html += `<td><span class="${riskClass}">${riskBadge}</span></td>`;
+            html += `<td><small>${chBadge}</small></td>`;
             html += `<td>${safeDevType}</td>`;
             html += `<td><small>${firmware}</small></td>`;
             html += `<td>${routerBadge}</td>`;
             html += `<td><small title="${intervalTooltip}">${beaconBadge}</small></td>`;
             html += `<td><small>${powerBadge}</small></td>`;
+            html += `<td><small>${battBadge}</small></td>`;
             html += `<td>${pktDisplay}</td>`;
-            html += `<td><span class="${rssiClass}" title="${rssiTooltip}">${rssiDisplay} dBm</span></td>`;
+            html += `<td><span class="${rssiClass}" title="${rssiTooltipFull}">${rssiDisplay} dBm${snrStr}</span></td>`;
             html += `<td>${(device.frequency || 0).toFixed(3)} MHz</td>`;
             html += `<td>${this.formatDuration(device.firstSeenSecondsAgo || 0)} ago</td>`;
             html += `<td>${this.formatLastSeen(device.lastSeenSecondsAgo)}</td>`;
@@ -979,7 +1012,7 @@ class ReconApp {
                 } else {
                     this.deviceSort.col = c;
                     // Numeric risk/packets/RSSI default desc; everything else asc
-                    this.deviceSort.dir = ['securityScore','packetCount','periodicityScore','powerClass'].includes(c) ? 'asc' : 'desc';
+                    this.deviceSort.dir = ['securityScore','packetCount','periodicityScore','powerClass','batteryLevel'].includes(c) ? 'asc' : 'desc';
                 }
                 this.renderDeviceTable();
             });

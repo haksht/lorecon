@@ -259,21 +259,16 @@ void ProtocolAnalyzer::extractFlags(const uint8_t* data, size_t length, const ch
 
 // Device type identification based on packet patterns and RSSI characteristics
 const char* ProtocolAnalyzer::identifyDeviceType(const uint8_t* data, size_t length, const char* protocol, float rssi) {
-    // Meshtastic device type detection
+    // Meshtastic device type detection.
+    // Hardware class (Base/Solar/Handheld) cannot be determined from RSSI alone —
+    // an external antenna on a handheld will appear as strong as a base station.
+    // We only note whether the first observed packet was already relayed (informational).
     if (strcmp(protocol, "Meshtastic") == 0) {
-        // High power, likely base station or solar powered
-        if (rssi > -50) return "Meshtastic Base/Solar";
-        
-        // Check for routing patterns in payload
-        if (length >= 16) {
-            uint8_t hopCount = data[12] & 0x07;  // Hop count in routing header (byte 12)
-            if (hopCount > 0) return "Meshtastic Router";
+        if (length >= 13) {
+            uint8_t hopCount = data[12] & 0x07;
+            if (hopCount > 0 && hopCount < 3) return "Meshtastic Node (relayed pkt)";
         }
-        
-        // Power class estimation based on RSSI and packet patterns
-        if (rssi > -80) return "Meshtastic Mobile";
-        if (rssi > -110) return "Meshtastic Handheld";
-        return "Meshtastic Low-Power";
+        return "Meshtastic Node";
     }
     
     // LoRaWAN device classification
@@ -331,15 +326,12 @@ const char* ProtocolAnalyzer::identifyDeviceType(const uint8_t* data, size_t len
 // estimatePowerClass moved to FormatUtils::estimatePowerClass() in utils/format_utils.h
 
 // Check if device appears to be routing traffic (forwarding packets)
+// NOTE: A single packet cannot reliably determine whether its *source* is a router.
+// A decremented hop count only tells us *this copy* was relayed — not that the source
+// node is doing the relaying. Router classification is accumulated over multiple packets
+// in DeviceRepository::updateExistingDevice() and is more reliable.
 bool ProtocolAnalyzer::isRoutingDevice(const uint8_t* data, size_t length, const char* protocol) {
-    if (strcmp(protocol, "Meshtastic") == 0 && length >= 13) {
-        // Hop count is in byte 12, lower 3 bits
-        uint8_t hopCount = data[12] & 0x07;
-        // A device is likely routing if we see packets with decremented hop count
-        // Original packets typically start with hop limit 3, routers decrement it
-        // If hop count < 3, this packet has been relayed
-        return (hopCount > 0 && hopCount < 3);
-    }
+    (void)data; (void)length; (void)protocol;
     return false;
 }
 
@@ -377,6 +369,12 @@ const char* ProtocolAnalyzer::estimateFirmwareVersion(const uint8_t* data, size_
         }
 
         return "~v2.0-2.2 (est)";
+    }
+
+    // MeshCore: version bits [6:7] of header byte are the actual protocol version field.
+    if (strcmp(protocol, "MeshCore") == 0 && length >= 1) {
+        uint8_t version = (data[0] >> 6) & 0x03;
+        return version == 0 ? "MeshCore v0" : "MeshCore v1";
     }
 
     if (strcmp(protocol, "LoRaWAN") == 0) {

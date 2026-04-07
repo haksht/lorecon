@@ -61,6 +61,12 @@ void fillDevice(ArduinoJson::JsonObject& obj, const TargetableDevice& dev, uint8
     obj["powerClass"] = dev.powerClass;
     obj["periodicityScore"] = dev.periodicityScore;
     obj["avgPacketInterval"] = dev.avgPacketInterval;
+    obj["batteryLevel"] = dev.batteryLevel;      // -1 = unknown, 0-100 = %
+    obj["batteryVoltage"] = dev.batteryVoltage;  // 0.0 = unknown
+    obj["lastSNR"] = dev.lastSNR;
+    obj["meshCoreChannel"] = dev.meshCoreChannel; // "public", "#general", "unknown", ""
+    obj["senderName"] = dev.senderName;
+    obj["lastMessage"] = dev.lastMessage;
     
     // Add frequency from config lookup (UI expects this field)
     const ScanConfig& cfg = reconState.getScanConfig(dev.configIndex);

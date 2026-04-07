@@ -105,13 +105,34 @@ void DeviceRepository::initializeNewDevice(
     device->avgPacketInterval = 0;
     device->lastPacketInterval = 0;
     device->periodicityScore = 0;
+    device->batteryLevel = -1;
+    device->batteryVoltage = 0.0f;
+    device->lastSNR = 0.0f;
+    device->meshCoreChannel[0] = '\0';
+    device->senderName[0] = '\0';
+    device->lastMessage[0] = '\0';
     
-    // Track first packet as originated or relayed based on hop count
-    // First packet sets maxHopCount baseline  -  tentatively classified as originated
+    // Track first packet as originated or relayed based on hop count.
+    // Meshtastic: countdown (3=fresh, decrements per relay). hopCount==maxHopCount → originated.
+    // MeshCore:   upcount  (0=fresh, increments per relay). hopCount==0 → originated.
+    // Others (LoRaWAN, RadioHead): no hop field; treat as originated.
     if (hopCount != 0xFF) {
-        device->maxHopCount = hopCount;
-        device->originatedPackets = 1;
-        device->relayedPackets = 0;
+        bool isMeshCore = (protocol && strcmp(protocol, "MeshCore") == 0);
+        if (isMeshCore) {
+            device->maxHopCount = hopCount;
+            if (hopCount == 0) {
+                device->originatedPackets = 1;
+                device->relayedPackets = 0;
+            } else {
+                device->originatedPackets = 0;
+                device->relayedPackets = 1;
+            }
+        } else {
+            // Meshtastic and others: first packet baseline → originated
+            device->maxHopCount = hopCount;
+            device->originatedPackets = 1;
+            device->relayedPackets = 0;
+        }
     } else {
         device->maxHopCount = 0;
         device->originatedPackets = 0;
@@ -165,29 +186,40 @@ void DeviceRepository::updateExistingDevice(
         device->packetCount++;
     }
 
-    // Track originated vs relayed packets based on hop count
-    // If hop count equals max seen for this device, packet is from originator.
-    // If hop count is lower, it's been relayed (decremented by each hop).
-    // hop count 0xFF means unknown (non-Meshtastic or older code paths).
+    // Track originated vs relayed packets based on hop count.
+    // Protocols differ in hop count semantics:
+    //   Meshtastic: countdown — fresh packet has hop_count = hop_limit (e.g. 3),
+    //               each relay decrements it. hopCount >= maxHopCount → originated.
+    //   MeshCore:   upcount  — fresh packet has hop_count = 0 (no path entries),
+    //               each relay appends its hash and increments it. hopCount == 0 → originated.
+    //   Others:     no hop field (hopCount == 0xFF); skip classification.
     if (hopCount != 0xFF) {
-        // Update max observed hop count (approximates sender's hop_limit)
-        if (hopCount > device->maxHopCount) {
-            device->maxHopCount = hopCount;
-        }
-
-        if (hopCount >= device->maxHopCount) {
-            // Full hop count = originated by this sender
-            if (device->originatedPackets < UINT16_MAX) {
-                device->originatedPackets++;
+        bool isMeshCore = (strcmp(device->protocol, "MeshCore") == 0);
+        if (isMeshCore) {
+            // MeshCore upcount: 0 = direct from originator, >0 = traversed N relays
+            if (hopCount > device->maxHopCount) {
+                device->maxHopCount = hopCount;
+            }
+            if (hopCount == 0) {
+                if (device->originatedPackets < UINT16_MAX) device->originatedPackets++;
+            } else {
+                if (device->relayedPackets < UINT16_MAX) device->relayedPackets++;
+                if (!device->isRouter && device->relayedPackets >= 2) {
+                    device->isRouter = true;
+                }
             }
         } else {
-            // Decremented hop count = relayed packet
-            if (device->relayedPackets < UINT16_MAX) {
-                device->relayedPackets++;
+            // Meshtastic countdown: hopCount >= maxHopCount means full hop_limit → originated
+            if (hopCount > device->maxHopCount) {
+                device->maxHopCount = hopCount;
             }
-            // If we see relayed packets, this device is likely a router
-            if (!device->isRouter && device->relayedPackets >= 2) {
-                device->isRouter = true;
+            if (hopCount >= device->maxHopCount) {
+                if (device->originatedPackets < UINT16_MAX) device->originatedPackets++;
+            } else {
+                if (device->relayedPackets < UINT16_MAX) device->relayedPackets++;
+                if (!device->isRouter && device->relayedPackets >= 2) {
+                    device->isRouter = true;
+                }
             }
         }
     }

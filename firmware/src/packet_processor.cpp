@@ -126,8 +126,9 @@ void PacketProcessor::processSinglePacket(const QueuedPacket& qp, OLEDDisplay* d
     // Track as targetable device in ALL modes if we have a real node ID
     // This updates lastSeen timestamp, so must be AFTER temporal update
     if (info.nodeId != 0) {
-        reconState.addTargetableDevice(info.nodeId, reconState.scanState.currentConfig, 
+        reconState.addTargetableDevice(info.nodeId, reconState.scanState.currentConfig,
                                       qp.rssi, info.protocol, qp.data, qp.length, info.hopCount);
+        reconState.updateDeviceSNR(info.nodeId, qp.snr);
         // Anomaly detection uses updated avgRSSI, so must be AFTER addTargetableDevice
         reconState.checkForAnomalies(qp.data, qp.length, info.nodeId, qp.rssi);
     }
@@ -260,6 +261,16 @@ void PacketProcessor::tryDecryptAndCapture(const uint8_t* data, size_t length, f
     // Attempt decryption
     bool decrypted = PSKDecryption::testDefaultPSKs(hdr.payload, hdr.payloadLen);
 
+    // If DeviceMetrics telemetry was decrypted, push battery data to the device record
+    if (decrypted && hdr.nodeId != 0) {
+        int16_t battLevel;
+        float battVoltage;
+        PSKDecryption::getLastBattery(battLevel, battVoltage);
+        if (battLevel >= 0 || battVoltage > 0.0f) {
+            reconState.updateDeviceBattery(hdr.nodeId, battLevel, battVoltage);
+        }
+    }
+
     // Auto-capture packet for replay with all header fields.
     // Use getLastMessageSafe() to copy under mutex  -  getLastMessage() returns a raw
     // pointer with no lock, creating a race with setLastMessage() on another core.
@@ -305,9 +316,29 @@ void PacketProcessor::handlePacket(PacketInfo& info, const uint8_t* data, size_t
         // MeshCore: AES-128-ECB with known public channel / hashtag room keys
         bool decrypted = MeshCoreDecryption::tryDecrypt(data, length);
         char decryptedTextBuf[256] = {0};
+        char channelBuf[24] = {0};
         if (decrypted) {
             MeshCoreDecryption::getLastMessageSafe(decryptedTextBuf, sizeof(decryptedTextBuf));
+            MeshCoreDecryption::getLastChannelName(channelBuf, sizeof(channelBuf));
             Serial.printf("   [MeshCore] Decrypted: \"%s\"\n", decryptedTextBuf);
+
+            // Extract sender name: "SenderName: message text" → "SenderName"
+            char senderBuf[40] = {0};
+            const char* colon = strstr(decryptedTextBuf, ": ");
+            if (colon && colon > decryptedTextBuf) {
+                size_t nameLen = (size_t)(colon - decryptedTextBuf);
+                if (nameLen < sizeof(senderBuf)) {
+                    memcpy(senderBuf, decryptedTextBuf, nameLen);
+                    senderBuf[nameLen] = '\0';
+                }
+            }
+            if (info.nodeId != 0) {
+                reconState.updateDeviceDecryption(info.nodeId, channelBuf,
+                                                  decryptedTextBuf, senderBuf);
+            }
+        } else if (info.nodeId != 0) {
+            // Decryption failed — mark channel as unknown (custom PSK)
+            reconState.updateDeviceDecryption(info.nodeId, "unknown", nullptr, nullptr);
         }
         reconState.capturePacketForReplay(data, length, reconState.scanState.currentConfig,
                                            rssi, snr, "MeshCore", decryptedTextBuf,

@@ -96,6 +96,12 @@ struct TargetableDevice {
   bool isRouter;            // Device appears to be routing traffic
   uint8_t powerClass;       // Estimated power class (0=low, 1=med, 2=high)
   uint8_t maxHopCount;      // Max hop count seen (approximates sender's hop_limit)
+  int16_t batteryLevel;     // Remote device battery % (0-100), or -1 if unknown
+  float batteryVoltage;     // Remote device battery voltage (V), or 0.0 if unknown
+  float lastSNR;            // SNR of most recent packet (dB); 0.0 until first update
+  char meshCoreChannel[24]; // MeshCore: "public", "#general", etc. "" = not yet decrypted
+  char senderName[40];      // Extracted from message prefix "SenderName: ..." (MeshCore)
+  char lastMessage[80];     // Last decrypted message text (truncated to 79 chars)
 };
 
 // System state management

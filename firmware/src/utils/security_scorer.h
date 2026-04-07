@@ -19,6 +19,10 @@
  *                          |             | easier to fingerprint and track
  * Low packet count (<5)    | -5          | May indicate battery issues, unreliable
  * Outdated firmware        | -20         | Old firmware (v1.x, v2.0) has known vulns
+ * MeshCore public channel  | -40         | Public PSK ships in all firmware builds;
+ *                          |             | any passive observer can read all traffic
+ * MeshCore hashtag channel | -20         | Key derivable from room name alone;
+ *                          |             | not a secret
  * 
  * RATING THRESHOLDS:
  * - Score >= 80: "secure" (green)
@@ -55,6 +59,8 @@ struct Assessment {
     bool chatty;             // High packet count
     bool intermittent;       // Low packet count
     bool outdatedFirmware;   // Old firmware version
+    bool meshCorePublic;     // MeshCore public channel — globally known PSK
+    bool meshCoreHashtag;    // MeshCore hashtag channel — key derivable from name
 };
 
 /**
@@ -79,6 +85,21 @@ inline Assessment assess(const TargetableDevice& device) {
         result.possibleUnencrypted = true;
         // Note: doesn't affect score - need PSK test confirmation
     }
+
+    // Check 2b: MeshCore channel security
+    // "public"  → globally known PSK, anyone with MeshCore firmware can read
+    // "#room"   → key derivable from room name alone, not a real secret
+    // "unknown" → custom PSK, genuinely private
+    // ""        → not yet decrypted (no verdict)
+    if (strcmp(device.protocol, "MeshCore") == 0) {
+        if (strcmp(device.meshCoreChannel, "public") == 0) {
+            result.score = result.score > 40 ? result.score - 40 : 0;
+            result.meshCorePublic = true;
+        } else if (device.meshCoreChannel[0] == '#') {
+            result.score = result.score > 20 ? result.score - 20 : 0;
+            result.meshCoreHashtag = true;
+        }
+    }
     
     // Check 3: Routing device (higher attack surface)
     if (device.isRouter) {
@@ -98,11 +119,17 @@ inline Assessment assess(const TargetableDevice& device) {
         result.intermittent = true;
     }
     
-    // Check 6: Firmware version check
-    if (strstr(device.firmwareVersion, "v1.x") != nullptr || 
-        strstr(device.firmwareVersion, "v2.0") != nullptr) {
-        result.score = result.score > 20 ? result.score - 20 : 0;
-        result.outdatedFirmware = true;
+    // Check 6: Firmware version check — only on confirmed versions, not heuristic estimates.
+    // Meshtastic/LoRaWAN versions contain "(est)" and are too unreliable to penalise on.
+    // MeshCore returns confirmed "MeshCore v0" / "MeshCore v1" from the header version field.
+    bool isConfirmedVersion = (strstr(device.firmwareVersion, "(est)") == nullptr &&
+                               strstr(device.firmwareVersion, "Unknown") == nullptr);
+    if (isConfirmedVersion) {
+        if (strstr(device.firmwareVersion, "v1.x") != nullptr ||
+            strstr(device.firmwareVersion, "v2.0") != nullptr) {
+            result.score = result.score > 20 ? result.score - 20 : 0;
+            result.outdatedFirmware = true;
+        }
     }
     
     // Determine rating
@@ -125,7 +152,8 @@ inline Assessment assess(const TargetableDevice& device) {
  */
 inline bool hasFindings(const Assessment& a) {
     return a.physicalProximity || a.possibleUnencrypted || a.isRouter ||
-           a.chatty || a.intermittent || a.outdatedFirmware;
+           a.chatty || a.intermittent || a.outdatedFirmware ||
+           a.meshCorePublic || a.meshCoreHashtag;
 }
 
 /**

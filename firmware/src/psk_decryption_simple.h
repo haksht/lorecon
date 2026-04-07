@@ -23,9 +23,15 @@ public:
   // Thread-safe access to last decrypted message (copies to caller buffer)
   static void getLastMessageSafe(char* buffer, size_t bufferSize);
   static void clearLastMessage();
-  
+
   // Legacy accessor (for compatibility - prefer getLastMessageSafe)
   static const char* getLastMessage() { return lastMessage; }
+
+  // Battery telemetry from last successful DeviceMetrics decryption
+  // batteryLevel: 0-100 (%), or -1 if not present in last packet
+  // batteryVoltage: >0.0 if present, 0.0 if not
+  static void getLastBattery(int16_t& level, float& voltage);
+  static void clearLastBattery();
 
 private:
   static bool extractMessageText(const uint8_t* data, size_t length, String& message);
@@ -35,6 +41,12 @@ private:
   static constexpr size_t MAX_MESSAGE_LEN = 256;
   static char lastMessage[MAX_MESSAGE_LEN];
   static SemaphoreHandle_t messageMutex;
+
+  // Storage for last DeviceMetrics battery telemetry (protected by messageMutex)
+  static int16_t lastBatteryLevel;    // -1 = not present
+  static float lastBatteryVoltage;    // 0.0 = not present
+
+  static void setLastBattery(int16_t level, float voltage);
 };
 
 // External access to PSK stats
