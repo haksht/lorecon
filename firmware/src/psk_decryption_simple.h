@@ -33,6 +33,13 @@ public:
   static void getLastBattery(int16_t& level, float& voltage);
   static void clearLastBattery();
 
+  // Firmware version and hardware model from MAP_REPORT_APP (portnum 0x43)
+  // or hardware model from NODEINFO_APP (portnum 0x04).
+  // fwBuf / hwBuf will be empty strings if not present in the last packet.
+  static void getLastFirmware(char* fwBuf, size_t fwBufLen,
+                              char* hwBuf, size_t hwBufLen);
+  static void clearLastFirmware();
+
 private:
   static bool extractMessageText(const uint8_t* data, size_t length, String& message);
   static void setLastMessage(const char* msg);  // Thread-safe internal setter
@@ -47,6 +54,18 @@ private:
   static float lastBatteryVoltage;    // 0.0 = not present
 
   static void setLastBattery(int16_t level, float voltage);
+
+  // Storage for last firmware version / hw model (protected by messageMutex)
+  static char lastFirmwareVersion[32];  // "" = not present
+  static char lastHwModel[24];          // "" = not present
+
+  static void setLastFirmware(const char* fw, const char* hw);
+
+  // Protobuf inner-payload parsers
+  static void parseMAPReport(const uint8_t* data, size_t len,
+                             char* fwBuf, size_t fwBufLen, uint32_t& hwModel);
+  static void parseNODEINFO(const uint8_t* data, size_t len, uint32_t& hwModel);
+  static const char* hwModelToString(uint32_t model);
 };
 
 // External access to PSK stats

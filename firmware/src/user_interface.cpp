@@ -135,7 +135,6 @@ void showSecurityAssessment() {
     // Build vulnerability string for display
     String vulnerabilities = "";
     if (assessment.physicalProximity) vulnerabilities += "Physical ";
-    if (assessment.possibleUnencrypted) vulnerabilities += "Crypto? ";
     if (assessment.isRouter) vulnerabilities += "Router ";
     if (assessment.chatty) vulnerabilities += "Chatty ";
     if (assessment.intermittent) vulnerabilities += "Weak ";
@@ -262,7 +261,7 @@ void showActivityDetails() {
     
     if (activity.activityCount > 0) {
       uint32_t now = millis();
-      uint32_t ageMs = (activity.lastActivity <= now) ? (now - activity.lastActivity) : 0;
+      uint32_t ageMs = activity.lastActivity > 0 ? (now - activity.lastActivity) : 0;
       uint32_t ageSeconds = ageMs / 1000;
       Serial.printf("Signal Activity: %s\n", activity.activityLevel);
       Serial.printf("Packets Detected: %d\n", activity.activityCount);
@@ -309,7 +308,7 @@ void showActivityDetails() {
     if (activity.activityCount > 0) {
       anyActivity = true;
       uint32_t now = millis();
-      uint32_t ageMs = (activity.lastActivity <= now) ? (now - activity.lastActivity) : 0;
+      uint32_t ageMs = activity.lastActivity > 0 ? (now - activity.lastActivity) : 0;
       uint32_t ageSeconds = ageMs / 1000;
       
       Serial.printf("%-24s | %7.3f   | %2d | %3.0f | %-8s | %7d | %4us\n",
@@ -440,7 +439,7 @@ void printStats() {
     for (uint8_t i = 0; i < reconState.getNumTargetableDevices(); i++) {
       const TargetableDevice& dev = reconState.getTargetableDevice(i);
       uint32_t now = millis();
-      uint32_t ageMs = (dev.lastSeen <= now) ? (now - dev.lastSeen) : 0;
+      uint32_t ageMs = dev.lastSeen > 0 ? (now - dev.lastSeen) : 0;
       Serial.printf("0x%08X (%s): %d pkts, %.1f dBm avg, %ds ago\n",
                     dev.nodeId, dev.protocol, dev.packetCount,
                     dev.avgRSSI, ageMs / 1000);

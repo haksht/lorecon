@@ -54,7 +54,6 @@ struct Assessment {
     
     // Individual finding flags
     bool physicalProximity;  // Signal too strong
-    bool possibleUnencrypted;// Heavy traffic without confirmed encryption
     bool isRouter;           // Elevated attack surface
     bool chatty;             // High packet count
     bool intermittent;       // Low packet count
@@ -74,19 +73,13 @@ inline Assessment assess(const TargetableDevice& device) {
     result.score = 100;
     
     // Check 1: Signal strength (too strong = physical proximity risk)
-    if (device.bestRSSI > -50) {
+    // Use avgRSSI so the finding reflects sustained proximity, not a historical best.
+    if (device.avgRSSI > -50) {
         result.score = result.score > 15 ? result.score - 15 : 0;
         result.physicalProximity = true;
     }
     
-    // Check 2: Encryption status (heavy traffic without confirmed encryption)
-    bool maybeUnencrypted = (device.packetCount > 10 && strcmp(device.protocol, "Meshtastic") == 0);
-    if (maybeUnencrypted) {
-        result.possibleUnencrypted = true;
-        // Note: doesn't affect score - need PSK test confirmation
-    }
-
-    // Check 2b: MeshCore channel security
+    // Check 2: MeshCore channel security
     // "public"  → globally known PSK, anyone with MeshCore firmware can read
     // "#room"   → key derivable from room name alone, not a real secret
     // "unknown" → custom PSK, genuinely private
@@ -151,7 +144,7 @@ inline Assessment assess(const TargetableDevice& device) {
  * Check if any findings were detected
  */
 inline bool hasFindings(const Assessment& a) {
-    return a.physicalProximity || a.possibleUnencrypted || a.isRouter ||
+    return a.physicalProximity || a.isRouter ||
            a.chatty || a.intermittent || a.outdatedFirmware ||
            a.meshCorePublic || a.meshCoreHashtag;
 }
@@ -162,7 +155,6 @@ inline bool hasFindings(const Assessment& a) {
 inline uint8_t getFindingCount(const Assessment& a) {
     uint8_t count = 0;
     if (a.physicalProximity) count++;
-    if (a.possibleUnencrypted) count++;
     if (a.isRouter) count++;
     if (a.chatty) count++;
     if (a.intermittent) count++;

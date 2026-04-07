@@ -141,10 +141,10 @@ Skip provisioning entirely. Connect to `LoRa-XXYYZZ` and browse to `http://192.1
 
 1. Connect to the device (AP or hotspot)
 2. Open `http://192.168.4.1` (AP mode) or `http://lora-xxyyzz.local` (hotspot mode)
-3. The web UI loads with 7 tabs — Info, Devices, Packets, Frequency, Network, Stats, Settings
+3. The web UI loads with 6 tabs — Info, Devices, Packets, Frequency, Stats, Settings
 4. The Info tab shows scanning status and packet counts
 
-The device starts scanning 26 LoRa configurations immediately on boot. You should see the frequency cycling on the OLED and in the Info tab within seconds.
+The device starts scanning 29 LoRa configurations immediately on boot. You should see the frequency cycling on the OLED and in the Info tab within seconds.
 
 **Heltec V4 note:** The V4 has no serial monitor -- the web UI is the only interface. Everything above applies; just skip any step that refers to serial output.
 

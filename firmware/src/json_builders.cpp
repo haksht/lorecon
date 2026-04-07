@@ -74,8 +74,8 @@ void fillDevice(ArduinoJson::JsonObject& obj, const TargetableDevice& dev, uint8
     
     // Add lastSeenSecondsAgo for UI (avoids client-side timestamp math issues)
     uint32_t now = millis();
-    obj["lastSeenSecondsAgo"] = (dev.lastSeen > 0 && dev.lastSeen <= now) ? (now - dev.lastSeen) / 1000 : 0;
-    obj["firstSeenSecondsAgo"] = (dev.firstSeen > 0 && dev.firstSeen <= now) ? (now - dev.firstSeen) / 1000 : 0;
+    obj["lastSeenSecondsAgo"] = dev.lastSeen > 0 ? (now - dev.lastSeen) / 1000 : 0;
+    obj["firstSeenSecondsAgo"] = dev.firstSeen > 0 ? (now - dev.firstSeen) / 1000 : 0;
     
     // Derive power descriptor from powerClass
     const char* descriptor = "Low";
@@ -467,7 +467,7 @@ String buildReconSummaryJson(ReconState& reconState, GeoIntelligence& geoIntel) 
         obj["peakRSSI"] = rf.peakRSSI;
         obj["activityLevel"] = rf.activityLevel ? rf.activityLevel : "UNKNOWN";
         uint32_t now = millis();
-        obj["lastActivitySecondsAgo"] = (rf.lastActivity > 0 && rf.lastActivity <= now) ? (now - rf.lastActivity) / 1000 : 0;
+        obj["lastActivitySecondsAgo"] = rf.lastActivity > 0 ? (now - rf.lastActivity) / 1000 : 0;
     }
 
     JsonArray devices = doc["devices"].to<JsonArray>();
@@ -585,16 +585,13 @@ String buildSecurityAssessmentJson(ReconState& reconState) {
         deviceObj["packetCount"] = dev.packetCount;
         deviceObj["isRouter"] = dev.isRouter;
         uint32_t now = millis();
-        deviceObj["lastSeenSecondsAgo"] = (dev.lastSeen > 0 && dev.lastSeen <= now) ? (now - dev.lastSeen) / 1000 : 0;
+        deviceObj["lastSeenSecondsAgo"] = dev.lastSeen > 0 ? (now - dev.lastSeen) / 1000 : 0;
 
         JsonArray findings = deviceObj["findings"].to<JsonArray>();
 
         // Add findings based on assessment
         if (assessment.physicalProximity) {
             findings.add("High signal strength (physical proximity risk)");
-        }
-        if (assessment.possibleUnencrypted) {
-            findings.add("Heavy traffic without confirmed encryption");
         }
         if (assessment.isRouter) {
             findings.add("Router device - elevated attack surface");
@@ -689,7 +686,8 @@ String buildReplaySlotsJson(ReconState& reconState) {
         validCount++;
 
         JsonObject slot = slots.add<JsonObject>();
-        slot["index"] = i + 1;
+        slot["index"] = i + 1;       // 1-based display number
+        slot["storeIndex"] = i;       // 0-based packet store index for /api/replay/transmit
         slot["length"] = packet.length;
         slot["protocol"] = packet.protocol;
         slot["configIndex"] = packet.configIndex;
@@ -697,7 +695,7 @@ String buildReplaySlotsJson(ReconState& reconState) {
         slot["rssi"] = packet.originalRSSI;
         slot["snr"] = packet.snr;
         uint32_t now = millis();
-        slot["capturedSecondsAgo"] = (packet.captureTime > 0 && packet.captureTime <= now) ? (now - packet.captureTime) / 1000 : 0;
+        slot["capturedSecondsAgo"] = packet.captureTime > 0 ? (now - packet.captureTime) / 1000 : 0;
         
         // Include node ID if available
         if (packet.nodeId != 0) {
@@ -839,7 +837,6 @@ String buildConsolidatedReportJson(ReconState& reconState, GeoIntelligence& geoI
         
         JsonArray findings = deviceObj["findings"].to<JsonArray>();
         if (assessment.physicalProximity) findings.add("High signal strength (physical proximity)");
-        if (assessment.possibleUnencrypted) findings.add("Heavy traffic without confirmed encryption");
         if (assessment.isRouter) findings.add("Router device - elevated attack surface");
         if (assessment.chatty) findings.add("Chatty device leaking metadata");
         if (assessment.intermittent) findings.add("Intermittent transmissions");
@@ -886,8 +883,8 @@ String buildConsolidatedReportJson(ReconState& reconState, GeoIntelligence& geoI
         deviceObj["frequency"] = cfg.frequency;
         
         uint32_t now = millis();
-        deviceObj["firstSeenSecondsAgo"] = (dev.firstSeen > 0 && dev.firstSeen <= now) ? (now - dev.firstSeen) / 1000 : 0;
-        deviceObj["lastSeenSecondsAgo"] = (dev.lastSeen > 0 && dev.lastSeen <= now) ? (now - dev.lastSeen) / 1000 : 0;
+        deviceObj["firstSeenSecondsAgo"] = dev.firstSeen > 0 ? (now - dev.firstSeen) / 1000 : 0;
+        deviceObj["lastSeenSecondsAgo"] = dev.lastSeen > 0 ? (now - dev.lastSeen) / 1000 : 0;
     }
     
     // =========================================================================

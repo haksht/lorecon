@@ -679,7 +679,7 @@ class ReconApp {
                 const wasTargeted = isTargetedMode(this.lastStatusMode);
                 if (nowTargeted && data.target) {
                     const freq = data.target.frequency ? data.target.frequency.toFixed(3) : '?';
-                    this.warRoom.addEvent('mode', `Locked: ${freq} MHz (cfg #${data.target.configIndex ?? '?'})`);
+                    this.warRoom.addEvent('mode', `Locked: ${freq} MHz (cfg #${data.target.configIndex !== undefined ? data.target.configIndex + 1 : '?'})`);
                 } else if (wasTargeted) {
                     this.warRoom.addEvent('mode', 'Returned to scanning');
                 }
@@ -956,7 +956,8 @@ class ReconApp {
             const lastRssi   = device.lastRSSI !== undefined ? device.lastRSSI : avgRssi;
             const rssiStdDev = device.rssiStdDev || 0;
             const rssiDisplay  = `${lastRssi.toFixed(0)} / ${avgRssi.toFixed(0)} / ${bestRssi.toFixed(0)}`;
-            const rssiTooltip  = rssiStdDev > 10 ? `σ=${rssiStdDev.toFixed(1)} ⚠️ High variance` : `σ=${rssiStdDev.toFixed(1)}`;
+            const packetCount  = device.packetCount || 0;
+            const rssiTooltip  = (rssiStdDev === 0 && packetCount < 2) ? 'σ=—' : (rssiStdDev > 10 ? `σ=${rssiStdDev.toFixed(1)} ⚠️ High variance` : `σ=${rssiStdDev.toFixed(1)}`);
 
             const firmware     = escapeHtml(device.firmwareVersion || '—');
             const safeNodeId   = escapeHtml(device.nodeId);
@@ -1102,7 +1103,7 @@ class ReconApp {
                     html += `<td>${(pkt.frequencyMHz || 0).toFixed(3)} MHz</td>`;
                     html += `<td>${this.formatDuration(pkt.capturedSecondsAgo || 0)} ago</td>`;
                     html += `<td>${escapeHtml(pkt.decryptedText || '—')}</td>`;
-                    html += `<td><button data-action="replay-packet" data-value="${pkt.originalIndex}" class="btn btn-primary btn-small">🔁 Replay</button></td>`;
+                    html += `<td><button data-action="replay-packet" data-value="${pkt.storeIndex}" class="btn btn-primary btn-small">🔁 Replay</button></td>`;
                     html += '</tr>';
                 });
             });
@@ -1120,7 +1121,6 @@ class ReconApp {
         const groups = new Map();
         
         slots.forEach((pkt, idx) => {
-            pkt.originalIndex = idx; // Preserve original index for replay
             const key = pkt.packetId || `unique_${idx}`; // Fallback for packets without ID
             
             if (!groups.has(key)) {
@@ -1174,7 +1174,7 @@ class ReconApp {
 
             let html = '<div class="frequency-intro">';
             if (isTargeted && lockedFreq !== null) {
-                const cfgLabel = lockedConfigIndex !== null ? ` <span class="text-muted">(config #${lockedConfigIndex})</span>` : '';
+                const cfgLabel = lockedConfigIndex !== null ? ` <span class="text-muted">(config #${lockedConfigIndex + 1})</span>` : '';
                 html += `<div class="targeting-notice">🎯 Currently targeting <strong>${lockedFreq.toFixed(3)} MHz</strong>${cfgLabel} &mdash; radio locked on this channel.</div>`;
             }
             html += `<p><strong>${totalConfigs} frequency configurations available.</strong> Target any config to focus packet capture on that frequency.</p>`;
@@ -1191,7 +1191,7 @@ class ReconApp {
                 const rssiClass = formatRSSI(act.avgRSSI, false);
                 const rowClass = isLocked ? 'locked-row' : (isActive ? '' : 'inactive-row');
                 html += `<tr class="${rowClass}">`;
-                html += `<td><strong>${act.protocol}</strong> <span class="badge config-badge">#${act.configIndex}</span></td>`;
+                html += `<td><strong>${act.protocol}</strong> <span class="badge config-badge">#${act.configIndex + 1}</span></td>`;
                 html += `<td>${act.frequencyMHz.toFixed(3)} MHz</td>`;
                 html += `<td>SF${act.spreadingFactor}</td>`;
                 html += `<td>${act.bandwidthKHz} kHz</td>`;
@@ -1246,7 +1246,7 @@ class ReconApp {
             const barWidth = ((freq.packets / maxPackets) * 100).toFixed(1);
             html += '<div class="freq-card">';
             html += `<div class="freq-card-header"><strong>${escapeHtml(freq.protocol)}</strong><span>${freq.frequencyMHz.toFixed(3)} MHz</span></div>`;
-            html += `<div class="freq-card-config">SF${freq.spreadingFactor} • BW ${freq.bandwidthKHz}kHz • Config #${freq.configIndex}</div>`;
+            html += `<div class="freq-card-config">SF${freq.spreadingFactor} • BW ${freq.bandwidthKHz}kHz • Config #${freq.configIndex + 1}</div>`;
             html += `<div class="freq-card-stats"><span>Packets: <strong>${freq.packets}</strong></span><span>Avg RSSI: ${formatRSSI(freq.avgRSSI)}</span></div>`;
             html += `<div class="progress-track"><div class="progress-fill" style="width: ${barWidth}%; background: var(--primary);"></div></div>`;
             html += '</div>';
@@ -2263,7 +2263,7 @@ class ReconApp {
     
     async actionTargetFrequency(configIndex) {
         await this.post('/api/frequency/target', { configIndex });
-        showToast(`Targeting frequency config ${configIndex}`, 'success');
+        showToast(`Targeting frequency config #${configIndex + 1}`, 'success');
         await this.updateStatus();
     }
     
@@ -2477,7 +2477,7 @@ class ReconApp {
     formatTargetLabel(target, style = 'long') {
         const cfgIdx = target.configIndex;
         const suffix = cfgIdx !== undefined
-            ? (style === 'short' ? ` #${cfgIdx}` : ` (config #${cfgIdx})`)
+            ? (style === 'short' ? ` #${cfgIdx + 1}` : ` (config #${cfgIdx + 1})`)
             : '';
         return `${target.frequency.toFixed(3)} MHz${suffix}`;
     }

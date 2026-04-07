@@ -269,6 +269,15 @@ void PacketProcessor::tryDecryptAndCapture(const uint8_t* data, size_t length, f
         if (battLevel >= 0 || battVoltage > 0.0f) {
             reconState.updateDeviceBattery(hdr.nodeId, battLevel, battVoltage);
         }
+
+        // If MAP_REPORT_APP or NODEINFO_APP was decrypted, push firmware/hw info
+        char fwBuf[32], hwBuf[24];
+        PSKDecryption::getLastFirmware(fwBuf, sizeof(fwBuf), hwBuf, sizeof(hwBuf));
+        if (fwBuf[0] != '\0' || hwBuf[0] != '\0') {
+            reconState.updateDeviceFirmware(hdr.nodeId,
+                                            fwBuf[0] ? fwBuf : nullptr,
+                                            hwBuf[0] ? hwBuf : nullptr);
+        }
     }
 
     // Auto-capture packet for replay with all header fields.

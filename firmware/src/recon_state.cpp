@@ -610,8 +610,8 @@ void ReconState::updateDeviceTemporalMetrics(uint32_t nodeId) {
 
     unsigned long now = millis();
     
-    // Calculate packet interval (protect against millis() rollover)
-    if (device->lastSeen > 0 && device->lastSeen <= now) {
+    // Calculate packet interval; unsigned subtraction handles millis() rollover correctly
+    if (device->lastSeen > 0) {
         unsigned long interval = now - device->lastSeen;
         
         // Update average interval using exponential moving average
@@ -661,6 +661,37 @@ void ReconState::updateDeviceBattery(uint32_t nodeId, int16_t level, float volta
     if (device) {
         if (level >= 0) device->batteryLevel = level;
         if (voltage > 0.0f) device->batteryVoltage = voltage;
+    }
+    unlock();
+}
+
+void ReconState::updateDeviceFirmware(uint32_t nodeId,
+                                       const char* firmwareVersion,
+                                       const char* hwModel) {
+    if (nodeId == 0) return;
+    if (!lock()) return;
+    TargetableDevice* device = deviceRepo_.findByNodeId(nodeId);
+    if (device) {
+        if (firmwareVersion && firmwareVersion[0] != '\0') {
+            bool isHeuristic = (strstr(device->firmwareVersion, "(est)") != nullptr ||
+                                strcmp(device->firmwareVersion, "Unknown") == 0);
+            if (isHeuristic) {
+                strncpy(device->firmwareVersion, firmwareVersion,
+                        sizeof(device->firmwareVersion) - 1);
+                device->firmwareVersion[sizeof(device->firmwareVersion) - 1] = '\0';
+            }
+        }
+        if (hwModel && hwModel[0] != '\0') {
+            bool isDefault = (strcmp(device->deviceType, "Unknown Device") == 0 ||
+                              strcmp(device->deviceType, "Unknown") == 0 ||
+                              strcmp(device->deviceType, "Meshtastic Node") == 0 ||
+                              strcmp(device->deviceType, "Meshtastic Node (relayed pkt)") == 0);
+            if (isDefault) {
+                strncpy(device->deviceType, hwModel,
+                        sizeof(device->deviceType) - 1);
+                device->deviceType[sizeof(device->deviceType) - 1] = '\0';
+            }
+        }
     }
     unlock();
 }

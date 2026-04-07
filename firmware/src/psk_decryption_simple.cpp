@@ -20,6 +20,10 @@ SemaphoreHandle_t PSKDecryption::messageMutex = nullptr;
 int16_t PSKDecryption::lastBatteryLevel = -1;
 float PSKDecryption::lastBatteryVoltage = 0.0f;
 
+// Static storage for last firmware version / hw model
+char PSKDecryption::lastFirmwareVersion[32] = {0};
+char PSKDecryption::lastHwModel[24] = {0};
+
 // Thread-safe setter for lastMessage
 void PSKDecryption::setLastMessage(const char* msg) {
     if (!messageMutex) return;
@@ -67,6 +71,48 @@ void PSKDecryption::getLastBattery(int16_t& level, float& voltage) {
     if (xSemaphoreTake(messageMutex, pdMS_TO_TICKS(10)) == pdTRUE) {
         level = lastBatteryLevel;
         voltage = lastBatteryVoltage;
+        xSemaphoreGive(messageMutex);
+    }
+}
+
+void PSKDecryption::clearLastFirmware() {
+    if (!messageMutex) return;
+    if (xSemaphoreTake(messageMutex, pdMS_TO_TICKS(10)) == pdTRUE) {
+        lastFirmwareVersion[0] = '\0';
+        lastHwModel[0] = '\0';
+        xSemaphoreGive(messageMutex);
+    }
+}
+
+void PSKDecryption::setLastFirmware(const char* fw, const char* hw) {
+    if (!messageMutex) return;
+    if (xSemaphoreTake(messageMutex, pdMS_TO_TICKS(10)) == pdTRUE) {
+        if (fw && fw[0] != '\0') {
+            strncpy(lastFirmwareVersion, fw, sizeof(lastFirmwareVersion) - 1);
+            lastFirmwareVersion[sizeof(lastFirmwareVersion) - 1] = '\0';
+        }
+        if (hw && hw[0] != '\0') {
+            strncpy(lastHwModel, hw, sizeof(lastHwModel) - 1);
+            lastHwModel[sizeof(lastHwModel) - 1] = '\0';
+        }
+        xSemaphoreGive(messageMutex);
+    }
+}
+
+void PSKDecryption::getLastFirmware(char* fwBuf, size_t fwBufLen,
+                                    char* hwBuf, size_t hwBufLen) {
+    if (fwBuf && fwBufLen > 0) fwBuf[0] = '\0';
+    if (hwBuf && hwBufLen > 0) hwBuf[0] = '\0';
+    if (!messageMutex) return;
+    if (xSemaphoreTake(messageMutex, pdMS_TO_TICKS(10)) == pdTRUE) {
+        if (fwBuf && fwBufLen > 0) {
+            strncpy(fwBuf, lastFirmwareVersion, fwBufLen - 1);
+            fwBuf[fwBufLen - 1] = '\0';
+        }
+        if (hwBuf && hwBufLen > 0) {
+            strncpy(hwBuf, lastHwModel, hwBufLen - 1);
+            hwBuf[hwBufLen - 1] = '\0';
+        }
         xSemaphoreGive(messageMutex);
     }
 }
@@ -247,6 +293,128 @@ static bool extractMessage(const uint8_t* data, size_t len, String& text) {
 // Public Interface
 // ============================================================================
 
+// Map Meshtastic HardwareModel enum to display string.
+// Values from meshtastic/mesh.proto. Returns nullptr for unknown models
+// (caller should skip the deviceType update rather than show a wrong name).
+const char* PSKDecryption::hwModelToString(uint32_t model) {
+    switch (model) {
+        case 1:  return "TLora V2";
+        case 2:  return "TLora V1";
+        case 3:  return "TLora V2.1-1.6";
+        case 4:  return "T-Beam";
+        case 9:  return "Heltec V2.0";
+        case 10: return "T-Echo";
+        case 11: return "TLora V2.1-1.8";
+        case 12: return "RAK4631";
+        case 13: return "Heltec V2.1";
+        case 15: return "T-Beam v0.7";
+        case 16: return "T-Beam M8N";
+        case 17: return "TLora V1.3";
+        case 37: return "Nano G1";
+        case 38: return "T-Beam S3 Core";
+        case 39: return "TLora T3-S3";
+        case 40: return "Nano G1 Explorer";
+        case 47: return "Heltec V3";
+        case 48: return "Heltec WSL V3";
+        case 52: return "Heltec Tracker";
+        case 53: return "Heltec Paper";
+        case 54: return "T-Deck";
+        case 55: return "T-Watch S3";
+        default: return nullptr;
+    }
+}
+
+// Parse a MapReport inner payload (portnum 0x43).
+// Extracts firmware_version (field 4, tag 0x22) and hw_model (field 3, tag 0x18).
+// Unknown or skipped fields are walked past safely.
+void PSKDecryption::parseMAPReport(const uint8_t* data, size_t len,
+                                   char* fwBuf, size_t fwBufLen, uint32_t& hwModel) {
+    size_t pos = 0;
+    while (pos < len) {
+        uint32_t tag = 0;
+        size_t tagBytes = 0;
+        if (!decodeVarint(data, len, pos, tag, tagBytes)) break;
+        pos += tagBytes;
+
+        uint8_t wireType = tag & 0x07;
+        uint8_t fieldNum = tag >> 3;
+
+        if (wireType == 0) {
+            // Varint field
+            uint32_t val = 0;
+            size_t valBytes = 0;
+            if (!decodeVarint(data, len, pos, val, valBytes)) break;
+            pos += valBytes;
+            if (fieldNum == 3) hwModel = val;  // hw_model
+        } else if (wireType == 2) {
+            // Length-delimited field
+            uint32_t fieldLen = 0;
+            size_t lenBytes = 0;
+            if (!decodeVarint(data, len, pos, fieldLen, lenBytes)) break;
+            pos += lenBytes;
+            if (pos + fieldLen > len) break;
+
+            if (fieldNum == 4 && fwBuf && fwBufLen > 1) {
+                // firmware_version string
+                size_t copyLen = fieldLen < fwBufLen - 1 ? fieldLen : fwBufLen - 1;
+                // Validate printable ASCII
+                bool valid = true;
+                for (size_t i = 0; i < copyLen; i++) {
+                    uint8_t c = data[pos + i];
+                    if (c < 32 || c > 126) { valid = false; break; }
+                }
+                if (valid && copyLen > 0) {
+                    memcpy(fwBuf, data + pos, copyLen);
+                    fwBuf[copyLen] = '\0';
+                }
+            }
+            pos += fieldLen;
+        } else if (wireType == 1) {
+            pos += 8;  // 64-bit
+        } else if (wireType == 5) {
+            pos += 4;  // 32-bit
+        } else {
+            break;  // Unknown wire type — stop parsing
+        }
+    }
+}
+
+// Parse a User inner payload (portnum 0x04).
+// Extracts hw_model (field 6, tag 0x30).
+void PSKDecryption::parseNODEINFO(const uint8_t* data, size_t len, uint32_t& hwModel) {
+    size_t pos = 0;
+    while (pos < len) {
+        uint32_t tag = 0;
+        size_t tagBytes = 0;
+        if (!decodeVarint(data, len, pos, tag, tagBytes)) break;
+        pos += tagBytes;
+
+        uint8_t wireType = tag & 0x07;
+        uint8_t fieldNum = tag >> 3;
+
+        if (wireType == 0) {
+            uint32_t val = 0;
+            size_t valBytes = 0;
+            if (!decodeVarint(data, len, pos, val, valBytes)) break;
+            pos += valBytes;
+            if (fieldNum == 6) { hwModel = val; return; }  // hw_model — done
+        } else if (wireType == 2) {
+            uint32_t fieldLen = 0;
+            size_t lenBytes = 0;
+            if (!decodeVarint(data, len, pos, fieldLen, lenBytes)) break;
+            pos += lenBytes;
+            if (pos + fieldLen > len) break;
+            pos += fieldLen;
+        } else if (wireType == 1) {
+            pos += 8;
+        } else if (wireType == 5) {
+            pos += 4;
+        } else {
+            break;
+        }
+    }
+}
+
 void PSKDecryption::initialize() {
     if (!messageMutex) messageMutex = xSemaphoreCreateMutex();
     pskStats = PSKStats();
@@ -267,6 +435,7 @@ bool PSKDecryption::testDefaultPSKs(const uint8_t* data, size_t length) {
     // Clear stale data from previous packets (thread-safe)
     clearLastMessage();
     clearLastBattery();
+    clearLastFirmware();
     
     // Validate minimum packet structure
     if (length < 20) {
@@ -566,10 +735,41 @@ bool PSKDecryption::testDefaultPSKs(const uint8_t* data, size_t length) {
                     if (parsedBattery >= 0 || parsedVoltage > 0.0f) {
                         setLastBattery(parsedBattery, parsedVoltage);
                     }
+                } else if (portnum == 0x43 || portnum == 0x04) {
+                    // MAP_REPORT_APP (0x43): contains firmware_version (field 4) + hw_model (field 3)
+                    // NODEINFO_APP  (0x04): contains hw_model (field 6) in User protobuf
+                    //
+                    // Data protobuf layout after decryption:
+                    //   0x08 <portnum>    field 1 varint  (already consumed above)
+                    //   0x12 <len> ...    field 2 bytes   inner payload starts here
+                    if (encryptedLen > 4 && decrypted[2] == 0x12) {
+                        uint32_t payloadLen = 0;
+                        size_t varintBytes = 0;
+                        if (decodeVarint(decrypted, encryptedLen, 3, payloadLen, varintBytes)) {
+                            size_t payloadStart = 3 + varintBytes;
+                            if (payloadStart + payloadLen <= encryptedLen && payloadLen > 0) {
+                                char fwBuf[32] = {0};
+                                uint32_t hwModel = 0;
+                                if (portnum == 0x43) {
+                                    parseMAPReport(decrypted + payloadStart, payloadLen,
+                                                   fwBuf, sizeof(fwBuf), hwModel);
+                                } else {
+                                    parseNODEINFO(decrypted + payloadStart, payloadLen, hwModel);
+                                }
+                                const char* hwStr = hwModelToString(hwModel);
+                                if (fwBuf[0] != '\0' || hwStr != nullptr) {
+                                    setLastFirmware(fwBuf[0] ? fwBuf : nullptr, hwStr);
+                                    Serial.printf("[PSK] Firmware: \"%s\", HW: \"%s\"\n",
+                                                  fwBuf[0] ? fwBuf : "(none)",
+                                                  hwStr ? hwStr : "(unknown)");
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
-        
+
         return true;
     }
     

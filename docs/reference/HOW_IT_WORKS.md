@@ -13,7 +13,7 @@ Every device starts at **100 points** and loses points for observed risk factors
 
 | Finding | Points lost | Trigger condition |
 |---|---|---|
-| Physical proximity | −15 | Best RSSI > −50 dBm (device is within ~5 m) |
+| Physical proximity | −15 | Average RSSI > −50 dBm (device is within ~5 m) |
 | Router device | −10 | Device has relayed ≥ 2 packets |
 | Chatty (high traffic) | −15 | Packet count > 100 |
 | Intermittent (low traffic) | −5 | Packet count < 5 |
@@ -28,11 +28,6 @@ The score maps to three ratings:
 | < 60 | Vulnerable | VULNERABLE (red) |
 
 **Worst possible score**: 35 (all five point deductions applied simultaneously).
-
-**Note**: The `possibleUnencrypted` flag (any Meshtastic device with > 10 packets) appears in the
-findings list but does **not** deduct from the score. It is a speculative indicator — high traffic
-without confirmed decryption may mean the device uses a non-default PSK or is transmitting
-unencrypted. PSK testing is required to distinguish between these cases.
 
 ---
 

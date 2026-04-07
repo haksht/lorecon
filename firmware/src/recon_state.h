@@ -134,6 +134,10 @@ public:
     // Battery telemetry (Meshtastic DeviceMetrics)
     void updateDeviceBattery(uint32_t nodeId, int16_t level, float voltage);
 
+    // Firmware version and hardware model (Meshtastic MAP_REPORT_APP / NODEINFO_APP)
+    // Only overwrites fields that currently hold heuristic "(est)" or "Unknown" values.
+    void updateDeviceFirmware(uint32_t nodeId, const char* firmwareVersion, const char* hwModel);
+
     // MeshCore decryption result (channel name, message text, sender name)
     void updateDeviceDecryption(uint32_t nodeId, const char* channel,
                                 const char* message, const char* senderName);
