@@ -292,6 +292,12 @@ class MeshCoreTopologyAnalyzer:
             self.stats['non_meshcore'] += 1
             return
 
+        # ADVERT packets are node announcements — their payload is not a relay
+        # path, so skip them to avoid corrupting topology with garbage hops.
+        if pkt['payload_type'] == 4:  # ADVERT
+            self.stats['non_meshcore'] += 1
+            return
+
         self.stats['total'] += 1
         path = pkt['path']
 
@@ -542,6 +548,100 @@ class MeshCoreTopologyAnalyzer:
         lines.append('}')
         return '\n'.join(lines)
 
+    def to_matplotlib(self, output_file: Optional[str] = None) -> None:
+        """Render topology graph using networkx + matplotlib. No Graphviz needed."""
+        try:
+            import networkx as nx
+            import matplotlib.pyplot as plt
+            import matplotlib.patches as mpatches
+        except ImportError:
+            print("ERROR: networkx and matplotlib required. Install: pip install networkx matplotlib")
+            return
+
+        G = nx.DiGraph()
+
+        role_colors = {
+            'relay':   '#4682b4',  # steelblue
+            'edge':    '#555555',  # dark gray
+            'unknown': '#aaaaaa',  # light gray
+        }
+        role_shapes = {
+            'relay':   's',  # square
+            'edge':    'o',  # circle
+            'unknown': 'o',
+        }
+
+        for node in self.nodes.values():
+            label = node.name or node.node_hash[:8]
+            if node.channel:
+                label += f'\n[{node.channel}]'
+            G.add_node(node.node_hash,
+                       label=label,
+                       role=node.role,
+                       color=role_colors.get(node.role, '#aaaaaa'),
+                       shape=role_shapes.get(node.role, 'o'))
+
+        edge_weights = {}
+        for (src, dst), edge in self.edges.items():
+            G.add_edge(src, dst, weight=edge.relay_count)
+            edge_weights[(src, dst)] = edge.relay_count
+
+        if len(G.nodes) == 0:
+            print("No nodes to render.")
+            return
+
+        fig, ax = plt.subplots(figsize=(12, 8))
+        ax.set_facecolor('#1a1a2e')
+        fig.patch.set_facecolor('#1a1a2e')
+
+        try:
+            pos = nx.spring_layout(G, seed=42, k=2.5)
+        except Exception:
+            pos = nx.circular_layout(G)
+
+        # Draw by role so shapes differ
+        for role, shape in role_shapes.items():
+            nodes_in_role = [n for n, d in G.nodes(data=True) if d.get('role') == role]
+            if not nodes_in_role:
+                continue
+            colors = [G.nodes[n]['color'] for n in nodes_in_role]
+            nx.draw_networkx_nodes(G, pos, nodelist=nodes_in_role,
+                                   node_color=colors, node_shape=shape,
+                                   node_size=900, ax=ax, alpha=0.9)
+
+        edge_widths = [1 + edge_weights.get(e, 1) * 0.4 for e in G.edges()]
+        nx.draw_networkx_edges(G, pos, width=edge_widths,
+                               edge_color='#88aacc', arrows=True,
+                               arrowsize=20, ax=ax,
+                               connectionstyle='arc3,rad=0.1')
+
+        labels = {n: d.get('label', n[:8]) for n, d in G.nodes(data=True)}
+        nx.draw_networkx_labels(G, pos, labels, font_size=8,
+                                font_color='white', ax=ax)
+
+        edge_labels = {e: f"{w}x" for e, w in edge_weights.items() if w > 1}
+        nx.draw_networkx_edge_labels(G, pos, edge_labels, font_size=7,
+                                     font_color='#ccddff', ax=ax)
+
+        legend_items = [
+            mpatches.Patch(color='#4682b4', label='Relay node'),
+            mpatches.Patch(color='#555555', label='Edge node'),
+            mpatches.Patch(color='#aaaaaa', label='Unknown'),
+        ]
+        ax.legend(handles=legend_items, loc='upper left',
+                  facecolor='#2a2a4a', labelcolor='white', fontsize=9)
+
+        ax.set_title('MeshCore Relay Topology', color='white', fontsize=14, pad=12)
+        ax.axis('off')
+        plt.tight_layout()
+
+        if output_file:
+            plt.savefig(output_file, dpi=150, bbox_inches='tight',
+                        facecolor=fig.get_facecolor())
+            print(f"Saved to {output_file}")
+        else:
+            plt.show()
+
 
 # ---------------------------------------------------------------------------
 # File loaders
@@ -762,7 +862,7 @@ Render Graphviz output:
 ''',
     )
     parser.add_argument('input', nargs='?', help='Input PCAP or CSV file')
-    parser.add_argument('--format', choices=['ascii', 'json', 'graphviz'], default='ascii',
+    parser.add_argument('--format', choices=['ascii', 'json', 'graphviz', 'png'], default='ascii',
                         help='Output format (default: ascii)')
     parser.add_argument('--live', metavar='HOST',
                         help='Live mode: connect to ESP32 WebSocket at HOST')
@@ -814,6 +914,10 @@ Render Graphviz output:
 
 
 def _output(analyzer: MeshCoreTopologyAnalyzer, args):
+    if args.format == 'png':
+        analyzer.to_matplotlib(output_file=args.output)
+        return
+
     if args.format == 'ascii':
         text = analyzer.to_ascii()
     elif args.format == 'json':

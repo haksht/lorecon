@@ -241,7 +241,7 @@ def _run_analysis(output_dir: Path, csv_path: Path, pcap_path: Path | None,
         print("📻 Running LoRaWAN join scanner...")
         lorawan_out = output_dir / 'lorawan_joins.txt'
         rc, output = run_tool(
-            TOOLS_DIR / 'lorawan' / 'join_parser.py',
+            TOOLS_DIR / 'join_parser.py',
             [str(pcap_path)],
             lorawan_out
         )
@@ -307,6 +307,10 @@ Examples:
                         help='Report format (default: html)')
     parser.add_argument('--out', default=None,
                         help='Output directory (default: assessment_<timestamp>)')
+    parser.add_argument('--file', metavar='CSV',
+                        help='Run analysis on an existing CSV file (skip device capture)')
+    parser.add_argument('--pcap', metavar='PCAP',
+                        help='Companion PCAP file for LoRaWAN analysis (used with --file)')
     parser.add_argument('--demo', action='store_true',
                         help='Demo run with simulated data (no device needed)')
     parser.add_argument('--no-open', action='store_true',
@@ -334,6 +338,19 @@ Examples:
 
     if args.demo:
         run_demo(output_dir, args.report_format, no_open=args.no_open)
+        return 0
+
+    if args.file:
+        csv_path = Path(args.file)
+        if not csv_path.exists():
+            print(f"❌ File not found: {csv_path}")
+            return 1
+        pcap_path = Path(args.pcap) if args.pcap else csv_path.with_suffix('.pcap')
+        output_dir.mkdir(parents=True, exist_ok=True)
+        print(f"📂 Input file : {csv_path.resolve()}")
+        print(f"📂 Output dir : {output_dir.resolve()}")
+        _run_analysis(output_dir, csv_path, pcap_path if pcap_path.exists() else None,
+                      args.report_format, no_open=args.no_open)
         return 0
 
     if not check_deps():

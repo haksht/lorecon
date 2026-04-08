@@ -63,10 +63,33 @@ class SecurityAssessment:
         self.end_time = None
     
     def load_csv(self, filepath):
-        """Load data from CSV capture file"""
+        """Load data from CSV capture file, with live PSK decryption."""
+        # Try to load PSK decryptor (same approach as mesh_topology_analyzer)
+        decryptor = None
+        try:
+            import sys as _sys
+            _tools = str(Path(__file__).resolve().parent)
+            if _tools not in _sys.path:
+                _sys.path.insert(0, _tools)
+            from meshtastic.psk_decrypt import MeshtasticDecryptor
+            decryptor = MeshtasticDecryptor(verbose=False)
+        except Exception:
+            pass
+
         with open(filepath, 'r', encoding='utf-8') as f:
             reader = csv.DictReader(f)
             for row in reader:
+                # If firmware left psk_result blank, try Python-side decryption
+                if decryptor and row.get('psk_result', 'none') in ('none', '', 'failed'):
+                    raw_hex = row.get('raw_hex', '')
+                    if raw_hex:
+                        try:
+                            raw_bytes = bytes.fromhex(raw_hex.replace(' ', ''))
+                            result = decryptor.try_decrypt(raw_bytes)
+                            if result and result.key_name:
+                                row['psk_result'] = result.key_name
+                        except Exception:
+                            pass
                 self._process_row(row)
     
     def load_api(self, host):

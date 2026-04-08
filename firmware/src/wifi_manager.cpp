@@ -158,31 +158,31 @@ bool WiFiManager::hasStoredCredentials() const {
  * @return true if credentials loaded successfully
  */
 bool WiFiManager::loadCredentials() {
-    // First, try to load from NVS
+    // Check for provisioning override: if JSON file exists with a valid SSID,
+    // it takes priority over NVS (allows field re-provisioning via uploadfs).
+    String legacySsid, legacyPassword;
+    if (migrateLegacyCredentials(legacySsid, legacyPassword)) {
+        if (saveCredentials(legacySsid.c_str(), legacyPassword.c_str())) {
+            LOG_INFO("Provisioning override: loaded credentials from file: %s", legacySsid.c_str());
+            return true;
+        }
+    }
+
+    // Try to load from NVS
     wifiPrefs.begin(Config::WiFi::NVS_NAMESPACE, true);  // Read-only
-    
+
     if (wifiPrefs.isKey(Config::WiFi::NVS_KEY_SSID)) {
         staSsid = wifiPrefs.getString(Config::WiFi::NVS_KEY_SSID, "");
         staPassword = wifiPrefs.getString(Config::WiFi::NVS_KEY_PASSWORD, "");
         wifiPrefs.end();
-        
+
         if (!staSsid.isEmpty()) {
             LOG_INFO("Loaded WiFi credentials from secure storage: %s", staSsid.c_str());
             return true;
         }
     }
     wifiPrefs.end();
-    
-    // Try migrating legacy JSON credentials
-    String legacySsid, legacyPassword;
-    if (migrateLegacyCredentials(legacySsid, legacyPassword)) {
-        // Save migrated credentials to NVS
-        if (saveCredentials(legacySsid.c_str(), legacyPassword.c_str())) {
-            LOG_INFO("Successfully migrated credentials to secure storage");
-            return true;
-        }
-    }
-    
+
     LOG_INFO("No stored WiFi credentials found");
     return false;
 }

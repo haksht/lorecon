@@ -558,6 +558,106 @@ class MeshTopologyAnalyzer:
         
         return G
 
+    def to_matplotlib(self, output_file=None) -> None:
+        """Render topology graph using networkx + matplotlib. No Graphviz needed."""
+        try:
+            import networkx as nx
+            import matplotlib.pyplot as plt
+            import matplotlib.patches as mpatches
+        except ImportError:
+            print("ERROR: networkx and matplotlib required. Install: pip install networkx matplotlib")
+            return
+
+        G = nx.DiGraph()
+
+        for node_id, node in self.nodes.items():
+            label = node.short_name or node_id[-6:]
+            if node.is_gateway:
+                color, shape = '#2ecc71', 's'
+            elif node.is_edge:
+                color, shape = '#555555', 'o'
+            else:
+                color, shape = '#4682b4', 'o'
+            G.add_node(node_id, label=label, color=color, shape=shape,
+                       is_gateway=node.is_gateway)
+
+        for edge in self.edges.values():
+            G.add_edge(edge.node_a, edge.node_b,
+                       weight=edge.packet_count,
+                       snr=edge.avg_snr,
+                       bidirectional=edge.bidirectional)
+            if edge.bidirectional:
+                G.add_edge(edge.node_b, edge.node_a,
+                           weight=edge.packet_count,
+                           snr=edge.avg_snr,
+                           bidirectional=True)
+
+        if len(G.nodes) == 0:
+            print("No nodes to render.")
+            return
+
+        fig, ax = plt.subplots(figsize=(13, 9))
+        ax.set_facecolor('#1a1a2e')
+        fig.patch.set_facecolor('#1a1a2e')
+
+        try:
+            pos = nx.spring_layout(G, seed=42, k=2.5)
+        except Exception:
+            pos = nx.circular_layout(G)
+
+        for shape in ('s', 'o'):
+            nodes_in_group = [n for n, d in G.nodes(data=True) if d.get('shape') == shape]
+            if not nodes_in_group:
+                continue
+            colors = [G.nodes[n]['color'] for n in nodes_in_group]
+            nx.draw_networkx_nodes(G, pos, nodelist=nodes_in_group,
+                                   node_color=colors, node_shape=shape,
+                                   node_size=900, ax=ax, alpha=0.9)
+
+        edge_widths = [1 + G.edges[e].get('weight', 1) * 0.3 for e in G.edges()]
+        nx.draw_networkx_edges(G, pos, width=edge_widths,
+                               edge_color='#88aacc', arrows=True,
+                               arrowsize=18, ax=ax,
+                               connectionstyle='arc3,rad=0.08')
+
+        labels = {n: d.get('label', n[-6:]) for n, d in G.nodes(data=True)}
+        nx.draw_networkx_labels(G, pos, labels, font_size=8,
+                                font_color='white', ax=ax)
+
+        edge_labels = {}
+        seen = set()
+        for e in G.edges(data=True):
+            key = tuple(sorted([e[0], e[1]]))
+            if key not in seen:
+                seen.add(key)
+                snr = e[2].get('snr')
+                w = e[2].get('weight', 1)
+                lbl = f"{w}p"
+                if snr is not None:
+                    lbl += f"\n{snr:.1f}dB"
+                edge_labels[(e[0], e[1])] = lbl
+        nx.draw_networkx_edge_labels(G, pos, edge_labels, font_size=7,
+                                     font_color='#ccddff', ax=ax)
+
+        legend_items = [
+            mpatches.Patch(color='#2ecc71', label='Gateway'),
+            mpatches.Patch(color='#4682b4', label='Router'),
+            mpatches.Patch(color='#555555', label='Edge node'),
+        ]
+        ax.legend(handles=legend_items, loc='upper left',
+                  facecolor='#2a2a4a', labelcolor='white', fontsize=9)
+
+        ax.set_title('Meshtastic Network Topology', color='white', fontsize=14, pad=12)
+        ax.axis('off')
+        plt.tight_layout()
+
+        if output_file:
+            plt.savefig(output_file, dpi=150, bbox_inches='tight',
+                        facecolor=fig.get_facecolor())
+            print(f"Saved to {output_file}")
+        else:
+            plt.show()
+
 
 # ============================================================================
 # Meshtastic Protobuf Parsing (lightweight, no protobuf dependency)
@@ -1128,7 +1228,7 @@ Examples:
                        help='Connect to ESP32 WebSocket and build topology from live packets (replaces file input)')
     parser.add_argument('--watch', action='store_true',
                        help='Auto-refresh the topology display after each packet (use with --live; without this, results print only on Ctrl+C)')
-    parser.add_argument('--format', choices=['json', 'graphviz', 'ascii', 'networkx'],
+    parser.add_argument('--format', choices=['json', 'graphviz', 'ascii', 'networkx', 'png'],
                        default='ascii', help='Output format (default: ascii)')
     parser.add_argument('--ascii', action='store_true',
                        help='ASCII visualization (shorthand for --format ascii)')
@@ -1171,6 +1271,8 @@ Examples:
                 print("Render with: dot -Tpng -o mesh.png", args.output)
             else:
                 print(output)
+        elif args.format == 'png':
+            analyzer.to_matplotlib(output_file=args.output)
         return
     
     # Live monitoring mode
@@ -1243,16 +1345,19 @@ Examples:
         if not NETWORKX_AVAILABLE:
             print("ERROR: NetworkX not installed. Run: pip install networkx")
             sys.exit(1)
-        
+
         G = analyzer.to_networkx()
         print(f"NetworkX graph created with {G.number_of_nodes()} nodes, "
               f"{G.number_of_edges()} edges")
-        
+
         if args.output:
             import pickle
             with open(args.output, 'wb') as f:
                 pickle.dump(G, f)
             print(f"Saved pickled graph to {args.output}")
+
+    elif args.format == 'png':
+        analyzer.to_matplotlib(output_file=args.output)
 
 
 if __name__ == '__main__':

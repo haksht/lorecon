@@ -25,6 +25,8 @@ from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
 try:
     from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
     from cryptography.hazmat.backends import default_backend
@@ -116,6 +118,7 @@ class PSKAuditor:
         self.informational = 0      # decryptable but expected public data
         self.unencrypted = 0
         self.failed = 0
+        self.text_messages = []     # (node_id_hex, psk_name, text)
     
     def _color(self, text, color_key):
         """Apply terminal color if enabled"""
@@ -148,7 +151,7 @@ class PSKAuditor:
     }
 
     def try_decrypt(self, encrypted, key_bytes, packet_id, node_id):
-        """Attempt decryption and validate result. Returns portnum (int) or None."""
+        """Attempt decryption and validate result. Returns (portnum, plaintext) or None."""
         if not CRYPTO_AVAILABLE:
             return None
 
@@ -169,7 +172,7 @@ class PSKAuditor:
                 portnum = decrypted[1]
                 # Known Meshtastic portnums
                 if portnum in (0, 1, 2, 3, 4, 5, 6, 7, 8, 32, 33, 34, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73):
-                    return portnum
+                    return portnum, decrypted
 
             return None
         except Exception:
@@ -211,9 +214,10 @@ class PSKAuditor:
             except Exception:
                 continue
 
-            portnum = self.try_decrypt(encrypted, key_bytes, packet_id, node_id)
-            if portnum is None:
+            decrypt_result = self.try_decrypt(encrypted, key_bytes, packet_id, node_id)
+            if decrypt_result is None:
                 continue
+            portnum, plaintext = decrypt_result
 
             is_sensitive = portnum in self.SENSITIVE_PORTNUMS
 
@@ -239,6 +243,16 @@ class PSKAuditor:
 
             if len(net['sample_data']) < 3:
                 net['sample_data'].append(raw_data[:48].hex())
+
+            # Extract text messages (portnum 1 = TEXT_MESSAGE_APP)
+            # Wire format: 0x08 0x01 0x12 <len> <text>
+            if portnum == 1 and len(plaintext) >= 4 and plaintext[2] == 0x12:
+                tlen = plaintext[3]
+                if len(plaintext) >= 4 + tlen:
+                    text = plaintext[4:4+tlen].decode('utf-8', errors='replace').strip()
+                    if text:
+                        ts_str = datetime.fromtimestamp(timestamp).strftime('%H:%M:%S') if timestamp else '??:??:??'
+                        self.text_messages.append((f"0x{node_id:08X}", ts_str, psk_name, text))
 
             return {
                 'node_id': node_id,
@@ -311,6 +325,20 @@ class PSKAuditor:
             print(f"└{'─'*68}┘")
             print()
         
+        # Intercepted text messages
+        if self.text_messages:
+            CYAN  = '' if self.no_color else '\033[96m'
+            RESET = '' if self.no_color else '\033[0m'
+            BOLD  = '' if self.no_color else '\033[1m'
+            print(f"\n{BOLD}💬 INTERCEPTED TEXT MESSAGES ({len(self.text_messages)} total):{RESET}")
+            print("─"*70)
+            for node, ts, psk, text in self.text_messages[:30]:
+                node_col = self._color(node, 'HIGH')
+                print(f"  {ts}  {node_col}  [{psk}]  {text}")
+            if len(self.text_messages) > 30:
+                print(f"  ... and {len(self.text_messages) - 30} more")
+            print()
+
         # Recommendations
         print("📋 RECOMMENDATIONS:")
         print("─"*70)
@@ -467,12 +495,9 @@ def monitor_live(host, auditor, duration=None):
     ws.run_forever()
 
 
-def dramatic_key_scan(auditor, packets, no_color=False):
-    """Animate each PSK attempt with 50ms pacing — optimised for live demos.
-
-    For each packet, iterates the PSK database visually before calling
-    the real auditor. Shows MISS in gray and HIT in red with a bell,
-    then drops back to normal audit output.
+def dramatic_key_scan(auditor, packets, no_color=False, max_animate=80):
+    """Animate PSK attempts for the first max_animate packets, then audit the
+    rest silently.  Keeps demo runtime under 30 seconds regardless of file size.
     """
     import time
 
@@ -483,46 +508,54 @@ def dramatic_key_scan(auditor, packets, no_color=False):
     RESET  = '' if no_color else '\033[0m'
     CLEAR  = '\r\033[K'
 
-    hits = {}    # psk_name -> risk
     seen_hits = set()
+    animate_packets = packets[:max_animate]
+    silent_packets  = packets[max_animate:]
 
-    print(f"\n{YELLOW}Scanning {len(packets)} packets against {len(PSK_DATABASE)} known PSKs...{RESET}\n")
+    print(f"\n{YELLOW}Scanning {len(packets)} packets against {len(PSK_DATABASE)} known PSKs...{RESET}")
+    if silent_packets:
+        print(f"{GRAY}  (animating first {max_animate}, auditing remaining {len(silent_packets)} silently){RESET}\n")
     time.sleep(0.3)
 
-    for pkt_idx, (pkt_data, timestamp) in enumerate(packets):
+    for pkt_idx, (pkt_data, timestamp) in enumerate(animate_packets):
         for psk_b64, psk_name, risk, description in PSK_DATABASE:
             try:
                 key_bytes = __import__('base64').b64decode(psk_b64)
             except Exception:
                 continue
 
-            # Animate attempt
             label = f"{GRAY}  [{pkt_idx+1:3}/{len(packets)}] Testing {psk_name:<35} ...{RESET}"
             print(label, end='', flush=True)
             time.sleep(0.05)
 
-            # Check result
-            node_id = __import__('struct').unpack('<I', pkt_data[4:8])[0]
+            node_id   = __import__('struct').unpack('<I', pkt_data[4:8])[0]
             packet_id = __import__('struct').unpack('<I', pkt_data[8:12])[0]
             encrypted = pkt_data[16:]
-            portnum = auditor.try_decrypt(encrypted, key_bytes, packet_id, node_id)
+            decrypt_result = auditor.try_decrypt(encrypted, key_bytes, packet_id, node_id)
 
-            if portnum is not None:
+            if decrypt_result is not None:
+                portnum = decrypt_result[0]
                 color = RED if risk in ('CRITICAL', 'HIGH') else YELLOW
-                mark = '\a' if risk == 'CRITICAL' else ''  # bell on critical
+                mark  = '\a' if risk == 'CRITICAL' else ''
                 print(f"{CLEAR}{color}  [{pkt_idx+1:3}/{len(packets)}] HIT  {psk_name:<35} [{risk}]{mark}{RESET}")
-                hits[psk_name] = risk
                 if psk_name not in seen_hits:
                     seen_hits.add(psk_name)
-                    time.sleep(0.4)   # pause to let the audience read the hit
+                    time.sleep(0.4)
                 break
             else:
                 print(CLEAR, end='', flush=True)
 
-    # Run the real audit quietly to populate auditor state
+    # Audit remaining packets silently
+    if silent_packets:
+        print(f"\n{GRAY}  Auditing remaining {len(silent_packets)} packets...{RESET}", end='', flush=True)
+        for pkt_data, timestamp in silent_packets:
+            auditor.audit_packet(pkt_data, timestamp)
+        print(f"{CLEAR}", end='')
+
+    # Also audit the animated packets to populate auditor state
     print(f"\n{GREEN}Scan complete. Running full audit...{RESET}\n")
     time.sleep(0.2)
-    for pkt_data, timestamp in packets:
+    for pkt_data, timestamp in animate_packets:
         auditor.audit_packet(pkt_data, timestamp)
 
 
