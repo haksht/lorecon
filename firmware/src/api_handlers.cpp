@@ -101,19 +101,22 @@ void handleGetDevices(AsyncWebServerRequest* request) {
     uint32_t heapBefore = ESP.getFreeHeap();
     LOG_INFO("API /devices called (heap: %lu bytes)", heapBefore);
     
-    // Check if we have enough heap to build response safely
-    if (heapBefore < 50000) {
+    // Check if we have enough heap to build response safely.
+    // /devices JSON is ~31KB; ESPAsyncWebServer needs its own send buffer on top.
+    // Require 90KB headroom so both allocations succeed.
+    if (heapBefore < 90000) {
         LOG_WARN("Low heap (%lu bytes) - sending minimal response", heapBefore);
         request->send(503, "application/json", JsonUtils::error("Low memory - try again"));
         return;
     }
-    
+
     String response = APIController::getDevices();
     uint32_t heapAfter = ESP.getFreeHeap();
-    LOG_INFO("API /devices response ready (%u bytes, heap: %lu->%lu)", 
+    LOG_INFO("API /devices response ready (%u bytes, heap: %lu->%lu)",
              response.length(), heapBefore, heapAfter);
-    
-    request->send(200, "application/json", response);
+
+    // Copy length before move so we can log it; send() takes ownership of the String.
+    request->send(200, "application/json", std::move(response));
 }
 
 void handleGetDevice(AsyncWebServerRequest* request) {

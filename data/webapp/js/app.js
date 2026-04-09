@@ -1002,7 +1002,13 @@ class ReconApp {
         });
 
         html += '</tbody></table></div>';
+
+        // Preserve scroll position across silent refreshes
+        const tableWrapper = wrapper.querySelector('.table-wrapper');
+        const prevScrollTop = tableWrapper ? tableWrapper.scrollTop : 0;
         wrapper.innerHTML = html;
+        const newTableWrapper = wrapper.querySelector('.table-wrapper');
+        if (newTableWrapper && prevScrollTop) newTableWrapper.scrollTop = prevScrollTop;
 
         // Attach sort handlers to freshly-rendered column headers
         wrapper.querySelectorAll('.th-sort').forEach(th => {
@@ -1446,7 +1452,7 @@ class ReconApp {
         if (totalPkts === 0) return;
 
         let html = '<div class="alert-box" style="margin-bottom: 15px;">';
-        html += '<h4>📊 24-Hour Traffic (' + totalPkts + ' packets)</h4>';
+        html += '<h4>📊 Traffic by Hour of Day (' + totalPkts + ' packets this session)</h4>';
         html += '<div style="display:flex; align-items:flex-end; gap:2px; height:60px; margin-top:8px;">';
         histogram.forEach(h => {
             const pct = (h.packets / maxPkts * 100).toFixed(0);

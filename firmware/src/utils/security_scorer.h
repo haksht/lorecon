@@ -26,8 +26,8 @@
  * 
  * RATING THRESHOLDS:
  * - Score >= 80: "secure" (green)
- * - Score >= 60: "moderate" (yellow)
- * - Score < 60:  "vulnerable" (red)
+ * - Score >= 50: "moderate" (yellow)
+ * - Score < 50:  "vulnerable" (red)
  * 
  * ROUTER DETECTION:
  * =================
@@ -129,7 +129,7 @@ inline Assessment assess(const TargetableDevice& device) {
     if (result.score >= 80) {
         result.rating = "secure";
         result.ratingEmoji = "[OK] SECURE";
-    } else if (result.score >= 60) {
+    } else if (result.score >= 50) {
         result.rating = "moderate";
         result.ratingEmoji = "[!] MODERATE";
     } else {
