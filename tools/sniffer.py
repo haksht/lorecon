@@ -13,15 +13,16 @@ TOOLS_DIR = Path(__file__).parent
 # Each entry: name -> (script_path, description)
 STORY_COMMANDS = {
     'story':    (None,                                                          'Guided presenter mode — start here'),
-    'demo':     (TOOLS_DIR / 'enhanced_live_visualizer.py',                    '5-panel live dashboard (no hardware needed)'),
+    'live':     (TOOLS_DIR / 'demo_live.py',                                   'Mission Control dashboard — replay CSV or stream live'),
+    'theater':  (TOOLS_DIR / 'message_theater.py',                             'Message reveal theater — dramatic one-at-a-time decrypt'),
     'topology': (TOOLS_DIR / 'meshtastic' / 'mesh_topology_analyzer.py',       'Mesh network map (--demo or file input)'),
-    'reveal':   (TOOLS_DIR / 'meshtastic' / 'make_reveal.py',                  'Decrypt reveal presentation (--demo or pcap input)'),
+    'reveal':   (TOOLS_DIR / 'meshtastic' / 'make_reveal.py',                  'Decrypt reveal browser page (--demo or pcap input)'),
     'lorawan':  (TOOLS_DIR / 'join_parser.py',                                 'LoRaWAN join request / DevEUI scanner (--demo)'),
     'assess':   (TOOLS_DIR / 'run_assessment.py',                              'Full pipeline: capture -> audit -> report (--demo)'),
 }
 
 ANALYSIS_COMMANDS = {
-    'monitor':  (TOOLS_DIR / 'ws_monitor.py',                                  'Headless live WebSocket packet stream (--demo)'),
+    'monitor':  (TOOLS_DIR / 'ws_monitor.py',                                  'Headless live WebSocket packet stream'),
     'audit':    (TOOLS_DIR / 'meshtastic' / 'psk_auditor.py',                  'PSK vulnerability scan (--demo, --dramatic)'),
     'report':   (TOOLS_DIR / 'recon_report.py',                                'Security assessment report generator'),
 }
@@ -31,14 +32,11 @@ DEV_COMMANDS = {
     'decode':         (TOOLS_DIR / 'meshtastic' / 'meshtastic_decoder.py',     'Batch Meshtastic decryptor (AES-256-CTR)'),
     'meshcore-decode':(TOOLS_DIR / 'meshcore' / 'meshcore_decoder.py',         'Batch MeshCore decryptor (AES-128-ECB, 12 keys)'),
     'api':            (TOOLS_DIR / 'dev' / 'api_client.py',                    'REST API client (~30 subcommands)'),
-    'visualize':      (TOOLS_DIR / 'enhanced_live_visualizer.py',              '5-panel dashboard (serial or WebSocket)'),
+    'visualize':      (TOOLS_DIR / 'enhanced_live_visualizer.py',              '5-panel matplotlib dashboard (serial or WebSocket)'),
 }
 
 # Flat lookup for dispatch (story handled separately)
 ALL_COMMANDS = {**STORY_COMMANDS, **ANALYSIS_COMMANDS, **DEV_COMMANDS}
-
-# demo alias -> visualize --demo
-DEMO_ALIAS = 'demo'
 
 
 def print_help():
@@ -61,10 +59,13 @@ def print_help():
 
     print("Examples:")
     print("  python sniffer.py story")
-    print("  python sniffer.py demo")
+    print("  python sniffer.py live                         # Mission Control (auto hotel CSV)")
+    print("  python sniffer.py live capture.csv --duration 90")
+    print("  python sniffer.py live --host 192.168.4.1     # live from hardware")
+    print("  python sniffer.py theater                      # Message reveal (auto hotel CSV)")
+    print("  python sniffer.py theater capture.csv --auto 6")
     print("  python sniffer.py topology --demo")
     print("  python sniffer.py reveal --demo")
-    print("  python sniffer.py reveal capture.pcap --max-messages 4")
     print("  python sniffer.py lorawan --demo")
     print("  python sniffer.py assess --demo")
     print()
@@ -73,18 +74,18 @@ def print_help():
 # ── Story mode ──────────────────────────────────────────────────────────────
 
 STORY_STEPS = [
-    ("ACT 1  LIVE CAPTURE",
-     "demo",
-     ["--demo"],
-     "5-panel live dashboard — simulated traffic, audio optional"),
-    ("ACT 2  DEVICE INVENTORY",
+    ("ACT 1  MISSION CONTROL",
+     "live",
+     ["--duration", "60"],
+     "Full-screen dashboard — watches packets arrive, messages get intercepted"),
+    ("ACT 2  MESSAGE REVEAL",
+     "theater",
+     ["--max", "8", "--auto", "6"],
+     "8 messages, 6 s each — the 'holy shit' moment"),
+    ("ACT 3  DEVICE TOPOLOGY",
      "topology",
      ["--demo"],
-     "ASCII mesh map — who is routing for whom"),
-    ("ACT 3  DECRYPT REVEAL",
-     "reveal",
-     ["--demo"],
-     "Browser reveal page — hex glitch -> plaintext"),
+     "ASCII mesh map — who is routing for whom, hop distances"),
     ("ACT 4  LORAWAN SCAN",
      "lorawan",
      ["--demo"],
@@ -111,12 +112,8 @@ def story_mode():
 
     for i, (label, cmd, extra, hint) in enumerate(STORY_STEPS, 1):
         script_entry = ALL_COMMANDS.get(cmd)
-        if cmd == DEMO_ALIAS:
-            script = ALL_COMMANDS['visualize'][0]
-            run_args = ['--demo'] + extra
-        else:
-            script = script_entry[0] if script_entry else None
-            run_args = extra
+        script = script_entry[0] if script_entry else None
+        run_args = extra
 
         # Build the display command string
         display = f"python sniffer.py {cmd} {' '.join(extra)}"
@@ -164,11 +161,7 @@ def main():
         story_mode()
         return 0
 
-    # demo alias -> visualize --demo
-    if command == DEMO_ALIAS:
-        script = ALL_COMMANDS['visualize'][0]
-        extra_args = ['--demo'] + extra_args
-    elif command in ALL_COMMANDS:
+    if command in ALL_COMMANDS:
         entry = ALL_COMMANDS[command]
         script = entry[0]
         if script is None:

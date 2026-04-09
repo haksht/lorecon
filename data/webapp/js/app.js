@@ -833,6 +833,9 @@ class ReconApp {
      * Fetches /api/devices and renders device table with filter/sort controls
      */
     async showDevices() {
+        // Save scroll before any DOM replacement so we can restore it after re-render
+        const prevDeviceScroll = document.querySelector('#device-table-wrapper .table-wrapper')?.scrollTop ?? 0;
+
         // Only show spinner on first visit; subsequent refreshes update silently
         if (!this.allDevices) {
             this.el.devicesContent.innerHTML = renderLoadingState('Loading devices...');
@@ -862,6 +865,12 @@ class ReconApp {
                 <div id="device-table-wrapper"></div>`;
 
             this.renderDeviceTable();
+
+            // Restore scroll position after DOM replacement
+            if (prevDeviceScroll) {
+                const tw = document.querySelector('#device-table-wrapper .table-wrapper');
+                if (tw) tw.scrollTop = prevDeviceScroll;
+            }
 
         } catch (error) {
             DEBUG.error('Failed to load devices:', error);
@@ -894,7 +903,6 @@ class ReconApp {
         const cols = [
             { key: 'nodeId',               label: 'Node ID' },
             { key: 'securityScore',        label: 'Risk' },
-            { key: 'meshCoreChannel',      label: 'Channel' },
             { key: 'deviceType',           label: 'Type' },
             { key: 'firmwareVersion',      label: 'Firmware' },
             { key: 'isRouter',             label: 'Router' },
@@ -927,7 +935,9 @@ class ReconApp {
             else                                        { riskBadge = '⚪ —';    riskClass = 'risk-unknown'; }
 
             const routerBadge = device.isRouter ? '✅' : '—';
-            const powerBadge  = device.powerClass >= 2 ? '📶 Strong' : (device.powerClass === 1 ? '📶 Med' : '📶 Weak');
+            // Derive signal strength from bestRSSI — powerClass is only set at first packet
+            const _sigRssi = device.bestRSSI || device.avgRSSI || device.rssi || -100;
+            const powerBadge  = _sigRssi > -70 ? '📶 Strong' : (_sigRssi > -90 ? '📶 Med' : '📶 Weak');
 
             const battLevel = device.batteryLevel !== undefined ? device.batteryLevel : -1;
             const battVolt  = device.batteryVoltage || 0;
@@ -959,22 +969,19 @@ class ReconApp {
             const packetCount  = device.packetCount || 0;
             const rssiTooltip  = (rssiStdDev === 0 && packetCount < 2) ? 'σ=—' : (rssiStdDev > 10 ? `σ=${rssiStdDev.toFixed(1)} ⚠️ High variance` : `σ=${rssiStdDev.toFixed(1)}`);
 
-            const firmware     = escapeHtml(device.firmwareVersion || '—');
+            // Show firmware only when meaningful — LoRaWAN/ISM/Helium always return "Unknown" from firmware
+            const firmware     = escapeHtml((device.firmwareVersion && device.firmwareVersion !== 'Unknown') ? device.firmwareVersion : '—');
             const safeNodeId   = escapeHtml(device.nodeId);
-            const safeDevType  = escapeHtml(device.deviceType || 'Unknown');
+            // MeshCore deviceType is per-packet message type (Msg/ACK/Advert) — normalize to stable label
+            let rawDevType = device.deviceType || '—';
+            if (rawDevType.startsWith('MeshCore ')) rawDevType = 'MeshCore Node';
+            const safeDevType  = escapeHtml(rawDevType);
 
             // Sender name + last message tooltip on Node ID cell
             const senderName  = device.senderName || '';
             const lastMsg     = device.lastMessage || '';
             const nodeIdTitle = lastMsg ? escapeHtml(lastMsg) : '';
             const senderSub   = senderName ? `<br><small style="opacity:0.6">${escapeHtml(senderName)}</small>` : '';
-
-            // Channel badge
-            const ch = device.meshCoreChannel || '';
-            let chBadge = '—';
-            if      (ch === 'public')  chBadge = '🔓 public';
-            else if (ch === 'unknown') chBadge = '🔐 custom';
-            else if (ch.startsWith('#')) chBadge = `🔑 ${escapeHtml(ch)}`;
 
             // SNR display
             const snr = device.lastSNR !== undefined ? device.lastSNR : null;
@@ -986,7 +993,6 @@ class ReconApp {
             html += '<tr>';
             html += `<td title="${nodeIdTitle}"><code>0x${safeNodeId}</code>${senderSub}</td>`;
             html += `<td><span class="${riskClass}">${riskBadge}</span></td>`;
-            html += `<td><small>${chBadge}</small></td>`;
             html += `<td>${safeDevType}</td>`;
             html += `<td><small>${firmware}</small></td>`;
             html += `<td>${routerBadge}</td>`;
@@ -1069,8 +1075,9 @@ class ReconApp {
                     const flagsStr = flags.length > 0 ? flags.join(' ') : '—';
                     
                     // Destination display (broadcast or specific node)
+                    // Only show 📢 when explicitly flagged — undefined means protocol doesn't have this concept
                     let destDisplay = '—';
-                    if (pkt.isBroadcast === true || pkt.isBroadcast === undefined) {
+                    if (pkt.isBroadcast === true) {
                         destDisplay = '<span class="broadcast-badge">📢</span>';
                     } else if (pkt.destId) {
                         destDisplay = '<code>0x' + escapeHtml(String(pkt.destId)) + '</code>';
@@ -1078,12 +1085,11 @@ class ReconApp {
                     
                     // Channel display: show name if known, otherwise just number
                     let channelDisplay = '—';
-                    if (pkt.channel !== undefined) {
-                        if (pkt.channelName) {
-                            channelDisplay = `<span title="Hash: ${pkt.channel}">${escapeHtml(pkt.channelName)}</span>`;
-                        } else {
-                            channelDisplay = `<span class="text-muted">${pkt.channel}</span>`;
-                        }
+                    if (pkt.channelName) {
+                        const tip = pkt.channel !== undefined ? ` title="Hash: ${pkt.channel}"` : '';
+                        channelDisplay = `<span${tip}>${escapeHtml(pkt.channelName)}</span>`;
+                    } else if (pkt.channel !== undefined) {
+                        channelDisplay = `<span class="text-muted">${pkt.channel}</span>`;
                     }
                     
                     html += `<tr class="${rowClass}">`;
@@ -1452,7 +1458,7 @@ class ReconApp {
         if (totalPkts === 0) return;
 
         let html = '<div class="alert-box" style="margin-bottom: 15px;">';
-        html += '<h4>📊 Traffic by Hour of Day (' + totalPkts + ' packets this session)</h4>';
+        html += '<h4>📊 Traffic by Hour of Day — UTC (' + totalPkts + ' packets this session)</h4>';
         html += '<div style="display:flex; align-items:flex-end; gap:2px; height:60px; margin-top:8px;">';
         histogram.forEach(h => {
             const pct = (h.packets / maxPkts * 100).toFixed(0);

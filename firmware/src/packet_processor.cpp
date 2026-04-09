@@ -351,7 +351,8 @@ void PacketProcessor::handlePacket(PacketInfo& info, const uint8_t* data, size_t
         }
         reconState.capturePacketForReplay(data, length, reconState.scanState.currentConfig,
                                            rssi, snr, "MeshCore", decryptedTextBuf,
-                                           info.nodeId, 0, info.hopCount, 0, 0, false, false, 0);
+                                           info.nodeId, 0, info.hopCount, 0, 0, false, false, 0,
+                                           decrypted ? channelBuf : nullptr);
     } else if (length >= 20) {
         MeshtasticHeader hdr = findAndExtractMeshtasticHeader(data, length);
         tryDecryptAndCapture(data, length, rssi, snr, info.protocol, hdr);

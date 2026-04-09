@@ -134,8 +134,10 @@ void DeviceRepository::initializeNewDevice(
             device->relayedPackets = 0;
         }
     } else {
+        // hopCount == 0xFF: no hop field for this protocol (LoRaWAN, RadioHead, ISM).
+        // Treat first packet as originated — we have no relay evidence.
         device->maxHopCount = 0;
-        device->originatedPackets = 0;
+        device->originatedPackets = 1;
         device->relayedPackets = 0;
     }
     
@@ -192,7 +194,7 @@ void DeviceRepository::updateExistingDevice(
     //               each relay decrements it. hopCount >= maxHopCount → originated.
     //   MeshCore:   upcount  — fresh packet has hop_count = 0 (no path entries),
     //               each relay appends its hash and increments it. hopCount == 0 → originated.
-    //   Others:     no hop field (hopCount == 0xFF); skip classification.
+    //   Others:     no hop field (hopCount == 0xFF); count as originated.
     if (hopCount != 0xFF) {
         bool isMeshCore = (strcmp(device->protocol, "MeshCore") == 0);
         if (isMeshCore) {
@@ -222,8 +224,11 @@ void DeviceRepository::updateExistingDevice(
                 }
             }
         }
+    } else {
+        // hopCount == 0xFF: no hop semantics; count every packet as originated.
+        if (device->originatedPackets < UINT16_MAX) device->originatedPackets++;
     }
-    
+
     // Always record the most recent RSSI
     device->lastRSSI = rssi;
 

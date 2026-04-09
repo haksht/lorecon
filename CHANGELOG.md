@@ -2,6 +2,23 @@
 
 All notable changes to the ESP32 LoRa Sniffer project.
 
+## [Unreleased] - 2026-04-09
+
+### Fixed
+- **Originated/relayed packet counts wrong for LoRaWAN/ISM/RadioHead**: `device_repository.cpp` was skipping both counters when `hopCount == 0xFF` (sentinel for "no hop field"), leaving every non-Meshtastic/non-MeshCore device at 0/0 regardless of packet count. All packets from these protocols now count as originated, which is the correct interpretation (no relay evidence available).
+- **Device table — Firmware column**: Was displaying "Unknown" for LoRaWAN, ISM, Helium, and RadioHead devices. Firmware version is only meaningful for Meshtastic (heuristic) and MeshCore (version bits in header). Now shows "—" for all other protocols.
+- **Device table — Type column**: MeshCore `deviceType` was set from the per-packet payload type ("MeshCore Msg", "MeshCore ACK", "MeshCore Advert") and overwrote the device record on every packet. Now normalized to "MeshCore Node" in the webapp.
+- **Device table — Signal badge**: Was derived from `powerClass`, which is only set once at device creation from the first packet RSSI. Now derived from `bestRSSI || avgRSSI || rssi`, which updates per packet.
+- **Device table — Scroll reset on refresh**: Scroll position was saved inside `renderDeviceTable()` after `devicesContent.innerHTML` had already replaced the DOM — the wrapper was gone so it always read 0. Fix: save before the wipe in `showDevices()`, restore after.
+- **Packet table — Broadcast display**: `isBroadcast === undefined` was treated as broadcast, showing 📢 for protocols that don't set this field. Now requires explicit `true`.
+- **Traffic histogram label**: Renamed to "Traffic by Hour of Day — UTC" to reflect that the firmware uses NTP without timezone configuration (hours are UTC, not local time).
+
+### Added
+- **MeshCore channel name in Packets tab**: Decrypted MeshCore channel name now shown per-packet. Added `meshCoreChannel[24]` field to `CapturedPacket` through the full stack: `data_structures.h` → `packet_store` → `recon_state` → `packet_processor` → `json_builders`.
+
+### Removed
+- **Channel column from Devices tab**: MeshCore channel is a per-packet property (a device can use different channels for different messages). The per-device field only stored the last decrypted channel, which was misleading. Channel is now shown correctly in the Packets tab only.
+
 ## [2.4.1] - 2026-03-29
 
 ### Fixed

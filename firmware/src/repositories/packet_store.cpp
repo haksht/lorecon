@@ -24,7 +24,8 @@ bool PacketStore::capturePacket(const uint8_t* data, size_t length,
                                  uint8_t channel, bool wantAck,
                                  bool viaMqtt, uint8_t priority,
                                  const char* protocol,
-                                 const char* decryptedText) {
+                                 const char* decryptedText,
+                                 const char* meshCoreChannel) {
     if (data == nullptr || length == 0) {
         LOG_WARN("PacketStore", "Cannot capture - invalid data");
         return false;
@@ -82,6 +83,14 @@ bool PacketStore::capturePacket(const uint8_t* data, size_t length,
         slot.decryptedText[sizeof(slot.decryptedText) - 1] = '\0';
     } else {
         slot.decryptedText[0] = '\0';
+    }
+
+    // Copy MeshCore channel name if available ("public", "#general", etc.)
+    if (meshCoreChannel != nullptr && meshCoreChannel[0] != '\0') {
+        strncpy(slot.meshCoreChannel, meshCoreChannel, sizeof(slot.meshCoreChannel) - 1);
+        slot.meshCoreChannel[sizeof(slot.meshCoreChannel) - 1] = '\0';
+    } else {
+        slot.meshCoreChannel[0] = '\0';
     }
     
     slot.valid = true;

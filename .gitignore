@@ -98,5 +98,6 @@ lora_map.html
 
 # Generated tool output
 tools/assessment_*/
+assessment_*/
 tools/*.html
 tools/meshtastic/*.dot

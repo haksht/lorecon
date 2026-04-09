@@ -58,32 +58,35 @@ this flag mostly means "we have not seen much from this device yet."
 **Source**: `firmware/src/repositories/device_repository.cpp:167–191`,
 `firmware/src/protocol_analyzer.cpp:208–218`
 
-Router detection works by comparing the **hop count** field in the Meshtastic packet header.
+Router detection and originated/relayed packet tracking depend on the protocol's hop count semantics.
 
-Meshtastic sets a `hop_limit` (default: 3) when a packet originates. Each node that relays the
-packet decrements this counter by 1 before re-transmitting. The sniffer reads this counter from
-**byte 12, lower 3 bits** of every Meshtastic packet.
+**Meshtastic** (countdown): sets `hop_limit` (default 3) when a packet originates; each relay
+decrements it. The sniffer reads this from byte 12, lower 3 bits.
 
-For each device, the sniffer tracks the highest hop count ever seen from that node ID. This
-approximates the original `hop_limit` that device uses.
+- Highest hop count ever seen from a node ID approximates the original `hop_limit`
+- `hop_count == maxHopCount` → originated directly → `originatedPackets++`
+- `hop_count < maxHopCount` → relayed by this device → `relayedPackets++`
+- Once `relayedPackets >= 2`, device is permanently flagged `isRouter = true`
 
-- If a packet arrives with `hop_count == maxHopCount` → the packet came directly from the originator → `originatedPackets++`
-- If a packet arrives with `hop_count < maxHopCount` → the packet was relayed by this device → `relayedPackets++`
-- Once `relayedPackets >= 2`, the device is permanently flagged `isRouter = true`
+**Why you may see the flag appear and disappear on the same device**: The max hop count is a
+running maximum. If a later packet arrives with a higher hop count, the max is updated and
+prior "relayed" classifications may shift.
 
-**Why you may see the flag appear and disappear on the same device**:
+**MeshCore** (upcount): fresh packets have `hop_count = 0`; each relay appends its hash and
+increments the count.
 
-The flag is set based on the *running* maximum hop count. When the first packet arrives, the
-max hop count is set to that packet's value. If a later packet arrives with a *higher* hop count,
-the max is updated — and packets that previously counted as "relayed" may now be reclassified.
+- `hop_count == 0` → originated directly → `originatedPackets++`
+- `hop_count > 0` → traversed N relays → `relayedPackets++`
+- `isRouter = true` after `relayedPackets >= 2`
+
+**LoRaWAN / ISM / RadioHead** (no hop field): `hopCount = 0xFF` (sentinel). These protocols
+have no relay concept visible at the air interface. Every observed packet counts as originated.
+`isRouter` is always `false` for these protocols.
 
 Additionally, `isRouter` is set by the `deviceIdentifier` callback during first-packet
 initialization (from `protocol_analyzer.cpp:isRoutingDevice()`), which uses a simpler rule:
-any packet with `0 < hop_count < 3` on the first sighting marks the device as a router. The
-device_repository then refines this as more packets arrive.
-
-**LoRaWAN note**: Router detection only works for Meshtastic. LoRaWAN devices are always
-`isRouter = false` because LoRaWAN gateways are transparent to the air interface.
+any Meshtastic/MeshCore packet with a non-zero hop count on first sighting marks the device as
+a router. The device_repository then refines this as more packets arrive.
 
 ---
 

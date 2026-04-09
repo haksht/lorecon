@@ -33,7 +33,8 @@ public:
                        uint8_t channel = 0, bool wantAck = false,
                        bool viaMqtt = false, uint8_t priority = 0,
                        const char* protocol = nullptr,
-                       const char* decryptedText = nullptr);
+                       const char* decryptedText = nullptr,
+                       const char* meshCoreChannel = nullptr);
     
     /**
      * Get a captured packet by slot index

@@ -39,6 +39,7 @@ struct CapturedPacket {
   uint8_t priority;     // Packet priority 0-3 (flags bits 5-6)
   char protocol[16];
   char decryptedText[256];  // Stores decrypted message text if available
+  char meshCoreChannel[24]; // MeshCore only: "public", "#general", etc. "" otherwise
   bool valid;
 };
 
