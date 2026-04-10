@@ -593,6 +593,17 @@ class ReconApp {
                 this.lastDropWarning = Date.now();
             }
         }
+
+        // Check SD card space
+        if (data.storage?.available) {
+            if (data.storage.loggingStopped && (!this.lastSdStopWarning || Date.now() - this.lastSdStopWarning > 300000)) {
+                showToast('SD card full — logging stopped. Download CSV/PCAP and clear space.', 'error');
+                this.lastSdStopWarning = Date.now();
+            } else if (data.storage.lowSpace && (!this.lastSdSpaceWarning || Date.now() - this.lastSdSpaceWarning > 120000)) {
+                showToast(`SD card low: ${this.formatStorageMB(data.storage.freeMB)} free`, 'warning');
+                this.lastSdSpaceWarning = Date.now();
+            }
+        }
         
         // Update sidebar stats
         if (this.el.mode) {

@@ -24,6 +24,7 @@
 #include "logger.h"
 #include "radio_controller.h"
 #include "utils/sd_utils.h"
+#include "packet_logger.h"
 
 namespace JsonBuilders {
 
@@ -196,6 +197,8 @@ String buildStatusJson(ReconState& reconState) {
             storage["usedMB"] = SDUtils::getUsedMB();
             storage["freeMB"] = SDUtils::getFreeMB();
             storage["type"] = SDUtils::getCardTypeString();
+            storage["lowSpace"] = packetLogger.isLowSpace();
+            storage["loggingStopped"] = !packetLogger.isAvailable();
         }
     }
 

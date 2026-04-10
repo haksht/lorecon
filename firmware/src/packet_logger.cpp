@@ -32,13 +32,15 @@ static File openCSVForAppend(const char* path, const char* headerLine) {
 // Global instance
 PacketLogger packetLogger;
 
-PacketLogger::PacketLogger() 
+PacketLogger::PacketLogger()
     : sdAvailable(false)
     , currentSessionFile("")
     , currentSessionId("")
     , sessionStartTime(0)
     , packetsLogged(0)
     , pcapSession()
+    , lowSpaceWarning(false)
+    , lastFreeSpaceMB(0)
 {
 }
 
@@ -194,17 +196,36 @@ bool PacketLogger::logPacket(const PacketLogRecord& record, const uint8_t* data,
     sessionFile.println();
     
     packetsLogged++;
-    
+
     // Flush every 10 packets to prevent data loss
-    if (packetsLogged % 10 == 0) {
+    if (packetsLogged % Config::System::SD_FLUSH_INTERVAL == 0) {
         sessionFile.flush();
     }
-    
+
+    // Check free space every SD_SPACE_CHECK_INTERVAL packets.
+    // SD.usedBytes() scans the FAT — too slow to call every packet.
+    if (packetsLogged % Config::Logging::SD_SPACE_CHECK_INTERVAL == 0) {
+        lastFreeSpaceMB = SDUtils::getFreeMB();
+        if (lastFreeSpaceMB <= Config::Logging::SD_STOP_THRESHOLD_MB) {
+            // Graceful stop: flush, close, disable — no more silent write failures
+            sessionFile.flush();
+            endSession();
+            sdAvailable = false;
+            LOG_ERROR("[SD] Card full (< %lu MB free) — logging stopped to prevent data corruption",
+                      Config::Logging::SD_STOP_THRESHOLD_MB);
+        } else if (lastFreeSpaceMB <= Config::Logging::SD_WARN_THRESHOLD_MB) {
+            lowSpaceWarning = true;
+            LOG_WARN("[SD] Low space: %llu MB free", lastFreeSpaceMB);
+        } else {
+            lowSpaceWarning = false;  // Cleared if space freed (e.g., user deleted files)
+        }
+    }
+
     // Also log to PCAP if enabled
     if (Config::Logging::PCAP_EXPORT_ENABLED && pcapSession.isActive()) {
         pcapSession.logPacket(data, length, record.rssiDbm, record.snrDb, record.frequencyMHz);
     }
-    
+
     return true;
 }
 

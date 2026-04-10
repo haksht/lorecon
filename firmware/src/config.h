@@ -295,6 +295,14 @@ namespace Logging {
     // Set to false to save SD space if you only need CSV logs
     constexpr bool PCAP_EXPORT_ENABLED = true;
 
+    // SD card free-space thresholds (MB)
+    // Check every SD_SPACE_CHECK_INTERVAL packets (SD.usedBytes() is slow — don't call every packet)
+    // WARN: log warning to serial; visible in /api/status and webapp toast
+    // STOP: close session gracefully rather than silently losing data at 0 bytes free
+    constexpr uint32_t SD_SPACE_CHECK_INTERVAL = 50;   // packets between checks
+    constexpr uint32_t SD_WARN_THRESHOLD_MB    = 50;   // warn below this
+    constexpr uint32_t SD_STOP_THRESHOLD_MB    = 10;   // stop logging below this
+
     // Log buffer size for formatting messages
     constexpr size_t LOG_BUFFER_SIZE = 256;
     

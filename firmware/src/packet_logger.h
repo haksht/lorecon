@@ -102,14 +102,20 @@ public:
     uint32_t getSessionDuration() const;
     void printStatus();
 
+    // Free-space state (set during logPacket checks; read by API/webapp)
+    bool isLowSpace() const { return lowSpaceWarning; }
+    uint64_t getLastFreeSpaceMB() const { return lastFreeSpaceMB; }
+
 private:
     bool sdAvailable;
     File sessionFile;
     String currentSessionFile;
-        String currentSessionId;
+    String currentSessionId;
     uint32_t sessionStartTime;
     uint32_t packetsLogged;
     PCAPSession pcapSession;
+    bool lowSpaceWarning;       // true when free space < SD_WARN_THRESHOLD_MB
+    uint64_t lastFreeSpaceMB;   // last measured free space (MB); 0 if unchecked
     
     // Helper methods
     String generateSessionFilename();
