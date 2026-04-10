@@ -1,8 +1,13 @@
 /**
  * Logger stub for native unit tests.
- * Provides no-op macros AND a minimal Logger class so that firmware
- * source files compiled via relative-path includes (e.g. "../logger.h"
- * from repositories/*.cpp) get a complete, linkable implementation.
+ *
+ * Mirrors the full interface of firmware/src/logger.h so that firmware
+ * source files compiled via relative path (#include "../logger.h") get
+ * a complete, linkable implementation with no Arduino/Stream dependencies.
+ *
+ * All methods are no-ops. getInstance() returns a NullLogger singleton.
+ * Static members are defined inline (C++17 inline variables) so no
+ * separate logger.cpp compilation unit is needed.
  */
 #ifndef LOGGER_H
 #define LOGGER_H
@@ -10,37 +15,58 @@
 #include <cstdint>
 #include <cstdarg>
 
+// ── Forward declarations to satisfy SerialLogger without pulling in Arduino ──
+class Stream;
+
+// ── LogLevel (must match firmware enum) ──────────────────────────────────────
 enum class LogLevel : uint8_t {
     DEBUG = 0, INFO = 1, WARNING = 2, ERROR = 3, NONE = 4
 };
 
-// Forward-declare Stream so logger.h compiles when Arduino.h is already included
-class Stream;
-
-// Minimal Logger class matching the interface expected by firmware source files
-class ILogger {
+// ── Abstract Logger base ──────────────────────────────────────────────────────
+class Logger {
 public:
-    virtual ~ILogger() {}
-    virtual void debug(const char*, ...) {}
-    virtual void info(const char*, ...) {}
-    virtual void warning(const char*, ...) {}
-    virtual void error(const char*, ...) {}
-    virtual void setLevel(LogLevel) {}
-    virtual LogLevel getLevel() const { return LogLevel::NONE; }
-};
+    virtual ~Logger() = default;
+    virtual void debug(const char* format, ...) = 0;
+    virtual void info(const char* format, ...) = 0;
+    virtual void warning(const char* format, ...) = 0;
+    virtual void error(const char* format, ...) = 0;
+    virtual void setLevel(LogLevel level) = 0;
+    virtual LogLevel getLevel() const = 0;
 
-class Logger : public ILogger {
-public:
-    static Logger* getInstance() {
-        static Logger instance;
-        return &instance;
-    }
-    void setStream(void*) {}
+    static void setInstance(Logger* logger) { instance = logger; }
+    static Logger* getInstance();   // defined below, after NullLogger
+
 private:
-    Logger() {}
+    inline static Logger* instance = nullptr;
 };
 
-// No-op logger macros — test output uses Unity assertions, not serial logs
+// ── NullLogger — discards everything ─────────────────────────────────────────
+class NullLogger : public Logger {
+public:
+    void debug(const char*, ...)   override {}
+    void info(const char*, ...)    override {}
+    void warning(const char*, ...) override {}
+    void error(const char*, ...)   override {}
+    void setLevel(LogLevel)        override {}
+    LogLevel getLevel() const      override { return LogLevel::NONE; }
+};
+
+// ── SerialLogger stub — no-op, satisfies the declared class name ──────────────
+class SerialLogger : public NullLogger {
+public:
+    SerialLogger(LogLevel = LogLevel::INFO) {}
+    void setStream(Stream*) {}
+};
+
+// ── Logger::getInstance() — returns NullLogger singleton ─────────────────────
+inline Logger* Logger::getInstance() {
+    if (instance) return instance;
+    static NullLogger nullLogger;
+    return &nullLogger;
+}
+
+// ── No-op macros ──────────────────────────────────────────────────────────────
 #define LOG_DEBUG(...) ((void)0)
 #define LOG_INFO(...)  ((void)0)
 #define LOG_WARN(...)  ((void)0)
