@@ -31,6 +31,8 @@ public:
 
     uint8_t  cardType()              { return CARD_NONE; }
     uint64_t cardSize()              { return 0; }
+    uint64_t totalBytes()            { return 0; }
+    uint64_t usedBytes()             { return 0; }
     bool     exists(const char*)     { return false; }
     bool     mkdir(const char*)      { return false; }
 };

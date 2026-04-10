@@ -111,6 +111,28 @@ private:
     size_t len_;
 };
 
+// --- Arduino digital constants ---
+#define LOW  0
+#define HIGH 1
+#define INPUT  0
+#define OUTPUT 1
+
+// --- Minimal Stream stub (used by logger.h) ---
+class Stream {
+public:
+    virtual ~Stream() {}
+    virtual size_t print(const char*) { return 0; }
+    virtual size_t println(const char*) { return 0; }
+    virtual size_t printf(const char*, ...) { return 0; }
+};
+
+// --- Minimal Serial stub ---
+class HardwareSerial : public Stream {
+public:
+    void begin(unsigned long) {}
+};
+inline HardwareSerial Serial;
+
 // --- Time stub ---
 inline unsigned long millis() { return 0; }
 

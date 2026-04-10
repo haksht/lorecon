@@ -118,8 +118,9 @@ void test_lorawan_random_12_byte_not_matched() {
 // ==========================================================================
 
 void test_firmware_meshtastic_encryption_flag() {
-    // Meshtastic header + data[8] bit 7 set = v2.2+
-    uint8_t pkt[16] = {0xFF, 0xFF, 0xFF, 0xFF, 0, 0, 0, 0, 0x80};
+    // Meshtastic v2.2+: encryption flag is bit 7 of data[12]
+    // Packet must be >= 13 bytes; bytes 0-3 = magic header
+    uint8_t pkt[16] = {0xFF, 0xFF, 0xFF, 0xFF, 0, 0, 0, 0, 0, 0, 0, 0, 0x80};
     const char* result = analyzer.estimateFirmwareVersion(pkt, sizeof(pkt), "Meshtastic");
     TEST_ASSERT_NOT_NULL(strstr(result, "v2.2+"));
 }
@@ -127,7 +128,7 @@ void test_firmware_meshtastic_encryption_flag() {
 void test_firmware_meshtastic_extended_headers() {
     // >50 bytes without encryption flag = v2.1+
     uint8_t pkt[60] = {0xFF, 0xFF, 0xFF, 0xFF};
-    pkt[8] = 0x00;  // No encryption flag
+    pkt[12] = 0x00;  // No encryption flag at byte 12
     const char* result = analyzer.estimateFirmwareVersion(pkt, sizeof(pkt), "Meshtastic");
     TEST_ASSERT_NOT_NULL(strstr(result, "v2.1+"));
 }

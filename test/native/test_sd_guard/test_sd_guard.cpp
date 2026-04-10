@@ -25,7 +25,6 @@ static void reset_sd_state() {
     s.initialized = false;
     s.available   = false;
     s.cardType    = 0;
-    s.cardSizeMB  = 0;
 }
 
 void setUp()    { reset_sd_state(); SPIClass::begin_called = false; }
