@@ -833,8 +833,10 @@ class ReconApp {
      * Fetches /api/devices and renders device table with filter/sort controls
      */
     async showDevices() {
-        // Save scroll before any DOM replacement so we can restore it after re-render
-        const prevDeviceScroll = document.querySelector('#device-table-wrapper .table-wrapper')?.scrollTop ?? 0;
+        // Save vertical scroll on the tab pane — it's the actual overflow-y:auto container.
+        // (.table-wrapper only has overflow-x:auto so its scrollTop is always 0)
+        const tabPane = this.el.devicesContent.closest('.tab-content');
+        const prevDeviceScroll = tabPane ? tabPane.scrollTop : 0;
 
         // Only show spinner on first visit; subsequent refreshes update silently
         if (!this.allDevices) {
@@ -866,11 +868,8 @@ class ReconApp {
 
             this.renderDeviceTable();
 
-            // Restore scroll position after DOM replacement
-            if (prevDeviceScroll) {
-                const tw = document.querySelector('#device-table-wrapper .table-wrapper');
-                if (tw) tw.scrollTop = prevDeviceScroll;
-            }
+            // Restore vertical scroll position after DOM replacement
+            if (tabPane && prevDeviceScroll) tabPane.scrollTop = prevDeviceScroll;
 
         } catch (error) {
             DEBUG.error('Failed to load devices:', error);
@@ -1037,6 +1036,10 @@ class ReconApp {
      * Fetches /api/replay/slots and renders packet table with relay button
      */
     async showPackets() {
+        // Save vertical scroll before the loading spinner collapses the content height
+        const packetsTabPane = this.el.packetsContent.closest('.tab-content');
+        const prevPacketsScroll = packetsTabPane ? packetsTabPane.scrollTop : 0;
+
         // Show loading state
         this.el.packetsContent.innerHTML = renderLoadingState('Loading packets...');
         
@@ -1122,6 +1125,7 @@ class ReconApp {
             
             html += '</tbody></table></div>';
             this.el.packetsContent.innerHTML = html;
+            if (packetsTabPane && prevPacketsScroll) packetsTabPane.scrollTop = prevPacketsScroll;
         } catch (error) {
             DEBUG.error('Failed to load packets:', error);
             this.el.packetsContent.innerHTML = renderErrorState('Failed to load packets', 'retry-packets');
