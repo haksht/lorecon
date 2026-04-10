@@ -8,7 +8,7 @@ ESP32-S3 passive LoRa reconnaissance firmware for security research. Supports fo
 ### Component Boundaries
 - **`RadioController`**: SX1262 hardware abstraction. Atomic ISR flags (`std::atomic<bool> packetAvailable`), cached RSSI/SNR to avoid SPI spam. Global instance (`g_radioController`) required for ISR access.
 - **`PacketProcessor`**: Queue-based analysis. Processes interrupt-captured packets, runs protocol analysis, PSK decryption (23 default keys incl. legacy admin defaults), GPS extraction. Optional callback for WebSocket streaming.
-- **`LoRaReconTool`**: Application orchestrator implementing `IReconTool` interface. Coordinates components, manages modes (recon/targeted), handles 5min scan cycle through 26 LoRa configs.
+- **`LoRaReconTool`**: Application orchestrator implementing `IReconTool` interface. Coordinates components, manages modes (recon/targeted), handles ~6 min scan cycle through 29 LoRa configs.
 - **`IReconTool`**: Interface pattern breaks circular dependency with `CommandHandler`. Use this, not concrete class, for dependencies.
 - **`CommandHandler`**: Dispatch table (not if/else chains). Static command functions take `IReconTool*`.
 - **`ReconState`**: Device tracking, RF stats, replay slots. Singleton pattern with 50-device fixed array (LRU eviction when full).
@@ -99,7 +99,7 @@ No exceptions (embedded C++). Return `bool` for success/failure. Use `LOG_ERROR(
 2. **Global Instances for ISR**: `g_radioController` and `g_reconTool` required for interrupt handler access. Not a design mistake.
 3. **Memory Constraints**: T3-S3 has 2MB PSRAM (Quad), T-Beam Supreme has 8MB PSRAM (Quad), Heltec V3/V4 has no external PSRAM (320KB SRAM only). Avoid heap fragmentation. `std::vector` with `reserve()` preferred over dynamic allocation in loops.
 4. **LittleFS vs SD**: Web app in LittleFS (built-in), PCAP/CSV logs on SD card (optional). Don't confuse the two.
-5. **Frequency Configs**: 26 configs define Meshtastic, LoRaWAN, Helium presets. Cycle time = 26 × 12s = 5min. Don't suggest random frequency additions.
+5. **Frequency Configs**: 29 configs define Meshtastic, LoRaWAN, Helium presets. Cycle time = 29 × 12s = ~5.8 min. Don't suggest random frequency additions.
 6. **No Arduino String**: Use `std::string` or C-strings. Arduino `String` class avoided for memory fragmentation reasons.
 7. **Web UI Script Loading**: Scripts load in order: `toast.js`, `war-room.js`, `network-map.js`, `app.js`. If "NetworkMap class not found" error occurs, re-run `uploadfs` to ensure all files uploaded correctly to LittleFS.
 8. **PSK Key Count**: Always use `Config::PSK::NUM_DEFAULT_KEYS` constant (23) or `PSKDecryption::getDefaultPSKCount()` function. Never hardcode key counts.

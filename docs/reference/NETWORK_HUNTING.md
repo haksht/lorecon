@@ -119,8 +119,8 @@ Before going to a location, check these maps:
 
 **Setup**:
 1. Power on the sniffer
-2. Reconnaissance mode is default -- it scans all 26 frequencies automatically
-3. Let it run for **at least one full cycle** (4 minutes)
+2. Reconnaissance mode is default -- it scans all 29 configurations automatically
+3. Let it run for **at least one full cycle** (~6 minutes)
 4. Watch the OLED display for detections
 5. Check the web UI Network tab for devices
 

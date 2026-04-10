@@ -849,7 +849,7 @@ class ReconApp {
                     <div class="empty-state">
                         <div class="empty-icon">📡</div>
                         <h3>Scanning for Devices</h3>
-                        <p>No LoRa devices detected yet. The scanner cycles through 26 frequency configurations every 5 minutes.</p>
+                        <p>No LoRa devices detected yet. The scanner cycles through 29 frequency configurations every ~6 minutes.</p>
                         <p class="text-muted">Devices will appear here as they transmit packets in range.</p>
                     </div>`;
                 return;

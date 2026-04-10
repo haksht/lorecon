@@ -353,7 +353,7 @@ const char* ProtocolAnalyzer::estimateFirmwareVersion(const uint8_t* data, size_
         }
 
         // Firmware 2.0.x has specific hop count patterns
-        if (length >= 13) {
+        if (length >= 14) {
             uint8_t hopCount = data[12] & 0x07;
             uint8_t flags = data[13];
 

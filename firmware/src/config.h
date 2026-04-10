@@ -186,7 +186,7 @@ namespace Scanning {
     // Number of frequency configurations to scan
     constexpr uint8_t NUM_CONFIGURATIONS = 29;
     
-    // Total reconnaissance cycle time: 26 configs x 12s = ~5 minutes
+    // Total reconnaissance cycle time: 29 configs × 12s = ~5.8 min
 }
 
 // ============================================================================

@@ -45,7 +45,7 @@ Use this script for reproducible live demos at security conferences, workshops, 
 
 **Action:** Navigate to **Devices** tab in web UI
 
-**Say:** *"The device is scanning 26 LoRa configurations covering Meshtastic, LoRaWAN, and Helium networks. Every 5 minutes it completes a full cycle."*
+**Say:** *"The device is scanning 29 LoRa configurations covering Meshtastic, LoRaWAN, and Helium networks. Every ~6 minutes it completes a full cycle."*
 
 **Point out:**
 - Device count growing in real-time
@@ -160,7 +160,7 @@ Use this script for reproducible live demos at security conferences, workshops, 
 
 **Talking points:**
 - Flipper LoRa support is via community add-on modules (e.g., LoRa-E5 board) — not first-class and not in stock firmware
-- Flipper can capture raw bytes on a fixed frequency; it cannot scan 26 channel configurations, decode Meshtastic protocol, or test PSKs
+- Flipper can capture raw bytes on a fixed frequency; it cannot scan 29 channel configurations, decode Meshtastic protocol, or test PSKs
 - No SD logging, no PCAP export, no GPS extraction, no network map
 - Flipper is excellent for SubGHz replay attacks on simpler protocols (garage doors, etc.) — LoRa's spread-spectrum modulation is a different problem
 - Think of Flipper as a Swiss Army knife and this as a scalpel
