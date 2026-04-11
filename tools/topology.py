@@ -258,8 +258,42 @@ def _parse_neighborinfo(inner: bytes) -> List[Dict]:
     return neighbors
 
 
+PORT_NODEINFO     = 4
 PORT_TRACEROUTE   = 70
 PORT_NEIGHBORINFO = 71
+
+
+def _parse_user_proto(inner: bytes) -> Optional[Tuple[str, str]]:
+    """
+    Parse a Meshtastic User protobuf (inner payload of a NODEINFO_APP packet).
+    Returns (short_name, long_name) or None.
+    User fields: id=1 (string), long_name=2 (string), short_name=3 (string).
+    """
+    short_name = long_name = None
+    offset = 0
+    while offset < len(inner):
+        tag, c = _decode_varint(inner, offset); offset += c
+        fn, wt = tag >> 3, tag & 0x07
+        if wt == 2:
+            l, c = _decode_varint(inner, offset); offset += c
+            val = inner[offset:offset + l]; offset += l
+            if fn == 2:
+                try: long_name = val.decode('utf-8', errors='replace').strip()
+                except Exception: pass
+            elif fn == 3:
+                try: short_name = val.decode('utf-8', errors='replace').strip()
+                except Exception: pass
+        elif wt == 0:
+            _, c = _decode_varint(inner, offset); offset += c
+        elif wt == 5:
+            offset += 4
+        elif wt == 1:
+            offset += 8
+        else:
+            break
+    if short_name or long_name:
+        return (short_name or '', long_name or '')
+    return None
 
 # ---------------------------------------------------------------------------
 # MeshCore packet parsing
@@ -344,7 +378,13 @@ class TopologyGraph:
         self.nodes: Dict[str, Dict] = {}
         # edges: (a,b) -> {weight, snr_sum, snr_count, directed}
         self.edges: Dict[Tuple, Dict] = {}
+        # names: node_id -> (short_name, long_name) from NodeInfo packets
+        self.names: Dict[str, Tuple[str, str]] = {}
         self.protocol = 'Unknown'
+        # source packet counters for the stats panel
+        self.traceroute_count   = 0
+        self.neighborinfo_count = 0
+        self.total_packets      = 0
 
     def _node(self, nid: str, **attrs):
         if nid not in self.nodes:
@@ -373,12 +413,14 @@ class TopologyGraph:
                 self._load_meshcore_rows(rows)
             elif 'Meshtastic' in proto or 'meshtastic' in proto.lower():
                 self._load_meshtastic_rows(rows, decrypt)
+                self._infer_relay_edges(rows)
 
         if self.nodes:
             protocols = list(rows_by_protocol.keys())
             self.protocol = protocols[0] if len(protocols) == 1 else 'Mixed'
 
     def _load_meshcore_rows(self, rows: List):
+        self.total_packets += len(rows)
         for row in rows:
             nid = row.get('node_id_hex', '') or ''
             if not nid:
@@ -406,6 +448,7 @@ class TopologyGraph:
                 self._edge(path[i], path[i+1], snr=snr, directed=True)
 
     def _load_meshtastic_rows(self, rows: List, decrypt: bool):
+        self.total_packets += len(rows)
         for row in rows:
             nid = row.get('node_id_hex', '') or ''
             if not nid:
@@ -450,6 +493,7 @@ class TopologyGraph:
             snr = float(row.get('snr_db', 0) or 0)
 
             if portnum == PORT_TRACEROUTE:
+                self.traceroute_count += 1
                 dest = header['dest']
                 route = _parse_traceroute(inner)
                 # Even an empty route means src↔dest are directly connected
@@ -460,13 +504,95 @@ class TopologyGraph:
                     self._edge(full_path[i], full_path[i+1], snr=snr)
 
             elif portnum == PORT_NEIGHBORINFO:
+                self.neighborinfo_count += 1
                 neighbors = _parse_neighborinfo(inner)
                 for nb in neighbors:
                     nb_id = nb['node_id']
                     self._node(nb_id)
                     self._edge(src, nb_id, snr=nb.get('snr'))
 
+            elif portnum == PORT_NODEINFO:
+                names = _parse_user_proto(inner)
+                if names:
+                    self.names[src] = names
+
+    def _infer_relay_edges(self, rows: List):
+        """
+        Infer mesh links from the relay byte (byte 15) in Meshtastic headers.
+
+        When a node relays a packet, it stamps its last ID byte into byte 15.
+        If the sniffer hears the same packet_id at two different hop_limits,
+        the copy with hop_limit = original - 1 was relayed by byte15's node,
+        proving that node is a direct neighbor of the source.
+        """
+        # Build last_byte -> node_id mapping from all known sources
+        node_by_last: Dict[int, List[str]] = defaultdict(list)
+        node_pkts: Dict[str, int] = defaultdict(int)
+
+        for row in rows:
+            raw_hex = row.get('raw_hex', '')
+            if not raw_hex or len(raw_hex) < 32:
+                continue
+            try:
+                raw = bytes.fromhex(raw_hex)
+            except ValueError:
+                continue
+            if len(raw) < 16:
+                continue
+            src = struct.unpack('<I', raw[4:8])[0]
+            src_hex = f"!{src:08x}"
+            node_pkts[src_hex] += 1
+            lb = src & 0xFF
+            if src_hex not in node_by_last[lb]:
+                node_by_last[lb].append(src_hex)
+
+        # Resolve collisions: pick the node with the most packets
+        lb_to_node: Dict[int, str] = {}
+        for lb, nids in node_by_last.items():
+            lb_to_node[lb] = max(nids, key=lambda n: node_pkts[n])
+
+        # Group packets by (src, packet_id) to find original hop_limit
+        pid_copies: Dict[Tuple[int, int], List[Tuple[int, int, float]]] = defaultdict(list)
+        for row in rows:
+            raw_hex = row.get('raw_hex', '')
+            if not raw_hex or len(raw_hex) < 32:
+                continue
+            try:
+                raw = bytes.fromhex(raw_hex)
+            except ValueError:
+                continue
+            if len(raw) < 16:
+                continue
+            src = struct.unpack('<I', raw[4:8])[0]
+            pid = struct.unpack('<I', raw[8:12])[0]
+            hop_limit = raw[12] & 0x07
+            b15 = raw[15]
+            snr = float(row.get('snr_db', 0) or 0)
+            pid_copies[(src, pid)].append((hop_limit, b15, snr))
+
+        # Infer direct-neighbor edges where hop_limit decremented by exactly 1
+        relay_edge_count = 0
+        for (src, pid), copies in pid_copies.items():
+            src_last = src & 0xFF
+            max_hop = max(hl for hl, _, _ in copies)
+            for hl, b15, snr in copies:
+                if b15 == src_last:
+                    continue  # original copy, not relayed
+                if max_hop - hl != 1:
+                    continue  # not a direct neighbor relay
+                if b15 not in lb_to_node:
+                    continue
+                relay_node = lb_to_node[b15]
+                src_hex = f"!{src:08x}"
+                self._node(src_hex)
+                self._node(relay_node)
+                self._edge(src_hex, relay_node, snr=snr)
+                relay_edge_count += 1
+        if relay_edge_count:
+            print(f"Inferred {relay_edge_count} relay observations")
+
     def load_pcap(self, filepath: str, decrypt: bool = True):
+        meshtastic_payloads: List[Tuple[bytes, float]] = []  # (raw, snr)
         for freq, rssi, snr, payload in _read_pcap(filepath):
             # Try MeshCore first (simpler structure)
             parsed = _parse_meshcore_packet(payload)
@@ -483,6 +609,7 @@ class TopologyGraph:
             if decrypt:
                 header = _parse_meshtastic_header(payload)
                 if header:
+                    meshtastic_payloads.append((payload, snr))
                     self._node(header['node_id'])
                     result = _meshtastic_try_decrypt(header, header['payload'])
                     if result:
@@ -492,6 +619,7 @@ class TopologyGraph:
                         if inner:
                             src = header['node_id']
                             if portnum == PORT_TRACEROUTE:
+                                self.traceroute_count += 1
                                 route = _parse_traceroute(inner)
                                 dest  = header['dest']
                                 full  = [src] + route + [dest]
@@ -500,10 +628,59 @@ class TopologyGraph:
                                     self._node(full[i+1])
                                     self._edge(full[i], full[i+1], snr=snr)
                             elif portnum == PORT_NEIGHBORINFO:
+                                self.neighborinfo_count += 1
                                 for nb in _parse_neighborinfo(inner):
                                     self._node(nb['node_id'])
                                     self._edge(src, nb['node_id'], snr=nb.get('snr'))
+                            elif portnum == PORT_NODEINFO:
+                                names = _parse_user_proto(inner)
+                                if names:
+                                    self.names[src] = names
                         self.protocol = 'Meshtastic'
+
+        # Relay inference from PCAP Meshtastic payloads
+        if meshtastic_payloads:
+            self._infer_relay_edges_raw(meshtastic_payloads)
+
+    def _infer_relay_edges_raw(self, payloads: List[Tuple[bytes, float]]):
+        """Relay inference for PCAP payloads (same algorithm as CSV variant)."""
+        node_by_last: Dict[int, List[str]] = defaultdict(list)
+        node_pkts: Dict[str, int] = defaultdict(int)
+        pid_copies: Dict[Tuple[int, int], List[Tuple[int, int, float]]] = defaultdict(list)
+
+        for payload, snr in payloads:
+            if len(payload) < 16:
+                continue
+            src = struct.unpack('<I', payload[4:8])[0]
+            pid = struct.unpack('<I', payload[8:12])[0]
+            src_hex = f"!{src:08x}"
+            node_pkts[src_hex] += 1
+            lb = src & 0xFF
+            if src_hex not in node_by_last[lb]:
+                node_by_last[lb].append(src_hex)
+            hop_limit = payload[12] & 0x07
+            b15 = payload[15]
+            pid_copies[(src, pid)].append((hop_limit, b15, snr))
+
+        lb_to_node: Dict[int, str] = {}
+        for lb, nids in node_by_last.items():
+            lb_to_node[lb] = max(nids, key=lambda n: node_pkts[n])
+
+        relay_edge_count = 0
+        for (src, pid), copies in pid_copies.items():
+            src_last = src & 0xFF
+            max_hop = max(hl for hl, _, _ in copies)
+            for hl, b15, snr in copies:
+                if b15 == src_last or max_hop - hl != 1 or b15 not in lb_to_node:
+                    continue
+                relay_node = lb_to_node[b15]
+                src_hex = f"!{src:08x}"
+                self._node(src_hex)
+                self._node(relay_node)
+                self._edge(src_hex, relay_node, snr=snr)
+                relay_edge_count += 1
+        if relay_edge_count:
+            print(f"Inferred {relay_edge_count} relay observations")
 
     def load_api(self, host: str):
         if not REQUESTS_AVAILABLE:
@@ -569,14 +746,26 @@ class TopologyGraph:
         if isolated:
             print(f"Skipping {isolated} isolated nodes (no link data) — showing {len(connected)} connected nodes")
 
-        fig, ax = plt.subplots(figsize=(14, 9))
+        n_graph = len(G.nodes)
+        fig_w = 14 if n_graph <= 20 else min(22, 14 + n_graph // 10)
+        fig_h = int(fig_w * 0.65)
+        fig, ax = plt.subplots(figsize=(fig_w, fig_h))
         ax.set_facecolor('#1a1a2e')
         fig.patch.set_facecolor('#1a1a2e')
 
         try:
-            pos = nx.spring_layout(G, seed=42, k=2.5 / (len(G.nodes) ** 0.5 + 0.1))
+            if n_graph > 15:
+                pos = nx.forceatlas2_layout(G, seed=42, max_iter=1000,
+                                           strong_gravity=True, gravity=5.0)
+            else:
+                pos = nx.spring_layout(G, seed=42,
+                                       k=2.5 / (n_graph ** 0.5 + 0.1))
         except Exception:
             pos = nx.circular_layout(G)
+
+        node_size = 800 if n_graph <= 20 else max(250, 700 - n_graph * 8)
+        font_size = 8 if n_graph <= 20 else max(6, 9 - n_graph // 15)
+        arrow_size = 16 if n_graph <= 20 else 10
 
         for shape in ('s', 'o'):
             group = [n for n, d in G.nodes(data=True) if d.get('shape', 'o') == shape]
@@ -584,29 +773,46 @@ class TopologyGraph:
                 continue
             colors = [G.nodes[n]['color'] for n in group]
             nx.draw_networkx_nodes(G, pos, nodelist=group, node_color=colors,
-                                   node_shape=shape, node_size=800, ax=ax, alpha=0.92)
+                                   node_shape=shape, node_size=node_size,
+                                   ax=ax, alpha=0.92)
 
-        weights = [0.8 + G.edges[e].get('weight', 1) * 0.4 for e in G.edges()]
+        max_weight = max((G.edges[e].get('weight', 1) for e in G.edges()), default=1)
+        weights = [0.5 + G.edges[e].get('weight', 1) / max(max_weight, 1) * 3
+                   for e in G.edges()]
         nx.draw_networkx_edges(G, pos, width=weights, edge_color='#7799bb',
-                               arrows=True, arrowsize=16, ax=ax,
-                               connectionstyle='arc3,rad=0.07')
+                               arrows=True, arrowsize=arrow_size, ax=ax,
+                               connectionstyle='arc3,rad=0.07', alpha=0.6)
 
-        labels = {n: n[-9:] for n in G.nodes()}  # last 9 chars e.g. !b03cb82c
-        nx.draw_networkx_labels(G, pos, labels, font_size=8,
+        def _strip_emoji(s: str) -> str:
+            return ''.join(c for c in s if ord(c) < 0x10000)
+
+        def _node_label(nid: str) -> str:
+            if nid in self.names:
+                short, long = self.names[nid]
+                name = short if short else (long[:10] if long else '')
+                name = _strip_emoji(name).strip()
+                if name:
+                    return name
+            return nid[-9:]  # last 9 chars e.g. !b03cb82c
+
+        labels = {n: _node_label(n) for n in G.nodes()}
+        nx.draw_networkx_labels(G, pos, labels, font_size=font_size,
                                 font_color='white', ax=ax)
 
-        edge_labels = {}
-        seen = set()
-        for u, v, d in G.edges(data=True):
-            key = tuple(sorted([u, v]))
-            if key not in seen:
-                seen.add(key)
-                lbl = f"{d.get('weight', 1)}p"
-                if d.get('snr') is not None:
-                    lbl += f"\n{d['snr']:.1f}dB"
-                edge_labels[(u, v)] = lbl
-        nx.draw_networkx_edge_labels(G, pos, edge_labels, font_size=6,
-                                     font_color='#aaccee', ax=ax)
+        # Edge labels — only show when graph is small enough to read them
+        if len(G.nodes) <= 20:
+            edge_labels = {}
+            seen = set()
+            for u, v, d in G.edges(data=True):
+                key = tuple(sorted([u, v]))
+                if key not in seen:
+                    seen.add(key)
+                    lbl = f"{d.get('weight', 1)}p"
+                    if d.get('snr') is not None:
+                        lbl += f"\n{d['snr']:.1f}dB"
+                    edge_labels[(u, v)] = lbl
+            nx.draw_networkx_edge_labels(G, pos, edge_labels, font_size=6,
+                                         font_color='#aaccee', ax=ax)
 
         legend_items = [
             mpatches.Patch(color='#2ecc71', label='Gateway (≥4 links)'),
@@ -615,6 +821,35 @@ class TopologyGraph:
         ]
         ax.legend(handles=legend_items, loc='upper left',
                   facecolor='#2a2a4e', labelcolor='white', fontsize=9)
+
+        # Stats panel — bottom-right corner
+        stats_lines = []
+        if self.total_packets:
+            stats_lines.append(f'Packets analyzed : {self.total_packets:,}')
+        stats_lines.append(f'Nodes seen       : {len(self.nodes):,}')
+        stats_lines.append(f'In topology      : {len(connected)}')
+        stats_lines.append(f'Links            : {len(self.edges)}')
+        sources = []
+        if self.traceroute_count:
+            sources.append(f'{self.traceroute_count} traceroute')
+        if self.neighborinfo_count:
+            sources.append(f'{self.neighborinfo_count} neighborinfo')
+        relay_inferred = len(self.edges) - (self.traceroute_count + self.neighborinfo_count)
+        if relay_inferred > 0:
+            sources.append(f'{relay_inferred} relay-inferred')
+        if sources:
+            stats_lines.append(f'Sources          : {", ".join(sources)}')
+        named = len(self.names)
+        if named:
+            stats_lines.append(f'Named nodes      : {named}')
+        stats_text = '\n'.join(stats_lines)
+        ax.text(0.99, 0.02, stats_text,
+                transform=ax.transAxes,
+                ha='right', va='bottom',
+                fontsize=8, family='monospace',
+                color='#ccddee',
+                bbox=dict(boxstyle='round,pad=0.5', facecolor='#1a1a2e',
+                          edgecolor='#445566', alpha=0.9))
 
         proto = title or self.protocol or 'LoRa Mesh'
         node_count = len(self.nodes)
