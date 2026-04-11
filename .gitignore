@@ -101,3 +101,9 @@ tools/assessment_*/
 assessment_*/
 tools/*.html
 tools/meshtastic/*.dot
+
+# Tool output files dumped in repo root
+*_map.html
+*_report.html
+*_topology.png
+*_loratap.pcap

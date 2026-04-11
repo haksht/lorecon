@@ -526,6 +526,7 @@ class ReconApp {
             
             // Load first tab (Info)
             this.loadTabContent('info');
+
         } catch (error) {
             DEBUG.error('Init error:', error);
         }
@@ -844,9 +845,9 @@ class ReconApp {
      * Fetches /api/devices and renders device table with filter/sort controls
      */
     async showDevices() {
-        // Save vertical scroll on the tab pane — it's the actual overflow-y:auto container.
-        // (.table-wrapper only has overflow-x:auto so its scrollTop is always 0)
-        const tabPane = this.el.devicesContent.closest('.tab-content');
+        // Save vertical scroll. Use getElementById so we have a stable reference
+        // that survives innerHTML replacement on any ancestor.
+        const tabPane = document.getElementById('tab-devices');
         const prevDeviceScroll = tabPane ? tabPane.scrollTop : 0;
 
         // Only show spinner on first visit; subsequent refreshes update silently
@@ -879,8 +880,12 @@ class ReconApp {
 
             this.renderDeviceTable();
 
-            // Restore vertical scroll position after DOM replacement
-            if (tabPane && prevDeviceScroll) tabPane.scrollTop = prevDeviceScroll;
+            // Restore scroll — double rAF ensures layout is complete before we set scrollTop.
+            if (tabPane && prevDeviceScroll > 0) {
+                requestAnimationFrame(() => requestAnimationFrame(() => {
+                    tabPane.scrollTop = prevDeviceScroll;
+                }));
+            }
 
         } catch (error) {
             DEBUG.error('Failed to load devices:', error);
@@ -1019,12 +1024,12 @@ class ReconApp {
 
         html += '</tbody></table></div>';
 
-        // Preserve scroll position across silent refreshes
+        // Preserve horizontal scroll position across silent refreshes
         const tableWrapper = wrapper.querySelector('.table-wrapper');
-        const prevScrollTop = tableWrapper ? tableWrapper.scrollTop : 0;
+        const prevScrollLeft = tableWrapper ? tableWrapper.scrollLeft : 0;
         wrapper.innerHTML = html;
         const newTableWrapper = wrapper.querySelector('.table-wrapper');
-        if (newTableWrapper && prevScrollTop) newTableWrapper.scrollTop = prevScrollTop;
+        if (newTableWrapper && prevScrollLeft > 0) newTableWrapper.scrollLeft = prevScrollLeft;
 
         // Attach sort handlers to freshly-rendered column headers
         wrapper.querySelectorAll('.th-sort').forEach(th => {
@@ -1047,12 +1052,19 @@ class ReconApp {
      * Fetches /api/replay/slots and renders packet table with relay button
      */
     async showPackets() {
-        // Save vertical scroll before the loading spinner collapses the content height
-        const packetsTabPane = this.el.packetsContent.closest('.tab-content');
-        const prevPacketsScroll = packetsTabPane ? packetsTabPane.scrollTop : 0;
+        // Save both scroll axes before any DOM changes.
+        const packetsTabPane = document.getElementById('tab-packets');
+        const prevScrollTop = packetsTabPane ? packetsTabPane.scrollTop : 0;
+        const existingWrapper = this.el.packetsContent.querySelector('.table-wrapper');
+        const prevScrollLeft = existingWrapper ? existingWrapper.scrollLeft : 0;
 
-        // Show loading state
-        this.el.packetsContent.innerHTML = renderLoadingState('Loading packets...');
+        // Only show spinner on first visit — subsequent auto-refreshes update silently.
+        const isFirstLoad = this.el.packetsContent.querySelector('.loading-container') !== null
+            || this.el.packetsContent.querySelector('.empty-state') !== null
+            || this.el.packetsContent.children.length === 0;
+        if (isFirstLoad) {
+            this.el.packetsContent.innerHTML = renderLoadingState('Loading packets...');
+        }
         
         try {
             const data = await this.get('/api/replay/slots');
@@ -1072,7 +1084,7 @@ class ReconApp {
             
             let html = '<div class="table-wrapper">';
             html += '<table class="table"><thead><tr>';
-            html += '<th>Protocol</th><th>From</th><th>To</th><th>Hops</th><th>Ch</th><th>Flags</th><th>Packet ID</th><th>Size</th><th>RSSI</th><th>SNR</th><th>Frequency</th><th>Captured</th><th>Message</th><th>Actions</th>';
+            html += '<th>Protocol</th><th>From</th><th>To</th><th title="Meshtastic: remaining hops allowed (set by originator, max 7). MeshCore: hops already traversed.">Hops</th><th>Ch</th><th>Flags</th><th>Packet ID</th><th>Size</th><th>RSSI</th><th>SNR</th><th>Frequency</th><th>Captured</th><th>Message</th><th>Actions</th>';
             html += '</tr></thead><tbody>';
             
             grouped.forEach(group => {
@@ -1136,7 +1148,18 @@ class ReconApp {
             
             html += '</tbody></table></div>';
             this.el.packetsContent.innerHTML = html;
-            if (packetsTabPane && prevPacketsScroll) packetsTabPane.scrollTop = prevPacketsScroll;
+            // Restore horizontal scroll immediately (no layout dependency).
+            if (prevScrollLeft > 0) {
+                const newWrapper = this.el.packetsContent.querySelector('.table-wrapper');
+                if (newWrapper) newWrapper.scrollLeft = prevScrollLeft;
+            }
+            // Restore vertical scroll after layout is complete.
+            if (packetsTabPane && prevScrollTop > 0) {
+                requestAnimationFrame(() => requestAnimationFrame(() => {
+                    packetsTabPane.scrollTop = prevScrollTop;
+                }));
+            }
+            }
         } catch (error) {
             DEBUG.error('Failed to load packets:', error);
             this.el.packetsContent.innerHTML = renderErrorState('Failed to load packets', 'retry-packets');
@@ -1180,8 +1203,18 @@ class ReconApp {
     }
 
     async showFrequency() {
-        // Show loading state
-        this.el.frequencyContent.innerHTML = renderLoadingState('Loading frequency data...');
+        // Save both scroll axes before any DOM changes.
+        const freqTabPane = document.getElementById('tab-frequency');
+        const prevScrollTop = freqTabPane ? freqTabPane.scrollTop : 0;
+        const existingWrapper = this.el.frequencyContent.querySelector('.table-wrapper');
+        const prevScrollLeft = existingWrapper ? existingWrapper.scrollLeft : 0;
+
+        // Only show spinner on first load.
+        const isFirstLoad = this.el.frequencyContent.querySelector('.loading-container') !== null
+            || this.el.frequencyContent.children.length === 0;
+        if (isFirstLoad) {
+            this.el.frequencyContent.innerHTML = renderLoadingState('Loading frequency data...');
+        }
         
         try {
             // Get activity data - now includes ALL configs with their names
@@ -1241,6 +1274,15 @@ class ReconApp {
             
             html += '</tbody></table></div>';
             this.el.frequencyContent.innerHTML = html;
+            if (prevScrollLeft > 0) {
+                const newWrapper = this.el.frequencyContent.querySelector('.table-wrapper');
+                if (newWrapper) newWrapper.scrollLeft = prevScrollLeft;
+            }
+            if (freqTabPane && prevScrollTop > 0) {
+                requestAnimationFrame(() => requestAnimationFrame(() => {
+                    freqTabPane.scrollTop = prevScrollTop;
+                }));
+            }
 
             // Populate the activity analysis summary panel (lives in this same tab)
             this.renderFrequencyAnalysis(allConfigs);

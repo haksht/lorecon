@@ -1,19 +1,21 @@
 #!/usr/bin/env python3
 """
-ESP32 LoRa Sniffer - WebSocket Monitor (Headless)
+ESP32 LoRa Sniffer - Live Monitor
 
 Lightweight terminal-based monitor for real-time packet events.
-No GUI dependencies - perfect for SSH sessions or headless servers.
+No GUI dependencies — perfect for SSH sessions or headless servers.
 
 Usage:
-    python ws_monitor.py
-    python ws_monitor.py --host 192.168.4.1
-    python ws_monitor.py --json
-    python ws_monitor.py --filter meshtastic
-    python ws_monitor.py --quiet  # Only show packets, no status updates
+    python monitor.py
+    python monitor.py --host 192.168.4.1
+    python monitor.py --filter meshtastic
+    python monitor.py --messages          # Decrypted text only
+    python monitor.py --json              # Raw JSON (pipe-friendly)
+    python monitor.py --demo              # Simulated stream (no hardware)
 
 Requirements:
     pip install websocket-client
+    pip install cryptography   (for --decrypt / --messages)
 """
 
 import argparse

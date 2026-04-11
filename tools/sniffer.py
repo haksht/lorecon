@@ -9,144 +9,50 @@ from pathlib import Path
 
 TOOLS_DIR = Path(__file__).parent
 
-# Commands grouped for presentation clarity.
-# Each entry: name -> (script_path, description)
-STORY_COMMANDS = {
-    'story':    (None,                                                          'Guided presenter mode — start here'),
-    'live':     (TOOLS_DIR / 'demo_live.py',                                   'Mission Control dashboard — replay CSV or stream live'),
-    'theater':  (TOOLS_DIR / 'message_theater.py',                             'Message reveal theater — dramatic one-at-a-time decrypt'),
-    'topology': (TOOLS_DIR / 'meshtastic' / 'mesh_topology_analyzer.py',       'Mesh network map (--demo or file input)'),
-    'reveal':   (TOOLS_DIR / 'meshtastic' / 'make_reveal.py',                  'Decrypt reveal browser page (--demo or pcap input)'),
-    'lorawan':  (TOOLS_DIR / 'join_parser.py',                                 'LoRaWAN join request / DevEUI scanner (--demo)'),
-    'assess':   (TOOLS_DIR / 'run_assessment.py',                              'Full pipeline: capture -> audit -> report (--demo)'),
+COMMANDS = {
+    # Analysis — the three output types
+    'map':       (TOOLS_DIR / 'map.py',       'GPS positions → interactive HTML map'),
+    'topology':  (TOOLS_DIR / 'topology.py',  'Mesh graph → PNG image (Meshtastic + MeshCore)'),
+    'report':    (TOOLS_DIR / 'report.py',    'Security assessment → HTML report'),
+    # Live / ops
+    'monitor':   (TOOLS_DIR / 'monitor.py',   'Live WebSocket packet stream (headless)'),
+    'wireshark': (TOOLS_DIR / 'wireshark.py', 'Convert ESP32 PCAP to Wireshark LoRaTap format'),
+    # Developer
+    'api':       (TOOLS_DIR / 'dev' / 'api_client.py', 'REST API client (~30 subcommands)'),
 }
-
-ANALYSIS_COMMANDS = {
-    'monitor':  (TOOLS_DIR / 'ws_monitor.py',                                  'Headless live WebSocket packet stream'),
-    'audit':    (TOOLS_DIR / 'meshtastic' / 'psk_auditor.py',                  'PSK vulnerability scan (--demo, --dramatic)'),
-    'report':   (TOOLS_DIR / 'recon_report.py',                                'Security assessment report generator'),
-}
-
-DEV_COMMANDS = {
-    'analyze':        (TOOLS_DIR / 'pcap_analyzer.py',                         'Raw PCAP inspector'),
-    'decode':         (TOOLS_DIR / 'meshtastic' / 'meshtastic_decoder.py',     'Batch Meshtastic decryptor (AES-256-CTR)'),
-    'meshcore-decode':(TOOLS_DIR / 'meshcore' / 'meshcore_decoder.py',         'Batch MeshCore decryptor (AES-128-ECB, 12 keys)'),
-    'api':            (TOOLS_DIR / 'dev' / 'api_client.py',                    'REST API client (~30 subcommands)'),
-    'visualize':      (TOOLS_DIR / 'enhanced_live_visualizer.py',              '5-panel matplotlib dashboard (serial or WebSocket)'),
-}
-
-# Flat lookup for dispatch (story handled separately)
-ALL_COMMANDS = {**STORY_COMMANDS, **ANALYSIS_COMMANDS, **DEV_COMMANDS}
 
 
 def print_help():
     print("ESP32 LoRa Sniffer - Unified CLI")
     print()
-    print("Usage: python sniffer.py <command> [options]")
-    print("       All extra arguments are passed to the underlying tool.")
+    print("Usage:  python sniffer.py <command> [options]")
+    print("        All extra arguments are forwarded to the underlying tool.")
     print()
-
-    def _section(title, cmds):
+    w = max(len(k) for k in COMMANDS)
+    sections = [
+        ("Analysis", ['map', 'topology', 'report']),
+        ("Live / Ops", ['monitor', 'wireshark']),
+        ("Developer", ['api']),
+    ]
+    for title, keys in sections:
         print(f"{title}:")
-        width = max(len(k) for k in cmds)
-        for name, (_, desc) in cmds.items():
-            print(f"  {name:<{width}}  {desc}")
+        for k in keys:
+            script, desc = COMMANDS[k]
+            print(f"  {k:<{w}}  {desc}")
         print()
-
-    _section("CONFERENCE STORY", STORY_COMMANDS)
-    _section("ANALYSIS TOOLS", ANALYSIS_COMMANDS)
-    _section("DEVELOPER TOOLS", DEV_COMMANDS)
-
     print("Examples:")
-    print("  python sniffer.py story")
-    print("  python sniffer.py live                         # Mission Control (auto hotel CSV)")
-    print("  python sniffer.py live capture.csv --duration 90")
-    print("  python sniffer.py live --host 192.168.4.1     # live from hardware")
-    print("  python sniffer.py theater                      # Message reveal (auto hotel CSV)")
-    print("  python sniffer.py theater capture.csv --auto 6")
-    print("  python sniffer.py topology --demo")
-    print("  python sniffer.py reveal --demo")
-    print("  python sniffer.py lorawan --demo")
-    print("  python sniffer.py assess --demo")
+    print("  python sniffer.py map       capture.csv")
+    print("  python sniffer.py topology  capture.csv")
+    print("  python sniffer.py report    capture.csv --pcap capture.pcap")
+    print("  python sniffer.py monitor   --host 192.168.4.1")
+    print("  python sniffer.py monitor   --messages")
+    print("  python sniffer.py wireshark capture.pcap")
+    print("  python sniffer.py api       status")
+    print()
+    print("Pass --help to any command for full options:")
+    print("  python sniffer.py topology --help")
     print()
 
-
-# ── Story mode ──────────────────────────────────────────────────────────────
-
-STORY_STEPS = [
-    ("ACT 1  MISSION CONTROL",
-     "live",
-     ["--duration", "60"],
-     "Full-screen dashboard — watches packets arrive, messages get intercepted"),
-    ("ACT 2  MESSAGE REVEAL",
-     "theater",
-     ["--max", "8", "--auto", "6"],
-     "8 messages, 6 s each — the 'holy shit' moment"),
-    ("ACT 3  DEVICE TOPOLOGY",
-     "topology",
-     ["--demo"],
-     "ASCII mesh map — who is routing for whom, hop distances"),
-    ("ACT 4  LORAWAN SCAN",
-     "lorawan",
-     ["--demo"],
-     "DevEUI inventory — device IDs broadcast in plaintext by design"),
-    ("ACT 5  ASSESSMENT REPORT",
-     "assess",
-     ["--demo", "--format", "html"],
-     "Full pipeline — deliverable-quality HTML report"),
-]
-
-
-def story_mode():
-    """Interactive presenter checklist. Enter to launch each act."""
-    import os
-
-    print()
-    print("=" * 62)
-    print("  ESP32 LoRa Sniffer  //  CONFERENCE STORY MODE")
-    print("=" * 62)
-    print()
-    print("  Each step runs a demo — no hardware or files needed.")
-    print("  Press ENTER to launch, or type the command to run manually.")
-    print()
-
-    for i, (label, cmd, extra, hint) in enumerate(STORY_STEPS, 1):
-        script_entry = ALL_COMMANDS.get(cmd)
-        script = script_entry[0] if script_entry else None
-        run_args = extra
-
-        # Build the display command string
-        display = f"python sniffer.py {cmd} {' '.join(extra)}"
-
-        print(f"  [{i}] {label}")
-        print(f"       {hint}")
-        print(f"       > {display}")
-        print()
-
-        try:
-            ans = input("       Press ENTER to launch (s=skip, q=quit): ").strip().lower()
-        except (EOFError, KeyboardInterrupt):
-            print()
-            break
-
-        if ans == 'q':
-            break
-        if ans == 's':
-            print("       Skipped.\n")
-            continue
-
-        if script and script.exists():
-            print()
-            subprocess.run([sys.executable, str(script)] + run_args)
-            print()
-        else:
-            print(f"       [!] Script not found: {script}\n")
-
-    print("  Story complete.")
-    print()
-
-
-# ── Main ────────────────────────────────────────────────────────────────────
 
 def main():
     if len(sys.argv) < 2 or sys.argv[1] in ('-h', '--help', 'help'):
@@ -154,31 +60,18 @@ def main():
         return 0
 
     command = sys.argv[1].lower()
-    extra_args = sys.argv[2:]
-
-    # story is handled inline
-    if command == 'story':
-        story_mode()
-        return 0
-
-    if command in ALL_COMMANDS:
-        entry = ALL_COMMANDS[command]
-        script = entry[0]
-        if script is None:
-            # Shouldn't happen for non-story commands
-            print(f"'{command}' has no associated script.")
-            return 1
-    else:
+    if command not in COMMANDS:
         print(f"Unknown command: '{command}'")
         print()
         print_help()
         return 1
 
+    script, _ = COMMANDS[command]
     if not script.exists():
         print(f"Tool not found: {script}")
         return 1
 
-    result = subprocess.run([sys.executable, str(script)] + extra_args)
+    result = subprocess.run([sys.executable, str(script)] + sys.argv[2:])
     return result.returncode
 
 
