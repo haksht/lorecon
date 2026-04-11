@@ -930,17 +930,13 @@ class ReconApp {
             { key: 'lastSeenSecondsAgo',   label: 'Last Seen' },
         ];
 
-        // Build thead HTML (sort arrows update on re-render)
-        let theadHtml = '<tr>';
+        let html = '<div class="table-wrapper"><table class="table"><thead><tr>';
         cols.forEach(c => {
             const isActive = col === c.key;
             const arrow = isActive ? (dir === 'asc' ? ' ↑' : ' ↓') : ' ↕';
-            theadHtml += `<th class="th-sort${isActive ? ' sort-active' : ''}" data-sort-col="${c.key}">${c.label}<span class="sort-arrow">${arrow}</span></th>`;
+            html += `<th class="th-sort${isActive ? ' sort-active' : ''}" data-sort-col="${c.key}">${c.label}<span class="sort-arrow">${arrow}</span></th>`;
         });
-        theadHtml += '</tr>';
-
-        // Build tbody HTML
-        let tbodyHtml = '';
+        html += '</tr></thead><tbody>';
 
         // --- Rows ---
         filtered.forEach(device => {
@@ -1008,34 +1004,25 @@ class ReconApp {
                 ? `σ=${rssiStdDev.toFixed(1)} ⚠️ High variance`
                 : `σ=${rssiStdDev.toFixed(1)} dB`;
 
-            tbodyHtml += '<tr>';
-            tbodyHtml += `<td title="${nodeIdTitle}"><code>0x${safeNodeId}</code>${senderSub}</td>`;
-            tbodyHtml += `<td><span class="${riskClass}">${riskBadge}</span></td>`;
-            tbodyHtml += `<td>${safeDevType}</td>`;
-            tbodyHtml += `<td><small>${firmware}</small></td>`;
-            tbodyHtml += `<td>${routerBadge}</td>`;
-            tbodyHtml += `<td><small title="${intervalTooltip}">${beaconBadge}</small></td>`;
-            tbodyHtml += `<td><small>${powerBadge}</small></td>`;
-            tbodyHtml += `<td><small>${battBadge}</small></td>`;
-            tbodyHtml += `<td>${pktDisplay}</td>`;
-            tbodyHtml += `<td><span class="${rssiClass}" title="${rssiTooltipFull}">${rssiDisplay} dBm${snrStr}</span></td>`;
-            tbodyHtml += `<td>${(device.frequency || 0).toFixed(3)} MHz</td>`;
-            tbodyHtml += `<td>${this.formatDuration(device.firstSeenSecondsAgo || 0)} ago</td>`;
-            tbodyHtml += `<td>${this.formatLastSeen(device.lastSeenSecondsAgo)}</td>`;
-            tbodyHtml += '</tr>';
+            html += '<tr>';
+            html += `<td title="${nodeIdTitle}"><code>0x${safeNodeId}</code>${senderSub}</td>`;
+            html += `<td><span class="${riskClass}">${riskBadge}</span></td>`;
+            html += `<td>${safeDevType}</td>`;
+            html += `<td><small>${firmware}</small></td>`;
+            html += `<td>${routerBadge}</td>`;
+            html += `<td><small title="${intervalTooltip}">${beaconBadge}</small></td>`;
+            html += `<td><small>${powerBadge}</small></td>`;
+            html += `<td><small>${battBadge}</small></td>`;
+            html += `<td>${pktDisplay}</td>`;
+            html += `<td><span class="${rssiClass}" title="${rssiTooltipFull}">${rssiDisplay} dBm${snrStr}</span></td>`;
+            html += `<td>${(device.frequency || 0).toFixed(3)} MHz</td>`;
+            html += `<td>${this.formatDuration(device.firstSeenSecondsAgo || 0)} ago</td>`;
+            html += `<td>${this.formatLastSeen(device.lastSeenSecondsAgo)}</td>`;
+            html += '</tr>';
         });
 
-        // Reuse existing table-wrapper to preserve scroll position; only replace inner content.
-        let tableWrapper = wrapper.querySelector('.table-wrapper');
-        if (!tableWrapper) {
-            // First render — create the shell.
-            wrapper.innerHTML = '<div class="table-wrapper"><table class="table"><thead></thead><tbody></tbody></table></div>';
-            tableWrapper = wrapper.querySelector('.table-wrapper');
-        }
-        const thead = tableWrapper.querySelector('thead');
-        const tbody = tableWrapper.querySelector('tbody');
-        thead.innerHTML = theadHtml;
-        tbody.innerHTML = tbodyHtml;
+        html += '</tbody></table></div>';
+        wrapper.innerHTML = html;
 
         // Attach sort handlers to freshly-rendered column headers
         wrapper.querySelectorAll('.th-sort').forEach(th => {
@@ -1082,7 +1069,10 @@ class ReconApp {
             // Group packets by packet ID to detect flooding
             const grouped = this.groupPacketsByPacketId(data.slots);
             
-            let tbodyHtml = '';
+            let html = '<div class="table-wrapper">';
+            html += '<table class="table"><thead><tr>';
+            html += '<th>Protocol</th><th>From</th><th>To</th><th title="Meshtastic: remaining hops allowed (set by originator, max 7). MeshCore: hops already traversed.">Hops</th><th>Ch</th><th>Flags</th><th>Packet ID</th><th>Size</th><th>RSSI</th><th>SNR</th><th>Frequency</th><th>Captured</th><th>Message</th><th>Actions</th>';
+            html += '</tr></thead><tbody>';
 
             grouped.forEach(group => {
                 group.packets.forEach((pkt, idx) => {
@@ -1098,7 +1088,6 @@ class ReconApp {
                     const flagsStr = flags.length > 0 ? flags.join(' ') : '—';
 
                     // Destination display (broadcast or specific node)
-                    // Only show 📢 when explicitly flagged — undefined means protocol doesn't have this concept
                     let destDisplay = '—';
                     if (pkt.isBroadcast === true) {
                         destDisplay = '<span class="broadcast-badge">📢</span>';
@@ -1115,43 +1104,40 @@ class ReconApp {
                         channelDisplay = `<span class="text-muted">${pkt.channel}</span>`;
                     }
 
-                    tbodyHtml += `<tr class="${rowClass}">`;
-                    tbodyHtml += `<td><code>${escapeHtml(pkt.protocol || 'Unknown')}</code></td>`;
-                    tbodyHtml += `<td>${pkt.nodeId ? '<code>0x' + escapeHtml(String(pkt.nodeId)) + '</code>' : '—'}</td>`;
-                    tbodyHtml += `<td>${destDisplay}</td>`;
-                    tbodyHtml += `<td>${pkt.hopCount !== undefined ? pkt.hopCount : '—'}</td>`;
-                    tbodyHtml += `<td>${channelDisplay}</td>`;
-                    tbodyHtml += `<td><small>${flagsStr}</small></td>`;
+                    html += `<tr class="${rowClass}">`;
+                    html += `<td><code>${escapeHtml(pkt.protocol || 'Unknown')}</code></td>`;
+                    html += `<td>${pkt.nodeId ? '<code>0x' + escapeHtml(String(pkt.nodeId)) + '</code>' : '—'}</td>`;
+                    html += `<td>${destDisplay}</td>`;
+                    html += `<td>${pkt.hopCount !== undefined ? pkt.hopCount : '—'}</td>`;
+                    html += `<td>${channelDisplay}</td>`;
+                    html += `<td><small>${flagsStr}</small></td>`;
 
-                    // Show packet ID with relay indicator
-                    if (isRelay) {
-                        tbodyHtml += `<td><code>0x${escapeHtml(String(pkt.packetId || '—'))}</code> <span class="relay-badge">↻ Relay</span></td>`;
+                    // Show packet ID with relay sidecar info
+                    const relays = pkt.relaySightings || [];
+                    if (relays.length > 0) {
+                        const relayTip = relays.map(r => `${r.relayByte} RSSI:${r.rssi} hop:${r.hopCount}`).join(', ');
+                        html += `<td><code>0x${escapeHtml(String(pkt.packetId || '—'))}</code> <span class="origin-badge" title="${escapeHtml(relayTip)}">⚡ +${relays.length} relay${relays.length > 1 ? 's' : ''}</span></td>`;
+                    } else if (isRelay) {
+                        html += `<td><code>0x${escapeHtml(String(pkt.packetId || '—'))}</code> <span class="relay-badge">↻ Relay</span></td>`;
                     } else if (group.packets.length > 1) {
-                        tbodyHtml += `<td><code>0x${escapeHtml(String(pkt.packetId || '—'))}</code> <span class="origin-badge">⚡ +${group.packets.length - 1} relays</span></td>`;
+                        html += `<td><code>0x${escapeHtml(String(pkt.packetId || '—'))}</code> <span class="origin-badge">⚡ +${group.packets.length - 1} relays</span></td>`;
                     } else {
-                        tbodyHtml += `<td>${pkt.packetId ? '<code>0x' + escapeHtml(String(pkt.packetId)) + '</code>' : '—'}</td>`;
+                        html += `<td>${pkt.packetId ? '<code>0x' + escapeHtml(String(pkt.packetId)) + '</code>' : '—'}</td>`;
                     }
 
-                    tbodyHtml += `<td>${pkt.length || 0} B</td>`;
-                    tbodyHtml += `<td>${pkt.rssi != null ? `<span class="${rssiClass}">${pkt.rssi} dBm</span>` : '—'}</td>`;
-                    tbodyHtml += `<td>${pkt.snr !== undefined ? pkt.snr.toFixed(1) + ' dB' : '—'}</td>`;
-                    tbodyHtml += `<td>${(pkt.frequencyMHz || 0).toFixed(3)} MHz</td>`;
-                    tbodyHtml += `<td>${this.formatDuration(pkt.capturedSecondsAgo || 0)} ago</td>`;
-                    tbodyHtml += `<td>${escapeHtml(pkt.decryptedText || '—')}</td>`;
-                    tbodyHtml += `<td><button data-action="replay-packet" data-value="${pkt.storeIndex}" class="btn btn-primary btn-small">🔁 Replay</button></td>`;
-                    tbodyHtml += '</tr>';
+                    html += `<td>${pkt.length || 0} B</td>`;
+                    html += `<td>${pkt.rssi != null ? `<span class="${rssiClass}">${pkt.rssi} dBm</span>` : '—'}</td>`;
+                    html += `<td>${pkt.snr !== undefined ? pkt.snr.toFixed(1) + ' dB' : '—'}</td>`;
+                    html += `<td>${(pkt.frequencyMHz || 0).toFixed(3)} MHz</td>`;
+                    html += `<td>${this.formatDuration(pkt.capturedSecondsAgo || 0)} ago</td>`;
+                    html += `<td>${escapeHtml(pkt.decryptedText || '—')}</td>`;
+                    html += `<td><button data-action="replay-packet" data-value="${pkt.storeIndex}" class="btn btn-primary btn-small">🔁 Replay</button></td>`;
+                    html += '</tr>';
                 });
             });
 
-            // Reuse existing table-wrapper to preserve scroll; only replace tbody.
-            let tableWrapper = this.el.packetsContent.querySelector('.table-wrapper');
-            if (!tableWrapper) {
-                this.el.packetsContent.innerHTML = '<div class="table-wrapper"><table class="table"><thead><tr>' +
-                    '<th>Protocol</th><th>From</th><th>To</th><th title="Meshtastic: remaining hops allowed (set by originator, max 7). MeshCore: hops already traversed.">Hops</th><th>Ch</th><th>Flags</th><th>Packet ID</th><th>Size</th><th>RSSI</th><th>SNR</th><th>Frequency</th><th>Captured</th><th>Message</th><th>Actions</th>' +
-                    '</tr></thead><tbody></tbody></table></div>';
-                tableWrapper = this.el.packetsContent.querySelector('.table-wrapper');
-            }
-            tableWrapper.querySelector('tbody').innerHTML = tbodyHtml;
+            html += '</tbody></table></div>';
+            this.el.packetsContent.innerHTML = html;
         } catch (error) {
             DEBUG.error('Failed to load packets:', error);
             this.el.packetsContent.innerHTML = renderErrorState('Failed to load packets', 'retry-packets');
@@ -1218,55 +1204,48 @@ class ReconApp {
             const lockedConfigIndex = isTargeted ? this.currentStatus?.target?.configIndex : null;
             const lockedFreq = isTargeted ? this.currentStatus?.target?.frequency : null;
 
-            // Build intro HTML
-            let introHtml = '';
+            let html = '<div class="frequency-intro">';
             if (isTargeted && lockedFreq !== null) {
                 const cfgLabel = lockedConfigIndex !== null ? ` <span class="text-muted">(config #${lockedConfigIndex + 1})</span>` : '';
-                introHtml += `<div class="targeting-notice">🎯 Currently targeting <strong>${lockedFreq.toFixed(3)} MHz</strong>${cfgLabel} &mdash; radio locked on this channel.</div>`;
+                html += `<div class="targeting-notice">🎯 Currently targeting <strong>${lockedFreq.toFixed(3)} MHz</strong>${cfgLabel} &mdash; radio locked on this channel.</div>`;
             }
-            introHtml += `<p><strong>${totalConfigs} frequency configurations available.</strong> Target any config to focus packet capture on that frequency.</p>`;
+            html += `<p><strong>${totalConfigs} frequency configurations available.</strong> Target any config to focus packet capture on that frequency.</p>`;
+            html += '</div>';
 
-            // Build tbody HTML
-            let tbodyHtml = '';
+            html += '<div class="table-wrapper">';
+            html += '<table class="table freq-table"><thead><tr>';
+            html += '<th>Protocol</th><th>Frequency</th><th>SF</th><th>BW</th><th>Packets</th><th>Avg RSSI</th><th>Peak RSSI</th><th>Actions</th>';
+            html += '</tr></thead><tbody>';
+
             allConfigs.forEach(act => {
                 const isLocked = isTargeted && lockedConfigIndex !== null && act.configIndex === lockedConfigIndex;
                 const isActive = act.packets > 0;
                 const rssiClass = formatRSSI(act.avgRSSI, false);
                 const rowClass = isLocked ? 'locked-row' : (isActive ? '' : 'inactive-row');
-                tbodyHtml += `<tr class="${rowClass}">`;
-                tbodyHtml += `<td><strong>${act.protocol}</strong> <span class="badge config-badge">#${act.configIndex + 1}</span></td>`;
-                tbodyHtml += `<td>${act.frequencyMHz.toFixed(3)} MHz</td>`;
-                tbodyHtml += `<td>SF${act.spreadingFactor}</td>`;
-                tbodyHtml += `<td>${act.bandwidthKHz} kHz</td>`;
+                html += `<tr class="${rowClass}">`;
+                html += `<td><strong>${act.protocol}</strong> <span class="badge config-badge">#${act.configIndex + 1}</span></td>`;
+                html += `<td>${act.frequencyMHz.toFixed(3)} MHz</td>`;
+                html += `<td>SF${act.spreadingFactor}</td>`;
+                html += `<td>${act.bandwidthKHz} kHz</td>`;
                 if (isActive) {
-                    tbodyHtml += `<td>${act.packets}</td>`;
-                    tbodyHtml += `<td><span class="${rssiClass}">${act.avgRSSI} dBm</span></td>`;
-                    tbodyHtml += `<td><span class="${formatRSSI(act.peakRSSI, false)}">${act.peakRSSI} dBm</span></td>`;
+                    html += `<td>${act.packets}</td>`;
+                    html += `<td><span class="${rssiClass}">${act.avgRSSI} dBm</span></td>`;
+                    html += `<td><span class="${formatRSSI(act.peakRSSI, false)}">${act.peakRSSI} dBm</span></td>`;
                 } else {
-                    tbodyHtml += '<td class="text-muted">—</td>';
-                    tbodyHtml += '<td class="text-muted">—</td>';
-                    tbodyHtml += '<td class="text-muted">—</td>';
+                    html += '<td class="text-muted">—</td>';
+                    html += '<td class="text-muted">—</td>';
+                    html += '<td class="text-muted">—</td>';
                 }
                 if (isLocked) {
-                    tbodyHtml += `<td><span class="locked-badge">🔒 Locked</span></td>`;
+                    html += `<td><span class="locked-badge">🔒 Locked</span></td>`;
                 } else {
-                    tbodyHtml += `<td><button data-action="target-frequency" data-value="${act.configIndex}" class="btn btn-primary btn-small">🎯 Target</button></td>`;
+                    html += `<td><button data-action="target-frequency" data-value="${act.configIndex}" class="btn btn-primary btn-small">🎯 Target</button></td>`;
                 }
-                tbodyHtml += '</tr>';
+                html += '</tr>';
             });
 
-            // Reuse existing table-wrapper to preserve scroll; only replace inner content.
-            let tableWrapper = this.el.frequencyContent.querySelector('.table-wrapper');
-            if (!tableWrapper) {
-                this.el.frequencyContent.innerHTML =
-                    '<div class="frequency-intro"></div>' +
-                    '<div class="table-wrapper"><table class="table freq-table"><thead><tr>' +
-                    '<th>Protocol</th><th>Frequency</th><th>SF</th><th>BW</th><th>Packets</th><th>Avg RSSI</th><th>Peak RSSI</th><th>Actions</th>' +
-                    '</tr></thead><tbody></tbody></table></div>';
-                tableWrapper = this.el.frequencyContent.querySelector('.table-wrapper');
-            }
-            this.el.frequencyContent.querySelector('.frequency-intro').innerHTML = introHtml;
-            tableWrapper.querySelector('tbody').innerHTML = tbodyHtml;
+            html += '</tbody></table></div>';
+            this.el.frequencyContent.innerHTML = html;
 
             // Populate the activity analysis summary panel (lives in this same tab)
             this.renderFrequencyAnalysis(allConfigs);
