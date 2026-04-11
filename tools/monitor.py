@@ -206,8 +206,26 @@ class WebSocketMonitor:
                 pass
             return  # always skip packet-header line in --messages mode
 
+        # Extract relay byte (byte 15) from Meshtastic raw header
+        relay_str = ''
+        if protocol == 'Meshtastic':
+            raw_hex = data.get('dataHex') or data.get('data_hex') or data.get('rawHex')
+            if raw_hex and len(raw_hex) >= 32:
+                try:
+                    raw = binascii.unhexlify(raw_hex)
+                    if len(raw) >= 16:
+                        src_last = raw[4]  # low byte of src (bytes 4-7 little-endian)
+                        relay_byte = raw[15]
+                        hop_limit = raw[12] & 0x07
+                        if relay_byte != src_last and relay_byte != 0:
+                            relay_str = self._color(f" via:0x{relay_byte:02X} h:{hop_limit}", Colors.GRAY)
+                        else:
+                            relay_str = self._color(f" direct h:{hop_limit}", Colors.GRAY)
+                except Exception:
+                    pass
+
         self.packet_count += 1
-        print(f"📦 {timestamp} {proto_str} {node_str} {rssi_str}  SNR:{snr:5.1f}  {length:3}B")
+        print(f"📦 {timestamp} {proto_str} {node_str} {rssi_str}  SNR:{snr:5.1f}  {length:3}B{relay_str}")
 
         # Show message if decrypted by firmware
         message = data.get('message')
