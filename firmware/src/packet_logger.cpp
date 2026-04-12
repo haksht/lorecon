@@ -187,6 +187,22 @@ bool PacketLogger::logPacket(const PacketLogRecord& record, const uint8_t* data,
     if (record.powerClass >= 0) sessionFile.print(record.powerClass);
     sessionFile.print(',');
 
+    // packet_id, dest_id_hex, channel, relay_byte (new columns for relay tracking)
+    if (record.packetId != 0) {
+        sessionFile.printf("%08X", record.packetId);
+    }
+    sessionFile.print(',');
+    if (record.destId != 0 && record.destId != 0xFFFFFFFF) {
+        sessionFile.print(FormatUtils::formatNodeIdPadded(record.destId).c_str());
+    } else if (record.destId == 0xFFFFFFFF) {
+        sessionFile.print("FFFFFFFF");
+    }
+    sessionFile.printf(",%u,", record.channel);
+    if (record.relayByte != 0) {
+        sessionFile.printf("%02X", record.relayByte);
+    }
+    sessionFile.print(',');
+
     // Raw hex  -  write directly to avoid String allocation
     size_t safeLen = (length <= Config::PacketProcessing::MAX_PACKET_SIZE)
                      ? length : Config::PacketProcessing::MAX_PACKET_SIZE;
@@ -328,7 +344,7 @@ bool PacketLogger::writeCSVHeader() {
         return false;
     }
     
-    sessionFile.println("timestamp_ms,session_id,node_id_hex,protocol,frequency_mhz,config_index,rssi_dbm,snr_db,length_bytes,packet_type,encrypted,psk_result,psk_id,lat_deg,lon_deg,alt_m,hop_count,is_router,power_class,raw_hex");
+    sessionFile.println("timestamp_ms,session_id,node_id_hex,protocol,frequency_mhz,config_index,rssi_dbm,snr_db,length_bytes,packet_type,encrypted,psk_result,psk_id,lat_deg,lon_deg,alt_m,hop_count,is_router,power_class,packet_id,dest_id_hex,channel,relay_byte,raw_hex");
     sessionFile.flush();
     return true;
 }

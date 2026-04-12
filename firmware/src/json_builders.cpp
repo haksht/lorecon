@@ -743,6 +743,20 @@ String buildReplaySlotsJson(ReconState& reconState) {
         if (packet.decryptedText[0] != '\0') {
             slot["decryptedText"] = packet.decryptedText;
         }
+
+        // Include relay sightings from mesh relay copies
+        if (packet.relayCount > 0) {
+            JsonArray relays = slot["relaySightings"].to<JsonArray>();
+            for (uint8_t r = 0; r < packet.relayCount; r++) {
+                JsonObject relay = relays.add<JsonObject>();
+                char relayHex[5];
+                snprintf(relayHex, sizeof(relayHex), "0x%02X", packet.relaySightings[r].relayByte);
+                relay["relayByte"] = relayHex;
+                relay["rssi"] = packet.relaySightings[r].rssi;
+                relay["snr"] = packet.relaySightings[r].snr;
+                relay["hopCount"] = packet.relaySightings[r].hopCount;
+            }
+        }
     }
     
     LOG_DEBUG("buildReplaySlotsJson: returned %d valid slots", validCount);

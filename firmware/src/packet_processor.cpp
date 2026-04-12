@@ -177,9 +177,14 @@ void PacketProcessor::processSinglePacket(const QueuedPacket& qp, OLEDDisplay* d
             record.longitudeDeg = snifferLon;
             record.altitudeM = snifferAlt;
         }
-        record.hopCount = -1;
+        record.hopCount = (info.hopCount > 0) ? info.hopCount : -1;
         record.isRouter = info.isRouter;
         record.powerClass = static_cast<int>(info.powerClass);
+        record.packetId = info.packetId;
+        record.destId = info.destId;
+        record.channel = info.channel;
+        // Extract relay byte (byte 15 of Meshtastic header) from raw data
+        record.relayByte = (qp.length >= 16) ? qp.data[15] : 0;
         packetLogger.logPacket(record, qp.data, qp.length);
     }
     

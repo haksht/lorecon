@@ -477,7 +477,7 @@ void WebServer::handleWebSocketEvent(AsyncWebSocket* server, AsyncWebSocketClien
             if (g_webServer) {
                 // Evict stale connections before accepting the new one.
                 // Frees heap held by iOS captive-portal probes before they time out naturally.
-                if (g_webServer->ws) g_webServer->ws->cleanupClients(2);
+                if (g_webServer->ws) g_webServer->ws->cleanupClients(4);
                 g_webServer->disconnectInProgress.store(false, std::memory_order_release);
                 g_webServer->activeClients.fetch_add(1, std::memory_order_relaxed);
                 g_webServer->lastBroadcast = millis();
@@ -593,11 +593,9 @@ void WebServer::broadcastAggregatedUpdate() {
     String json;
     serializeJson(doc, json);
 
-    if (json.length() > 0 && json.length() < 384 && 
+    if (json.length() > 0 && json.length() < 384 &&
         !disconnectInProgress.load(std::memory_order_acquire) &&
         ws->count() > 0) {
-        // Clean up stale clients before sending to prevent queue buildup
-        ws->cleanupClients(2);
         // Only send to clients that aren't backed up
         for (auto& client : ws->getClients()) {
             if (client->status() == WS_CONNECTED && !client->queueIsFull()) {
@@ -628,7 +626,7 @@ void WebServer::service() {
     // half-open connections that AsyncTCP would otherwise hold for ~60 seconds.
     static uint32_t lastCleanup = 0;
     if (ws && (now - lastCleanup >= 5000)) {
-        ws->cleanupClients(2);
+        ws->cleanupClients(4);
         lastCleanup = now;
     }
     
@@ -657,7 +655,7 @@ void WebServer::broadcastDeviceUpdate(uint32_t nodeId) {
     String json;
     serializeJson(doc, json);
     
-    ws->cleanupClients(2);
+    ws->cleanupClients(4);
     if (!disconnectInProgress.load(std::memory_order_acquire)) {
         for (auto& client : ws->getClients()) {
             if (client->status() == WS_CONNECTED && !client->queueIsFull()) {
@@ -684,7 +682,7 @@ void WebServer::broadcastStatusUpdate() {
     String json;
     serializeJson(doc, json);
 
-    ws->cleanupClients(2);
+    ws->cleanupClients(4);
     if (!disconnectInProgress.load(std::memory_order_acquire)) {
         for (auto& client : ws->getClients()) {
             if (client->status() == WS_CONNECTED && !client->queueIsFull()) {
@@ -700,6 +698,6 @@ size_t WebServer::getClientCount() const {
 
 bool WebServer::cleanupWebSocketClients() {
     if (!ws) return true;
-    ws->cleanupClients(2);
+    ws->cleanupClients(4);
     return true;
 }

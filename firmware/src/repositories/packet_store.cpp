@@ -27,16 +27,24 @@ bool PacketStore::capturePacket(const uint8_t* data, size_t length,
                                  const char* decryptedText,
                                  const char* meshCoreChannel) {
     if (data == nullptr || length == 0) {
-        LOG_WARN("PacketStore", "Cannot capture - invalid data");
+        LOG_WARN("[PacketStore] Cannot capture - invalid data");
         return false;
     }
     
-    // Deduplicate: skip if we already have this packet (mesh relay copy)
-    // Only check packetId if it's non-zero (0 means unknown/not parsed)
+    // Deduplicate: if we already have this packetId, record relay metadata
+    // instead of dropping the duplicate entirely
     if (packetId != 0) {
         for (uint8_t i = 0; i < numCaptured_; i++) {
             if (slots_[i].valid && slots_[i].packetId == packetId) {
-                LOG_INFO("PacketStore", "Skipping duplicate packet 0x%08X (relay copy)", packetId);
+                // Extract relay byte (byte 15 of Meshtastic header) from raw data
+                uint8_t relayByte = (length >= 16) ? data[15] : 0;
+                if (slots_[i].addRelaySighting(relayByte, rssi, snr, hopCount)) {
+                    LOG_INFO("[PacketStore] Relay sighting #%d for 0x%08X (relay=0x%02X, rssi=%.0f, hop=%d)",
+                             slots_[i].relayCount, packetId, relayByte, (float)rssi, hopCount);
+                } else {
+                    LOG_INFO("[PacketStore] Relay sightings full for 0x%08X (max %d)",
+                             packetId, CapturedPacket::MAX_RELAY_SIGHTINGS);
+                }
                 return false;
             }
         }
@@ -44,7 +52,7 @@ bool PacketStore::capturePacket(const uint8_t* data, size_t length,
     
     // Clamp length to max packet size
     if (length > sizeof(slots_[0].data)) {
-        LOG_WARN("PacketStore", "Truncating packet from %d to %d bytes",
+        LOG_WARN("[PacketStore] Truncating packet from %d to %d bytes",
                  length, sizeof(slots_[0].data));
         length = sizeof(slots_[0].data);
     }
@@ -93,15 +101,16 @@ bool PacketStore::capturePacket(const uint8_t* data, size_t length,
         slot.meshCoreChannel[0] = '\0';
     }
     
+    slot.relayCount = 0;
     slot.valid = true;
     
     // Log with info about overwrite if buffer was full
     if (numCaptured_ >= MAX_SLOTS) {
-        LOG_INFO("PacketStore", "Packet captured to slot #%d (replaced oldest, %d bytes, %s)",
+        LOG_INFO("[PacketStore] Packet captured to slot #%d (replaced oldest, %d bytes, %s)",
                  writeIndex_ + 1, length, protocol ? protocol : "unknown");
     } else {
         numCaptured_++;
-        LOG_INFO("PacketStore", "Packet captured to slot #%d (%d bytes, %s)",
+        LOG_INFO("[PacketStore] Packet captured to slot #%d (%d bytes, %s)",
                  numCaptured_, length, protocol ? protocol : "unknown");
     }
     
@@ -122,5 +131,5 @@ void PacketStore::clear() {
     numCaptured_ = 0;
     writeIndex_ = 0;
     memset(slots_, 0, sizeof(slots_));
-    LOG_INFO("PacketStore", "All replay slots cleared");
+    LOG_INFO("[PacketStore] All replay slots cleared");
 }

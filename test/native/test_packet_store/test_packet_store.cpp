@@ -208,6 +208,76 @@ void test_different_packet_ids_both_stored() {
     TEST_ASSERT_EQUAL(2, s.count());
 }
 
+// ── relay sidecar ────────────────────────────────────────────────────────────
+
+// Build a 16-byte fake Meshtastic header with a known relay byte at position 15
+static uint8_t make_pkt_with_relay(uint8_t relay_byte) {
+    static uint8_t buf[16];
+    // dest=FFFFFFFF, src=0x11223344, pid=0xAABBCCDD, flags, ch, next_hop, relay
+    memset(buf, 0xFF, 4);                    // dest broadcast
+    buf[4]=0x44; buf[5]=0x33; buf[6]=0x22; buf[7]=0x11; // src LE
+    buf[8]=0xDD; buf[9]=0xCC; buf[10]=0xBB; buf[11]=0xAA; // pid LE
+    buf[12]=0x03; buf[13]=0x00; buf[14]=0x00; buf[15]=relay_byte;
+    return relay_byte; // just to suppress warning
+}
+
+void test_relay_sighting_recorded_on_duplicate() {
+    PacketStore s;
+    // First: capture original packet (16 bytes with relay_byte = src_last = 0x44)
+    uint8_t pkt1[16];
+    memset(pkt1, 0xFF, 4);
+    pkt1[4]=0x44; pkt1[5]=0x33; pkt1[6]=0x22; pkt1[7]=0x11;
+    pkt1[8]=0xDD; pkt1[9]=0xCC; pkt1[10]=0xBB; pkt1[11]=0xAA;
+    pkt1[12]=0x05; pkt1[13]=0; pkt1[14]=0; pkt1[15]=0x44; // relay=src (original)
+
+    s.capturePacket(pkt1, 16, 0, -80, 5.0f, 0x11223344, 0xAABBCCDD, 5);
+    TEST_ASSERT_EQUAL(1, s.count());
+    TEST_ASSERT_EQUAL(0, s.getPacket(0).relayCount);
+
+    // Second: duplicate with different relay byte and RSSI (relay copy)
+    uint8_t pkt2[16];
+    memcpy(pkt2, pkt1, 16);
+    pkt2[12] = 0x04; // hop decremented
+    pkt2[15] = 0xBE; // relay node's last byte
+    bool result = s.capturePacket(pkt2, 16, 0, -65, 8.0f, 0x11223344, 0xAABBCCDD, 4);
+    TEST_ASSERT_FALSE(result); // dedup still returns false
+    TEST_ASSERT_EQUAL(1, s.count()); // still 1 packet
+
+    // But relay sighting should be recorded
+    const auto& p = s.getPacket(0);
+    TEST_ASSERT_EQUAL(1, p.relayCount);
+    TEST_ASSERT_EQUAL_HEX8(0xBE, p.relaySightings[0].relayByte);
+    TEST_ASSERT_FLOAT_WITHIN(0.1f, -65.0f, p.relaySightings[0].rssi);
+    TEST_ASSERT_FLOAT_WITHIN(0.1f, 8.0f, p.relaySightings[0].snr);
+    TEST_ASSERT_EQUAL(4, p.relaySightings[0].hopCount);
+}
+
+void test_relay_sightings_max_capacity() {
+    PacketStore s;
+    uint8_t pkt[16] = {};
+    memset(pkt, 0xFF, 4);
+    pkt[4]=0x01; pkt[8]=0x01; pkt[12]=0x07; pkt[15]=0x01;
+    s.capturePacket(pkt, 16, 0, -80, 5.0f, 0x01, 0x01, 7);
+
+    // Add MAX_RELAY_SIGHTINGS duplicates
+    for (uint8_t i = 0; i < CapturedPacket::MAX_RELAY_SIGHTINGS; i++) {
+        pkt[15] = 0x10 + i;
+        s.capturePacket(pkt, 16, 0, -70 - i, 6.0f, 0x01, 0x01, 6);
+    }
+    TEST_ASSERT_EQUAL(CapturedPacket::MAX_RELAY_SIGHTINGS, s.getPacket(0).relayCount);
+
+    // One more should be silently dropped
+    pkt[15] = 0xFF;
+    s.capturePacket(pkt, 16, 0, -50, 9.0f, 0x01, 0x01, 5);
+    TEST_ASSERT_EQUAL(CapturedPacket::MAX_RELAY_SIGHTINGS, s.getPacket(0).relayCount);
+}
+
+void test_relay_count_zero_on_new_capture() {
+    PacketStore s;
+    capture(s, 0x01, 1);
+    TEST_ASSERT_EQUAL(0, s.getPacket(0).relayCount);
+}
+
 // ── invalid input guards ──────────────────────────────────────────────────────
 
 void test_null_data_rejected() {
@@ -291,6 +361,11 @@ int main() {
     RUN_TEST(test_duplicate_packet_id_rejected);
     RUN_TEST(test_zero_packet_id_not_deduplicated);
     RUN_TEST(test_different_packet_ids_both_stored);
+
+    // Relay sidecar
+    RUN_TEST(test_relay_sighting_recorded_on_duplicate);
+    RUN_TEST(test_relay_sightings_max_capacity);
+    RUN_TEST(test_relay_count_zero_on_new_capture);
 
     // Invalid input
     RUN_TEST(test_null_data_rejected);

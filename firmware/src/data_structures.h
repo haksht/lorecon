@@ -21,8 +21,18 @@ enum OperationMode : uint8_t {
   MODE_PACKET_REPLAY  // Replay captured packets
 };
 
+// Relay sighting: metadata from a mesh relay copy of a packet
+struct RelaySighting {
+  uint8_t relayByte;    // Byte 15 of Meshtastic header (last byte of relay node ID)
+  float rssi;           // RSSI at which we heard the relay copy
+  float snr;            // SNR of relay copy
+  uint8_t hopCount;     // Hop count of relay copy (decremented from original)
+};
+
 // Captured packet for replay
 struct CapturedPacket {
+  static constexpr uint8_t MAX_RELAY_SIGHTINGS = 4;
+
   uint8_t data[Config::PacketProcessing::MAX_PACKET_SIZE];
   size_t length;
   uint8_t configIndex;  // Which radio config to use for replay
@@ -41,6 +51,19 @@ struct CapturedPacket {
   char decryptedText[256];  // Stores decrypted message text if available
   char meshCoreChannel[24]; // MeshCore only: "public", "#general", etc. "" otherwise
   bool valid;
+
+  // Relay sidecar: stores metadata from duplicate packets (mesh relay copies)
+  // instead of dropping them entirely during dedup
+  RelaySighting relaySightings[MAX_RELAY_SIGHTINGS];
+  uint8_t relayCount;   // Number of valid entries in relaySightings[]
+
+  // Add relay metadata from a duplicate packet (mesh relay copy)
+  bool addRelaySighting(uint8_t relayByte, float rssi, float snr, uint8_t hopCount) {
+    if (relayCount >= MAX_RELAY_SIGHTINGS) return false;
+    relaySightings[relayCount] = {relayByte, rssi, snr, hopCount};
+    relayCount++;
+    return true;
+  }
 };
 
 // Queued packet for interrupt-driven reception
@@ -92,7 +115,7 @@ struct TargetableDevice {
   uint32_t avgPacketInterval;  // Average interval between packets (0 = not periodic)
   uint8_t periodicityScore;    // 0-100, confidence this is a beacon
   char protocol[16];
-  char deviceType[24];      // Identified device type
+  char deviceType[32];      // Identified device type
   char firmwareVersion[32]; // Detected firmware version
   bool isRouter;            // Device appears to be routing traffic
   uint8_t powerClass;       // Estimated power class (0=low, 1=med, 2=high)

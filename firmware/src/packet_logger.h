@@ -41,6 +41,10 @@ struct PacketLogRecord {
     int hopCount;
     bool isRouter;
     int powerClass;
+    uint32_t packetId;   // Meshtastic packet ID (for relay grouping)
+    uint32_t destId;     // Destination node ID (0xFFFFFFFF = broadcast)
+    uint8_t channel;     // Channel index (byte 13)
+    uint8_t relayByte;   // Byte 15 of Meshtastic header (relay node last byte)
 
     PacketLogRecord()
         : timestampMs(0)
@@ -61,7 +65,11 @@ struct PacketLogRecord {
         , altitudeM(0.0)
         , hopCount(-1)
         , isRouter(false)
-        , powerClass(-1) {}
+        , powerClass(-1)
+        , packetId(0)
+        , destId(0xFFFFFFFF)
+        , channel(0)
+        , relayByte(0) {}
 };
 /**
  * PacketLogger - Logs reconnaissance data to SD card
