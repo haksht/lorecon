@@ -737,6 +737,30 @@ def _render_html(a: Assessment, output: str):
 </table>
 '''
 
+    hist_section = ''
+    all_ts: List[float] = []
+    for d in a.devices.values():
+        all_ts.extend(d.timestamps)
+    if all_ts and _spark_span > 1.0:
+        buckets = 48
+        bins = [0] * buckets
+        for t in all_ts:
+            i = int((t - _spark_start) / _spark_span * buckets)
+            if 0 <= i < buckets:
+                bins[i] += 1
+        mx = max(bins) or 1
+        bars = ''.join(
+            f'<div style="display:inline-block;width:14px;margin:0 1px;height:{max(2,int(v/mx*100))}px;'
+            f'background:#3498db;vertical-align:bottom" title="{v} pkts"></div>'
+            for v in bins
+        )
+        start_s = datetime.fromtimestamp(_spark_start).strftime('%H:%M')
+        end_s   = datetime.fromtimestamp(_spark_end  ).strftime('%H:%M')
+        hist_section = (f'<h2>Capture Activity Timeline</h2>'
+                        f'<p>Packets per time bucket across the capture window '
+                        f'({start_s} → {end_s}, {buckets} buckets).</p>'
+                        f'<div style="height:110px;padding:4px;background:#1a1a1a;border:1px solid #333">{bars}</div>')
+
     diff_section = ''
     if a.baseline_source and (a.diff_new or a.diff_vanished
                               or a.diff_risk_up or a.diff_new_psk):
@@ -904,6 +928,7 @@ def _render_html(a: Assessment, output: str):
 
 {msg_section}
 {ident_section}
+{hist_section}
 {diff_section}
 {reuse_section}
 {join_section}
