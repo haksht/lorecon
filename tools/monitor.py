@@ -206,26 +206,8 @@ class WebSocketMonitor:
                 pass
             return  # always skip packet-header line in --messages mode
 
-        # Extract relay byte (byte 15) from Meshtastic raw header
-        relay_str = ''
-        if protocol == 'Meshtastic':
-            raw_hex = data.get('dataHex') or data.get('data_hex') or data.get('rawHex')
-            if raw_hex and len(raw_hex) >= 32:
-                try:
-                    raw = binascii.unhexlify(raw_hex)
-                    if len(raw) >= 16:
-                        src_last = raw[4]  # low byte of src (bytes 4-7 little-endian)
-                        relay_byte = raw[15]
-                        hop_limit = raw[12] & 0x07
-                        if relay_byte != src_last and relay_byte != 0:
-                            relay_str = self._color(f" via:0x{relay_byte:02X} h:{hop_limit}", Colors.GRAY)
-                        else:
-                            relay_str = self._color(f" direct h:{hop_limit}", Colors.GRAY)
-                except Exception:
-                    pass
-
         self.packet_count += 1
-        print(f"📦 {timestamp} {proto_str} {node_str} {rssi_str}  SNR:{snr:5.1f}  {length:3}B{relay_str}")
+        print(f"📦 {timestamp} {proto_str} {node_str} {rssi_str}  SNR:{snr:5.1f}  {length:3}B")
 
         # Show message if decrypted by firmware
         message = data.get('message')
@@ -337,7 +319,7 @@ class WebSocketMonitor:
         )
         
         try:
-            self.ws.run_forever(ping_interval=30, ping_timeout=10)
+            self.ws.run_forever(ping_interval=60, ping_timeout=30)
         except Exception as e:
             print(f"\n{self._color(f'❌ Connection failed: {e}', Colors.RED)}")
             print(f"   Make sure you're connected to the ESP32's WiFi network")
@@ -417,6 +399,221 @@ def _run_demo(args):
             monitor._print_summary()
 
 
+def _run_tui(args):
+    """Live dashboard: top talkers, new-node alerts, decrypt rate, message feed."""
+    try:
+        from rich.console import Console
+        from rich.layout import Layout
+        from rich.live import Live
+        from rich.panel import Panel
+        from rich.table import Table
+        from rich.text import Text
+    except ImportError:
+        print("Error: rich library required.  pip install rich>=13.0.0")
+        sys.exit(1)
+
+    try:
+        from tools.core import decode as core_decode
+    except ImportError:
+        sys.path.insert(0, str(Path(__file__).parent.parent))
+        from tools.core import decode as core_decode
+
+    import threading
+    import time
+    from collections import deque
+
+    console = Console()
+    start_ts = time.time()
+
+    state = {
+        'total': 0,
+        'decrypt_attempts': 0,
+        'decrypt_success': 0,
+        'connected': False,
+        'mode': '—',
+        'talkers': {},            # node_id -> {count, last_rssi, proto, name, psk}
+        'alerts': deque(maxlen=12),   # (ts, node_id, proto)
+        'messages': deque(maxlen=12), # (ts, node_id, text, key)
+        'lock': threading.Lock(),
+    }
+
+    def _handle(data):
+        mtype = data.get('type', '')
+        if mtype == 'status':
+            with state['lock']:
+                state['mode'] = data.get('mode', '—')
+            return
+        if mtype != 'packet':
+            return
+
+        proto = data.get('protocol', 'Unknown')
+        if args.filter and args.filter.lower() not in proto.lower():
+            return
+        nid = data.get('nodeId') or 'unknown'
+        rssi = data.get('rssi', 0)
+
+        new_node = False
+        with state['lock']:
+            state['total'] += 1
+            t = state['talkers'].get(nid)
+            if t is None:
+                new_node = True
+                t = {'count': 0, 'last_rssi': rssi, 'proto': proto,
+                     'name': '', 'psk': data.get('pskResult', '') or ''}
+                state['talkers'][nid] = t
+            t['count'] += 1
+            t['last_rssi'] = rssi
+            t['proto'] = proto
+            if data.get('pskResult') and data['pskResult'] not in ('none', 'failed'):
+                t['psk'] = data['pskResult']
+            if new_node:
+                state['alerts'].appendleft((time.strftime('%H:%M:%S'), nid, proto))
+
+        # Try decrypt
+        if proto == 'Meshtastic' and core_decode.CRYPTO_AVAILABLE:
+            raw_hex = data.get('dataHex') or data.get('data_hex') or data.get('rawHex')
+            if raw_hex:
+                try:
+                    raw = binascii.unhexlify(raw_hex)
+                except Exception:
+                    raw = None
+                if raw:
+                    with state['lock']:
+                        state['decrypt_attempts'] += 1
+                    r = None
+                    try:
+                        r = core_decode.try_decrypt(raw)
+                    except Exception:
+                        pass
+                    if r:
+                        with state['lock']:
+                            state['decrypt_success'] += 1
+                            state['talkers'][nid]['psk'] = r.entry.name
+                        inner = core_decode.extract_inner(r.plaintext)
+                        if r.portnum == core_decode.PORT_NODEINFO and inner:
+                            u = core_decode.parse_user(inner)
+                            if u:
+                                with state['lock']:
+                                    state['talkers'][nid]['name'] = (
+                                        u.get('short_name') or u.get('long_name') or '')
+                        elif r.portnum == core_decode.PORT_TEXT_MESSAGE and inner:
+                            try:
+                                text = inner.decode('utf-8', errors='replace').strip('\x00').strip()
+                            except Exception:
+                                text = ''
+                            if text:
+                                with state['lock']:
+                                    state['messages'].appendleft(
+                                        (time.strftime('%H:%M:%S'), nid, text, r.entry.name))
+
+    def _render() -> Layout:
+        with state['lock']:
+            total = state['total']
+            atts = state['decrypt_attempts']
+            succ = state['decrypt_success']
+            talkers = sorted(state['talkers'].items(),
+                             key=lambda kv: -kv[1]['count'])[:15]
+            alerts = list(state['alerts'])
+            messages = list(state['messages'])
+            mode = state['mode']
+            connected = state['connected']
+
+        elapsed = int(time.time() - start_ts)
+        rate = (total / elapsed) if elapsed else 0
+        dec_pct = (100 * succ / atts) if atts else 0
+        conn_txt = '[green]CONNECTED[/green]' if connected else '[red]disconnected[/red]'
+
+        header = Panel(
+            f"{conn_txt}  host=[cyan]{args.host}[/cyan]  mode=[yellow]{mode}[/yellow]  "
+            f"elapsed=[white]{elapsed}s[/white]  pkts=[green]{total}[/green]  "
+            f"rate=[white]{rate:.1f}/s[/white]  nodes=[cyan]{len(state['talkers'])}[/cyan]  "
+            f"decrypt=[magenta]{succ}/{atts} ({dec_pct:.0f}%)[/magenta]",
+            title="ESP32 LoRa Sniffer — Live Dashboard",
+            border_style="blue")
+
+        t_table = Table(title="Top Talkers", expand=True, header_style="bold cyan")
+        t_table.add_column("Node", style="cyan", no_wrap=True)
+        t_table.add_column("Name", style="white")
+        t_table.add_column("Proto", style="yellow")
+        t_table.add_column("Pkts", justify="right", style="green")
+        t_table.add_column("RSSI", justify="right")
+        t_table.add_column("PSK", style="magenta")
+        for nid, d in talkers:
+            r = d['last_rssi']
+            rssi_s = f"[green]{r:.0f}[/green]" if r > -70 else (
+                f"[yellow]{r:.0f}[/yellow]" if r > -90 else f"[red]{r:.0f}[/red]")
+            t_table.add_row(nid, d['name'][:14], d['proto'][:10],
+                            str(d['count']), rssi_s, d['psk'][:20])
+
+        a_table = Table(title="New Node Alerts", expand=True, header_style="bold yellow")
+        a_table.add_column("Time", style="grey50")
+        a_table.add_column("Node", style="cyan")
+        a_table.add_column("Proto", style="yellow")
+        for ts, nid, proto in alerts:
+            a_table.add_row(ts, nid, proto)
+
+        m_table = Table(title="Decrypted Messages", expand=True, header_style="bold green")
+        m_table.add_column("Time", style="grey50", no_wrap=True)
+        m_table.add_column("Node", style="cyan", no_wrap=True)
+        m_table.add_column("Key", style="magenta", no_wrap=True)
+        m_table.add_column("Text", style="green")
+        for ts, nid, text, key in messages:
+            m_table.add_row(ts, nid, key[:14], text[:80])
+
+        layout = Layout()
+        layout.split_column(
+            Layout(header, size=3, name="header"),
+            Layout(name="body"),
+        )
+        layout["body"].split_row(
+            Layout(t_table, ratio=2, name="left"),
+            Layout(name="right", ratio=1),
+        )
+        layout["right"].split_column(
+            Layout(a_table, name="alerts"),
+            Layout(m_table, name="msgs"),
+        )
+        return layout
+
+    if not WEBSOCKET_AVAILABLE:
+        print("Error: websocket-client library required.  pip install websocket-client")
+        sys.exit(1)
+
+    def _on_message(ws, message):
+        try:
+            _handle(json.loads(message))
+        except json.JSONDecodeError:
+            pass
+
+    def _on_open(ws):
+        state['connected'] = True
+
+    def _on_close(ws, *a):
+        state['connected'] = False
+
+    ws_url = f"ws://{args.host}/ws"
+    ws = websocket.WebSocketApp(ws_url, on_open=_on_open,
+                                on_message=_on_message, on_close=_on_close,
+                                on_error=lambda w, e: None)
+
+    ws_thread = threading.Thread(
+        target=lambda: ws.run_forever(ping_interval=60, ping_timeout=30),
+        daemon=True)
+    ws_thread.start()
+
+    try:
+        with Live(_render(), console=console, refresh_per_second=4,
+                  screen=True) as live:
+            while True:
+                time.sleep(0.25)
+                live.update(_render())
+    except KeyboardInterrupt:
+        ws.close()
+        console.print(f"\n[yellow]Stopped.[/yellow] pkts={state['total']} "
+                      f"nodes={len(state['talkers'])} "
+                      f"decrypt={state['decrypt_success']}/{state['decrypt_attempts']}")
+
+
 def main():
     parser = argparse.ArgumentParser(
         description='ESP32 LoRa Sniffer WebSocket Monitor (Headless)',
@@ -453,8 +650,14 @@ Keyboard:
                        help='Show decrypted text messages only — implies --decrypt, suppresses all other output')
     parser.add_argument('--demo', action='store_true',
                        help='Demo mode: simulate live packet stream (no hardware needed)')
+    parser.add_argument('--tui', action='store_true',
+                       help='Live dashboard TUI (top talkers, new-node alerts, decrypt feed) — requires: pip install rich')
 
     args = parser.parse_args()
+
+    if args.tui:
+        _run_tui(args)
+        return
 
     if args.demo:
         _run_demo(args)

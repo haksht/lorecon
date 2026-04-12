@@ -8,17 +8,20 @@ import subprocess
 from pathlib import Path
 
 TOOLS_DIR = Path(__file__).parent
+REPO_ROOT = TOOLS_DIR.parent
 
+# Each entry: (module path for `python -m`, description).
 COMMANDS = {
     # Analysis — the three output types
-    'map':       (TOOLS_DIR / 'map.py',       'GPS positions → interactive HTML map'),
-    'topology':  (TOOLS_DIR / 'topology.py',  'Mesh graph → PNG image (Meshtastic + MeshCore)'),
-    'report':    (TOOLS_DIR / 'report.py',    'Security assessment → HTML report'),
+    'map':       ('tools.map',       'GPS positions → interactive HTML map'),
+    'topology':  ('tools.topology',  'Mesh graph → PNG image (Meshtastic + MeshCore)'),
+    'report':    ('tools.report',    'Security assessment → HTML report'),
+    'merge':     ('tools.merge',     'Cross-capture identity linker (2+ CSVs)'),
     # Live / ops
-    'monitor':   (TOOLS_DIR / 'monitor.py',   'Live WebSocket packet stream (headless)'),
-    'wireshark': (TOOLS_DIR / 'wireshark.py', 'Convert ESP32 PCAP to Wireshark LoRaTap format'),
+    'monitor':   ('tools.monitor',   'Live WebSocket packet stream (headless)'),
+    'wireshark': ('tools.wireshark', 'Convert ESP32 PCAP to Wireshark LoRaTap format'),
     # Developer
-    'api':       (TOOLS_DIR / 'dev' / 'api_client.py', 'REST API client (~30 subcommands)'),
+    'api':       ('tools.dev.api_client', 'REST API client (~30 subcommands)'),
 }
 
 
@@ -30,7 +33,7 @@ def print_help():
     print()
     w = max(len(k) for k in COMMANDS)
     sections = [
-        ("Analysis", ['map', 'topology', 'report']),
+        ("Analysis", ['map', 'topology', 'report', 'merge']),
         ("Live / Ops", ['monitor', 'wireshark']),
         ("Developer", ['api']),
     ]
@@ -66,12 +69,12 @@ def main():
         print_help()
         return 1
 
-    script, _ = COMMANDS[command]
-    if not script.exists():
-        print(f"Tool not found: {script}")
-        return 1
-
-    result = subprocess.run([sys.executable, str(script)] + sys.argv[2:])
+    module, _ = COMMANDS[command]
+    # Run the module with repo root as CWD so `tools.core` imports resolve.
+    result = subprocess.run(
+        [sys.executable, '-m', module] + sys.argv[2:],
+        cwd=str(REPO_ROOT),
+    )
     return result.returncode
 
 

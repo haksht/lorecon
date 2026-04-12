@@ -23,178 +23,54 @@ Requirements:
     pip install requests       (--api mode)
 """
 
-import argparse
-import base64
-import csv
-import hashlib
 import struct
 import sys
-sys.stdout.reconfigure(encoding='utf-8', errors='replace')
-sys.stderr.reconfigure(encoding='utf-8', errors='replace')
 from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Set, Tuple
 
-try:
-    from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
-    from cryptography.hazmat.backends import default_backend
-    CRYPTO_AVAILABLE = True
-except ImportError:
-    CRYPTO_AVAILABLE = False
-
-try:
-    import requests
-    REQUESTS_AVAILABLE = True
-except ImportError:
-    REQUESTS_AVAILABLE = False
+from tools.core import capture as capture_loader
+from tools.core import cli, decode
+from tools.core.models import Capture, CapturedPacket
 
 
-# ---------------------------------------------------------------------------
-# PSK database — 23 Meshtastic defaults with risk classification
-# ---------------------------------------------------------------------------
+CRYPTO_AVAILABLE = decode.CRYPTO_AVAILABLE
 
-PSK_DB = [
-    ("AQ==",                        "Default (0x01)",          "CRITICAL"),
-    ("PKdTs51e4EB0BoOevIN0Dw==",    "Admin Channel (pre-2.5)", "CRITICAL"),
-    ("1PG7OiApB1nwvP+rz05pAQ==",    "LongFast Preset",         "HIGH"),
-    ("AAAAAAAAAAAAAAAAAAAAAA==",    "All Zeros",               "HIGH"),
-    ("MTIzNDU2Nzg5MDEyMzQ1Ng==",    "1234567890123456",        "HIGH"),
-    ("Ag==",                        "Legacy 0x02",             "MEDIUM"),
-    ("Aw==",                        "Legacy 0x03",             "MEDIUM"),
-    ("BA==",                        "Legacy 0x04",             "MEDIUM"),
-    ("BQ==",                        "Legacy 0x05",             "MEDIUM"),
-    ("Bg==",                        "Legacy 0x06",             "MEDIUM"),
-    ("Bw==",                        "Legacy 0x07",             "MEDIUM"),
-    ("CA==",                        "Legacy 0x08",             "MEDIUM"),
-    ("CQ==",                        "Legacy 0x09",             "MEDIUM"),
-    ("ZQ+HdKKbbAU4dSCGt66Qqw==",    "EU868 Regional",          "MEDIUM"),
-    ("d1iq21lNSh7BP6MOkP6cQA==",    "MediumFast",              "MEDIUM"),
-    ("/u7k03L8N3Q=",                "ShortFast",               "MEDIUM"),
-    ("GGC5DDnv8FKFm7WCZ5rXBA==",    "LongSlow",                "MEDIUM"),
-    ("LHrwq5nxPIJlqFU/K5dKKQ==",    "MediumSlow",              "MEDIUM"),
-    ("sb6GxC62sdwGXxJz2sERuQ==",    "ShortSlow",               "MEDIUM"),
-    ("dGVzdHRlc3R0ZXN0dGVzdA==",    "testtesttesttest",        "LOW"),
-    ("bWVzaHRhc3RpY21lc2h0YXN0",    "meshtastic...",           "LOW"),
-    ("shmLkA9H74gAeLH3eGCqsw==",    "Secondary Default",       "LOW"),
-    ("ogDPnKVRN7wz/VF8nt6LkA==",    "Debug Key",               "LOW"),
-]
+# PSK_DB preserved as (b64, name, risk) tuples so existing report code iterates
+# the same way. Built from the canonical core.decode.PSK_DB.
+PSK_DB: List[Tuple[str, str, str]] = [(e.b64, e.name, e.risk) for e in decode.PSK_DB]
 
-# Portnums that represent genuinely sensitive data
-SENSITIVE_PORTNUMS = {1, 2, 67}  # TEXT_MESSAGE, REMOTE_HARDWARE, ADMIN
-
-
-def _expand_psk(b64: str) -> bytes:
-    key = base64.b64decode(b64)
-    n = len(key)
-    if n == 1:  return key * 16
-    if n == 8:  return key + key
-    if n == 16 or n == 32: return key
-    if n < 16:  return key + b'\x00' * (16 - n)
-    return key[:32]
+SENSITIVE_PORTNUMS = {1, 2, 67}
 
 
 def _try_decrypt_meshtastic(raw: bytes) -> Optional[Tuple[str, str, int, str]]:
-    """
-    Attempt to decrypt a Meshtastic packet with all known PSKs.
-    Returns (psk_name, risk, portnum, text) or None.
-    """
-    if not CRYPTO_AVAILABLE or len(raw) < 16:
+    """Decrypt a Meshtastic packet. Returns (psk_name, risk, portnum, text) or None."""
+    result = decode.try_decrypt(raw)
+    if not result:
         return None
-    src_int = struct.unpack('<I', raw[4:8])[0]
-    pid     = struct.unpack('<I', raw[8:12])[0]
-    payload = raw[16:]
-    if not payload:
-        return None
-
-    # Meshtastic nonce: packet_id at [0:4], zeros at [4:8], node_id at [8:12], zeros at [12:16]
-    nonce = struct.pack('<IIII', pid, 0, src_int, 0)
-
-    for b64, name, risk in PSK_DB:
-        key = _expand_psk(b64)
-        try:
-            cipher = Cipher(algorithms.AES(key), modes.CTR(nonce), backend=default_backend())
-            pt = cipher.decryptor().update(payload)
-        except Exception:
-            continue
-        # Validity: field 1 must be portnum varint (tag 0x08), value in valid range
-        if not pt or pt[0] != 0x08:
-            continue
-        portnum_raw = pt[1] if len(pt) > 1 else 0
-        if portnum_raw == 0 or portnum_raw > 512:
-            continue
-
-        portnum = _read_portnum(pt)
-        if portnum is None:
-            continue
-
-        text = ''
-        if portnum == 1:  # TEXT_MESSAGE
-            inner = _read_field2(pt)
-            if inner:
-                try:
-                    text = inner.decode('utf-8', errors='replace').strip('\x00').strip()
-                except Exception:
-                    pass
-
-        return (name, risk, portnum, text)
-    return None
-
-
-def _decode_varint(data: bytes, offset: int) -> Tuple[int, int]:
-    result, shift, consumed = 0, 0, 0
-    while offset + consumed < len(data):
-        b = data[offset + consumed]; consumed += 1
-        result |= (b & 0x7F) << shift; shift += 7
-        if not (b & 0x80):
-            break
-    return result, consumed
-
-
-def _read_portnum(payload: bytes) -> Optional[int]:
-    offset = 0
-    while offset < len(payload):
-        tag, c = _decode_varint(payload, offset); offset += c
-        fn, wt = tag >> 3, tag & 0x07
-        if fn == 1 and wt == 0:
-            v, _ = _decode_varint(payload, offset); return v
-        if wt == 0:
-            _, c = _decode_varint(payload, offset); offset += c
-        elif wt == 2:
-            l, c = _decode_varint(payload, offset); offset += c + l
-        elif wt == 5: offset += 4
-        elif wt == 1: offset += 8
-        else: break
-    return None
-
-
-def _read_field2(payload: bytes) -> Optional[bytes]:
-    offset = 0
-    while offset < len(payload):
-        tag, c = _decode_varint(payload, offset); offset += c
-        fn, wt = tag >> 3, tag & 0x07
-        if fn == 2 and wt == 2:
-            l, c = _decode_varint(payload, offset); offset += c
-            return payload[offset:offset + l]
-        if wt == 0:
-            _, c = _decode_varint(payload, offset); offset += c
-        elif wt == 2:
-            l, c = _decode_varint(payload, offset); offset += c + l
-        elif wt == 5: offset += 4
-        elif wt == 1: offset += 8
-        else: break
-    return None
+    text = ''
+    if result.portnum == decode.PORT_TEXT_MESSAGE:
+        inner = decode.extract_inner(result.plaintext)
+        if inner:
+            try:
+                text = inner.decode('utf-8', errors='replace').strip('\x00').strip()
+            except Exception:
+                pass
+    return (result.entry.name, result.entry.risk, result.portnum, text)
 
 
 # ---------------------------------------------------------------------------
-# PCAP reader + LoRaWAN join parser
+# ESP32 PCAP reader + LoRaWAN join parser
+# (ESP32 pcaps prepend a custom LoRa header per packet, so we keep a local
+# reader here rather than using core.capture._load_pcap.)
 # ---------------------------------------------------------------------------
 
 LORA_HEADER_FMT  = '<fffBIBH'
 LORA_HEADER_SIZE = struct.calcsize(LORA_HEADER_FMT)
 
+
 def _read_pcap_payloads(filepath: str):
-    """Yield raw payload bytes per packet from ESP32 PCAP."""
     try:
         with open(filepath, 'rb') as fh:
             magic = struct.unpack('<I', fh.read(4))[0]
@@ -214,14 +90,10 @@ def _read_pcap_payloads(filepath: str):
 
 
 def _parse_lorawan_join(payload: bytes) -> Optional[Dict]:
-    """
-    Parse a LoRaWAN OTAA Join Request (23 bytes, MHDR 0x00).
-    Returns {dev_eui, app_eui, dev_nonce} or None.
-    """
     if len(payload) < 23:
         return None
     mhdr = payload[0]
-    if (mhdr >> 5) != 0:  # MType must be 0x00 (join request)
+    if (mhdr >> 5) != 0:
         return None
     app_eui   = payload[1:9][::-1].hex(':').upper()
     dev_eui   = payload[9:17][::-1].hex(':').upper()
@@ -245,6 +117,13 @@ class DeviceRecord:
         self.psk_risk:     str        = ''
         self.texts:        List[str]  = []
         self.has_gps       = False
+        self.positions:    List[Tuple[float, float]] = []  # (lat, lon)
+        self.timestamps:   List[float] = []                 # packet unix ts (s)
+        # NodeInfo identity (populated when a NODEINFO packet decrypts)
+        self.short_name:   Optional[str] = None
+        self.long_name:    Optional[str] = None
+        self.hw_model:     Optional[str] = None
+        self.is_licensed:  bool = False
 
     def risk_color(self) -> str:
         return {'CRITICAL': '#e74c3c', 'HIGH': '#e67e22',
@@ -259,136 +138,198 @@ class Assessment:
         self.devices:        Dict[str, DeviceRecord] = {}
         self.total_packets:  int = 0
         self.proto_counts:   Dict[str, int] = defaultdict(int)
-        self.text_messages:  List[Dict] = []     # {node_id, psk, text}
-        self.lorawan_joins:  List[Dict] = []     # {dev_eui, app_eui, dev_nonce}
+        self.text_messages:  List[Dict] = []
+        self.lorawan_joins:  List[Dict] = []
         self.findings:       List[Dict] = []
         self.start_time:     Optional[float] = None
         self.end_time:       Optional[float] = None
         self.source_files:   List[str] = []
+        # (node_id, packet_id) -> {ciphertext_hash: count}. Used to detect
+        # AES-CTR nonce reuse: same (src, pid) with *different* ciphertexts
+        # means the same keystream was applied to different plaintexts.
+        self._pid_seen:      Dict[Tuple[str, int], Dict[int, int]] = defaultdict(lambda: defaultdict(int))
+        self.nonce_reuses:   List[Dict] = []
+        # Baseline diff: populated by compute_baseline_diff() when --baseline is given
+        self.baseline_source: Optional[str] = None
+        self.diff_new:        List[DeviceRecord]  = []
+        self.diff_vanished:   List[Dict]          = []
+        self.diff_risk_up:    List[Dict]          = []
+        self.diff_new_psk:    List[Dict]          = []
 
     def _device(self, node_id: str) -> DeviceRecord:
         if node_id not in self.devices:
             self.devices[node_id] = DeviceRecord(node_id)
         return self.devices[node_id]
 
-    def load_csv(self, filepath: str):
-        self.source_files.append(Path(filepath).name)
-        with open(filepath, 'r', encoding='utf-8') as fh:
-            for row in csv.DictReader(fh):
-                self._process_row(row)
+    def ingest_capture(self, cap: Capture) -> None:
+        self.source_files.append(cap.source)
+        for p in cap:
+            self._process_packet(p)
 
-    def load_pcap(self, filepath: str):
+    def ingest_devices_api(self, host: str) -> None:
+        devices = capture_loader.load_devices(host)
+        self.source_files.append(f"API:{host}")
+        for d in devices:
+            dev = self._device(d.node_id)
+            dev.protocol = d.protocol
+            dev.packets  = d.packet_count
+            self.total_packets += dev.packets
+            if d.rssi_dbm is not None:
+                dev.rssi_vals.append(d.rssi_dbm)
+            if d.lat_deg is not None and d.lon_deg is not None:
+                if d.lat_deg != 0.0 or d.lon_deg != 0.0:
+                    dev.has_gps = True
+        print(f"[API] Loaded {len(self.devices)} devices from {host}")
+
+    def load_pcap(self, filepath: str) -> None:
         self.source_files.append(Path(filepath).name)
         for payload in _read_pcap_payloads(filepath):
-            # LoRaWAN join requests
             join = _parse_lorawan_join(payload)
             if join and join not in self.lorawan_joins:
                 self.lorawan_joins.append(join)
-            # Meshtastic decryption attempt
             result = _try_decrypt_meshtastic(payload)
             if result:
                 name, risk, portnum, text = result
-                # We don't have a node_id from PCAP without the header — use placeholder
                 if portnum in SENSITIVE_PORTNUMS and text:
                     self.text_messages.append({
                         'node_id': '(from PCAP)',
-                        'psk': name, 'risk': risk, 'text': text
+                        'psk': name, 'risk': risk, 'text': text,
                     })
 
-    def load_api(self, host: str):
-        if not REQUESTS_AVAILABLE:
-            sys.exit("ERROR: pip install requests")
-        self.source_files.append(f"API:{host}")
-        try:
-            r = requests.get(f"http://{host}/api/devices", timeout=10)
-            for d in r.json().get('devices', []):
-                nid = d.get('nodeId', 'unknown')
-                dev = self._device(nid)
-                dev.protocol = d.get('protocol', 'Unknown')
-                dev.packets  = d.get('packetCount', 0)
-                self.total_packets += dev.packets
-                if d.get('rssi'):
-                    dev.rssi_vals.append(float(d['rssi']))
-            print(f"[API] Loaded {len(self.devices)} devices from {host}")
-        except Exception as e:
-            sys.exit(f"[API] Error: {e}")
-
-    def _process_row(self, row: Dict):
+    def _process_packet(self, p: CapturedPacket) -> None:
         self.total_packets += 1
-        ts = float(row.get('timestamp_ms', 0) or 0) / 1000
-        if self.start_time is None or ts < self.start_time:
-            self.start_time = ts
-        if self.end_time is None or ts > self.end_time:
-            self.end_time = ts
+        ts = p.timestamp_ms / 1000.0 if p.timestamp_ms else 0.0
+        if ts:
+            if self.start_time is None or ts < self.start_time:
+                self.start_time = ts
+            if self.end_time is None or ts > self.end_time:
+                self.end_time = ts
 
-        nid      = row.get('node_id_hex', 'unknown') or 'unknown'
-        proto    = row.get('protocol', 'Unknown')
-        rssi_str = row.get('rssi_dbm', '')
-        encrypted = row.get('encrypted', '0') in ('1', 'true', 'True')
-        psk_csv   = row.get('psk_result', 'none') or 'none'
-
-        self.proto_counts[proto] += 1
-        dev = self._device(nid)
-        dev.protocol = proto
+        self.proto_counts[p.protocol] += 1
+        dev = self._device(p.node_id_hex)
+        dev.protocol = p.protocol
         dev.packets += 1
-        if rssi_str:
-            try:
-                dev.rssi_vals.append(float(rssi_str))
-            except ValueError:
-                pass
-        if encrypted:
+        if p.rssi_dbm:
+            dev.rssi_vals.append(p.rssi_dbm)
+        if p.encrypted:
             dev.encrypted += 1
 
-        lat, lon = row.get('lat_deg', ''), row.get('lon_deg', '')
-        if lat and lon:
-            try:
-                if float(lat) != 0.0 or float(lon) != 0.0:
-                    dev.has_gps = True
-            except ValueError:
-                pass
+        if ts:
+            dev.timestamps.append(ts)
+
+        if p.lat_deg is not None and p.lon_deg is not None:
+            if p.lat_deg != 0.0 or p.lon_deg != 0.0:
+                dev.has_gps = True
+                dev.positions.append((p.lat_deg, p.lon_deg))
 
         # PSK result from firmware CSV (already cracked by firmware)
-        if psk_csv not in ('none', 'failed', ''):
+        if p.psk_result and p.psk_result not in ('none', 'failed'):
             dev.decrypted += 1
-            dev.psk_names.add(psk_csv)
-            # Find risk level for this key name
+            dev.psk_names.add(p.psk_result)
             for _, name, risk in PSK_DB:
-                if name == psk_csv:
+                if name == p.psk_result:
                     if not dev.psk_risk or _risk_rank(risk) > _risk_rank(dev.psk_risk):
                         dev.psk_risk = risk
                     break
 
-        # Attempt Python-side decryption on uncracked encrypted packets
-        elif encrypted and CRYPTO_AVAILABLE:
-            raw_hex = row.get('raw_hex', '')
-            if raw_hex:
-                try:
-                    raw = bytes.fromhex(raw_hex)
-                    result = _try_decrypt_meshtastic(raw)
-                    if result:
-                        name, risk, portnum, text = result
-                        dev.decrypted += 1
-                        dev.psk_names.add(name)
-                        if not dev.psk_risk or _risk_rank(risk) > _risk_rank(dev.psk_risk):
-                            dev.psk_risk = risk
-                        if portnum == 1 and text:
-                            dev.texts.append(text)
-                            self.text_messages.append({
-                                'node_id': nid, 'psk': name, 'risk': risk, 'text': text
-                            })
-                except Exception:
-                    pass
+        # Python-side decryption on still-encrypted packets
+        elif p.encrypted and CRYPTO_AVAILABLE and p.raw_hex:
+            try:
+                raw = p.raw_bytes
+                dec_result = decode.try_decrypt(raw)
+                if dec_result:
+                    name     = dec_result.entry.name
+                    risk     = dec_result.entry.risk
+                    portnum  = dec_result.portnum
+                    pt       = dec_result.plaintext
+                    dev.decrypted += 1
+                    dev.psk_names.add(name)
+                    if not dev.psk_risk or _risk_rank(risk) > _risk_rank(dev.psk_risk):
+                        dev.psk_risk = risk
+                    # NodeInfo identity harvest
+                    if portnum == decode.PORT_NODEINFO:
+                        inner = decode.extract_inner(pt)
+                        if inner:
+                            user = decode.parse_user(inner)
+                            if user:
+                                if user.get('short_name'): dev.short_name = user['short_name']
+                                if user.get('long_name'):  dev.long_name  = user['long_name']
+                                if user.get('hw_model_name'): dev.hw_model = user['hw_model_name']
+                                if user.get('is_licensed'): dev.is_licensed = True
+                    # Position disclosure (decrypted lat/lon on public PSK)
+                    if portnum == decode.PORT_POSITION:
+                        inner = decode.extract_inner(pt)
+                        if inner:
+                            pos = decode.parse_position(inner)
+                            if pos:
+                                dev.has_gps = True
+                                dev.positions.append((pos[0], pos[1]))
+                    # Text intercepts
+                    if portnum == decode.PORT_TEXT_MESSAGE:
+                        inner = decode.extract_inner(pt)
+                        if inner:
+                            try:
+                                text = inner.decode('utf-8', errors='replace').strip('\x00').strip()
+                            except Exception:
+                                text = ''
+                            if text:
+                                dev.texts.append(text)
+                                self.text_messages.append({
+                                    'node_id': p.node_id_hex, 'psk': name, 'risk': risk, 'text': text,
+                                })
+                    # Nonce-reuse tracking: (src, pid) with different ciphertexts
+                    # means same AES-CTR keystream applied to different plaintexts.
+                    if p.packet_id is not None and len(raw) >= 20:
+                        ct = raw[16:]
+                        ct_hash = hash(bytes(ct))
+                        self._pid_seen[(p.node_id_hex, p.packet_id)][ct_hash] += 1
+            except Exception:
+                pass
 
         # LoRaWAN join detection from raw hex
-        raw_hex = row.get('raw_hex', '')
-        if proto in ('LoRaWAN', 'Unknown') and raw_hex:
+        if p.protocol in ('LoRaWAN', 'Unknown') and p.raw_hex:
             try:
-                raw = bytes.fromhex(raw_hex)
-                join = _parse_lorawan_join(raw)
+                join = _parse_lorawan_join(p.raw_bytes)
                 if join and join not in self.lorawan_joins:
                     self.lorawan_joins.append(join)
             except Exception:
                 pass
+
+    def compute_baseline_diff(self, baseline_path: str) -> None:
+        """Compare current devices against a prior capture. Populates
+        diff_new / diff_vanished / diff_risk_up / diff_new_psk."""
+        bp = Path(baseline_path)
+        if not bp.exists():
+            print(f"WARNING: baseline not found: {baseline_path}")
+            return
+        print(f"Loading baseline: {bp}")
+        base = Assessment()
+        base.ingest_capture(capture_loader.load(str(bp)))
+        self.baseline_source = bp.name
+
+        base_devs = base.devices
+        for nid, d in self.devices.items():
+            b = base_devs.get(nid)
+            if b is None:
+                self.diff_new.append(d)
+                continue
+            if _risk_rank(d.psk_risk) > _risk_rank(b.psk_risk):
+                self.diff_risk_up.append({
+                    'node_id': nid, 'from': b.psk_risk or '—', 'to': d.psk_risk,
+                    'short_name': d.short_name or '',
+                })
+            added_psk = d.psk_names - b.psk_names
+            if added_psk:
+                self.diff_new_psk.append({
+                    'node_id': nid, 'added': sorted(added_psk),
+                    'short_name': d.short_name or '',
+                })
+        for nid, b in base_devs.items():
+            if nid not in self.devices:
+                self.diff_vanished.append({
+                    'node_id': nid, 'protocol': b.protocol, 'packets': b.packets,
+                    'short_name': b.short_name or '',
+                })
 
     def analyze(self):
         """Generate security findings."""
@@ -454,6 +395,64 @@ class Assessment:
                 'cwe': 'CWE-798',
             })
 
+        # --- Cross-channel operator bridging ---
+        # Nodes whose traffic decrypts with 2+ distinct PSKs = same device
+        # listens on multiple channels. Critical if one is the Admin key
+        # (device accepts remote-config AND is on public mesh).
+        bridgers = [d for d in self.devices.values() if len(d.psk_names) >= 2]
+        if bridgers:
+            admin_bridgers = [d for d in bridgers
+                              if any('admin' in k.lower() for k in d.psk_names)]
+            sample = sorted(bridgers, key=lambda d: -d.packets)[:8]
+            rows = ''.join(
+                f'<li><code>{d.node_id}</code>'
+                + (f' <b>{_html_esc(d.short_name)}</b>' if d.short_name else '')
+                + f' — {", ".join(sorted(d.psk_names))}</li>'
+                for d in sample
+            )
+            sev = 'CRITICAL' if admin_bridgers else 'HIGH'
+            self.findings.append({
+                'severity': sev,
+                'title': f'Cross-Channel Bridging ({len(bridgers)} devices on 2+ keyed channels)',
+                'desc': (
+                    f'{len(bridgers)} devices decrypt with multiple distinct PSKs — '
+                    f'they sit on more than one channel simultaneously. '
+                    + (f'{len(admin_bridgers)} of these also carry the Admin channel key, '
+                       f'meaning remote-admin commands can be pivoted through public mesh traffic. '
+                       if admin_bridgers else '')
+                    + f'<ul>{rows}</ul>'
+                ),
+                'rec': 'Segregate admin channel to dedicated hardware; do not co-locate admin + public keys.',
+                'cwe': 'CWE-653',
+            })
+
+        # --- DevNonce reuse (LoRaWAN OTAA replay) ---
+        # Same (DevEUI, DevNonce) seen twice = replay-vulnerable join.
+        # LoRaWAN 1.0.x servers MUST reject reused DevNonces; some don't.
+        nonce_seen: Dict[Tuple[str, int], int] = defaultdict(int)
+        for j in self.lorawan_joins:
+            nonce_seen[(j['dev_eui'], j['dev_nonce'])] += 1
+        reused = {k: v for k, v in nonce_seen.items() if v > 1}
+        if reused:
+            rows = ''.join(
+                f'<li><code>{eui}</code> DevNonce <code>0x{nonce:04x}</code> — seen {count}×</li>'
+                for (eui, nonce), count in list(reused.items())[:10]
+            )
+            # Separately flag DevEUIs that appear with multiple distinct nonces
+            # (normal) vs with the SAME nonce repeated (replay or server misconfig).
+            self.findings.append({
+                'severity': 'HIGH',
+                'title': f'LoRaWAN DevNonce Reuse ({len(reused)} collisions)',
+                'desc': (
+                    f'Same DevEUI + DevNonce pair transmitted more than once. Under LoRaWAN 1.0.x '
+                    f'a compliant network server rejects duplicate DevNonces (anti-replay). '
+                    f'If the server accepts, an attacker who recorded the corresponding JoinAccept '
+                    f'can bring the node online on a rogue server.<ul>{rows}</ul>'
+                ),
+                'rec': 'Verify the network server rejects duplicate DevNonces. Consider LoRaWAN 1.1 JoinEUI + monotonic DevNonce.',
+                'cwe': 'CWE-294',
+            })
+
         # --- LoRaWAN DevEUI exposure ---
         if self.lorawan_joins:
             sample = self.lorawan_joins[:3]
@@ -485,6 +484,133 @@ class Assessment:
                 'desc': f'{len(cleartext)} devices transmitting without encryption: {node_str}',
                 'rec': 'Enable channel encryption on all endpoints.',
                 'cwe': 'CWE-319',
+            })
+
+        # --- AES-CTR nonce reuse ---
+        self.nonce_reuses = []
+        for (nid, pid), ct_hashes in self._pid_seen.items():
+            if len(ct_hashes) > 1:  # same (src,pid), different ciphertexts
+                self.nonce_reuses.append({
+                    'node_id': nid, 'packet_id': pid,
+                    'distinct_ciphertexts': len(ct_hashes),
+                    'total_packets': sum(ct_hashes.values()),
+                })
+        if self.nonce_reuses:
+            sample = self.nonce_reuses[:5]
+            rows = ''.join(
+                f'<li><code>{r["node_id"]}</code> / pid <code>0x{r["packet_id"]:08x}</code> — '
+                f'{r["distinct_ciphertexts"]} distinct ciphertexts</li>'
+                for r in sample
+            )
+            self.findings.append({
+                'severity': 'HIGH',
+                'title': f'AES-CTR Nonce Reuse ({len(self.nonce_reuses)} collisions)',
+                'desc': (
+                    f'Same (node_id, packet_id) pair observed with different ciphertexts. '
+                    f'Meshtastic derives the AES-CTR nonce from these two fields, so reuse means '
+                    f'the same keystream encrypted different plaintexts — XOR of the ciphertexts '
+                    f'leaks XOR of the plaintexts.<ul>{rows}</ul>'
+                ),
+                'rec': 'Use a larger packet_id space or include a counter/timestamp in the nonce.',
+                'cwe': 'CWE-323',
+            })
+
+        # --- Identified devices (NodeInfo harvest) ---
+        named_devs = [d for d in self.devices.values() if d.short_name or d.long_name]
+        if named_devs:
+            sample = sorted(named_devs, key=lambda d: -d.packets)[:6]
+            rows = ''.join(
+                f'<li><code>{d.node_id}</code> → '
+                f'<b>{_html_esc(d.short_name or "?")}</b> / '
+                f'{_html_esc(d.long_name or "—")}'
+                + (f' ({d.hw_model})' if d.hw_model else '')
+                + '</li>'
+                for d in sample
+            )
+            self.findings.append({
+                'severity': 'MEDIUM',
+                'title': f'{len(named_devs)} Operators Identified by NodeInfo Broadcast',
+                'desc': (
+                    f'NODEINFO packets broadcast the operator-chosen name and hardware model '
+                    f'on the default-keyed channel, attributing node IDs to real people:<ul>{rows}</ul>'
+                ),
+                'rec': 'Operators should avoid real names / call signs on public channels.',
+                'cwe': 'CWE-359',
+            })
+
+        # --- Baseline diff ---
+        if self.baseline_source and (self.diff_new or self.diff_vanished
+                                     or self.diff_risk_up or self.diff_new_psk):
+            bits = []
+            if self.diff_new:      bits.append(f'{len(self.diff_new)} new')
+            if self.diff_vanished: bits.append(f'{len(self.diff_vanished)} vanished')
+            if self.diff_risk_up:  bits.append(f'{len(self.diff_risk_up)} risk↑')
+            if self.diff_new_psk:  bits.append(f'{len(self.diff_new_psk)} new PSK')
+            sev = 'HIGH' if (self.diff_risk_up or self.diff_new_psk) else 'MEDIUM'
+            self.findings.append({
+                'severity': sev,
+                'title': f'Changes since baseline ({self.baseline_source}): ' + ', '.join(bits),
+                'desc': ('Devices added, removed, or whose key posture changed since the '
+                         'baseline capture. See table below for details.'),
+                'rec': 'Investigate new devices and nodes that gained access to additional PSKs.',
+                'cwe': None,
+            })
+
+        # --- Mobility + GPS privacy ---
+        # Classify each GPS-emitting device as stationary (<100 m bounding box)
+        # or mobile. Flag devices disclosing real-time position on a known-weak PSK.
+        import math
+        def _bbox_diag_m(pts: List[Tuple[float, float]]) -> float:
+            if len(pts) < 2:
+                return 0.0
+            lats = [p[0] for p in pts]; lons = [p[1] for p in pts]
+            lat_m = (max(lats) - min(lats)) * 111000.0
+            lon_m = (max(lons) - min(lons)) * 111000.0 * math.cos(math.radians(sum(lats) / len(lats)))
+            return math.hypot(lat_m, lon_m)
+
+        mobile_devs: List[DeviceRecord] = []
+        for d in self.devices.values():
+            if len(d.positions) >= 2:
+                d.bbox_m = _bbox_diag_m(d.positions)
+                d.is_mobile = d.bbox_m > 100.0
+                if d.is_mobile:
+                    mobile_devs.append(d)
+            elif d.positions:
+                d.bbox_m = 0.0
+                d.is_mobile = False
+
+        leak_devs = [d for d in self.devices.values()
+                     if d.positions and d.psk_risk in ('CRITICAL', 'HIGH')]
+        if leak_devs:
+            sample = sorted(leak_devs, key=lambda d: -len(d.positions))[:8]
+            rows = ''.join(
+                f'<li><code>{d.node_id}</code>'
+                + (f' <b>{_html_esc(d.short_name)}</b>' if d.short_name else '')
+                + f' — {len(d.positions)} fixes, '
+                + ('mobile' if getattr(d, "is_mobile", False) else 'stationary')
+                + f' ({d.psk_risk})</li>'
+                for d in sample
+            )
+            self.findings.append({
+                'severity': 'HIGH',
+                'title': f'Plaintext GPS Position Disclosure ({len(leak_devs)} devices)',
+                'desc': (
+                    f'Devices are broadcasting lat/lon on channels encrypted with a known-weak '
+                    f'PSK. Anyone with the default key can track their location in real time:<ul>{rows}</ul>'
+                ),
+                'rec': 'Disable position broadcast on public channels, or move to a unique PSK.',
+                'cwe': 'CWE-200',
+            })
+
+        if mobile_devs:
+            self.findings.append({
+                'severity': 'INFO',
+                'title': f'{len(mobile_devs)} mobile devices tracked',
+                'desc': (f'Devices whose observed positions span more than 100 m — likely vehicles, '
+                         f'handhelds, or roving operators. Stationary nodes ({sum(1 for d in self.devices.values() if d.positions and not getattr(d, "is_mobile", False))}) '
+                         f'are likely fixed infrastructure.'),
+                'rec': 'Correlate mobile tracks with physical presence for OSINT enrichment.',
+                'cwe': None,
             })
 
         # --- Close-range infrastructure ---
@@ -528,21 +654,33 @@ def _render_html(a: Assessment, output: str):
         mins = (a.end_time - a.start_time) / 60
         duration_str = f'{mins:.1f} min'
 
-    # Sort findings by severity
     sev_order = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW', 'INFO']
     findings = sorted(a.findings, key=lambda f: sev_order.index(f.get('severity', 'INFO')))
 
-    # Counts
     counts = {s: sum(1 for f in findings if f['severity'] == s) for s in sev_order}
 
-    # Protocol rows
     proto_rows = ''.join(
         f'<tr><td>{p}</td><td>{c}</td>'
         f'<td>{c / max(a.total_packets, 1) * 100:.1f}%</td></tr>'
         for p, c in sorted(a.proto_counts.items(), key=lambda x: -x[1])
     )
 
-    # Device rows (top 50 by packet count, then sorted by risk)
+    # Capture time window for per-device sparklines
+    _spark_start = a.start_time or 0.0
+    _spark_end   = a.end_time   or 0.0
+    _spark_span  = max(_spark_end - _spark_start, 1.0)
+    _SPARK = ' ▁▂▃▄▅▆▇█'
+    def _sparkline(tss: List[float], buckets: int = 24) -> str:
+        if not tss or _spark_span <= 1.0:
+            return ''
+        bins = [0] * buckets
+        for t in tss:
+            i = int((t - _spark_start) / _spark_span * buckets)
+            if 0 <= i < buckets:
+                bins[i] += 1
+        mx = max(bins) or 1
+        return ''.join(_SPARK[min(8, (v * 8 + mx - 1) // mx)] for v in bins)
+
     sorted_devs = sorted(a.devices.values(),
                          key=lambda d: (_risk_rank(d.psk_risk), d.packets), reverse=True)[:50]
     dev_rows = ''
@@ -552,19 +690,107 @@ def _render_html(a: Assessment, output: str):
         risk_col = d.risk_color()
         risk_lbl = f'<span style="color:{risk_col};font-weight:bold">{d.psk_risk}</span>' if d.psk_risk else '—'
         gps_lbl  = '✓' if d.has_gps else ''
+        if d.positions and getattr(d, 'is_mobile', False):
+            gps_lbl = f'✓ <span title="bbox {getattr(d,"bbox_m",0):.0f} m">mob</span>'
+        elif d.positions:
+            gps_lbl = '✓ fix'
+        spark = _sparkline(d.timestamps)
         enc_pct  = f'{d.encrypted / max(d.packets,1)*100:.0f}%' if d.packets else '—'
+        name_lbl = _html_esc(d.short_name or '') if d.short_name else '—'
+        if d.long_name and d.long_name != d.short_name:
+            name_lbl = f'<b>{_html_esc(d.short_name or "")}</b> <small>{_html_esc(d.long_name)}</small>' \
+                       if d.short_name else f'<small>{_html_esc(d.long_name)}</small>'
         dev_rows += (
             f'<tr><td><code>{d.node_id}</code></td>'
+            f'<td>{name_lbl}</td>'
             f'<td>{d.protocol}</td>'
             f'<td>{d.packets}</td>'
             f'<td>{rssi_str}</td>'
             f'<td>{enc_pct}</td>'
             f'<td>{risk_lbl}</td>'
             f'<td style="font-size:11px">{psk_str}</td>'
-            f'<td>{gps_lbl}</td></tr>\n'
+            f'<td>{gps_lbl}</td>'
+            f'<td style="font-family:monospace;letter-spacing:-1px">{spark}</td></tr>\n'
         )
 
-    # Intercepted messages table
+    ident_section = ''
+    named_devs = sorted(
+        [d for d in a.devices.values() if d.short_name or d.long_name],
+        key=lambda d: -d.packets,
+    )
+    if named_devs:
+        ident_rows = ''.join(
+            f'<tr><td><code>{d.node_id}</code></td>'
+            f'<td><b>{_html_esc(d.short_name or "—")}</b></td>'
+            f'<td>{_html_esc(d.long_name or "—")}</td>'
+            f'<td>{_html_esc(d.hw_model or "—")}</td>'
+            f'<td>{"✓" if d.is_licensed else ""}</td>'
+            f'<td>{d.packets}</td></tr>\n'
+            for d in named_devs
+        )
+        ident_section = f'''
+<h2>Device Identities <span class="badge" style="background:#6b5a00">{len(named_devs)}</span></h2>
+<p>Operator-chosen names and hardware models extracted from decrypted NODEINFO broadcasts.</p>
+<table>
+<tr><th>Node ID</th><th>Short</th><th>Long Name</th><th>Hardware</th><th>Licensed</th><th>Pkts</th></tr>
+{ident_rows}
+</table>
+'''
+
+    diff_section = ''
+    if a.baseline_source and (a.diff_new or a.diff_vanished
+                              or a.diff_risk_up or a.diff_new_psk):
+        def _r(rows, cols):
+            return ('<table><tr>' + ''.join(f'<th>{c}</th>' for c in cols) + '</tr>'
+                    + ''.join('<tr>' + ''.join(f'<td>{c}</td>' for c in row) + '</tr>'
+                              for row in rows) + '</table>')
+        blocks = []
+        if a.diff_new:
+            rows = [(f'<code>{d.node_id}</code>', _html_esc(d.short_name or '—'),
+                     d.protocol, d.packets, d.psk_risk or '—')
+                    for d in sorted(a.diff_new, key=lambda x: -x.packets)[:50]]
+            blocks.append(f'<h3>New devices ({len(a.diff_new)})</h3>'
+                          + _r(rows, ['Node', 'Name', 'Protocol', 'Pkts', 'Risk']))
+        if a.diff_vanished:
+            rows = [(f'<code>{v["node_id"]}</code>', _html_esc(v["short_name"] or '—'),
+                     v['protocol'], v['packets'])
+                    for v in sorted(a.diff_vanished, key=lambda x: -x['packets'])[:50]]
+            blocks.append(f'<h3>Vanished devices ({len(a.diff_vanished)})</h3>'
+                          + _r(rows, ['Node', 'Name', 'Protocol', 'Pkts (baseline)']))
+        if a.diff_risk_up:
+            rows = [(f'<code>{v["node_id"]}</code>', _html_esc(v["short_name"] or '—'),
+                     v['from'], v['to']) for v in a.diff_risk_up[:50]]
+            blocks.append(f'<h3>Risk increased ({len(a.diff_risk_up)})</h3>'
+                          + _r(rows, ['Node', 'Name', 'From', 'To']))
+        if a.diff_new_psk:
+            rows = [(f'<code>{v["node_id"]}</code>', _html_esc(v["short_name"] or '—'),
+                     ', '.join(v['added'])) for v in a.diff_new_psk[:50]]
+            blocks.append(f'<h3>Newly observed PSKs ({len(a.diff_new_psk)})</h3>'
+                          + _r(rows, ['Node', 'Name', 'Added PSK(s)']))
+        diff_section = (f'<h2>Changes Since Baseline '
+                        f'<span class="badge" style="background:#2c3e50">'
+                        f'{_html_esc(a.baseline_source)}</span></h2>' + ''.join(blocks))
+
+    reuse_section = ''
+    if a.nonce_reuses:
+        reuse_rows = ''.join(
+            f'<tr><td><code>{r["node_id"]}</code></td>'
+            f'<td><code>0x{r["packet_id"]:08x}</code></td>'
+            f'<td>{r["distinct_ciphertexts"]}</td>'
+            f'<td>{r["total_packets"]}</td></tr>\n'
+            for r in a.nonce_reuses[:50]
+        )
+        reuse_section = f'''
+<h2>AES-CTR Nonce Reuse <span class="badge" style="background:#7a3800">{len(a.nonce_reuses)}</span></h2>
+<p>Same (node_id, packet_id) → same nonce. Distinct ciphertexts at the same nonce means
+   the same keystream encrypted different plaintexts: XOR of the two ciphertexts equals
+   XOR of the two plaintexts (the key cancels out).</p>
+<table>
+<tr><th>Node</th><th>Packet ID</th><th>Distinct Ciphertexts</th><th>Total Packets</th></tr>
+{reuse_rows}
+</table>
+'''
+
     msg_section = ''
     if a.text_messages:
         msg_rows = ''.join(
@@ -583,7 +809,6 @@ def _render_html(a: Assessment, output: str):
 </table>{more}
 '''
 
-    # LoRaWAN section
     join_section = ''
     if a.lorawan_joins:
         join_rows = ''.join(
@@ -601,7 +826,6 @@ def _render_html(a: Assessment, output: str):
 </table>
 '''
 
-    # Finding cards
     finding_cards = ''
     for f in findings:
         style, label = SEVERITY_STYLE.get(f['severity'], ('', f['severity']))
@@ -679,6 +903,9 @@ def _render_html(a: Assessment, output: str):
 {finding_cards}
 
 {msg_section}
+{ident_section}
+{diff_section}
+{reuse_section}
 {join_section}
 
 <h2>Protocol Distribution</h2>
@@ -689,8 +916,8 @@ def _render_html(a: Assessment, output: str):
 
 <h2>Device Inventory ({len(a.devices)} devices)</h2>
 <table>
-<tr><th>Node ID</th><th>Protocol</th><th>Pkts</th><th>RSSI</th>
-    <th>Enc%</th><th>Risk</th><th>PSK</th><th>GPS</th></tr>
+<tr><th>Node ID</th><th>Name</th><th>Protocol</th><th>Pkts</th><th>RSSI</th>
+    <th>Enc%</th><th>Risk</th><th>PSK</th><th>GPS</th><th title="Packet activity over capture window">Activity</th></tr>
 {dev_rows}
 </table>
 {"<p><i>(showing top 50 by risk/packet count)</i></p>" if len(a.devices) > 50 else ""}
@@ -723,15 +950,11 @@ def _html_esc(s: str) -> str:
 # ---------------------------------------------------------------------------
 
 def main():
-    ap = argparse.ArgumentParser(
-        description='Generate an HTML security assessment report from captured LoRa data.')
-    src = ap.add_mutually_exclusive_group(required=True)
-    src.add_argument('file', nargs='?', help='CSV capture file')
-    src.add_argument('--api', metavar='HOST', help='Pull live data from ESP32 API')
+    ap = cli.base_parser('Generate an HTML security assessment report from captured LoRa data.')
     ap.add_argument('--pcap', metavar='FILE',
                     help='Also process a PCAP file (LoRaWAN joins + additional decryption)')
-    ap.add_argument('-o', '--output', metavar='FILE',
-                    help='Output HTML file (default: <stem>_report.html)')
+    ap.add_argument('--baseline', metavar='FILE',
+                    help='Compare against a prior capture — report new / vanished / risk-changed nodes')
     args = ap.parse_args()
 
     if not CRYPTO_AVAILABLE:
@@ -740,14 +963,17 @@ def main():
     a = Assessment()
 
     if args.api:
-        a.load_api(args.api)
+        a.ingest_devices_api(args.api)
         out = args.output or 'report.html'
     else:
-        p = Path(args.file)
+        if not args.input:
+            sys.exit("ERROR: provide a capture file or --api HOST")
+        p = Path(args.input)
         if not p.exists():
-            sys.exit(f"File not found: {args.file}")
+            sys.exit(f"File not found: {args.input}")
         print(f"Loading: {p}")
-        a.load_csv(str(p))
+        cap = capture_loader.load(str(p))
+        a.ingest_capture(cap)
         out = args.output or (p.stem + '_report.html')
 
     if args.pcap:
@@ -758,6 +984,9 @@ def main():
         else:
             print(f"WARNING: PCAP not found: {args.pcap}")
 
+    if args.baseline:
+        a.compute_baseline_diff(args.baseline)
+
     a.analyze()
 
     print(f"\nDevices:  {len(a.devices)}")
@@ -767,6 +996,10 @@ def main():
         print(f"Messages: {len(a.text_messages)} decrypted")
     if a.lorawan_joins:
         print(f"Joins:    {len(a.lorawan_joins)} DevEUI harvested")
+    if a.baseline_source:
+        print(f"Diff vs {a.baseline_source}: "
+              f"{len(a.diff_new)} new, {len(a.diff_vanished)} vanished, "
+              f"{len(a.diff_risk_up)} risk↑, {len(a.diff_new_psk)} new PSK")
 
     _render_html(a, out)
 

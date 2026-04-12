@@ -22,16 +22,14 @@ Requirements:
     pip install requests          (for --api mode)
 """
 
-import argparse
-import base64
-import csv
-import struct
 import sys
-sys.stdout.reconfigure(encoding='utf-8', errors='replace')
-sys.stderr.reconfigure(encoding='utf-8', errors='replace')
 from collections import defaultdict
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, Iterable, List, Optional, Tuple
+
+from tools.core import capture as capture_loader
+from tools.core import cli, decode
+from tools.core.models import Capture, CapturedPacket, Device
 
 try:
     import folium
@@ -46,195 +44,34 @@ try:
 except ImportError:
     MATPLOTLIB_AVAILABLE = False
 
-try:
-    import requests
-    REQUESTS_AVAILABLE = True
-except ImportError:
-    REQUESTS_AVAILABLE = False
-
-try:
-    from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
-    from cryptography.hazmat.backends import default_backend
-    CRYPTO_AVAILABLE = True
-except ImportError:
-    CRYPTO_AVAILABLE = False
-
-# ---------------------------------------------------------------------------
-# Meshtastic PSK decryption + Position protobuf parser
-# ---------------------------------------------------------------------------
-
-# Keys tried in order: private/weak first, public channels last.
-_PSKS = [
-    "PKdTs51e4EB0BoOevIN0Dw==",  # Admin Channel (pre-2.5)
-    "AAAAAAAAAAAAAAAAAAAAAA==",  # All Zeros
-    "MTIzNDU2Nzg5MDEyMzQ1Ng==",  # 1234567890123456
-    "d1iq21lNSh7BP6MOkP6cQA==",  # MediumFast
-    "/u7k03L8N3Q=",              # ShortFast
-    "GGC5DDnv8FKFm7WCZ5rXBA==",  # LongSlow
-    "LHrwq5nxPIJlqFU/K5dKKQ==",  # MediumSlow
-    "sb6GxC62sdwGXxJz2sERuQ==",  # ShortSlow
-    "ZQ+HdKKbbAU4dSCGt66Qqw==",  # EU868 Regional
-    "dGVzdHRlc3R0ZXN0dGVzdA==",  # testtesttesttest
-    "shmLkA9H74gAeLH3eGCqsw==",  # Secondary Default
-    "ogDPnKVRN7wz/VF8nt6LkA==",  # Debug Key
-    "AQ==",                       # Default (0x01)  — public channel
-    "1PG7OiApB1nwvP+rz05pAQ==",  # LongFast Preset — public channel
-]
-
-def _expand_psk(b64: str) -> bytes:
-    k = base64.b64decode(b64)
-    n = len(k)
-    if n == 1:  return k * 16
-    if n == 8:  return k + k
-    if n in (16, 32): return k
-    return (k + b'\x00' * (16 - n)) if n < 16 else k[:32]
-
-_COMPILED_PSKS = [_expand_psk(b) for b in _PSKS]
-
-
-def _decode_varint(data: bytes, offset: int) -> Tuple[int, int]:
-    result, shift, consumed = 0, 0, 0
-    while offset + consumed < len(data):
-        b = data[offset + consumed]; consumed += 1
-        result |= (b & 0x7F) << shift; shift += 7
-        if not (b & 0x80): break
-    return result, consumed
-
-
-def _try_decrypt(raw: bytes) -> Optional[bytes]:
-    """
-    Try all PSKs against a raw Meshtastic packet.
-    Returns decrypted Data protobuf bytes if a key works, else None.
-    Validity check: first byte must be 0x08 (field 1 varint) and portnum in 1–127.
-    """
-    if not CRYPTO_AVAILABLE or len(raw) < 20:
-        return None
-    src_int = struct.unpack('<I', raw[4:8])[0]
-    pid     = struct.unpack('<I', raw[8:12])[0]
-    payload = raw[16:]
-    if not payload:
-        return None
-    nonce = struct.pack('<IIII', pid, 0, src_int, 0)
-    for key in _COMPILED_PSKS:
-        try:
-            pt = Cipher(algorithms.AES(key), modes.CTR(nonce),
-                        backend=default_backend()).decryptor().update(payload)
-            if not pt or pt[0] != 0x08:
-                continue
-            portnum = pt[1] if len(pt) > 1 else 0
-            if portnum == 0 or portnum > 127:
-                continue
-            return pt
-        except Exception:
-            pass
-    return None
-
-
-def _parse_position(inner: bytes) -> Optional[Tuple[float, float, float]]:
-    """
-    Parse a Meshtastic Position protobuf.
-    Returns (lat_deg, lon_deg, alt_m) or None.
-    Position fields: lat_i=1 sfixed32, lon_i=2 sfixed32, alt=3 int32.
-    """
-    lat_i = lon_i = alt = None
-    offset = 0
-    while offset < len(inner):
-        tag, c = _decode_varint(inner, offset); offset += c
-        fn, wt = tag >> 3, tag & 0x07
-        if fn == 1 and wt == 5 and offset + 4 <= len(inner):
-            lat_i = struct.unpack('<i', inner[offset:offset+4])[0]; offset += 4
-        elif fn == 2 and wt == 5 and offset + 4 <= len(inner):
-            lon_i = struct.unpack('<i', inner[offset:offset+4])[0]; offset += 4
-        elif fn == 3 and wt == 0:
-            alt, c = _decode_varint(inner, offset); offset += c
-        elif wt == 0:
-            _, c = _decode_varint(inner, offset); offset += c
-        elif wt == 2:
-            l, c = _decode_varint(inner, offset); offset += c + l
-        elif wt == 5:
-            offset += 4
-        elif wt == 1:
-            offset += 8
-        else:
-            break
-    if lat_i is not None and lon_i is not None:
-        lat = lat_i / 1e7
-        lon = lon_i / 1e7
-        if lat != 0.0 or lon != 0.0:
-            return (lat, lon, float(alt or 0))
-    return None
-
-
-def _extract_inner(pt: bytes) -> Optional[bytes]:
-    """Extract field 2 (payload bytes) from a decrypted Data protobuf."""
-    offset = 0
-    while offset < len(pt):
-        tag, c = _decode_varint(pt, offset); offset += c
-        fn, wt = tag >> 3, tag & 0x07
-        if fn == 2 and wt == 2:
-            l, c = _decode_varint(pt, offset); offset += c
-            return pt[offset:offset + l]
-        if wt == 0:
-            _, c = _decode_varint(pt, offset); offset += c
-        elif wt == 2:
-            l, c = _decode_varint(pt, offset); offset += c + l
-        elif wt == 5:
-            offset += 4
-        elif wt == 1:
-            offset += 8
-        else:
-            break
-    return None
-
-
-PORT_POSITION = 3
-
-
-def _enrich_positions(filepath: str, nodes: Dict) -> int:
-    """
-    Second pass over a CSV: decrypt Meshtastic packets, find portnum=3 (POSITION),
-    parse the inner Position proto, and inject real node GPS into NodeTrack objects.
-    Returns count of position packets successfully decrypted.
-    """
-    if not CRYPTO_AVAILABLE:
+def _enrich_positions(packets: Iterable[CapturedPacket], nodes: Dict[str, "NodeTrack"]) -> int:
+    """Decrypt Meshtastic POSITION packets and inject real node GPS into NodeTrack."""
+    if not decode.CRYPTO_AVAILABLE:
         return 0
     found = 0
-    # Track which nodes got real positions so we can clear sniffer positions after.
-    enriched = set()
-    with open(filepath, 'r', encoding='utf-8') as fh:
-        for row in csv.DictReader(fh):
-            if row.get('protocol') != 'Meshtastic':
-                continue
-            raw_hex = row.get('raw_hex', '')
-            if not raw_hex:
-                continue
-            try:
-                raw = bytes.fromhex(raw_hex)
-            except ValueError:
-                continue
-            pt = _try_decrypt(raw)
-            if not pt:
-                continue
-            portnum = pt[1] if len(pt) > 1 else 0
-            if portnum != PORT_POSITION:
-                continue
-            inner = _extract_inner(pt)
-            if not inner:
-                continue
-            pos = _parse_position(inner)
-            if not pos:
-                continue
-            nid = row.get('node_id_hex', '') or 'unknown'
-            if nid in nodes:
-                if nid not in enriched:
-                    # First real position for this node: clear sniffer positions
-                    nodes[nid].positions = []
-                    enriched.add(nid)
-                nodes[nid].positions.append(pos)
-                found += 1
+    enriched: set[str] = set()
+    for p in packets:
+        if p.protocol != 'Meshtastic' or not p.raw_hex:
+            continue
+        result = decode.try_decrypt(p.raw_bytes)
+        if not result or result.portnum != decode.PORT_POSITION:
+            continue
+        inner = decode.extract_inner(result.plaintext)
+        if not inner:
+            continue
+        pos = decode.parse_position(inner)
+        if not pos:
+            continue
+        nid = p.node_id_hex
+        if nid in nodes:
+            if nid not in enriched:
+                nodes[nid].positions = []
+                enriched.add(nid)
+            nodes[nid].positions.append(pos)
+            found += 1
     return found
 
-# Protocol → marker color (folium colors)
+
 PROTOCOL_COLORS = {
     'Meshtastic': 'blue',
     'MeshCore':   'red',
@@ -252,26 +89,17 @@ class NodeTrack:
         self.protocol  = 'Unknown'
         self.packets   = 0
         self.rssi_vals: List[float] = []
-        self.positions: List[Tuple[float, float, float]] = []  # lat, lon, alt
+        self.positions: List[Tuple[float, float, float]] = []
 
-    def add(self, row: Dict):
+    def add(self, p: CapturedPacket):
         self.packets += 1
-        proto = row.get('protocol', '')
-        if proto:
-            self.protocol = proto
-        try:
-            rssi = float(row.get('rssi_dbm', '') or '')
-            self.rssi_vals.append(rssi)
-        except (ValueError, TypeError):
-            pass
-        try:
-            lat = float(row.get('lat_deg', '') or '')
-            lon = float(row.get('lon_deg', '') or '')
-            alt = float(row.get('alt_m', '') or 0)
-            if lat != 0.0 or lon != 0.0:
-                self.positions.append((lat, lon, alt))
-        except (ValueError, TypeError):
-            pass
+        if p.protocol:
+            self.protocol = p.protocol
+        if p.rssi_dbm:
+            self.rssi_vals.append(p.rssi_dbm)
+        if p.lat_deg is not None and p.lon_deg is not None:
+            if p.lat_deg != 0.0 or p.lon_deg != 0.0:
+                self.positions.append((p.lat_deg, p.lon_deg, p.alt_m or 0.0))
 
     @property
     def best_position(self) -> Optional[Tuple[float, float, float]]:
@@ -307,29 +135,29 @@ class NodeTrack:
         )
 
 
-def load_csv(filepath: str) -> Dict[str, NodeTrack]:
+def aggregate_nodes(cap: Capture) -> Dict[str, NodeTrack]:
+    """Build per-node aggregates from a Capture, enriching GPS from POSITION packets if needed."""
     nodes: Dict[str, NodeTrack] = {}
-    with open(filepath, 'r', encoding='utf-8') as fh:
-        for row in csv.DictReader(fh):
-            nid = row.get('node_id_hex', '') or 'unknown'
-            if nid not in nodes:
-                nodes[nid] = NodeTrack(nid)
-            nodes[nid].add(row)
+    for p in cap:
+        nid = p.node_id_hex or 'unknown'
+        if nid not in nodes:
+            nodes[nid] = NodeTrack(nid)
+        nodes[nid].add(p)
 
-    # Detect sniffer-GPS-only data: all node positions cluster tightly together
-    # (within ~200m), meaning the CSV's lat/lon is the sniffer location, not the nodes'.
+    # Sniffer-GPS-only detection: if every node position is within ~200m of
+    # every other, the CSV's lat/lon is the sniffer — decrypt Meshtastic
+    # POSITION packets to recover real node GPS.
     positioned = [n for n in nodes.values() if n.best_position]
     if positioned:
         lats = [n.best_position[0] for n in positioned]
         lons = [n.best_position[1] for n in positioned]
         lat_spread = max(lats) - min(lats)
         lon_spread = max(lons) - min(lons)
-        # ~0.002 degrees ≈ 200m — any real deployment spans more than this
         if lat_spread < 0.002 and lon_spread < 0.002:
             print(f"Sniffer-GPS-only data detected (all {len(positioned)} nodes within "
                   f"{lat_spread*111000:.0f}m × {lon_spread*111000:.0f}m).")
             print("Decrypting Meshtastic POSITION packets for real node locations...")
-            found = _enrich_positions(filepath, nodes)
+            found = _enrich_positions(cap, nodes)
             if found:
                 enriched_nodes = sum(1 for n in nodes.values() if n.best_position)
                 print(f"Decrypted {found} position packets → {enriched_nodes} nodes with real GPS")
@@ -341,27 +169,18 @@ def load_csv(filepath: str) -> Dict[str, NodeTrack]:
     return nodes
 
 
-def load_api(host: str) -> Dict[str, NodeTrack]:
-    if not REQUESTS_AVAILABLE:
-        sys.exit("ERROR: pip install requests")
+def nodes_from_devices(devices: List[Device]) -> Dict[str, NodeTrack]:
+    """Build NodeTrack dict from a pre-aggregated Device list (from /api/devices)."""
     nodes: Dict[str, NodeTrack] = {}
-    try:
-        r = requests.get(f"http://{host}/api/devices", timeout=10)
-        for d in r.json().get('devices', []):
-            nid = d.get('nodeId', 'unknown')
-            nt = NodeTrack(nid)
-            nt.protocol = d.get('protocol', 'Unknown')
-            nt.packets  = d.get('packetCount', 0)
-            if d.get('rssi'):
-                nt.rssi_vals = [d['rssi']]
-            lat = d.get('lat') or d.get('latitude')
-            lon = d.get('lon') or d.get('longitude')
-            if lat and lon:
-                nt.positions.append((float(lat), float(lon), 0.0))
-            nodes[nid] = nt
-        print(f"[API] {len(nodes)} devices from {host}")
-    except Exception as e:
-        sys.exit(f"[API] Error: {e}")
+    for d in devices:
+        nt = NodeTrack(d.node_id)
+        nt.protocol = d.protocol
+        nt.packets  = d.packet_count
+        if d.rssi_dbm is not None:
+            nt.rssi_vals = [d.rssi_dbm]
+        if d.lat_deg is not None and d.lon_deg is not None:
+            nt.positions.append((d.lat_deg, d.lon_deg, d.alt_m or 0.0))
+        nodes[d.node_id] = nt
     return nodes
 
 
@@ -393,13 +212,11 @@ def render_folium(nodes: Dict[str, NodeTrack], output: str):
             tooltip=f"{nid[-8:]} ({node.protocol})",
         ).add_to(cluster)
 
-        # Draw path if node moved significantly
         if len(node.positions) > 1:
             path_coords = [(lat, lon) for lat, lon, _ in node.positions]
             folium.PolyLine(path_coords, color=node.color,
                             weight=1.5, opacity=0.5).add_to(m)
 
-    # Protocol legend (as a simple HTML layer)
     proto_counts: Dict[str, int] = defaultdict(int)
     for node in positioned.values():
         proto_counts[node.protocol] += 1
@@ -437,7 +254,6 @@ def render_matplotlib(nodes: Dict[str, NodeTrack], output: str):
     ax.set_facecolor('#1a1a2e')
     fig.patch.set_facecolor('#1a1a2e')
 
-    # Group by protocol for legend
     proto_groups: Dict[str, List] = defaultdict(list)
     for nid, node in positioned.items():
         proto_groups[node.protocol].append(node)
@@ -446,15 +262,13 @@ def render_matplotlib(nodes: Dict[str, NodeTrack], output: str):
         lons = [n.best_position[1] for n in group]
         lats = [n.best_position[0] for n in group]
         sizes = [30 + n.packets * 2 for n in group]
-        # Map folium color name to matplotlib color
         col_map = {'blue': '#4682b4', 'red': '#e74c3c', 'green': '#2ecc71',
                    'gray': '#888888', 'purple': '#9b59b6', 'lightgray': '#555555'}
         col = col_map.get(PROTOCOL_COLORS.get(proto, 'lightgray'), '#4682b4')
         ax.scatter(lons, lats, s=sizes, c=col, alpha=0.8, label=proto, zorder=5)
 
         for node in group:
-            _, lon, _ = node.best_position  # using lon as x
-            lat, _, _ = node.best_position
+            lat, lon, _ = node.best_position
             ax.annotate(node.node_id[-6:], (lon, lat),
                         fontsize=6, color='white', alpha=0.7,
                         xytext=(3, 3), textcoords='offset points')
@@ -466,7 +280,7 @@ def render_matplotlib(nodes: Dict[str, NodeTrack], output: str):
     ax.tick_params(colors='white')
     for spine in ax.spines.values():
         spine.set_edgecolor('#444444')
-    legend = ax.legend(facecolor='#2a2a4e', labelcolor='white', fontsize=9)
+    ax.legend(facecolor='#2a2a4e', labelcolor='white', fontsize=9)
     plt.tight_layout()
 
     if output.endswith('.html'):
@@ -481,26 +295,27 @@ def render_matplotlib(nodes: Dict[str, NodeTrack], output: str):
 # ---------------------------------------------------------------------------
 
 def main():
-    ap = argparse.ArgumentParser(
-        description='Plot captured LoRa node GPS positions on an interactive map.')
-    src = ap.add_mutually_exclusive_group(required=True)
-    src.add_argument('file', nargs='?', help='CSV capture file')
-    src.add_argument('--api', metavar='HOST', help='Pull live data from ESP32 API')
-    ap.add_argument('-o', '--output', metavar='FILE',
-                    help='Output file (.html for interactive, .png for static)')
+    ap = cli.base_parser('Plot captured LoRa node GPS positions on an interactive map.')
     ap.add_argument('--min-packets', type=int, default=1, metavar='N',
                     help='Only show nodes with at least N packets (default: 1)')
     args = ap.parse_args()
 
     if args.api:
-        nodes = load_api(args.api)
+        # /api/devices is aggregated, not per-packet — use load_devices, not
+        # capture.load (which hits /api/replay/slots, limited to 8 packets).
+        devices = capture_loader.load_devices(args.api)
+        print(f"[API] {len(devices)} devices from {args.api}")
+        nodes = nodes_from_devices(devices)
         out = args.output or f"map_{args.api.replace('.', '_')}.html"
     else:
-        p = Path(args.file)
+        if not args.input:
+            sys.exit("ERROR: provide a capture file or --api HOST")
+        p = Path(args.input)
         if not p.exists():
-            sys.exit(f"File not found: {args.file}")
-        nodes = load_csv(str(p))
-        print(f"Loaded {len(nodes)} nodes from {p.name}")
+            sys.exit(f"File not found: {args.input}")
+        cap = capture_loader.load(str(p))
+        nodes = aggregate_nodes(cap)
+        print(f"Loaded {len(nodes)} nodes from {p.name} ({len(cap)} packets)")
         out = args.output or (p.stem + '_map.html')
 
     if args.min_packets > 1:

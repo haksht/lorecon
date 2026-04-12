@@ -17,18 +17,17 @@ Requirements:
     pip install cryptography   (for Meshtastic PSK decryption)
 """
 
-import argparse
 import base64
-import csv
 import hashlib
-import hmac as _hmac
 import struct
 import sys
-sys.stdout.reconfigure(encoding='utf-8', errors='replace')
-sys.stderr.reconfigure(encoding='utf-8', errors='replace')
 from collections import defaultdict
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
+
+from tools.core import capture as capture_loader
+from tools.core import cli, decode
+from tools.core.models import Capture, CapturedPacket
 
 try:
     import networkx as nx
@@ -38,76 +37,7 @@ try:
 except ImportError:
     RENDER_AVAILABLE = False
 
-try:
-    from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
-    from cryptography.hazmat.backends import default_backend
-    CRYPTO_AVAILABLE = True
-except ImportError:
-    CRYPTO_AVAILABLE = False
-
-try:
-    import requests
-    REQUESTS_AVAILABLE = True
-except ImportError:
-    REQUESTS_AVAILABLE = False
-
-# ---------------------------------------------------------------------------
-# Meshtastic PSK decryption
-# ---------------------------------------------------------------------------
-
-DEFAULT_PSKS = [
-    "AQ==", "1PG7OiApB1nwvP+rz05pAQ==", "Ag==", "Aw==", "BA==", "BQ==",
-    "Bg==", "Bw==", "CA==", "CQ==", "AAAAAAAAAAAAAAAAAAAAAA==",
-    "MTIzNDU2Nzg5MDEyMzQ1Ng==", "dGVzdHRlc3R0ZXN0dGVzdA==",
-    "bWVzaHRhc3RpY21lc2h0YXN0", "PKdTs51e4EB0BoOevIN0Dw==",
-    "shmLkA9H74gAeLH3eGCqsw==", "ogDPnKVRN7wz/VF8nt6LkA==",
-    "ZQ+HdKKbbAU4dSCGt66Qqw==", "d1iq21lNSh7BP6MOkP6cQA==",
-    "/u7k03L8N3Q=", "ZiETcjFHbk+ygALDp8tB3g==",
-    "LiDWCBX5RWCGy3T9dKiTpw==", "8LQW/RhCEWKyV9HfSF3osA==",
-]
-
-def _expand_psk(b64_key: str) -> bytes:
-    key = base64.b64decode(b64_key)
-    n = len(key)
-    if n == 1:
-        return key * 16          # single byte repeated
-    if n == 8:
-        return key + key         # doubled to 16 bytes
-    if n == 16 or n == 32:
-        return key
-    if n < 16:
-        return key + b'\x00' * (16 - n)
-    return key[:32]
-
-
-def _build_nonce(packet_id: int, node_id_int: int) -> bytes:
-    # Meshtastic nonce: packet_id at [0:4], zeros at [4:8], node_id at [8:12], zeros at [12:16]
-    return struct.pack('<IIII', packet_id, 0, node_id_int, 0)
-
-
-def _meshtastic_try_decrypt(header: Dict, payload: bytes) -> Optional[Tuple[str, bytes]]:
-    """Try all known PSKs. Returns (key_name, plaintext) or None."""
-    if not CRYPTO_AVAILABLE or not payload:
-        return None
-    packet_id = header['packet_id']
-    node_id_int = int(header['node_id'][1:], 16)
-    nonce = _build_nonce(packet_id, node_id_int)
-    for b64 in DEFAULT_PSKS:
-        key = _expand_psk(b64)
-        try:
-            cipher = Cipher(algorithms.AES(key), modes.CTR(nonce), backend=default_backend())
-            dec = cipher.decryptor()
-            pt = dec.update(payload) + dec.finalize()
-            # Validity: first tag must be field 1 (portnum) varint, value in Meshtastic range
-            if not pt or pt[0] != 0x08:  # field 1, wire type 0 (varint)
-                continue
-            portnum = pt[1] if len(pt) > 1 else 0
-            if portnum == 0 or portnum > 512:
-                continue
-            return (b64, pt)
-        except Exception:
-            continue
-    return None
+CRYPTO_AVAILABLE = decode.CRYPTO_AVAILABLE
 
 
 # ---------------------------------------------------------------------------
@@ -144,7 +74,6 @@ def _parse_meshtastic_header(raw: bytes) -> Optional[Dict]:
 
 
 def _parse_data_portnum(payload: bytes) -> Optional[int]:
-    """Extract portnum (field 1) from decrypted Data protobuf."""
     offset = 0
     while offset < len(payload):
         tag, c = _decode_varint(payload, offset); offset += c
@@ -165,7 +94,6 @@ def _parse_data_portnum(payload: bytes) -> Optional[int]:
 
 
 def _parse_inner_payload(payload: bytes) -> Optional[bytes]:
-    """Extract inner payload bytes (field 2) from decrypted Data protobuf."""
     offset = 0
     while offset < len(payload):
         tag, c = _decode_varint(payload, offset); offset += c
@@ -187,17 +115,12 @@ def _parse_inner_payload(payload: bytes) -> Optional[bytes]:
 
 
 def _parse_traceroute(inner: bytes) -> List[str]:
-    """
-    RouteDiscovery.route: packed repeated uint32 (field 1, wire type 2).
-    The payload bytes are raw 4-byte little-endian node IDs concatenated.
-    """
     route, offset = [], 0
     while offset < len(inner):
         tag, c = _decode_varint(inner, offset); offset += c
         fn, wt = tag >> 3, tag & 0x07
-        if fn == 1 and wt == 2:  # packed bytes
+        if fn == 1 and wt == 2:
             l, c = _decode_varint(inner, offset); offset += c
-            # Each 4 bytes is one node ID (little-endian uint32)
             for i in range(0, l, 4):
                 if offset + 4 <= len(inner):
                     nid = struct.unpack('<I', inner[offset:offset+4])[0]
@@ -215,10 +138,6 @@ def _parse_traceroute(inner: bytes) -> List[str]:
 
 
 def _parse_neighborinfo(inner: bytes) -> List[Dict]:
-    """
-    NeighborInfo wrapper → repeated Neighbor messages (field 4).
-    Neighbor sub-message: node_id = field 1 varint (wire 0), snr = field 2 float (wire 5).
-    """
     neighbors, offset = [], 0
     while offset < len(inner):
         tag, c = _decode_varint(inner, offset); offset += c
@@ -231,10 +150,10 @@ def _parse_neighborinfo(inner: bytes) -> List[Dict]:
             while si < len(sub):
                 st, sc = _decode_varint(sub, si); si += sc
                 sf, sw = st >> 3, st & 0x07
-                if sf == 1 and sw == 0:          # node_id: varint
+                if sf == 1 and sw == 0:
                     v, sc = _decode_varint(sub, si); si += sc
                     nb['node_id'] = f"!{v:08x}"
-                elif sf == 2 and sw == 5 and si + 4 <= len(sub):  # SNR: float32
+                elif sf == 2 and sw == 5 and si + 4 <= len(sub):
                     nb['snr'] = struct.unpack('<f', sub[si:si+4])[0]
                     si += 4
                 elif sw == 0:
@@ -264,11 +183,6 @@ PORT_NEIGHBORINFO = 71
 
 
 def _parse_user_proto(inner: bytes) -> Optional[Tuple[str, str]]:
-    """
-    Parse a Meshtastic User protobuf (inner payload of a NODEINFO_APP packet).
-    Returns (short_name, long_name) or None.
-    User fields: id=1 (string), long_name=2 (string), short_name=3 (string).
-    """
     short_name = long_name = None
     offset = 0
     while offset < len(inner):
@@ -313,7 +227,6 @@ MC_ALL_KEYS = _mc_keys()
 
 
 def _parse_meshcore_packet(data: bytes) -> Optional[Dict]:
-    """Parse a MeshCore packet, return path list or None."""
     if len(data) < 3:
         return None
     hdr          = data[0]
@@ -340,7 +253,7 @@ def _parse_meshcore_packet(data: bytes) -> Optional[Dict]:
 
 
 # ---------------------------------------------------------------------------
-# PCAP reader
+# ESP32 PCAP reader (custom LoRa header — same as report.py)
 # ---------------------------------------------------------------------------
 
 LORA_HEADER_FMT  = '<fffBIBH'
@@ -353,7 +266,7 @@ def _read_pcap(filepath: str):
             magic = struct.unpack('<I', fh.read(4))[0]
             if magic not in (0xa1b2c3d4, 0xa1b23c4d):
                 return
-            fh.read(20)  # skip rest of global header
+            fh.read(20)
             while True:
                 rec = fh.read(16)
                 if not rec or len(rec) < 16:
@@ -374,14 +287,10 @@ def _read_pcap(filepath: str):
 
 class TopologyGraph:
     def __init__(self):
-        # nodes: id -> {label, color, packets, is_router}
         self.nodes: Dict[str, Dict] = {}
-        # edges: (a,b) -> {weight, snr_sum, snr_count, directed}
         self.edges: Dict[Tuple, Dict] = {}
-        # names: node_id -> (short_name, long_name) from NodeInfo packets
         self.names: Dict[str, Tuple[str, str]] = {}
         self.protocol = 'Unknown'
-        # source packet counters for the stats panel
         self.traceroute_count   = 0
         self.neighborinfo_count = 0
         self.total_packets      = 0
@@ -401,38 +310,35 @@ class TopologyGraph:
             self.edges[key]['snr_sum'] += snr
             self.edges[key]['snr_count'] += 1
 
-    def load_csv(self, filepath: str, decrypt: bool = True):
-        rows_by_protocol: Dict[str, List] = defaultdict(list)
-        with open(filepath, 'r', encoding='utf-8') as fh:
-            for row in csv.DictReader(fh):
-                proto = row.get('protocol', '')
-                rows_by_protocol[proto].append(row)
+    def ingest_capture(self, cap: Capture, decrypt: bool = True) -> None:
+        by_protocol: Dict[str, List[CapturedPacket]] = defaultdict(list)
+        for p in cap:
+            by_protocol[p.protocol].append(p)
 
-        for proto, rows in rows_by_protocol.items():
+        for proto, packets in by_protocol.items():
             if 'MeshCore' in proto or 'meshcore' in proto.lower():
-                self._load_meshcore_rows(rows)
+                self._load_meshcore_packets(packets)
             elif 'Meshtastic' in proto or 'meshtastic' in proto.lower():
-                self._load_meshtastic_rows(rows, decrypt)
-                self._infer_relay_edges(rows)
+                self._load_meshtastic_packets(packets, decrypt)
+                self._infer_relay_edges(packets)
 
         if self.nodes:
-            protocols = list(rows_by_protocol.keys())
-            self.protocol = protocols[0] if len(protocols) == 1 else 'Mixed'
+            protos = list(by_protocol.keys())
+            self.protocol = protos[0] if len(protos) == 1 else 'Mixed'
 
-    def _load_meshcore_rows(self, rows: List):
-        self.total_packets += len(rows)
-        for row in rows:
-            nid = row.get('node_id_hex', '') or ''
-            if not nid:
+    def _load_meshcore_packets(self, packets: List[CapturedPacket]):
+        self.total_packets += len(packets)
+        for p in packets:
+            nid = p.node_id_hex or ''
+            if not nid or nid == 'unknown':
                 continue
             self._node(nid, packets=self.nodes.get(nid, {}).get('packets', 0) + 1,
-                       is_router=row.get('is_router', '0') == '1')
+                       is_router=p.is_router)
 
-            raw_hex = row.get('raw_hex', '')
-            if not raw_hex:
+            if not p.raw_hex:
                 continue
             try:
-                raw = bytes.fromhex(raw_hex)
+                raw = p.raw_bytes
             except ValueError:
                 continue
 
@@ -441,30 +347,26 @@ class TopologyGraph:
                 continue
 
             path = parsed['path']
-            snr = float(row.get('snr_db', 0) or 0)
             for i in range(len(path) - 1):
                 self._node(path[i])
                 self._node(path[i+1])
-                self._edge(path[i], path[i+1], snr=snr, directed=True)
+                self._edge(path[i], path[i+1], snr=p.snr_db, directed=True)
 
-    def _load_meshtastic_rows(self, rows: List, decrypt: bool):
-        self.total_packets += len(rows)
-        for row in rows:
-            nid = row.get('node_id_hex', '') or ''
-            if not nid:
+    def _load_meshtastic_packets(self, packets: List[CapturedPacket], decrypt: bool):
+        self.total_packets += len(packets)
+        for p in packets:
+            nid = p.node_id_hex or ''
+            if not nid or nid == 'unknown':
                 continue
             if not nid.startswith('!'):
                 nid = '!' + nid
             self._node(nid, packets=self.nodes.get(nid, {}).get('packets', 0) + 1,
-                       is_router=row.get('is_router', '0') == '1',
-                       label=nid[-6:])
+                       is_router=p.is_router, label=nid[-6:])
 
-            ptype = row.get('packet_type', '')
-            raw_hex = row.get('raw_hex', '')
-            if not raw_hex or not decrypt:
+            if not p.raw_hex or not decrypt:
                 continue
             try:
-                raw = bytes.fromhex(raw_hex)
+                raw = p.raw_bytes
             except ValueError:
                 continue
 
@@ -475,28 +377,24 @@ class TopologyGraph:
             src = header['node_id']
             self._node(src)
 
-            # Attempt decryption on any encrypted packet — portnum tells us what's inside
-            encrypted = row.get('encrypted', '0') in ('1', 'true', 'True')
-            if not encrypted:
+            if not p.encrypted:
                 continue
 
-            result = _meshtastic_try_decrypt(header, header['payload'])
+            result = decode.try_decrypt(raw)
             if not result:
                 continue
-            _, pt = result
-
-            portnum = _parse_data_portnum(pt)
+            pt = result.plaintext
+            portnum = result.portnum
             inner   = _parse_inner_payload(pt)
             if inner is None:
                 continue
 
-            snr = float(row.get('snr_db', 0) or 0)
+            snr = p.snr_db
 
             if portnum == PORT_TRACEROUTE:
                 self.traceroute_count += 1
                 dest = header['dest']
                 route = _parse_traceroute(inner)
-                # Even an empty route means src↔dest are directly connected
                 full_path = [src] + route + [dest]
                 for i in range(len(full_path) - 1):
                     self._node(full_path[i])
@@ -516,70 +414,81 @@ class TopologyGraph:
                 if names:
                     self.names[src] = names
 
-    def _infer_relay_edges(self, rows: List):
+    def _infer_relay_edges(self, packets: List[CapturedPacket]):
         """
         Infer mesh links from the relay byte (byte 15) in Meshtastic headers.
 
-        When a node relays a packet, it stamps its last ID byte into byte 15.
-        If the sniffer hears the same packet_id at two different hop_limits,
-        the copy with hop_limit = original - 1 was relayed by byte15's node,
-        proving that node is a direct neighbor of the source.
+        Prefers typed CapturedPacket fields (packet_id / relay_byte / hop_count
+        from the 2026-04-12 CSV columns). Falls back to raw_hex parsing for
+        older captures that lack those columns.
         """
-        # Build last_byte -> node_id mapping from all known sources
+        # Pass 1: build last-byte → node map. Normalize node IDs to the same
+        # "!aabbccdd" (8-char hex, no 0x prefix) format used by edge creation,
+        # so self._node(relay_node) merges with nodes already created that way.
         node_by_last: Dict[int, List[str]] = defaultdict(list)
         node_pkts: Dict[str, int] = defaultdict(int)
-
-        for row in rows:
-            raw_hex = row.get('raw_hex', '')
-            if not raw_hex or len(raw_hex) < 32:
+        for p in packets:
+            nid_hex = p.node_id_hex or ''
+            if not nid_hex or nid_hex == 'unknown':
                 continue
             try:
-                raw = bytes.fromhex(raw_hex)
+                src = int(nid_hex.lstrip('!'), 16)
             except ValueError:
                 continue
-            if len(raw) < 16:
-                continue
-            src = struct.unpack('<I', raw[4:8])[0]
             src_hex = f"!{src:08x}"
             node_pkts[src_hex] += 1
             lb = src & 0xFF
             if src_hex not in node_by_last[lb]:
                 node_by_last[lb].append(src_hex)
 
-        # Resolve collisions: pick the node with the most packets
         lb_to_node: Dict[int, str] = {}
         for lb, nids in node_by_last.items():
             lb_to_node[lb] = max(nids, key=lambda n: node_pkts[n])
 
-        # Group packets by (src, packet_id) to find original hop_limit
+        # Pass 2: group copies by (src, packet_id)
         pid_copies: Dict[Tuple[int, int], List[Tuple[int, int, float]]] = defaultdict(list)
-        for row in rows:
-            raw_hex = row.get('raw_hex', '')
-            if not raw_hex or len(raw_hex) < 32:
+        for p in packets:
+            nid_hex = p.node_id_hex or ''
+            if not nid_hex or nid_hex == 'unknown':
                 continue
-            try:
-                raw = bytes.fromhex(raw_hex)
-            except ValueError:
-                continue
-            if len(raw) < 16:
-                continue
-            src = struct.unpack('<I', raw[4:8])[0]
-            pid = struct.unpack('<I', raw[8:12])[0]
-            hop_limit = raw[12] & 0x07
-            b15 = raw[15]
-            snr = float(row.get('snr_db', 0) or 0)
-            pid_copies[(src, pid)].append((hop_limit, b15, snr))
+            pid = p.packet_id
+            hop_limit = p.hop_count
+            b15 = p.relay_byte
+            if pid is not None and hop_limit is not None:
+                # Typed-field path: packet_id came in from CSV as hex; we already
+                # parsed it to int. relay_byte may be None (missing column on
+                # older rows) — fall back to (src & 0xFF) to match original.
+                try:
+                    src = int(nid_hex.lstrip('!'), 16)
+                except ValueError:
+                    continue
+                if b15 is None:
+                    b15 = src & 0xFF
+            else:
+                # Fallback: parse from raw hex
+                if not p.raw_hex or len(p.raw_hex) < 32:
+                    continue
+                try:
+                    raw = p.raw_bytes
+                except ValueError:
+                    continue
+                if len(raw) < 16:
+                    continue
+                src = struct.unpack('<I', raw[4:8])[0]
+                pid = struct.unpack('<I', raw[8:12])[0]
+                hop_limit = raw[12] & 0x07
+                b15 = raw[15]
+            pid_copies[(src, pid)].append((hop_limit, b15, p.snr_db))
 
-        # Infer direct-neighbor edges where hop_limit decremented by exactly 1
         relay_edge_count = 0
         for (src, pid), copies in pid_copies.items():
             src_last = src & 0xFF
             max_hop = max(hl for hl, _, _ in copies)
             for hl, b15, snr in copies:
                 if b15 == src_last:
-                    continue  # original copy, not relayed
+                    continue
                 if max_hop - hl != 1:
-                    continue  # not a direct neighbor relay
+                    continue
                 if b15 not in lb_to_node:
                     continue
                 relay_node = lb_to_node[b15]
@@ -592,9 +501,8 @@ class TopologyGraph:
             print(f"Inferred {relay_edge_count} relay observations")
 
     def load_pcap(self, filepath: str, decrypt: bool = True):
-        meshtastic_payloads: List[Tuple[bytes, float]] = []  # (raw, snr)
+        meshtastic_payloads: List[Tuple[bytes, float]] = []
         for freq, rssi, snr, payload in _read_pcap(filepath):
-            # Try MeshCore first (simpler structure)
             parsed = _parse_meshcore_packet(payload)
             if parsed and len(parsed['path']) >= 2:
                 path = parsed['path']
@@ -605,16 +513,15 @@ class TopologyGraph:
                 self.protocol = 'MeshCore'
                 continue
 
-            # Try Meshtastic
             if decrypt:
                 header = _parse_meshtastic_header(payload)
                 if header:
                     meshtastic_payloads.append((payload, snr))
                     self._node(header['node_id'])
-                    result = _meshtastic_try_decrypt(header, header['payload'])
+                    result = decode.try_decrypt(payload)
                     if result:
-                        _, pt = result
-                        portnum = _parse_data_portnum(pt)
+                        pt = result.plaintext
+                        portnum = result.portnum
                         inner   = _parse_inner_payload(pt)
                         if inner:
                             src = header['node_id']
@@ -638,12 +545,10 @@ class TopologyGraph:
                                     self.names[src] = names
                         self.protocol = 'Meshtastic'
 
-        # Relay inference from PCAP Meshtastic payloads
         if meshtastic_payloads:
             self._infer_relay_edges_raw(meshtastic_payloads)
 
     def _infer_relay_edges_raw(self, payloads: List[Tuple[bytes, float]]):
-        """Relay inference for PCAP payloads (same algorithm as CSV variant)."""
         node_by_last: Dict[int, List[str]] = defaultdict(list)
         node_pkts: Dict[str, int] = defaultdict(int)
         pid_copies: Dict[Tuple[int, int], List[Tuple[int, int, float]]] = defaultdict(list)
@@ -682,23 +587,20 @@ class TopologyGraph:
         if relay_edge_count:
             print(f"Inferred {relay_edge_count} relay observations")
 
-    def load_api(self, host: str):
-        if not REQUESTS_AVAILABLE:
-            print("ERROR: pip install requests")
-            return
+    def ingest_devices_api(self, host: str):
         try:
-            r = requests.get(f"http://{host}/api/devices", timeout=10)
-            for d in r.json().get('devices', []):
-                nid = d.get('nodeId', '')
-                if nid:
-                    self._node(nid, label=nid[-6:], packets=d.get('packetCount', 0),
-                               is_router=d.get('isRouter', False))
-            print(f"[API] Loaded {len(self.nodes)} devices from {host}")
+            devices = capture_loader.load_devices(host)
         except Exception as e:
             print(f"[API] Error: {e}")
+            return
+        for d in devices:
+            nid = d.node_id
+            if nid:
+                self._node(nid, label=nid[-6:], packets=d.packet_count,
+                           is_router=d.raw.get('isRouter', False))
+        print(f"[API] Loaded {len(self.nodes)} devices from {host}")
 
     def classify(self):
-        """Color nodes by role: high-degree = green (gateway), low = grey (edge)."""
         degrees = defaultdict(int)
         for (a, b) in self.edges:
             degrees[a] += 1
@@ -706,13 +608,13 @@ class TopologyGraph:
         for nid, node in self.nodes.items():
             d = degrees[nid]
             if d >= 4:
-                node['color'] = '#2ecc71'  # gateway
+                node['color'] = '#2ecc71'
                 node['shape'] = 's'
             elif d <= 1:
-                node['color'] = '#666666'  # edge
+                node['color'] = '#666666'
                 node['shape'] = 'o'
             else:
-                node['color'] = '#4682b4'  # relay
+                node['color'] = '#4682b4'
                 node['shape'] = 'o'
 
     def render(self, output: Optional[str] = None, title: Optional[str] = None):
@@ -723,8 +625,6 @@ class TopologyGraph:
         self.classify()
         G = nx.DiGraph()
 
-        # Only include nodes that appear in at least one edge — isolated nodes
-        # add nothing to the graph and make dense captures unreadable.
         connected = set()
         for (a, b) in self.edges:
             connected.add(a)
@@ -793,13 +693,12 @@ class TopologyGraph:
                 name = _strip_emoji(name).strip()
                 if name:
                     return name
-            return nid[-9:]  # last 9 chars e.g. !b03cb82c
+            return nid[-9:]
 
         labels = {n: _node_label(n) for n in G.nodes()}
         nx.draw_networkx_labels(G, pos, labels, font_size=font_size,
                                 font_color='white', ax=ax)
 
-        # Edge labels — only show when graph is small enough to read them
         if len(G.nodes) <= 20:
             edge_labels = {}
             seen = set()
@@ -822,7 +721,6 @@ class TopologyGraph:
         ax.legend(handles=legend_items, loc='upper left',
                   facecolor='#2a2a4e', labelcolor='white', fontsize=9)
 
-        # Stats panel — bottom-right corner
         stats_lines = []
         if self.total_packets:
             stats_lines.append(f'Packets analyzed : {self.total_packets:,}')
@@ -879,15 +777,7 @@ class TopologyGraph:
 # ---------------------------------------------------------------------------
 
 def main():
-    ap = argparse.ArgumentParser(
-        description='Render LoRa mesh topology as a PNG graph image.')
-    src = ap.add_mutually_exclusive_group(required=True)
-    src.add_argument('file', nargs='?',
-                     help='CSV or PCAP capture file')
-    src.add_argument('--api', metavar='HOST',
-                     help='Pull device list from live ESP32 API')
-    ap.add_argument('-o', '--output', metavar='FILE',
-                    help='Output PNG file (default: show window)')
+    ap = cli.base_parser('Render LoRa mesh topology as a PNG graph image.')
     ap.add_argument('--no-decrypt', action='store_true',
                     help='Skip Meshtastic PSK decryption (faster)')
     args = ap.parse_args()
@@ -895,23 +785,24 @@ def main():
     g = TopologyGraph()
 
     if args.api:
-        g.load_api(args.api)
+        g.ingest_devices_api(args.api)
+        out = args.output
     else:
-        p = Path(args.file)
+        if not args.input:
+            sys.exit("ERROR: provide a capture file or --api HOST")
+        p = Path(args.input)
         if not p.exists():
-            sys.exit(f"File not found: {args.file}")
+            sys.exit(f"File not found: {args.input}")
         if p.suffix.lower() == '.pcap':
             print(f"Loading PCAP: {p}")
             g.load_pcap(str(p), decrypt=not args.no_decrypt)
         else:
             print(f"Loading CSV: {p}")
-            g.load_csv(str(p), decrypt=not args.no_decrypt)
+            cap = capture_loader.load(str(p))
+            g.ingest_capture(cap, decrypt=not args.no_decrypt)
+        out = args.output or (p.stem + '_topology.png')
 
     g.summary()
-
-    out = args.output
-    if not out and args.file:
-        out = Path(args.file).stem + '_topology.png'
     g.render(output=out)
 
 
