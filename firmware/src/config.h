@@ -167,6 +167,13 @@ namespace Hardware {
         constexpr uint8_t VBAT_CTRL_PIN = 37; // GPIO 37 - ADC control (set HIGH to enable)
         constexpr float VBAT_SCALE = 4.9f;   // Voltage divider scaling factor
 
+        // Heltec V4 external FEM (GC1109 on V4.2, KCT8103L on V4.3)
+        // V4_FEM_EN:     chip enable, HIGH = on (both variants)
+        // V4_FEM_PA_CTX: KCT8103L PA/RX select, LOW = LNA/RX mode (V4.3; unused on V4.2)
+        // Only applied when BOARD_HELTEC_V4 is defined.
+        constexpr uint8_t V4_FEM_EN = 2;
+        constexpr uint8_t V4_FEM_PA_CTX = 5;
+
     #else
         #error "No board type defined! Define BOARD_HELTEC_V3 (V3/V4 no GPS), BOARD_T3_S3, or BOARD_TBEAM_SUPREME in platformio.ini. For Heltec V4 with GPS use the heltec_v4 environment (which defines BOARD_HELTEC_V3 + HAS_GPS)."
     #endif

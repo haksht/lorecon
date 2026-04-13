@@ -90,14 +90,14 @@ No exceptions (embedded C++). Return `bool` for success/failure. Use `LOG_ERROR(
 - **`firmware/src/repositories/`**: Storage layer (delegates from ReconState):
   - `device_repository.h/cpp`: Targetable device storage with Welford's RSSI stats (50 devices max, LRU eviction)
   - `packet_store.h/cpp`: Replay slot management with FIFO circular buffer and packet deduplication
-- **`firmware/src/json_builders.h/cpp`**: Extracted JSON response builders from ReconService (13 functions)
+- **`firmware/src/json_builders.h/cpp`**: Extracted JSON response builders from ReconService (17 functions)
 - **`platformio.ini`**: Build flags include `-DBOARD_HELTEC_V3`, `-DHAS_OLED_DISPLAY`. Filters exclude test files with `build_src_filter`.
 
 ## Common Gotchas
 
 1. **Hardware Specificity**: Pin layout is board-specific — always use `Config::Hardware::*` constants, never hardcode GPIO numbers. `BOARD_HELTEC_V3` covers both V3 and V4 (identical pinout). Don't suggest generic ESP32 solutions.
 2. **Global Instances for ISR**: `g_radioController` and `g_reconTool` required for interrupt handler access. Not a design mistake.
-3. **Memory Constraints**: T3-S3 has 2MB PSRAM (Quad), T-Beam Supreme has 8MB PSRAM (Quad), Heltec V3/V4 has no external PSRAM (320KB SRAM only). Avoid heap fragmentation. `std::vector` with `reserve()` preferred over dynamic allocation in loops.
+3. **Memory Constraints**: T3-S3 has 2MB PSRAM (Quad), T-Beam Supreme has 8MB PSRAM (Quad), Heltec V3/V4 has no external PSRAM (320KB SRAM only). Avoid heap fragmentation: use fixed-size arrays, not `std::vector` (the codebase has zero `std::vector` uses — see CONTRIBUTING.md).
 4. **LittleFS vs SD**: Web app in LittleFS (built-in), PCAP/CSV logs on SD card (optional). Don't confuse the two.
 5. **Frequency Configs**: 29 configs define Meshtastic, LoRaWAN, Helium presets. Cycle time = 29 × 12s = ~5.8 min. Don't suggest random frequency additions.
 6. **No Arduino String**: Use `std::string` or C-strings. Arduino `String` class avoided for memory fragmentation reasons.
@@ -118,17 +118,17 @@ No exceptions (embedded C++). Return `bool` for success/failure. Use `LOG_ERROR(
 
 No unit test framework (embedded constraints). Validation via:
 - **Boot-time PSK tests**: `PSKTests::runAll()` validates decryption with known data
-- **Real hardware testing**: Serial monitor + web UI + live Python monitor (`lorarecon dev monitor --host <ip> --tui`)
+- **Real hardware testing**: Serial monitor + web UI + live Python monitor (`lorecon dev monitor --host <ip> --tui`)
 - **Compile-time checks**: `-Werror=return-type`, `-Werror=format` enforce correctness
 - `build_src_filter` excludes `test_*.cpp`, `unit_tests.cpp` from production builds
 
 ## Python Tooling (`tools/`)
 
-Unified entry point: `lorarecon <cmd>`. Three headline outputs and four dev utilities:
+Unified entry point: `lorecon <cmd>`. Three headline outputs and four dev utilities:
 
 - **`report`**: Security assessment HTML report (main offline analysis)
 - **`map`**: GPS positions → interactive folium HTML map
-- **`topology`**: Mesh graph → PNG (Meshtastic traceroute + MeshCore)
+- **`topology`**: Mesh graph → SVG (Meshtastic traceroute + MeshCore; PNG via `-o *.png`)
 - **`dev monitor`**: Live WebSocket packet stream (headless or `--tui`, supports `--demo`)
 - **`dev wireshark`**: Convert ESP32 PCAP → LoRaTap (DLT 270) for Wireshark
 - **`dev merge`**: Cross-capture identity linker (2+ CSVs)

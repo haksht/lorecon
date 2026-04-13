@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import subprocess
 import sys
 import tempfile
 import webbrowser
@@ -27,16 +28,7 @@ def base_parser(description: str) -> argparse.ArgumentParser:
     return p
 
 
-def resolve_source(args: argparse.Namespace) -> str:
-    """Convert parsed args into a single source string for capture.load()."""
-    if getattr(args, "api", None):
-        return f"api:{args.api}"
-    if not getattr(args, "input", None):
-        raise SystemExit("ERROR: provide a capture file or --api HOST")
-    return args.input
-
-
-def temp_output(suffix: str, stem: str = "lorarecon") -> str:
+def temp_output(suffix: str, stem: str = "lorecon") -> str:
     """Create a uniquely-named file in the OS temp dir and return its path.
     Used when the user didn't pass -o / --output."""
     fd, path = tempfile.mkstemp(suffix=suffix, prefix=f"{stem}_")
@@ -45,10 +37,36 @@ def temp_output(suffix: str, stem: str = "lorarecon") -> str:
 
 
 def open_in_browser(path: str) -> None:
-    """Open the given file in the default browser (cross-platform).
-    Uses file:// URL so it works on Windows, macOS, and Linux."""
+    """Open the given file in the default browser.
+    HTML opens directly. For PNG/JPG, write a tiny HTML wrapper alongside
+    and open that — file:// URLs to image files don't reliably launch a
+    browser on Windows, and OS default handlers are inconsistent."""
+    p = Path(path).resolve()
+    suffix = p.suffix.lower()
     try:
-        url = Path(path).resolve().as_uri()
-        webbrowser.open(url)
+        if suffix in ('.html', '.htm'):
+            webbrowser.open(p.as_uri())
+            return
+        if suffix in ('.png', '.jpg', '.jpeg', '.gif', '.svg'):
+            wrapper = p.with_suffix(p.suffix + '.html')
+            wrapper.write_text(
+                f'<!doctype html><title>{p.name}</title>'
+                '<style>body{margin:0;background:#111;padding:1rem;'
+                'text-align:center}'
+                'img{max-width:100%;height:auto}</style>'
+                f'<p style="color:#888;font:12px sans-serif">'
+                f'Ctrl+scroll or Ctrl +/- to zoom</p>'
+                f'<img src="{p.name}" alt="{p.name}">',
+                encoding='utf-8',
+            )
+            webbrowser.open(wrapper.as_uri())
+            return
+        # Unknown type — try OS default handler.
+        if sys.platform.startswith('win'):
+            os.startfile(str(p))  # type: ignore[attr-defined]
+        elif sys.platform == 'darwin':
+            subprocess.Popen(['open', str(p)])
+        else:
+            subprocess.Popen(['xdg-open', str(p)])
     except Exception as e:
-        print(f"(could not auto-open browser: {e})", file=sys.stderr)
+        print(f"(could not auto-open {p}: {e})", file=sys.stderr)

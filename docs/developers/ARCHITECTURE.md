@@ -19,7 +19,7 @@ Deep dive into the v2.0+ architecture — from hardware fundamentals to the clea
 5. [RadioController: Hardware Abstraction](#5-radiocontroller-hardware-abstraction)
 6. [PacketProcessor: Queue and Analysis](#6-packetprocessor-queue-and-analysis)
 7. [IReconTool: Dependency Inversion](#7-irecontool-dependency-inversion)
-8. [LoRaReconTool: Application Orchestrator](#8-lorarecontool-application-orchestrator)
+8. [LoRaReconTool: Application Orchestrator](#8-lorecontool-application-orchestrator)
 9. [CommandHandler: Dispatch Pattern](#9-commandhandler-dispatch-pattern)
 
 ### Part 3: Data Flow and Processing

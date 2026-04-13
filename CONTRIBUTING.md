@@ -132,7 +132,7 @@ Examples:
 2. **PSK Boot Tests**: `PSKTests::runAll()` runs automatically on device boot
 3. **Serial Monitor**: Watch for errors during operation
 4. **Web UI Testing**: Check all tabs, actions, error states
-5. **Python Tools**: Use `lorarecon dev monitor --host <ip> --tui` for live visualizer testing (or `--demo` without hardware)
+5. **Python Tools**: Use `lorecon dev monitor --host <ip> --tui` for live visualizer testing (or `--demo` without hardware)
 
 ## Pull Request Checklist
 

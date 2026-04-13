@@ -9,17 +9,17 @@ See [USAGE.md](USAGE.md) for install steps and a quick-start command list.
 
 ## Unified entry point
 
-The installed `lorarecon` console script has three headline outputs.
-Everything else is a dev utility invoked via `lorarecon dev <cmd>`.
+The installed `lorecon` console script has three headline outputs.
+Everything else is a dev utility invoked via `lorecon dev <cmd>`.
 (Run directly as `python tools/sniffer.py ...` if you haven't installed
 the package.)
 
 ```bash
-lorarecon help
-lorarecon report   capture.csv -o report.html
-lorarecon map      capture.csv
-lorarecon topology capture.csv
-lorarecon dev monitor --host 192.168.4.1 --tui
+lorecon help
+lorecon report   capture.csv -o report.html
+lorecon map      capture.csv
+lorecon topology capture.csv
+lorecon dev monitor --host 192.168.4.1 --tui
 ```
 
 Outputs (primary):
@@ -28,9 +28,9 @@ Outputs (primary):
 | ----------- | ----------------------------------------------------------- |
 | `report`    | Security assessment HTML report                             |
 | `map`       | GPS positions → interactive HTML map                        |
-| `topology`  | Mesh graph → PNG (Meshtastic traceroute + MeshCore)         |
+| `topology`  | Mesh graph → SVG (Meshtastic traceroute + MeshCore)         |
 
-Dev utilities (`sniffer.py dev <cmd>`):
+Dev utilities (`lorecon dev <cmd>`):
 
 | Command     | Purpose                                                     |
 | ----------- | ----------------------------------------------------------- |
@@ -59,11 +59,11 @@ The main offline analysis tool. Produces a standalone HTML report with
 findings prioritized CRITICAL → INFO.
 
 ```bash
-lorarecon report capture.csv
-lorarecon report capture.csv --pcap capture.pcap           # also parse LoRaWAN joins
-lorarecon report capture.csv -o report.html
-lorarecon report --api 192.168.4.1                         # live device as input
-lorarecon report new.csv --baseline old.csv                # diff mode
+lorecon report capture.csv
+lorecon report capture.csv --pcap capture.pcap           # also parse LoRaWAN joins
+lorecon report capture.csv -o report.html
+lorecon report --api 192.168.4.1                         # live device as input
+lorecon report new.csv --baseline old.csv                # diff mode
 ```
 
 Findings currently emitted (when supporting data is present):
@@ -98,13 +98,13 @@ Headless (default) or rich-based dashboard. Requires the device reachable
 over WiFi.
 
 ```bash
-lorarecon dev monitor --host 192.168.4.1                  # scrolling lines
-lorarecon dev monitor --host 192.168.4.1 --tui            # rich dashboard
-lorarecon dev monitor --host 192.168.4.1 --decrypt        # try PSK decrypt live
-lorarecon dev monitor --host 192.168.4.1 --messages       # decrypted text only
-lorarecon dev monitor --host 192.168.4.1 --json           # raw JSON per line
-lorarecon dev monitor --host 192.168.4.1 --filter meshtastic
-lorarecon dev monitor --demo                              # simulated, no hardware
+lorecon dev monitor --host 192.168.4.1                  # scrolling lines
+lorecon dev monitor --host 192.168.4.1 --tui            # rich dashboard
+lorecon dev monitor --host 192.168.4.1 --decrypt        # try PSK decrypt live
+lorecon dev monitor --host 192.168.4.1 --messages       # decrypted text only
+lorecon dev monitor --host 192.168.4.1 --json           # raw JSON per line
+lorecon dev monitor --host 192.168.4.1 --filter meshtastic
+lorecon dev monitor --demo                              # simulated, no hardware
 ```
 
 The `--tui` dashboard has four panels:
@@ -121,8 +121,8 @@ The `--tui` dashboard has four panels:
 ## `map` — GPS positions
 
 ```bash
-lorarecon map capture.csv -o map.html
-lorarecon map capture.csv --min-packets 10 -o map.html
+lorecon map capture.csv -o map.html
+lorecon map capture.csv --min-packets 10 -o map.html
 ```
 
 Produces an interactive [folium](https://python-visualization.github.io/folium/)
@@ -133,10 +133,11 @@ HTML map. `--min-packets` filters out stragglers to keep the map readable.
 ## `topology` — mesh graph
 
 ```bash
-lorarecon topology capture.csv -o topology.png
+lorecon topology capture.csv -o topology.svg
 ```
 
-PNG visualization of the mesh. Most informative when the capture contains
+Zoomable SVG visualization of the mesh (pass `-o file.png` for a raster
+image instead). Most informative when the capture contains
 Meshtastic traceroute (portnum 70) or NeighborInfo (portnum 71) packets;
 otherwise falls back to relay-byte inference. Decrypts NodeInfo on the fly
 to label nodes with operator-chosen names. MeshCore captures render by
@@ -147,8 +148,8 @@ channel membership.
 ## `merge` — cross-capture linker
 
 ```bash
-lorarecon dev merge hotel.csv conference.csv airport.csv
-lorarecon dev merge a.csv b.csv --json linked.json --min-captures 2
+lorecon dev merge hotel.csv conference.csv airport.csv
+lorecon dev merge a.csv b.csv --json linked.json --min-captures 2
 ```
 
 Finds nodes appearing across multiple captures — useful for tracking
@@ -161,8 +162,8 @@ packet count. Re-decrypts NodeInfo from raw bytes so CSVs with a missing
 ## `wireshark` — LoRaTap conversion
 
 ```bash
-lorarecon dev wireshark capture.pcap
-lorarecon dev wireshark capture.pcap --open
+lorecon dev wireshark capture.pcap
+lorecon dev wireshark capture.pcap --open
 ```
 
 Converts the ESP32's custom PCAP pseudo-header to standard LoRaTap (DLT
@@ -173,9 +174,9 @@ Converts the ESP32's custom PCAP pseudo-header to standard LoRaTap (DLT
 ## `api` — device REST client
 
 ```bash
-lorarecon dev api --host 192.168.4.1 status
-lorarecon dev api --host 192.168.4.1 devices
-lorarecon dev api --host 192.168.4.1 replay-slots
+lorecon dev api --host 192.168.4.1 status
+lorecon dev api --host 192.168.4.1 devices
+lorecon dev api --host 192.168.4.1 replay-slots
 ```
 
 Developer tool — exposes every endpoint on the firmware API.
@@ -188,7 +189,7 @@ Developer tool — exposes every endpoint on the firmware API.
 tools/
   report.py        security assessment (main analysis tool)
   map.py           GPS → folium HTML
-  topology.py      mesh graph → PNG
+  topology.py      mesh graph → SVG (or PNG via -o)
   merge.py         cross-capture identity linker
   monitor.py       live WebSocket stream (headless + --tui)
   wireshark.py     PCAP → LoRaTap
@@ -221,7 +222,7 @@ Install with `pip install -r tools/requirements.txt`.
 - `websocket-client` — live monitor
 - `rich` — `monitor --tui` dashboard
 - `folium` — `map` HTML output
-- `matplotlib`, `networkx` — `topology` PNG
+- `matplotlib`, `networkx` — `topology` graph rendering
 - `requests` — REST API client
 
 Without `cryptography` the tools still run, but skip all decryption-dependent

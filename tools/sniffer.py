@@ -17,7 +17,7 @@ REPO_ROOT = TOOLS_DIR.parent
 # Headline outputs — the three things this toolkit produces.
 OUTPUTS = {
     'map':      ('tools.map',      'GPS positions \u2192 interactive HTML map'),
-    'topology': ('tools.topology', 'Mesh graph \u2192 PNG image'),
+    'topology': ('tools.topology', 'Mesh graph \u2192 SVG (zoomable in browser)'),
     'report':   ('tools.report',   'Security assessment \u2192 HTML report'),
 }
 
@@ -31,11 +31,11 @@ DEV = {
 
 
 def _invoked_as():
-    """Use 'lorarecon' when launched as the installed console script,
+    """Use 'lorecon' when launched as the installed console script,
     otherwise 'python sniffer.py' when run directly."""
     prog = Path(sys.argv[0]).name.lower()
-    if prog.startswith("lorarecon"):
-        return "lorarecon"
+    if prog.startswith("lorecon"):
+        return "lorecon"
     return "python sniffer.py"
 
 

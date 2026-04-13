@@ -358,8 +358,7 @@ const ModalRenderer = {
             const inputId = 'prompt-input-' + Date.now();
             const html = this._buildModal(id, 'text-primary', title,
                 `<p>${message}</p>
-                <input type="${inputType}" id="${inputId}" class="modal-input" placeholder="${placeholder}"
-                    style="width:100%;margin-top:12px;padding:8px;background:var(--bg-secondary);border:1px solid var(--border);border-radius:var(--radius);color:var(--text-primary);font-size:0.95rem;">`,
+                <input type="${inputType}" id="${inputId}" class="modal-input" placeholder="${placeholder}">`,
                 `<button data-confirm="cancel" class="btn btn-secondary">Cancel</button>
                 <button data-confirm="ok" class="btn btn-primary">OK</button>`
             );

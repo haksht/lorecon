@@ -41,9 +41,12 @@ static int initTcxoRadio(SX1262* radio, const char* boardName) {
 // Heltec V4 adds an external FEM (GC1109 on V4.2, KCT8103L on V4.3) that must
 // be explicitly enabled via GPIO, plus DIO2 RF-switch control.
 static void enableHeltecV4Fem(SX1262* radio) {
-    pinMode(2, OUTPUT); digitalWrite(2, HIGH);  // FEM chip enable (both variants)
-    pinMode(5, OUTPUT); digitalWrite(5, LOW);   // KCT8103L PA_CTX: LOW = LNA/RX mode
-    LOG_INFO("V4 FEM enabled (GPIO2=HIGH GPIO5=LOW)");
+    pinMode(Config::Hardware::V4_FEM_EN, OUTPUT);
+    digitalWrite(Config::Hardware::V4_FEM_EN, HIGH);
+    pinMode(Config::Hardware::V4_FEM_PA_CTX, OUTPUT);
+    digitalWrite(Config::Hardware::V4_FEM_PA_CTX, LOW);
+    LOG_INFO("V4 FEM enabled (EN=GPIO%u HIGH, PA_CTX=GPIO%u LOW)",
+             Config::Hardware::V4_FEM_EN, Config::Hardware::V4_FEM_PA_CTX);
     int state = radio->setDio2AsRfSwitch(true);
     if (state != RADIOLIB_ERR_NONE) LOG_WARN("setDio2AsRfSwitch: %d", state);
     else                             LOG_INFO("V4 DIO2 RF switch enabled");

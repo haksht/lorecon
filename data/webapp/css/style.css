@@ -1781,6 +1781,17 @@ body {
 }
 
 /* ==================== Modal Styles ==================== */
+.modal-input {
+    width: 100%;
+    margin-top: 12px;
+    padding: 8px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--text-primary);
+    font-size: 0.95rem;
+}
+
 .modal {
     position: fixed;
     top: 0;

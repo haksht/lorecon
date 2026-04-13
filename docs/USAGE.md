@@ -69,35 +69,35 @@ The `tools/` directory has a Python toolkit for live monitoring and offline anal
 ```bash
 python -m venv venv
 .\venv\Scripts\activate.ps1   # Windows (or ./venv/bin/activate on Linux/macOS)
-pip install -e .              # installs the `lorarecon` console script + deps
+pip install -e .              # installs the `lorecon` console script + deps
 ```
 
 ### Quick start
 
-`lorarecon` is the single entry point for all tools — run `help` to see what's available:
+`lorecon` is the single entry point for all tools — run `help` to see what's available:
 
 ```bash
-lorarecon help
+lorecon help
 ```
 
 Common workflows:
 
 ```bash
 # Offline analysis — the three primary outputs
-lorarecon report   capture.csv -o report.html
-lorarecon map      capture.csv -o map.html
-lorarecon topology capture.csv -o topology.png
+lorecon report   capture.csv -o report.html
+lorecon map      capture.csv -o map.html
+lorecon topology capture.csv -o topology.svg
 
 # Report + matching PCAP (adds LoRaWAN join / DevNonce-reuse checks)
-lorarecon report capture.csv --pcap capture.pcap -o report.html
+lorecon report capture.csv --pcap capture.pcap -o report.html
 
 # Live monitor — headless, with PSK decryption
-lorarecon dev monitor --host 192.168.4.1 --decrypt
-lorarecon dev monitor --host 192.168.4.1 --messages   # text only
-lorarecon dev monitor --demo                          # no hardware
+lorecon dev monitor --host 192.168.4.1 --decrypt
+lorecon dev monitor --host 192.168.4.1 --messages   # text only
+lorecon dev monitor --demo                          # no hardware
 
 # PCAP → Wireshark LoRaTap format
-lorarecon dev wireshark capture.pcap
+lorecon dev wireshark capture.pcap
 ```
 
 ---

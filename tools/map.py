@@ -162,7 +162,7 @@ def aggregate_nodes(cap: Capture) -> Dict[str, NodeTrack]:
                 enriched_nodes = sum(1 for n in nodes.values() if n.best_position)
                 print(f"Decrypted {found} position packets → {enriched_nodes} nodes with real GPS")
             else:
-                print("No Meshtastic POSITION packets decrypted. Map cannot be rendered.")
+                print("No Meshtastic POSITION packets decrypted — no real node GPS recoverable.")
                 for n in nodes.values():
                     n.positions = []
 
@@ -195,7 +195,7 @@ def render_folium(nodes: Dict[str, NodeTrack], output: str):
     center = (sum(lats) / len(lats), sum(lons) / len(lons))
 
     m = folium.Map(location=center, zoom_start=14,
-                   tiles='CartoDB dark_matter')
+                   tiles='CartoDB positron')
 
     cluster = MarkerCluster(name='LoRa Nodes').add_to(m)
 

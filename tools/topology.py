@@ -4,11 +4,11 @@ ESP32 LoRa Sniffer - Mesh Topology Visualizer
 
 Builds a graph of LoRa mesh network topology from captured data.
 Supports Meshtastic (neighborinfo / traceroute) and MeshCore (path arrays).
-Outputs a PNG image of the network graph.
+Default output is SVG (zoomable in any browser); pass `-o file.png` for PNG.
 
 Usage:
     python topology.py capture.csv
-    python topology.py capture.csv -o graph.png
+    python topology.py capture.csv -o graph.svg
     python topology.py capture.pcap
     python topology.py --api 192.168.4.1
 
@@ -415,38 +415,13 @@ class TopologyGraph:
                     self.names[src] = names
 
     def _infer_relay_edges(self, packets: List[CapturedPacket]):
-        """
-        Infer mesh links from the relay byte (byte 15) in Meshtastic headers.
+        """Infer mesh links from the relay byte (byte 15) in Meshtastic headers.
 
         Prefers typed CapturedPacket fields (packet_id / relay_byte / hop_count
         from the 2026-04-12 CSV columns). Falls back to raw_hex parsing for
         older captures that lack those columns.
         """
-        # Pass 1: build last-byte → node map. Normalize node IDs to the same
-        # "!aabbccdd" (8-char hex, no 0x prefix) format used by edge creation,
-        # so self._node(relay_node) merges with nodes already created that way.
-        node_by_last: Dict[int, List[str]] = defaultdict(list)
-        node_pkts: Dict[str, int] = defaultdict(int)
-        for p in packets:
-            nid_hex = p.node_id_hex or ''
-            if not nid_hex or nid_hex == 'unknown':
-                continue
-            try:
-                src = int(nid_hex.lstrip('!'), 16)
-            except ValueError:
-                continue
-            src_hex = f"!{src:08x}"
-            node_pkts[src_hex] += 1
-            lb = src & 0xFF
-            if src_hex not in node_by_last[lb]:
-                node_by_last[lb].append(src_hex)
-
-        lb_to_node: Dict[int, str] = {}
-        for lb, nids in node_by_last.items():
-            lb_to_node[lb] = max(nids, key=lambda n: node_pkts[n])
-
-        # Pass 2: group copies by (src, packet_id)
-        pid_copies: Dict[Tuple[int, int], List[Tuple[int, int, float]]] = defaultdict(list)
+        tuples: List[Tuple[int, int, int, int, float]] = []
         for p in packets:
             nid_hex = p.node_id_hex or ''
             if not nid_hex or nid_hex == 'unknown':
@@ -455,9 +430,6 @@ class TopologyGraph:
             hop_limit = p.hop_count
             b15 = p.relay_byte
             if pid is not None and hop_limit is not None:
-                # Typed-field path: packet_id came in from CSV as hex; we already
-                # parsed it to int. relay_byte may be None (missing column on
-                # older rows) — fall back to (src & 0xFF) to match original.
                 try:
                     src = int(nid_hex.lstrip('!'), 16)
                 except ValueError:
@@ -465,7 +437,6 @@ class TopologyGraph:
                 if b15 is None:
                     b15 = src & 0xFF
             else:
-                # Fallback: parse from raw hex
                 if not p.raw_hex or len(p.raw_hex) < 32:
                     continue
                 try:
@@ -478,27 +449,8 @@ class TopologyGraph:
                 pid = struct.unpack('<I', raw[8:12])[0]
                 hop_limit = raw[12] & 0x07
                 b15 = raw[15]
-            pid_copies[(src, pid)].append((hop_limit, b15, p.snr_db))
-
-        relay_edge_count = 0
-        for (src, pid), copies in pid_copies.items():
-            src_last = src & 0xFF
-            max_hop = max(hl for hl, _, _ in copies)
-            for hl, b15, snr in copies:
-                if b15 == src_last:
-                    continue
-                if max_hop - hl != 1:
-                    continue
-                if b15 not in lb_to_node:
-                    continue
-                relay_node = lb_to_node[b15]
-                src_hex = f"!{src:08x}"
-                self._node(src_hex)
-                self._node(relay_node)
-                self._edge(src_hex, relay_node, snr=snr)
-                relay_edge_count += 1
-        if relay_edge_count:
-            print(f"Inferred {relay_edge_count} relay observations")
+            tuples.append((src, pid, hop_limit, b15, p.snr_db))
+        self._apply_relay_inference(tuples)
 
     def load_pcap(self, filepath: str, decrypt: bool = True):
         meshtastic_payloads: List[Tuple[bytes, float]] = []
@@ -549,27 +501,38 @@ class TopologyGraph:
             self._infer_relay_edges_raw(meshtastic_payloads)
 
     def _infer_relay_edges_raw(self, payloads: List[Tuple[bytes, float]]):
-        node_by_last: Dict[int, List[str]] = defaultdict(list)
-        node_pkts: Dict[str, int] = defaultdict(int)
-        pid_copies: Dict[Tuple[int, int], List[Tuple[int, int, float]]] = defaultdict(list)
-
+        tuples: List[Tuple[int, int, int, int, float]] = []
         for payload, snr in payloads:
             if len(payload) < 16:
                 continue
             src = struct.unpack('<I', payload[4:8])[0]
             pid = struct.unpack('<I', payload[8:12])[0]
+            hop_limit = payload[12] & 0x07
+            b15 = payload[15]
+            tuples.append((src, pid, hop_limit, b15, snr))
+        self._apply_relay_inference(tuples)
+
+    def _apply_relay_inference(self, tuples: List[Tuple[int, int, int, int, float]]):
+        """Shared relay-edge core. Input: (src, pid, hop_limit, relay_byte, snr).
+
+        Node IDs are emitted as "!aabbccdd" (8-char hex) so edges merge with
+        nodes already added by other paths.
+        """
+        node_by_last: Dict[int, List[str]] = defaultdict(list)
+        node_pkts: Dict[str, int] = defaultdict(int)
+        pid_copies: Dict[Tuple[int, int], List[Tuple[int, int, float]]] = defaultdict(list)
+        for src, pid, hop_limit, b15, snr in tuples:
             src_hex = f"!{src:08x}"
             node_pkts[src_hex] += 1
             lb = src & 0xFF
             if src_hex not in node_by_last[lb]:
                 node_by_last[lb].append(src_hex)
-            hop_limit = payload[12] & 0x07
-            b15 = payload[15]
             pid_copies[(src, pid)].append((hop_limit, b15, snr))
 
-        lb_to_node: Dict[int, str] = {}
-        for lb, nids in node_by_last.items():
-            lb_to_node[lb] = max(nids, key=lambda n: node_pkts[n])
+        lb_to_node: Dict[int, str] = {
+            lb: max(nids, key=lambda n: node_pkts[n])
+            for lb, nids in node_by_last.items()
+        }
 
         relay_edge_count = 0
         for (src, pid), copies in pid_copies.items():
@@ -777,7 +740,7 @@ class TopologyGraph:
 # ---------------------------------------------------------------------------
 
 def main():
-    ap = cli.base_parser('Render LoRa mesh topology as a PNG graph image.')
+    ap = cli.base_parser('Render LoRa mesh topology as an SVG graph (PNG if -o *.png).')
     ap.add_argument('--no-decrypt', action='store_true',
                     help='Skip Meshtastic PSK decryption (faster)')
     args = ap.parse_args()
@@ -788,7 +751,7 @@ def main():
 
     if args.api:
         g.ingest_devices_api(args.api)
-        out = args.output or cli.temp_output('.png', stem=f"topology_{args.api.replace('.', '_')}")
+        out = args.output or cli.temp_output('.svg', stem=f"topology_{args.api.replace('.', '_')}")
     else:
         if not args.input:
             sys.exit("ERROR: provide a capture file or --api HOST")
@@ -802,13 +765,13 @@ def main():
             print(f"Loading CSV: {p}")
             cap = capture_loader.load(str(p))
             g.ingest_capture(cap, decrypt=not args.no_decrypt)
-        out = args.output or cli.temp_output('.png', stem=f'topology_{p.stem}')
+        out = args.output or cli.temp_output('.svg', stem=f'topology_{p.stem}')
 
     g.summary()
     g.render(output=out)
 
     if auto_open:
-        print(f"Opening {out} in browser...")
+        print(f"Opening {out}...")
         cli.open_in_browser(out)
 
 

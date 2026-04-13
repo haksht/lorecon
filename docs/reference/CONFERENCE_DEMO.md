@@ -26,7 +26,7 @@ Use this script for reproducible live demos at security conferences, workshops, 
 3. **Open browser** to `http://192.168.4.1`
 4. **Verify web UI loads** - You should see the Info tab
 
-**Backup plan**: If WiFi flaky, use serial monitor (`pio device monitor`)  14 not available on Heltec V4 (no serial port by design; use web UI only)
+**Backup plan**: If WiFi flaky, use serial monitor (`pio device monitor`) — not available on Heltec V4 (no serial port by design; use web UI only)
 
 ---
 
@@ -70,11 +70,11 @@ Use this script for reproducible live demos at security conferences, workshops, 
 **Key talking points:**
 - *"Key #1 is the official default - most networks use it"*
 - *"Key #15 is the admin channel default from pre-2.5 firmware"*
-- *"If we get a hit, we can read position broadcasts, telemetry, and channel messages"**
+- *"If we get a hit, we can read position broadcasts, telemetry, and channel messages"*
 
 ### Minute 3-4: GPS Extraction & Mapping
 
-**Action:** Navigate to **Network** tab
+**Action:** Navigate to **Dashboard** tab
 
 **Say:** *"Every time we decrypt a position packet, we extract GPS coordinates. Here's where those devices physically are."*
 
@@ -233,7 +233,7 @@ Add:
 ### 15-Minute Version
 Add:
 - Live PCAP export to Wireshark
-- Python live TUI (`lorarecon dev monitor --host <ip> --tui`)
+- Python live TUI (`lorecon dev monitor --host <ip> --tui`)
 - Security assessment scoring explanation
 
 ### Workshop Version (1 Hour)
