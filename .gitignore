@@ -59,6 +59,13 @@ venv/
 ENV/
 env.bak/
 venv.bak/
+*.egg-info/
+
+# Generated analysis output in repo root (from -o pointing at cwd)
+/*_report.html
+/*_map.html
+/*_topology.png
+/*_loratap.pcap
 
 # Temporary files
 *.tmp

@@ -233,7 +233,7 @@ Add:
 ### 15-Minute Version
 Add:
 - Live PCAP export to Wireshark
-- Python visualizer (`tools/enhanced_live_visualizer.py`)
+- Python live TUI (`lorarecon dev monitor --host <ip> --tui`)
 - Security assessment scoring explanation
 
 ### Workshop Version (1 Hour)

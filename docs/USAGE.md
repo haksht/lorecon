@@ -69,35 +69,35 @@ The `tools/` directory has a Python toolkit for live monitoring and offline anal
 ```bash
 python -m venv venv
 .\venv\Scripts\activate.ps1   # Windows (or ./venv/bin/activate on Linux/macOS)
-pip install -r tools/requirements.txt
+pip install -e .              # installs the `lorarecon` console script + deps
 ```
 
 ### Quick start
 
-`sniffer.py` is a single entry point for all tools — run `help` to see what's available:
+`lorarecon` is the single entry point for all tools — run `help` to see what's available:
 
 ```bash
-python tools/sniffer.py help
+lorarecon help
 ```
 
 Common workflows:
 
 ```bash
-# Live dashboard — 5-panel view with GPS map
-python tools/sniffer.py visualize --host 192.168.4.1
-python tools/sniffer.py demo                             # no hardware needed
+# Offline analysis — the three primary outputs
+lorarecon report   capture.csv -o report.html
+lorarecon map      capture.csv -o map.html
+lorarecon topology capture.csv -o topology.png
+
+# Report + matching PCAP (adds LoRaWAN join / DevNonce-reuse checks)
+lorarecon report capture.csv --pcap capture.pcap -o report.html
 
 # Live monitor — headless, with PSK decryption
-python tools/sniffer.py monitor --host 192.168.4.1 --decrypt
-python tools/sniffer.py monitor --host 192.168.4.1 --messages  # text messages only
+lorarecon dev monitor --host 192.168.4.1 --decrypt
+lorarecon dev monitor --host 192.168.4.1 --messages   # text only
+lorarecon dev monitor --demo                          # no hardware
 
-# Full pipeline — capture + audit + report in one command
-python tools/sniffer.py assess --host 192.168.4.1 --duration 10m
-
-# Offline: analyze SD card captures
-python tools/sniffer.py report capture.csv --format html -o report.html
-python tools/sniffer.py analyze capture.pcap --wireshark
-python tools/sniffer.py audit capture.csv
+# PCAP → Wireshark LoRaTap format
+lorarecon dev wireshark capture.pcap
 ```
 
 ---

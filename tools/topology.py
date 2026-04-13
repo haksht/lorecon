@@ -784,9 +784,11 @@ def main():
 
     g = TopologyGraph()
 
+    auto_open = not args.output
+
     if args.api:
         g.ingest_devices_api(args.api)
-        out = args.output
+        out = args.output or cli.temp_output('.png', stem=f"topology_{args.api.replace('.', '_')}")
     else:
         if not args.input:
             sys.exit("ERROR: provide a capture file or --api HOST")
@@ -800,10 +802,14 @@ def main():
             print(f"Loading CSV: {p}")
             cap = capture_loader.load(str(p))
             g.ingest_capture(cap, decrypt=not args.no_decrypt)
-        out = args.output or (p.stem + '_topology.png')
+        out = args.output or cli.temp_output('.png', stem=f'topology_{p.stem}')
 
     g.summary()
     g.render(output=out)
+
+    if auto_open:
+        print(f"Opening {out} in browser...")
+        cli.open_in_browser(out)
 
 
 if __name__ == '__main__':

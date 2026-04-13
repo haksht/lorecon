@@ -987,9 +987,11 @@ def main():
 
     a = Assessment()
 
+    auto_open = not args.output
+
     if args.api:
         a.ingest_devices_api(args.api)
-        out = args.output or 'report.html'
+        out = args.output or cli.temp_output('.html', stem='report')
     else:
         if not args.input:
             sys.exit("ERROR: provide a capture file or --api HOST")
@@ -999,7 +1001,7 @@ def main():
         print(f"Loading: {p}")
         cap = capture_loader.load(str(p))
         a.ingest_capture(cap)
-        out = args.output or (p.stem + '_report.html')
+        out = args.output or cli.temp_output('.html', stem=f'report_{p.stem}')
 
     if args.pcap:
         pp = Path(args.pcap)
@@ -1027,6 +1029,10 @@ def main():
               f"{len(a.diff_risk_up)} risk↑, {len(a.diff_new_psk)} new PSK")
 
     _render_html(a, out)
+
+    if auto_open:
+        print(f"Opening {out} in browser...")
+        cli.open_in_browser(out)
 
 
 if __name__ == '__main__':

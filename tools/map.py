@@ -300,13 +300,16 @@ def main():
                     help='Only show nodes with at least N packets (default: 1)')
     args = ap.parse_args()
 
+    auto_open = not args.output
+    suffix = '.html' if FOLIUM_AVAILABLE else '.png'
+
     if args.api:
         # /api/devices is aggregated, not per-packet — use load_devices, not
         # capture.load (which hits /api/replay/slots, limited to 8 packets).
         devices = capture_loader.load_devices(args.api)
         print(f"[API] {len(devices)} devices from {args.api}")
         nodes = nodes_from_devices(devices)
-        out = args.output or f"map_{args.api.replace('.', '_')}.html"
+        out = args.output or cli.temp_output(suffix, stem=f"map_{args.api.replace('.', '_')}")
     else:
         if not args.input:
             sys.exit("ERROR: provide a capture file or --api HOST")
@@ -316,7 +319,7 @@ def main():
         cap = capture_loader.load(str(p))
         nodes = aggregate_nodes(cap)
         print(f"Loaded {len(nodes)} nodes from {p.name} ({len(cap)} packets)")
-        out = args.output or (p.stem + '_map.html')
+        out = args.output or cli.temp_output(suffix, stem=f'map_{p.stem}')
 
     if args.min_packets > 1:
         before = len(nodes)
@@ -334,6 +337,12 @@ def main():
         render_matplotlib(nodes, out)
     else:
         sys.exit("ERROR: pip install folium  or  pip install matplotlib")
+
+    # temp_output() pre-creates an empty file — only auto-open if something
+    # actually got written to it.
+    if auto_open and Path(out).stat().st_size > 0:
+        print(f"Opening {out} in browser...")
+        cli.open_in_browser(out)
 
 
 if __name__ == '__main__':

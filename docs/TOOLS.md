@@ -9,22 +9,34 @@ See [USAGE.md](USAGE.md) for install steps and a quick-start command list.
 
 ## Unified entry point
 
-`sniffer.py` dispatches to every tool. Extra arguments pass through.
+The installed `lorarecon` console script has three headline outputs.
+Everything else is a dev utility invoked via `lorarecon dev <cmd>`.
+(Run directly as `python tools/sniffer.py ...` if you haven't installed
+the package.)
 
 ```bash
-python sniffer.py help
-python sniffer.py report capture.csv -o report.html
-python sniffer.py monitor --host 192.168.4.1 --tui
+lorarecon help
+lorarecon report   capture.csv -o report.html
+lorarecon map      capture.csv
+lorarecon topology capture.csv
+lorarecon dev monitor --host 192.168.4.1 --tui
 ```
+
+Outputs (primary):
 
 | Command     | Purpose                                                     |
 | ----------- | ----------------------------------------------------------- |
 | `report`    | Security assessment HTML report                             |
 | `map`       | GPS positions → interactive HTML map                        |
 | `topology`  | Mesh graph → PNG (Meshtastic traceroute + MeshCore)         |
-| `merge`     | Cross-capture identity linker (2+ CSVs)                     |
+
+Dev utilities (`sniffer.py dev <cmd>`):
+
+| Command     | Purpose                                                     |
+| ----------- | ----------------------------------------------------------- |
 | `monitor`   | Live WebSocket packet stream (headless or `--tui`)          |
 | `wireshark` | Convert ESP32 PCAP → LoRaTap for Wireshark                  |
+| `merge`     | Cross-capture identity linker (2+ CSVs)                     |
 | `api`       | REST API client (~30 subcommands)                           |
 
 ---
@@ -47,11 +59,11 @@ The main offline analysis tool. Produces a standalone HTML report with
 findings prioritized CRITICAL → INFO.
 
 ```bash
-python -m tools.report capture.csv
-python -m tools.report capture.csv --pcap capture.pcap           # also parse LoRaWAN joins
-python -m tools.report capture.csv -o report.html
-python -m tools.report --api 192.168.4.1                         # live device as input
-python -m tools.report new.csv --baseline old.csv                # diff mode
+lorarecon report capture.csv
+lorarecon report capture.csv --pcap capture.pcap           # also parse LoRaWAN joins
+lorarecon report capture.csv -o report.html
+lorarecon report --api 192.168.4.1                         # live device as input
+lorarecon report new.csv --baseline old.csv                # diff mode
 ```
 
 Findings currently emitted (when supporting data is present):
@@ -86,13 +98,13 @@ Headless (default) or rich-based dashboard. Requires the device reachable
 over WiFi.
 
 ```bash
-python -m tools.monitor --host 192.168.4.1                  # scrolling lines
-python -m tools.monitor --host 192.168.4.1 --tui            # rich dashboard
-python -m tools.monitor --host 192.168.4.1 --decrypt        # try PSK decrypt live
-python -m tools.monitor --host 192.168.4.1 --messages       # decrypted text only
-python -m tools.monitor --host 192.168.4.1 --json           # raw JSON per line
-python -m tools.monitor --host 192.168.4.1 --filter meshtastic
-python -m tools.monitor --demo                              # simulated, no hardware
+lorarecon dev monitor --host 192.168.4.1                  # scrolling lines
+lorarecon dev monitor --host 192.168.4.1 --tui            # rich dashboard
+lorarecon dev monitor --host 192.168.4.1 --decrypt        # try PSK decrypt live
+lorarecon dev monitor --host 192.168.4.1 --messages       # decrypted text only
+lorarecon dev monitor --host 192.168.4.1 --json           # raw JSON per line
+lorarecon dev monitor --host 192.168.4.1 --filter meshtastic
+lorarecon dev monitor --demo                              # simulated, no hardware
 ```
 
 The `--tui` dashboard has four panels:
@@ -109,8 +121,8 @@ The `--tui` dashboard has four panels:
 ## `map` — GPS positions
 
 ```bash
-python -m tools.map capture.csv -o map.html
-python -m tools.map capture.csv --min-packets 10 -o map.html
+lorarecon map capture.csv -o map.html
+lorarecon map capture.csv --min-packets 10 -o map.html
 ```
 
 Produces an interactive [folium](https://python-visualization.github.io/folium/)
@@ -121,7 +133,7 @@ HTML map. `--min-packets` filters out stragglers to keep the map readable.
 ## `topology` — mesh graph
 
 ```bash
-python -m tools.topology capture.csv -o topology.png
+lorarecon topology capture.csv -o topology.png
 ```
 
 PNG visualization of the mesh. Most informative when the capture contains
@@ -135,8 +147,8 @@ channel membership.
 ## `merge` — cross-capture linker
 
 ```bash
-python -m tools.merge hotel.csv conference.csv airport.csv
-python -m tools.merge a.csv b.csv --json linked.json --min-captures 2
+lorarecon dev merge hotel.csv conference.csv airport.csv
+lorarecon dev merge a.csv b.csv --json linked.json --min-captures 2
 ```
 
 Finds nodes appearing across multiple captures — useful for tracking
@@ -149,8 +161,8 @@ packet count. Re-decrypts NodeInfo from raw bytes so CSVs with a missing
 ## `wireshark` — LoRaTap conversion
 
 ```bash
-python -m tools.wireshark capture.pcap
-python -m tools.wireshark capture.pcap --open
+lorarecon dev wireshark capture.pcap
+lorarecon dev wireshark capture.pcap --open
 ```
 
 Converts the ESP32's custom PCAP pseudo-header to standard LoRaTap (DLT
@@ -161,9 +173,9 @@ Converts the ESP32's custom PCAP pseudo-header to standard LoRaTap (DLT
 ## `api` — device REST client
 
 ```bash
-python -m tools.dev.api_client --host 192.168.4.1 status
-python -m tools.dev.api_client --host 192.168.4.1 devices
-python -m tools.dev.api_client --host 192.168.4.1 replay-slots
+lorarecon dev api --host 192.168.4.1 status
+lorarecon dev api --host 192.168.4.1 devices
+lorarecon dev api --host 192.168.4.1 replay-slots
 ```
 
 Developer tool — exposes every endpoint on the firmware API.
