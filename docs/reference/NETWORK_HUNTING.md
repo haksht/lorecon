@@ -10,7 +10,7 @@ The sniffer scans **five LoRa network types** across 29 frequency configurations
 **Why so common**: Exploded in popularity 2023-2024, cheap hardware ($30-40)
 **You'll find it**: Hiking trails, preppers, ham radio operators, off-grid communities
 
-### 2. **The Things Network (TTN) / LoRaWAN** (4 configs)
+### 2. **The Things Network (TTN) / LoRaWAN** (7 configs)
 **What it is**: Global open-source IoT network with community-run gateways
 **Frequencies**: 903.9 MHz, 904.1 MHz, 904.3 MHz, 904.5 MHz
 **Why important**: Powers thousands of IoT sensors worldwide

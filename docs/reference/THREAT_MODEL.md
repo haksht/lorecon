@@ -22,7 +22,7 @@ The ESP32 LoRa Sniffer is a **passive reconnaissance tool** for LoRa network sec
 │  └─────┬─────┘  └─────┬─────┘  └─────┬─────┘               │
 │        │              │              │                      │
 │  ┌─────▼──────────────▼──────────────▼─────┐               │
-│  │           Firmware (13K lines)          │               │
+│  │           Firmware (16K lines)          │               │
 │  │  - RadioController (ISR-driven capture) │               │
 │  │  - PacketProcessor (queue + analysis)   │               │
 │  │  - PSK Decryption (23 known keys)       │               │

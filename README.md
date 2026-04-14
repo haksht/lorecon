@@ -1,6 +1,6 @@
 # ESP32 LoRa Packet Sniffer & Reconnaissance Tool
 
-Passive LoRa reconnaissance firmware for ESP32-S3 + SX1262 hardware. Scans 29 frequency configurations, captures and replays packets, tests 23 default Meshtastic PSKs, decrypts MeshCore public channels and hashtag rooms, extracts GPS coordinates, and serves a phone-accessible web UI — all from a $30 board.
+Passive LoRa reconnaissance firmware for ESP32-S3 + SX1262 hardware. Scans 29 frequency configurations, captures and replays packets, tests 23 default Meshtastic PSKs, decrypts MeshCore public channels and hashtag rooms, extracts GPS coordinates, and serves a phone-accessible web UI — all from a low-cost board.
 
 **Version:** 2.4.1 | **Status:** Production
 
@@ -27,13 +27,9 @@ See [docs/HARDWARE.md](docs/HARDWARE.md) for specs, pin maps, and purchase links
 
 ---
 
-## Why this over alternatives
+## Why this project
 
-| Tool | Cost | LoRa decode | PSK decrypt | Standalone | Web UI |
-|------|------|-------------|-------------|------------|--------|
-| **This project** | **$30** | Full | 23 keys | Yes | Yes |
-| Flipper Zero + LoRa | $190-210 | Basic | No | Yes | No |
-| HackRF + GNU Radio | $300+ | Full | Manual | No (laptop) | No |
+This project delivers low-cost, stand-alone LoRa reconnaissance with a phone-friendly web UI, PSK testing, and built-in export options.
 
 ---
 
@@ -71,7 +67,6 @@ See [docs/HARDWARE.md](docs/HARDWARE.md) for specs, pin maps, and purchase links
 - [docs/reference/HOW_IT_WORKS.md](docs/reference/HOW_IT_WORKS.md) — security scoring, router detection, protocol analysis
 - [docs/reference/ENCRYPTION.md](docs/reference/ENCRYPTION.md) — what PSK decryption can and cannot do
 - [docs/reference/NETWORK_HUNTING.md](docs/reference/NETWORK_HUNTING.md) — hunting strategies by network type
-- [docs/reference/CONFERENCE_DEMO.md](docs/reference/CONFERENCE_DEMO.md) — demo script and setup
 - [docs/reference/THREAT_MODEL.md](docs/reference/THREAT_MODEL.md) — security threat model
 
 ---

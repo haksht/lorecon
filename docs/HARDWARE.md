@@ -83,7 +83,9 @@ The most capable board: GPS, SD card, and battery management.
 
 ## Antenna
 
-All boards ship with an antenna that works fine for most use cases.
+**WARNING: Never power on the radio without an antenna connected.**
+
+Most boards ship with a basic antenna that is sufficient for initial testing and short-range use. For reliable recon and improved range, upgrading to a higher-quality 915 MHz antenna is strongly recommended.
 
 For better range:
 - A 6 dBi 915 MHz directional antenna improves reception in open areas
