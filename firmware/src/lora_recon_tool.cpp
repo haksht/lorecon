@@ -77,6 +77,7 @@ bool LoRaReconTool::initialize() {
 
     // Initialize AXP2101 PMIC (T-Beam Supreme only  -  no-op on other boards).
     // MUST run before radio, display, SD, and GPS: the PMIC controls all power rails.
+    // See docs/developers/HARDWARE_NOTES.md (T-Beam Supreme init order).
 #ifdef HAS_AXP2101
     if (!PMUController::initialize()) {
         LOG_ERROR("AXP2101 PMIC initialization failed  -  peripherals will not have power");

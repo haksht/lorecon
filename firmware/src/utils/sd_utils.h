@@ -69,6 +69,7 @@ inline bool initialize(int csPin = Config::Hardware::SD_CS) {
 
 #if !defined(HAS_SD_CARD)
     // Board has no SD card support. Return immediately WITHOUT calling SD.begin().
+    // See docs/developers/HARDWARE_NOTES.md (Heltec V3 SD/SPI guard).
     // On Heltec V3 (and similar boards), SD.begin() invokes SPI.begin() with
     // board-default pins that differ from the LoRa SPI pins, reconfiguring the
     // shared FSPI hardware and breaking radio communication after init.
