@@ -122,7 +122,7 @@ Before going to a location, check these maps:
 2. Reconnaissance mode is default -- it scans all 29 configurations automatically
 3. Let it run for **at least one full cycle** (~6 minutes)
 4. Watch the OLED display for detections
-5. Check the web UI Network tab for devices
+5. Check the web UI Devices tab for devices
 
 **What you'll see first**:
 - **Meshtastic**: Usually appears within 30 seconds (frequent beaconing)
@@ -138,7 +138,7 @@ Before going to a location, check these maps:
 Once activity is detected:
 
 1. Note which config found it (Network tab or OLED)
-2. Lock to that frequency: web UI -> Frequency tab -> click the config
+2. Lock to that frequency: web UI -> Frequencies tab -> click the config
 3. Focused listening captures more packets from that network
 4. SD card logs will have all metadata for offline analysis
 
@@ -153,8 +153,8 @@ Once activity is detected:
 
 **Use the Python analyzer**:
 ```bash
-python tools/pcap_analyzer.py your_capture.pcap
-python tools/recon_report.py your_capture.csv
+lorecon report capture.csv -o report.html
+lorecon dev wireshark capture.pcap
 ```
 
 ---
@@ -229,7 +229,7 @@ The sniffer covers **29 frequency configurations**:
 1. Check local coverage: TTN map and Helium Explorer for your area
 2. Pick a location with confirmed gateway coverage
 3. Bring a backup Meshtastic device for guaranteed activity during demos
-4. Use the Python tools for post-capture analysis: `tools/recon_report.py`, `tools/pcap_analyzer.py`
+4. Use the Python tools for post-capture analysis: `lorecon report capture.csv`, `lorecon dev wireshark capture.pcap`
 
 ---
 

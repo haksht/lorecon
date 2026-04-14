@@ -40,10 +40,9 @@ All data lives in RAM and is lost on reboot. Export before power cycling.
 
 | Export | How |
 |--------|-----|
-| Device list | `GET /api/devices` or Devices tab |
+| Device list | Devices tab |
 | GPS positions (KML) | Info tab → Export KML |
 | GPS positions (GeoJSON) | Info tab → Export GeoJSON |
-| System status | `GET /api/status` |
 
 ### With SD card (T3-S3, T-Beam Supreme)
 
@@ -53,8 +52,7 @@ Packets log to `/logs/` automatically on boot. Data survives reboots.
 |--------|-----|
 | CSV packet log | Webapp sidebar → Download CSV |
 | PCAP (Wireshark) | Webapp sidebar → Download PCAP |
-| Past sessions | `GET /api/files` to list, `/api/files/download?name=snf_12345.csv` to fetch |
-| GPS positions | Same as above (KML / GeoJSON) |
+| GPS positions | Info tab → Export KML / GeoJSON |
 
 SD cards up to 32 GB work. Use FAT32. The T3-S3 works best with ≤4 GB cards.
 
@@ -62,43 +60,7 @@ SD cards up to 32 GB work. Use FAT32. The T3-S3 works best with ≤4 GB cards.
 
 ## Python analysis tools
 
-The `tools/` directory has a Python toolkit for live monitoring and offline analysis. See [TOOLS.md](TOOLS.md) for the full reference including when to use each tool and all command options.
-
-### Install
-
-```bash
-python -m venv venv
-.\venv\Scripts\activate.ps1   # Windows (or ./venv/bin/activate on Linux/macOS)
-pip install -e .              # installs the `lorecon` console script + deps
-```
-
-### Quick start
-
-`lorecon` is the single entry point for all tools — run `help` to see what's available:
-
-```bash
-lorecon help
-```
-
-Common workflows:
-
-```bash
-# Offline analysis — the three primary outputs
-lorecon report   capture.csv -o report.html
-lorecon map      capture.csv -o map.html
-lorecon topology capture.csv -o topology.svg
-
-# Report + matching PCAP (adds LoRaWAN join / DevNonce-reuse checks)
-lorecon report capture.csv --pcap capture.pcap -o report.html
-
-# Live monitor — headless, with PSK decryption
-lorecon dev monitor --host 192.168.4.1 --decrypt
-lorecon dev monitor --host 192.168.4.1 --messages   # text only
-lorecon dev monitor --demo                          # no hardware
-
-# PCAP → Wireshark LoRaTap format
-lorecon dev wireshark capture.pcap
-```
+The `tools/` directory has a Python toolkit for live monitoring and offline analysis. See [TOOLS.md](TOOLS.md) for install steps, a quick-start command list, and the full per-tool reference.
 
 ---
 
@@ -116,46 +78,11 @@ lorecon dev wireshark capture.pcap
 
 **Reconnaissance mode** (default): scans all 29 configurations in a ~6-minute cycle, discovers new devices automatically. Mode persists across reboots via NVS.
 
-**Targeted mode**: lock to a specific device or frequency. Press `f` in serial or click a configuration in the Frequency tab. Also persists across reboots.
+**Targeted mode**: lock to a specific device or frequency. Press `f` in serial or click a configuration in the Frequencies tab. Also persists across reboots.
 
 ### Monitoring remotely
 
-If the device is on your hotspot:
-```bash
-# Check device is alive
-curl http://<device-ip>/api/status
-
-# Device count
-curl http://<device-ip>/api/devices | python -m json.tool
-
-# Watch mode hasn't drifted
-curl http://<device-ip>/api/status | python -c "import sys,json; d=json.load(sys.stdin); print(d.get('mode'))"
-```
-
-Or check the Devices tab on any browser connected to the same network.
-
-### Stability features built in
-
-| Feature | Behavior |
-|---------|---------|
-| Hardware watchdog | 30-second timeout, auto-resets on hang |
-| WiFi reconnect | Auto-reconnects with 5-second throttle |
-| AP fallback | `192.168.4.1` always accessible even if hotspot drops |
-| Mode persistence | NVS stores current mode across reboots |
-| Device buffer | Tracks 50 devices; oldest evicted when full |
-| Packet queue | 100-packet queue; overflow logged in UI |
-
-### Post-test
-
-Check serial output on next connection for reset reason (or press `i` in the serial console):
-```
-[INFO] Reset reason: Power-on (code 1)    <- normal
-[WARN] Reset reason: Task watchdog        <- indicates hang during test
-```
-
-On **Heltec V4** (no serial), the Info tab in the web UI shows reset reason and health info.
-
-Stats (total packets, devices, dropped packets) are in the Info tab and `/api/status`.
+Check the Devices tab on any browser connected to the same network. Stats (total packets, devices, dropped packets) are in the Info tab.
 
 ---
 

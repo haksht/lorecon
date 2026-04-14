@@ -9,15 +9,13 @@ Flash the firmware, boot the device, connect to WiFi. This guide covers the full
 - One of the [supported boards](HARDWARE.md)
 - USB-C data cable (not charge-only)
 - 902-928 MHz antenna — usually ships with the board
-- Python 3 and esptool:
+- Python 3 and the analysis toolkit:
 ```bash
-   python -m venv venv      # One time creation of "venv" virtual environment
-   .\venv\Scripts\activate  # ./venv/bin/activate (linux)
-   pip install -r tools/requirements.txt
+python -m venv venv
+.\venv\Scripts\activate.ps1   # Windows (or ./venv/bin/activate on Linux/macOS)
+pip install -e .              # installs lorecon + all deps
+```
 
-.. note:
-   make sure you always activate the virtual environment you created above (venv)
-   when you use any python related tools in this project.
 ---
 
 ## Download firmware
@@ -35,7 +33,7 @@ Go to [Releases](https://github.com/tiarno/esp32-sniffer/releases/latest) and do
 | LilyGO T3-S3 V1.2/V1.3 | `t3_s3/` | COM9 / /dev/ttyACM0 | 4 MB |
 | LilyGO T-Beam Supreme | `tbeam_supreme/` | COM11 / /dev/ttyACM0 | 8 MB |
 
-The **Heltec V3** and **V4 without GPS** use the same `heltec_v3` binary. Only use `heltec_v4` if your V4 board has the L76K GPS module attached.
+All V4 boards use the `heltec_v4` binary — it includes a required USB configuration fix that the V3 binary lacks. Do not flash `heltec_v3` onto a V4.
 
 ---
 
@@ -71,7 +69,7 @@ Flashing takes 30-90 seconds. The script prints `SUCCESS` when done.
 
 If you prefer to run esptool yourself:
 ```bash
-.\venv\Scripts\activate  # or ./venv/bin/activate on linux
+.\venv\Scripts\activate.ps1  # or ./venv/bin/activate on Linux/macOS
 python -m esptool --chip esp32s3 --port COM3 --baud 921600 \
   write_flash --flash_size 8MB 0x0 heltec_v3/full.bin
 ```
@@ -141,7 +139,7 @@ Skip provisioning entirely. Connect to `LoRa-XXYYZZ` and browse to `http://192.1
 
 1. Connect to the device (AP or hotspot)
 2. Open `http://192.168.4.1` (AP mode) or `http://lora-xxyyzz.local` (hotspot mode)
-3. The web UI loads with 6 tabs — Info, Devices, Packets, Frequency, Stats, Settings
+3. The web UI loads with 6 tabs — Info, Devices, Packets, Frequencies, Dashboard, Settings
 4. The Info tab shows scanning status and packet counts
 
 The device starts scanning 29 LoRa configurations immediately on boot. You should see the frequency cycling on the OLED and in the Info tab within seconds.

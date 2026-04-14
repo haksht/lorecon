@@ -24,7 +24,7 @@ pio --version
 | Board | Environment | Key flags |
 |-------|------------|-----------|
 | Heltec WiFi LoRa 32 V3 | `heltec_v3` | Default |
-| Heltec WiFi LoRa 32 V4 (with GPS) | `heltec_v4` | `HAS_GPS`, USB_CDC_ON_BOOT=0 |
+| Heltec WiFi LoRa 32 V4 | `heltec_v4` | `HAS_GPS`, USB_CDC_ON_BOOT=0 |
 | LilyGO T3-S3 V1.2/V1.3 | `t3_s3` | `HAS_SD_CARD`, 4 MB flash |
 | LilyGO T-Beam Supreme | `tbeam_supreme` | `HAS_SD_CARD`, `HAS_GPS`, `HAS_AXP2101`, 8 MB flash |
 | Native unit tests | `native` | Runs on host (Linux/macOS only) |
@@ -73,9 +73,9 @@ pio run -e t3_s3 --target uploadfs --upload-port COM9
 pio run --target upload --target uploadfs
 ```
 
-The `uploadfs` step uploads `firmware/data/webapp/` to the device's LittleFS partition. You only need to run it again when web files change — firmware updates don't touch the filesystem.
+The `uploadfs` step uploads `data/webapp/` to the device's LittleFS partition. You only need to run it again when web files change — firmware updates don't touch the filesystem.
 
-**Pre-loading WiFi credentials:** If you want the device to connect to a hotspot on first boot without going through the captive portal, create `firmware/data/wifi_creds.json` before running `uploadfs`:
+**Pre-loading WiFi credentials:** If you want the device to connect to a hotspot on first boot without going through the captive portal, create `data/wifi_creds.json` before running `uploadfs`:
 ```json
 { "ssid": "YourHotspot", "password": "YourPassword" }
 ```

@@ -38,6 +38,7 @@ static int initTcxoRadio(SX1262* radio, const char* boardName) {
     return RADIOLIB_ERR_NONE;
 }
 
+#if defined(BOARD_HELTEC_V4)
 // Heltec V4 adds an external FEM (GC1109 on V4.2, KCT8103L on V4.3) that must
 // be explicitly enabled via GPIO, plus DIO2 RF-switch control.
 static void enableHeltecV4Fem(SX1262* radio) {
@@ -51,6 +52,7 @@ static void enableHeltecV4Fem(SX1262* radio) {
     if (state != RADIOLIB_ERR_NONE) LOG_WARN("setDio2AsRfSwitch: %d", state);
     else                             LOG_INFO("V4 DIO2 RF switch enabled");
 }
+#endif
 
 // -----------------------------------------------------------------------------
 

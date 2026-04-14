@@ -60,7 +60,7 @@ On the **Heltec V4**, check the web UI Packets tab instead.
 
 If you know what frequency the test device is using, lock the sniffer to it:
 
-1. Press `m` on the serial console (or use the Frequency tab in the web UI)
+1. Press `m` on the serial console (or use the Frequencies tab in the web UI)
 2. Press `f` for frequency targeting
 3. Select the matching config (e.g., `Meshtastic_LF_906` for 906.875 MHz)
 4. Send a message from the test device -- it should appear immediately
@@ -104,7 +104,7 @@ This happens in high-traffic environments (50+ devices, burst transmissions, slo
 **Solutions:**
 - Disconnect the browser/phone during critical capture -- WebSocket broadcasts consume CPU
 - Use a Class 10 or UHS-I SD card (faster writes reduce blocking time)
-- Lock to a single frequency (`f` in serial or Frequency tab) to eliminate scan overhead
+- Lock to a single frequency (`f` in serial or Frequencies tab) to eliminate scan overhead
 
 **Drop rate interpretation:**
 
@@ -207,6 +207,31 @@ The token persists across reboots. If you lose it, reboot and check serial or Se
 
 Read-only endpoints (devices list, status) require no token. Destructive and configuration
 endpoints (clear, replay, WiFi config, firmware upload) require the token.
+
+---
+
+## Stability features
+
+| Feature | Behavior |
+|---------|---------|
+| Hardware watchdog | 30-second timeout, auto-resets on hang |
+| WiFi reconnect | Auto-reconnects with 5-second throttle |
+| AP fallback | `192.168.4.1` always accessible even if hotspot drops |
+| Mode persistence | NVS stores current mode across reboots |
+| Device buffer | Tracks 50 devices; oldest evicted when full |
+| Packet queue | 100-packet queue; overflow logged in UI |
+
+---
+
+## Post-test: checking reset reason
+
+On next serial connection (or press `i` in the console):
+```
+[INFO] Reset reason: Power-on (code 1)    <- normal
+[WARN] Reset reason: Task watchdog        <- indicates hang during test
+```
+
+On **Heltec V4** (no serial), the Info tab shows reset reason and health info.
 
 ---
 

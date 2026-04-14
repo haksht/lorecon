@@ -34,11 +34,6 @@ Deep dive into the v2.0+ architecture — from hardware fundamentals to the clea
 16. [Testing and Debugging](#16-testing-and-debugging)
 17. [Performance Optimization](#17-performance-optimization)
 
-### Part 5: Learning Resources
-18. [Study Guide / Learning Path](#18-study-guide--learning-path)
-19. [Quick Reference Cheat Sheet](#19-quick-reference-cheat-sheet)
-20. [Questions to Test Your Understanding](#20-questions-to-test-your-understanding)
-
 ---
 
 ## **1. The Big Picture: v2.0 Component Design**
@@ -1427,115 +1422,7 @@ data.reserve(256);  // Pre-allocate, avoids reallocs
 
 ---
 
-## **18. Study Guide / Learning Path**
-
-### **Week 1: Fundamentals**
-- [ ] Read sections 1-4 (Big picture, power-on, hardware, main loop)
-- [ ] Trace execution from `setup()` to first packet
-- [ ] Draw component diagram on paper
-- [ ] Compile and upload code, watch serial output
-
-### **Week 2: Components**
-- [ ] Read sections 5-9 (RadioController, PacketProcessor, IReconTool, LoRaReconTool, CommandHandler)
-- [ ] Study each component's interface
-- [ ] Identify responsibilities of each
-- [ ] Add debug prints to understand flow
-
-### **Week 3: Data Flow**
-- [ ] Read sections 10-13 (Interrupts, protocol analysis, PSK, logging)
-- [ ] Trace a packet from antenna to SD card
-- [ ] Understand encryption/decryption
-- [ ] Capture real Meshtastic packets
-
-### **Week 4: Advanced**
-- [ ] Read sections 14-17 (Memory, errors, testing, optimization)
-- [ ] Profile key operations
-- [ ] Write unit test for one component
-- [ ] Add a new command
-
----
-
-## **19. Quick Reference Cheat Sheet**
-
-```cpp
-// Component Creation
-radioController = new RadioController();
-packetProcessor = new PacketProcessor();
-commandHandler = new CommandHandler(this);
-
-// Radio Operations
-radioController->initialize();
-radioController->setFrequency(906.875);
-radioController->setBandwidth(250);
-radioController->setSpreadingFactor(11);
-radioController->startReceive();
-
-if (radioController->hasPacket()) {
-    uint8_t buf[256];
-    int len = radioController->readPacket(buf, sizeof(buf));
-    float rssi = radioController->getRSSI();
-}
-
-// Packet Processing
-packetProcessor->queuePacket(data, length, rssi, snr);
-packetProcessor->processQueue(display);
-
-// Command Handling
-commandHandler->handleCommand('m');  // Show menu
-
-// State Access
-reconState.scanState.mode = MODE_RECONNAISSANCE;
-reconState.addTargetableDevice(nodeId, configIndex, rssi, "Meshtastic", data, length);
-
-// Logging
-if (packetLogger.isAvailable()) {
-    packetLogger.logPacket(data, length, rssi, snr, protocol, nodeId);
-}
-
-// Error Handling
-REPORT_RADIO_ERROR(ErrorCodes::RADIO_INIT_FAILED, "Radio not responding");
-
-// Watchdog
-esp_task_wdt_reset();  // Call in main loop
-```
-
----
-
-## **20. Questions to Test Your Understanding**
-
-### **Architecture**
-1. What problem does `IReconTool` solve?
-2. Why use a queue in `PacketProcessor`?
-3. What happens if you don't pet the watchdog?
-
-### **Threading**
-4. Why must `packetAvailable` be `std::atomic<bool>`?
-5. What can you safely do in an ISR? What can't you?
-6. What is `IRAM_ATTR` and why is it needed?
-
-### **Radio**
-7. What is spreading factor and how does it affect range?
-8. Why cache RSSI readings?
-9. What's the difference between SX1262 and ESP32 roles?
-
-### **Protocol**
-10. How is a Meshtastic nonce constructed?
-11. Why is AES-CTR encryption symmetric (same operation for encrypt/decrypt)?
-12. What makes a packet "valid Meshtastic"?
-
-### **Memory**
-13. Stack vs heap - when to use each?
-14. Why use fixed-size buffers for packets?
-15. What causes heap fragmentation?
-
-### **Code Quality**
-16. Why use `constexpr` for command dispatch table?
-17. What is the command pattern and why use it?
-18. How does dependency inversion improve testability?
-
----
-
-## **21. API Security (v2.2.0)**
+## **18. API Security**
 
 ### **Authentication Model**
 
@@ -1676,27 +1563,6 @@ See `docs/HOW_IT_WORKS.md` for full scoring rubric.
 2. **Namespace encapsulation**: All functions in namespace (e.g., `FormatUtils::`)
 3. **Const-correct**: Output buffers sized appropriately
 4. **No dependencies**: Use only standard library and data_structures.h
-
----
-
-## **Conclusion**
-
-The v2.0 architecture represents a significant improvement in:
-- **Clarity**: Each component has clear responsibility
-- **Testability**: Interfaces enable mocking
-- **Maintainability**: Changes localized to components
-- **Reliability**: Proper thread safety and error handling
-- **Extensibility**: Easy to add features
-- **Security**: Token-based API auth, input validation, NVS credential storage
-
-**Keep exploring, keep questioning, and keep building!**
-
----
-
-**Document Version:** 2.2
-**Last Updated:** December 2025
-**Audience:** Developers learning the v2.0 codebase
-**Prerequisite:** Basic C++ knowledge, Arduino familiarity
 
 ---
 

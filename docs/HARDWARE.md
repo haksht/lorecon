@@ -37,7 +37,7 @@ The most proven board for this firmware.
 
 Hardware is nearly identical to the V3. The V4 has a header for an optional L76K GPS module.
 
-Flash the `heltec_v3` binary unless your V4 has the GPS module — in that case use `heltec_v4` to enable GPS support.
+All V4 boards use the `heltec_v4` binary — it includes a required USB configuration fix that the V3 binary lacks. Do not flash `heltec_v3` onto a V4.
 
 **Purchase:** [Heltec Store](https://heltec.org/project/wifi-lora-32-v3/)
 

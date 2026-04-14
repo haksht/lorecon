@@ -74,9 +74,6 @@ public:
     void setLevel(LogLevel level) override { minLevel = level; }
     LogLevel getLevel() const override { return minLevel; }
 
-    // Redirect output to a different stream (e.g. USBSerial for late USB CDC init)
-    void setStream(Stream* s) { _stream = s; }
-
 private:
     LogLevel minLevel;
     Stream* _stream = &Serial;

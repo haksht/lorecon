@@ -133,7 +133,7 @@ Unified entry point: `lorecon <cmd>`. Three headline outputs and four dev utilit
 - **`dev wireshark`**: Convert ESP32 PCAP → LoRaTap (DLT 270) for Wireshark
 - **`dev merge`**: Cross-capture identity linker (2+ CSVs)
 - **`dev api`**: REST API client (~30 subcommands)
-- **Requirements**: `pip install -r tools/requirements.txt` (cryptography, websocket-client, rich, folium, matplotlib, networkx, requests)
+- **Requirements**: `pip install -e .` from repo root (cryptography, websocket-client, rich, folium, matplotlib, networkx, requests)
 
 ## When Modifying Code
 
