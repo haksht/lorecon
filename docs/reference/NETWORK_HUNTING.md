@@ -240,5 +240,3 @@ The sniffer covers **29 frequency configurations**:
 - Meshtastic docs: https://meshtastic.org/docs/
 - LoRaWAN specification: https://lora-alliance.org/
 - RadioLib: https://github.com/jgromes/RadioLib
-
-
