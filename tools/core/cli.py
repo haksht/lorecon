@@ -23,7 +23,7 @@ def base_parser(description: str) -> argparse.ArgumentParser:
     setup_utf8()
     p = argparse.ArgumentParser(description=description)
     p.add_argument("input", nargs="?", help="CSV or PCAP path")
-    p.add_argument("--api", metavar="HOST", help="Load from live sniffer (replay slots only)")
+    p.add_argument("--api", metavar="HOST", help="Load device summaries from live sniffer /api/devices")
     p.add_argument("-o", "--output", help="Output file path")
     return p
 

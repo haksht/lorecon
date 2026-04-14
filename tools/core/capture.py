@@ -224,7 +224,7 @@ def _int_or_none(v, base: int = 10) -> Optional[int]:
         return None
     try:
         if base == 16:
-            return int(s, 16) if not s.lower().startswith("0x") else int(s, 16)
+            return int(s, 16)
         if base == 0:
             return int(s, 0)
         return int(s, base)

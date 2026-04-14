@@ -354,12 +354,12 @@ void handleReplayPacket(AsyncWebServerRequest* request) {
     }
 
     uint32_t slotVal, repeatVal, delayVal;
-    if (!parseUnsigned(slotParam->value(), slotVal, 0, 255)) {
+    if (!parseUnsigned(slotParam->value(), slotVal, 10, 255)) {
         request->send(400, "application/json", JsonUtils::error("Invalid slotIndex"));
         return;
     }
-    repeatVal = (repeatParam && parseUnsigned(repeatParam->value(), repeatVal, 0, 255)) ? repeatVal : 1;
-    delayVal  = (delayParam  && parseUnsigned(delayParam->value(), delayVal, 0, 65535)) ? delayVal : 1000;
+    repeatVal = (repeatParam && parseUnsigned(repeatParam->value(), repeatVal, 10, 255)) ? repeatVal : 1;
+    delayVal  = (delayParam  && parseUnsigned(delayParam->value(), delayVal, 10, 65535)) ? delayVal : 1000;
 
     // Apply security bounds to prevent abuse
     uint8_t repeatCount;
@@ -386,7 +386,7 @@ void handleStartFrequencyTargeting(AsyncWebServerRequest* request) {
     }
 
     uint32_t rawIndex;
-    if (!parseUnsigned(param->value(), rawIndex, 0, UINT8_MAX)) {
+    if (!parseUnsigned(param->value(), rawIndex, 10, UINT8_MAX)) {
         request->send(400, "application/json", JsonUtils::error("configIndex out of range"));
         return;
     }
