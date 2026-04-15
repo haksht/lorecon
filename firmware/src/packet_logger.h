@@ -38,6 +38,7 @@ struct PacketLogRecord {
     double latitudeDeg;
     double longitudeDeg;
     double altitudeM;
+    const char* positionSource;   // "node" (decoded from packet payload) or "sniffer" (our GPS at RX)
     int hopCount;
     bool isRouter;
     int powerClass;
@@ -63,6 +64,7 @@ struct PacketLogRecord {
         , latitudeDeg(0.0)
         , longitudeDeg(0.0)
         , altitudeM(0.0)
+        , positionSource("")
         , hopCount(-1)
         , isRouter(false)
         , powerClass(-1)

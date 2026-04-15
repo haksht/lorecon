@@ -83,13 +83,20 @@ PROTOCOL_COLORS = {
 
 
 class NodeTrack:
-    """Aggregated info for one node across all its packets."""
+    """Aggregated info for one node across all its packets.
+
+    `positions` holds true node locations (decoded from packet payload).
+    `reception_points` holds sniffer-GPS locations — where WE were when we
+    heard this node, not the node itself. They're useful for showing
+    reception coverage but must not be treated as node locations.
+    """
     def __init__(self, node_id: str):
         self.node_id   = node_id
         self.protocol  = 'Unknown'
         self.packets   = 0
         self.rssi_vals: List[float] = []
         self.positions: List[Tuple[float, float, float]] = []
+        self.reception_points: List[Tuple[float, float, float]] = []
 
     def add(self, p: CapturedPacket):
         self.packets += 1
@@ -99,7 +106,14 @@ class NodeTrack:
             self.rssi_vals.append(p.rssi_dbm)
         if p.lat_deg is not None and p.lon_deg is not None:
             if p.lat_deg != 0.0 or p.lon_deg != 0.0:
-                self.positions.append((p.lat_deg, p.lon_deg, p.alt_m or 0.0))
+                triple = (p.lat_deg, p.lon_deg, p.alt_m or 0.0)
+                if p.position_source == 'sniffer':
+                    self.reception_points.append(triple)
+                else:
+                    # "node" (true node GPS) or None (legacy CSV — bucket with
+                    # node positions; the heuristic below reclassifies them
+                    # when they look like sniffer data)
+                    self.positions.append(triple)
 
     @property
     def best_position(self) -> Optional[Tuple[float, float, float]]:
@@ -136,17 +150,29 @@ class NodeTrack:
 
 
 def aggregate_nodes(cap: Capture) -> Dict[str, NodeTrack]:
-    """Build per-node aggregates from a Capture, enriching GPS from POSITION packets if needed."""
+    """Build per-node aggregates from a Capture.
+
+    Modern CSVs tag each row's lat/lon with `position_source` (node|sniffer),
+    so NodeTrack.add puts them in the right bucket. For legacy CSVs (no
+    source column), everything lands in `positions` and we try to reclassify:
+    if all node "positions" cluster tightly, they're probably sniffer GPS —
+    try decrypting Meshtastic POSITION packets to recover real locations,
+    and if that fails, move the clustered data to reception_points rather
+    than discarding it.
+    """
     nodes: Dict[str, NodeTrack] = {}
+    legacy = True  # becomes False if any row had position_source set
     for p in cap:
         nid = p.node_id_hex or 'unknown'
         if nid not in nodes:
             nodes[nid] = NodeTrack(nid)
         nodes[nid].add(p)
+        if p.position_source:
+            legacy = False
 
-    # Sniffer-GPS-only detection: if every node position is within ~200m of
-    # every other, the CSV's lat/lon is the sniffer — decrypt Meshtastic
-    # POSITION packets to recover real node GPS.
+    if not legacy:
+        return nodes
+
     positioned = [n for n in nodes.values() if n.best_position]
     if positioned:
         lats = [n.best_position[0] for n in positioned]
@@ -154,16 +180,19 @@ def aggregate_nodes(cap: Capture) -> Dict[str, NodeTrack]:
         lat_spread = max(lats) - min(lats)
         lon_spread = max(lons) - min(lons)
         if lat_spread < 0.002 and lon_spread < 0.002:
-            print(f"Sniffer-GPS-only data detected (all {len(positioned)} nodes within "
-                  f"{lat_spread*111000:.0f}m × {lon_spread*111000:.0f}m).")
+            print(f"Legacy CSV: positions cluster within "
+                  f"{lat_spread*111000:.0f}m × {lon_spread*111000:.0f}m — "
+                  f"likely sniffer GPS, not node GPS.")
             print("Decrypting Meshtastic POSITION packets for real node locations...")
             found = _enrich_positions(cap, nodes)
             if found:
                 enriched_nodes = sum(1 for n in nodes.values() if n.best_position)
                 print(f"Decrypted {found} position packets → {enriched_nodes} nodes with real GPS")
             else:
-                print("No Meshtastic POSITION packets decrypted — no real node GPS recoverable.")
+                print("No Meshtastic POSITION packets decrypted — "
+                      "treating positions as sniffer reception points.")
                 for n in nodes.values():
+                    n.reception_points.extend(n.positions)
                     n.positions = []
 
     return nodes
@@ -186,9 +215,15 @@ def nodes_from_devices(devices: List[Device]) -> Dict[str, NodeTrack]:
 
 def render_folium(nodes: Dict[str, NodeTrack], output: str):
     positioned = {nid: n for nid, n in nodes.items() if n.best_position}
-    if not positioned:
+    reception_only = {nid: n for nid, n in nodes.items()
+                      if not n.best_position and n.reception_points}
+    if not positioned and not reception_only:
         print("No GPS positions available. Cannot render map.")
         return
+    if not positioned:
+        print(f"No true node GPS available — rendering {len(reception_only)} "
+              f"nodes at sniffer reception points (coverage map, not node locations).")
+        return _render_reception_map(reception_only, output)
 
     lats = [n.best_position[0] for n in positioned.values()]
     lons = [n.best_position[1] for n in positioned.values()]
@@ -241,6 +276,54 @@ def render_folium(nodes: Dict[str, NodeTrack], output: str):
     folium.LayerControl().add_to(m)
     m.save(output)
     print(f"Map saved: {output}  ({len(positioned)} nodes plotted)")
+    print(f"Open in browser: {Path(output).resolve().as_uri()}")
+
+
+def _render_reception_map(nodes: Dict[str, NodeTrack], output: str):
+    """Render a coverage map: each node plotted at its last sniffer-RX location,
+    plus the sniffer track as a polyline. Markers are reception points, NOT
+    node locations — popup text makes this explicit."""
+    last_points = {nid: n.reception_points[-1] for nid, n in nodes.items()}
+    lats = [p[0] for p in last_points.values()]
+    lons = [p[1] for p in last_points.values()]
+    center = (sum(lats) / len(lats), sum(lons) / len(lons))
+    m = folium.Map(location=center, zoom_start=14, tiles='CartoDB positron')
+
+    # Sniffer track: dedup consecutive duplicates from pooled reception points.
+    all_points: List[Tuple[float, float, float]] = []
+    for n in nodes.values():
+        all_points.extend(n.reception_points)
+    if len(all_points) >= 2:
+        track = [(lat, lon) for lat, lon, _ in all_points]
+        folium.PolyLine(track, color='#888', weight=2, opacity=0.5,
+                        tooltip='Sniffer track (reception points)').add_to(m)
+
+    cluster = MarkerCluster(name='Reception points').add_to(m)
+    for nid, node in nodes.items():
+        lat, lon, _ = last_points[nid]
+        rssi_str = f"{node.avg_rssi:.1f} dBm" if node.avg_rssi is not None else "—"
+        popup = (f"<b>{nid}</b><br>Protocol: {node.protocol}<br>"
+                 f"Packets: {node.packets}<br>Avg RSSI: {rssi_str}<br>"
+                 f"<i>Reception point (sniffer GPS), not node location.</i>")
+        folium.CircleMarker(
+            location=(lat, lon), radius=6, color=node.color,
+            fill=True, fill_color=node.color, fill_opacity=0.6,
+            popup=folium.Popup(popup, max_width=240),
+            tooltip=f"{nid[-8:]} (RX @ sniffer)",
+        ).add_to(cluster)
+
+    legend = (
+        '<div style="position:fixed;bottom:30px;left:30px;z-index:1000;'
+        'background:#1a1a2e;color:white;padding:10px 16px;border-radius:8px;'
+        'font-size:13px;border:1px solid #444;">'
+        f'<b>ESP32 LoRa Sniffer — coverage view</b><br>'
+        f'<small>{len(nodes)} nodes heard; markers = where the sniffer was '
+        f'at RX, not true node GPS</small></div>'
+    )
+    m.get_root().html.add_child(folium.Element(legend))
+    folium.LayerControl().add_to(m)
+    m.save(output)
+    print(f"Coverage map saved: {output}")
     print(f"Open in browser: {Path(output).resolve().as_uri()}")
 
 
@@ -327,7 +410,9 @@ def main():
         print(f"Filtered to {len(nodes)} nodes with >= {args.min_packets} packets (dropped {before - len(nodes)})")
 
     positioned = sum(1 for n in nodes.values() if n.best_position)
-    print(f"Nodes with GPS: {positioned} / {len(nodes)}")
+    reception_only = sum(1 for n in nodes.values() if not n.best_position and n.reception_points)
+    print(f"Nodes with true GPS: {positioned} / {len(nodes)}"
+          + (f"  (+{reception_only} with sniffer reception points only)" if reception_only else ""))
 
     if FOLIUM_AVAILABLE and not out.endswith('.png'):
         render_folium(nodes, out)

@@ -63,9 +63,11 @@ def _ingest(cap: Capture, records: Dict[str, NodeRecord]) -> None:
             rec.protocols.add(p.protocol)
         if p.psk_result and p.psk_result not in ('none', 'failed'):
             rec.psk_names.add(p.psk_result)
-        if p.lat_deg is not None and p.lon_deg is not None:
-            if p.lat_deg != 0.0 or p.lon_deg != 0.0:
-                rec.positions.append((p.lat_deg, p.lon_deg))
+        # Skip sniffer-sourced positions — they're our RX location, not the node's.
+        if (p.lat_deg is not None and p.lon_deg is not None
+                and (p.lat_deg != 0.0 or p.lon_deg != 0.0)
+                and p.position_source != 'sniffer'):
+            rec.positions.append((p.lat_deg, p.lon_deg))
         # Try NodeInfo / Text / Position decrypt for identity
         if p.encrypted and decode.CRYPTO_AVAILABLE and p.raw_hex:
             try:

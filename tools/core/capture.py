@@ -69,6 +69,7 @@ def _row_to_packet(row: dict) -> CapturedPacket:
         lat_deg      = _float_or_none(row.get("lat_deg")),
         lon_deg      = _float_or_none(row.get("lon_deg")),
         alt_m        = _float_or_none(row.get("alt_m")),
+        position_source = (row.get("position_source") or None),
 
         raw_hex      = row.get("raw_hex", "") or "",
     )

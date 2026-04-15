@@ -49,10 +49,14 @@ class CapturedPacket:
     relay_byte: Optional[int] = None         # byte 15 from raw packet
     relay_sightings: list[RelaySighting] = field(default_factory=list)
 
-    # Sniffer position at RX time (GPS-equipped boards only)
+    # Position at RX time (GPS-equipped boards only). position_source is
+    # "node" when decoded from the packet payload (true node location) or
+    # "sniffer" when it's our GPS at RX (where WE were, not the node).
+    # None for legacy CSVs written before the column existed.
     lat_deg: Optional[float] = None
     lon_deg: Optional[float] = None
     alt_m: Optional[float] = None
+    position_source: Optional[str] = None
 
     # Raw
     raw_hex: str = ""

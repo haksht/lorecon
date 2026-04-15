@@ -174,11 +174,12 @@ bool PacketLogger::logPacket(const PacketLogRecord& record, const uint8_t* data,
     }
     sessionFile.print(',');
 
-    // lat, lon, alt (3 columns  -  empty when no position)
+    // lat, lon, alt, position_source (4 columns — empty when no position)
     if (record.hasPosition) {
-        sessionFile.printf("%.6f,%.6f,%.1f,", record.latitudeDeg, record.longitudeDeg, record.altitudeM);
+        sessionFile.printf("%.6f,%.6f,%.1f,%s,", record.latitudeDeg, record.longitudeDeg, record.altitudeM,
+                           record.positionSource ? record.positionSource : "");
     } else {
-        sessionFile.print(",,,");
+        sessionFile.print(",,,,");
     }
 
     // hop_count (optional), is_router, power_class (optional)
@@ -344,7 +345,7 @@ bool PacketLogger::writeCSVHeader() {
         return false;
     }
     
-    sessionFile.println("timestamp_ms,session_id,node_id_hex,protocol,frequency_mhz,config_index,rssi_dbm,snr_db,length_bytes,packet_type,encrypted,psk_result,psk_id,lat_deg,lon_deg,alt_m,hop_count,is_router,power_class,packet_id,dest_id_hex,channel,relay_byte,raw_hex");
+    sessionFile.println("timestamp_ms,session_id,node_id_hex,protocol,frequency_mhz,config_index,rssi_dbm,snr_db,length_bytes,packet_type,encrypted,psk_result,psk_id,lat_deg,lon_deg,alt_m,position_source,hop_count,is_router,power_class,packet_id,dest_id_hex,channel,relay_byte,raw_hex");
     sessionFile.flush();
     return true;
 }

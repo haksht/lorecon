@@ -170,12 +170,14 @@ void PacketProcessor::processSinglePacket(const QueuedPacket& qp, OLEDDisplay* d
             record.latitudeDeg = loggedPoint->latitude;
             record.longitudeDeg = loggedPoint->longitude;
             record.altitudeM = loggedPoint->altitude;
+            record.positionSource = "node";
         } else if (snifferHasGPS) {
             // Fall back to sniffer's own GPS: where WE were when we received this packet
             record.hasPosition = true;
             record.latitudeDeg = snifferLat;
             record.longitudeDeg = snifferLon;
             record.altitudeM = snifferAlt;
+            record.positionSource = "sniffer";
         }
         record.hopCount = (info.hopCount > 0) ? info.hopCount : -1;
         record.isRouter = info.isRouter;

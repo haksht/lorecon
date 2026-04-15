@@ -217,10 +217,14 @@ class Assessment:
         if ts:
             dev.timestamps.append(ts)
 
-        if p.lat_deg is not None and p.lon_deg is not None:
-            if p.lat_deg != 0.0 or p.lon_deg != 0.0:
-                dev.has_gps = True
-                dev.positions.append((p.lat_deg, p.lon_deg))
+        # Only count as a node location when firmware tagged it as such.
+        # `sniffer`-sourced positions are where WE were, not the node — they
+        # would otherwise pin every heard node onto our own track.
+        if (p.lat_deg is not None and p.lon_deg is not None
+                and (p.lat_deg != 0.0 or p.lon_deg != 0.0)
+                and p.position_source != 'sniffer'):
+            dev.has_gps = True
+            dev.positions.append((p.lat_deg, p.lon_deg))
 
         # PSK result from firmware CSV (already cracked by firmware)
         if p.psk_result and p.psk_result not in ('none', 'failed'):
