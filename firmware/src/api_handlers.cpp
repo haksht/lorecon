@@ -491,7 +491,7 @@ void handleExportReport(AsyncWebServerRequest* request) {
     // Force download with filename
     AsyncWebServerResponse* response = request->beginResponse(
         200, "application/json", APIController::getConsolidatedReport());
-    response->addHeader("Content-Disposition", "attachment; filename=\"lora-recon-report.json\"");
+    response->addHeader("Content-Disposition", "attachment; filename=\"lorecon-report.json\"");
     request->send(response);
 }
 

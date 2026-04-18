@@ -177,7 +177,7 @@ class ReconClient:
             print(f"❌ KML download failed: {e}")
             return None
     
-    def download_report(self, output="lora-recon-report.json"):
+    def download_report(self, output="lorecon-report.json"):
         """Download consolidated JSON report (security, devices, stats, GPS)"""
         data = self._get("/api/export/report")
         with open(output, 'w') as f:
@@ -355,7 +355,7 @@ Examples:
     kml_parser.add_argument('-o', '--output', default='positions.kml', help='Output filename')
     
     report_parser = subparsers.add_parser('download-report', help='Download consolidated report')
-    report_parser.add_argument('-o', '--output', default='lora-recon-report.json', help='Output filename')
+    report_parser.add_argument('-o', '--output', default='lorecon-report.json', help='Output filename')
     
     # Geographic data
     subparsers.add_parser('positions', help='Show GPS positions')
