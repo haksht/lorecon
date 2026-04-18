@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to the ESP32 LoRa Sniffer project.
+All notable changes to the LoRecon project (ESP32 LoRa packet sniffer & reconnaissance tool).
 
 ## [Unreleased] - 2026-04-09
 

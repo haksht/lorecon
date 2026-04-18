@@ -340,7 +340,7 @@ def open_wireshark(filepath):
 
 def main():
     parser = argparse.ArgumentParser(
-        description='Convert ESP32 LoRa Sniffer PCAP to Wireshark-compatible formats',
+        description='Convert LoRecon PCAP to Wireshark-compatible formats',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:

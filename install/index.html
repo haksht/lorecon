@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LoRecon — Web Installer</title>
+<script type="module" src="https://unpkg.com/esp-web-tools@10/dist/web/install-button.js?module"></script>
+<style>
+  :root {
+    --bg:#0d1117; --card:#161b22; --line:#30363d;
+    --fg:#c9d1d9; --muted:#8b949e; --accent:#58a6ff; --warn:#f59e0b;
+  }
+  * { box-sizing:border-box; }
+  body {
+    margin:0; padding:32px 16px;
+    font:15px/1.55 -apple-system,Segoe UI,Roboto,sans-serif;
+    background:var(--bg); color:var(--fg);
+  }
+  .wrap { max-width:880px; margin:0 auto; }
+  header { text-align:center; margin-bottom:32px; }
+  h1 { margin:0 0 8px; font-size:36px; color:var(--accent); letter-spacing:-0.5px; }
+  .tag { color:var(--muted); font-size:14px; }
+  .browser-warn {
+    background:rgba(245,158,11,0.08); border:1px solid var(--warn);
+    color:var(--warn); padding:12px 16px; border-radius:8px;
+    margin:24px auto; max-width:640px; text-align:center; font-size:14px;
+  }
+  .grid { display:grid; gap:16px; grid-template-columns:repeat(auto-fit,minmax(380px,1fr)); }
+  .card {
+    background:var(--card); border:1px solid var(--line); border-radius:10px;
+    padding:20px;
+  }
+  .card h2 { margin:0 0 6px; font-size:18px; color:var(--fg); }
+  .card .desc { color:var(--muted); font-size:13px; margin:0 0 16px; min-height:36px; }
+  .row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  esp-web-install-button { --esp-tools-button-color:#fff; }
+  esp-web-install-button button {
+    background:var(--accent); color:#fff; border:0; border-radius:6px;
+    padding:8px 16px; font-size:14px; cursor:pointer;
+  }
+  .pill {
+    display:inline-block; background:#21262d; border:1px solid var(--line);
+    border-radius:999px; padding:2px 10px; font-size:12px; color:var(--muted);
+  }
+  footer {
+    margin-top:40px; padding-top:20px; border-top:1px solid var(--line);
+    text-align:center; color:var(--muted); font-size:13px;
+  }
+  footer a { color:var(--accent); text-decoration:none; }
+  footer a:hover { text-decoration:underline; }
+  .steps { background:var(--card); border:1px solid var(--line); border-radius:10px;
+           padding:16px 24px; margin:24px 0; font-size:14px; color:var(--muted); }
+  .steps ol { margin:8px 0; padding-left:20px; }
+  .steps li { margin:4px 0; }
+  code { background:#21262d; padding:1px 6px; border-radius:4px; font-size:13px; color:var(--fg); }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <h1>LoRecon</h1>
+  <div class="tag">One-click web installer · v2.4.1</div>
+</header>
+
+<div class="browser-warn">
+  Open this page in <strong>Chrome</strong> or <strong>Edge</strong>.
+  WebSerial is not supported in Firefox or Safari.
+</div>
+
+<div class="steps">
+  <strong>Before you install:</strong>
+  <ol>
+    <li>Plug your board in by USB. Use a data cable, not charge-only.</li>
+    <li>Click <strong>Connect</strong> on the matching card below.</li>
+    <li>If the board doesn't appear, hold <code>BOOT</code>, tap <code>RST</code>, release <code>BOOT</code>, then click Connect again.</li>
+  </ol>
+</div>
+
+<div class="grid">
+
+  <div class="card">
+    <h2>Heltec WiFi LoRa 32 V3</h2>
+    <p class="desc">Lowest cost, CP210x serial. Most common starter board.</p>
+    <div class="row">
+      <esp-web-install-button manifest="manifests/heltec_v3.json"></esp-web-install-button>
+      <span class="pill">ESP32-S3 · 8 MB</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Heltec WiFi LoRa 32 V4</h2>
+    <p class="desc">Adds optional L76K GPS. Native USB (no serial monitor).</p>
+    <div class="row">
+      <esp-web-install-button manifest="manifests/heltec_v4.json"></esp-web-install-button>
+      <span class="pill">ESP32-S3 · 8 MB</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>LilyGO T3-S3 V1.2/V1.3</h2>
+    <p class="desc">Native SD card slot for PCAP/CSV logging.</p>
+    <div class="row">
+      <esp-web-install-button manifest="manifests/t3_s3.json"></esp-web-install-button>
+      <span class="pill">ESP32-S3 · 4 MB</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>LilyGO T-Beam Supreme</h2>
+    <p class="desc">SD + built-in GPS + AXP2101 PMIC + battery management.</p>
+    <div class="row">
+      <esp-web-install-button manifest="manifests/tbeam_supreme.json"></esp-web-install-button>
+      <span class="pill">ESP32-S3 · 8 MB</span>
+    </div>
+  </div>
+
+</div>
+
+<footer>
+  <p>
+    <a href="https://github.com/haksht/lorecon">Source on GitHub</a> ·
+    <a href="https://github.com/haksht/lorecon/blob/main/docs/SETUP.md">Setup docs</a> ·
+    <a href="https://github.com/haksht/lorecon/blob/main/docs/HARDWARE.md">Hardware guide</a>
+  </p>
+  <p style="font-size:12px">
+    Powered by <a href="https://esphome.github.io/esp-web-tools/">ESP Web Tools</a>.
+    Passive LoRa reconnaissance for authorized security research.
+  </p>
+</footer>
+
+</div>
+</body>
+</html>

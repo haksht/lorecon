@@ -260,7 +260,7 @@ def render_folium(nodes: Dict[str, NodeTrack], output: str):
         '<div style="position:fixed;bottom:30px;left:30px;z-index:1000;'
         'background:#1a1a2e;color:white;padding:10px 16px;'
         'border-radius:8px;font-size:13px;border:1px solid #444;">'
-        f'<b>ESP32 LoRa Sniffer</b><br>'
+        f'<b>LoRecon</b><br>'
         f'<small>{len(positioned)} nodes with GPS / {len(nodes)} total</small><br><br>'
     )
     for proto, count in sorted(proto_counts.items(), key=lambda x: -x[1]):
@@ -316,7 +316,7 @@ def _render_reception_map(nodes: Dict[str, NodeTrack], output: str):
         '<div style="position:fixed;bottom:30px;left:30px;z-index:1000;'
         'background:#1a1a2e;color:white;padding:10px 16px;border-radius:8px;'
         'font-size:13px;border:1px solid #444;">'
-        f'<b>ESP32 LoRa Sniffer — coverage view</b><br>'
+        f'<b>LoRecon — coverage view</b><br>'
         f'<small>{len(nodes)} nodes heard; markers = where the sniffer was '
         f'at RX, not true node GPS</small></div>'
     )

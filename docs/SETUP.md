@@ -9,18 +9,55 @@ Flash the firmware, boot the device, connect to WiFi. This guide covers the full
 - One of the [supported boards](HARDWARE.md)
 - USB-C data cable (not charge-only)
 - 902-928 MHz antenna — usually ships with the board
-- Python 3 and the analysis toolkit:
-```bash
-python -m venv venv
-.\venv\Scripts\activate.ps1   # Windows (or ./venv/bin/activate on Linux/macOS)
-pip install -e .              # installs lorecon + all deps
-```
+- [Python 3.10+](https://www.python.org/downloads/) — needed for `esptool` flashing and the `lorecon` analysis toolkit. Skip if you only want to flash from the browser (see [Flash from your browser](#flash-from-your-browser-no-python-needed) below)
 
 ---
 
-## Download firmware
+## Pick a path
 
-Go to [Releases](https://github.com/tiarno/esp32-sniffer/releases/latest) and download `esp32-lora-sniffer-vX.X.X-binaries.zip`. Extract it. The zip contains `flash.sh`, `flash.bat`, and `flash.ps1` at the top level, plus one folder per board — each folder contains a `full.bin` merged image that flashes at offset `0x0`.
+Three options. Easiest first — pick one.
+
+### Path A — Web installer (one click, no downloads, no Python)
+
+Open **<https://haksht.github.io/lorecon/install/>** in Chrome or Edge, plug your board in, and click the button for your board. The installer flashes the same firmware as the binary release, straight from the browser.
+
+This is the fastest start. You do **not** get the Python analysis tools. If you want those later, do Path C as well — it's additive, no re-flashing.
+
+After flashing, skip ahead to [First boot](#first-boot).
+
+### Path B — Binary release (offline, no analysis tools)
+
+Download `lorecon-vX.X.X-binaries.zip` from [Releases](https://github.com/haksht/lorecon/releases/latest) and extract it anywhere. The zip contains `flash.sh`, `flash.bat`, and `flash.ps1` at the top level, plus one folder per board — each folder has a `full.bin` merged image that flashes at offset `0x0`.
+
+Then `cd` into the extracted folder and continue at [Flash the firmware](#flash-the-firmware).
+
+### Path C — Clone or download the repo (firmware + Python tools)
+
+Get the source. Three options:
+
+| How | Command or link | When |
+|-----|---|---|
+| **git clone** (recommended) | `git clone https://github.com/haksht/lorecon.git` | You have git and want easy updates (`git pull`) |
+| **Download ZIP** | [Download main.zip](https://github.com/haksht/lorecon/archive/refs/heads/main.zip) | No git installed — just unzip and go |
+| **Fork, then clone your fork** | "Fork" button on the [GitHub page](https://github.com/haksht/lorecon) | You plan to contribute or modify |
+
+Don't have git? Install [Git for Windows](https://git-scm.com/download/win) (Linux/macOS usually have it; check with `git --version`).
+
+Now `cd` into the repo root — the directory containing `README.md`, `pyproject.toml`, and the `firmware/`, `tools/`, and `releases/` folders. Every command in the rest of this guide runs from here.
+
+```bash
+cd lorecon            # if you cloned
+cd lorecon-main       # if you downloaded the ZIP (GitHub adds "-main")
+```
+
+Install the Python toolkit:
+```bash
+python -m venv venv
+.\venv\Scripts\activate.ps1   # Windows PowerShell (or ./venv/bin/activate on Linux/macOS)
+pip install -e .              # installs the lorecon CLI + esptool + all deps
+```
+
+The pre-built binaries are already in the repo under `releases/vX.X.X/` — the same flash scripts work from there. No separate download needed.
 
 ---
 
@@ -39,7 +76,9 @@ All V4 boards use the `heltec_v4` binary — it includes a required USB configur
 
 ## Flash the firmware
 
-Open a terminal in the extracted folder and run the script for your OS. Port is auto-detected if you omit it.
+The flash scripts need `esptool`. If you followed Path B, `pip install -e .` already installed it — just activate the venv first. If you're on Path A, run `pip install esptool` once.
+
+Open a terminal where the flash scripts live (the extracted release folder for Path A, or `releases/vX.X.X/` inside the repo for Path B) and run the script for your OS. Port is auto-detected if you omit it.
 
 **Windows PowerShell:**
 ```powershell
@@ -64,6 +103,23 @@ chmod +x flash.sh
 ```
 
 Flashing takes 30-90 seconds. The script prints `SUCCESS` when done.
+
+### Flash from your browser (no Python needed)
+
+If you don't want to install Python or esptool, flash directly from Chrome or Edge using a WebSerial tool — drag-and-drop the `full.bin` file for your board at offset `0x0`.
+
+- [Espressif esptool-js](https://espressif.github.io/esptool-js/) — official Espressif web flasher
+- [Adafruit WebSerial ESPTool](https://adafruit.github.io/Adafruit_WebSerial_ESPTool/) — simpler UI, same idea
+
+Steps:
+
+1. Plug in the board (hold **BOOT** if it doesn't show up)
+2. Open the flasher in Chrome or Edge
+3. Click **Connect** and pick your device's port
+4. Select `full.bin` from your board's folder, set address to `0x0`
+5. Click **Program**
+
+Firefox and Safari do not support WebSerial — use Chrome or Edge.
 
 ### Manual flash (esptool directly)
 

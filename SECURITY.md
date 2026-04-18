@@ -6,7 +6,7 @@ If you discover a security vulnerability in this project, please report it respo
 
 ### Contact
 
-- **Email**: [Create a private security advisory on GitHub](https://github.com/tiarno/esp32-sniffer/security/advisories/new)
+- **Email**: [Create a private security advisory on GitHub](https://github.com/haksht/lorecon/security/advisories/new)
 - **Response Time**: We aim to respond within 72 hours
 
 ### What to Include

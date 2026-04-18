@@ -1,5 +1,5 @@
 @echo off
-REM ESP32 LoRa Sniffer - Flash Script
+REM LoRecon - Flash Script
 REM Works from CMD or PowerShell.
 REM
 REM Usage: flash.bat <board> [port]
@@ -67,7 +67,7 @@ if "%PORT%"=="" (
 
 echo.
 echo ============================================
-echo   ESP32 LoRa Sniffer Flasher
+echo   LoRecon Flasher
 echo   Board: %LABEL%
 echo   Port:  %PORT%
 echo ============================================

@@ -1,4 +1,4 @@
-# Contributing to ESP32 LoRa Sniffer
+# Contributing to LoRecon
 
 Thank you for your interest in contributing! This document provides guidelines and standards to ensure consistent, high-quality code.
 

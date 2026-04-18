@@ -7,11 +7,36 @@ run it, and what it produces.
 
 ## Install
 
+The `lorecon` toolkit lives in the source repo — **the release zip on GitHub (binaries only) does not include it**. If you only flashed from the binary release, come back here and grab the source to use these tools.
+
+### 1. Get the source
+
+| How | Command or link | When |
+|-----|---|---|
+| **git clone** (recommended) | `git clone https://github.com/haksht/lorecon.git` | You have git; want `git pull` updates |
+| **Download ZIP** | [Download main.zip](https://github.com/haksht/lorecon/archive/refs/heads/main.zip) | No git installed |
+| **Fork, then clone your fork** | "Fork" button on the [GitHub page](https://github.com/haksht/lorecon) | You plan to contribute |
+
+Need git? [Git for Windows](https://git-scm.com/download/win) · [macOS](https://git-scm.com/download/mac) · Linux: use your package manager.
+
+### 2. Enter the repo root
+
+`cd` into the directory that contains `pyproject.toml` and the `tools/` folder — every command below runs from there.
+
+```bash
+cd lorecon            # if you cloned
+cd lorecon-main       # if you downloaded the ZIP (GitHub appends "-main")
+```
+
+### 3. Create a venv and install
+
 ```bash
 python -m venv venv
 .\venv\Scripts\activate.ps1   # Windows (or ./venv/bin/activate on Linux/macOS)
 pip install -e .              # installs the `lorecon` console script + deps
 ```
+
+Re-activate the venv in every new terminal (`./venv/bin/activate` or `.\venv\Scripts\activate.ps1`). `lorecon --help` confirms the install worked.
 
 Dependencies installed by `pip install -e .`:
 

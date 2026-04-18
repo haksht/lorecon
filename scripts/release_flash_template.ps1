@@ -1,4 +1,4 @@
-# ESP32 LoRa Sniffer - Flash Script (Windows PowerShell)
+# LoRecon - Flash Script (Windows PowerShell)
 # Usage: .\flash.ps1 <board> [port]
 #
 # Boards: heltec_v3 | heltec_v4 | t3_s3 | tbeam_supreme
@@ -71,7 +71,7 @@ if ($Port -eq "") {
 
 Write-Host ""
 Write-Host "============================================"
-Write-Host "  ESP32 LoRa Sniffer Flasher"
+Write-Host "  LoRecon Flasher"
 Write-Host "  Board: $label"
 Write-Host "  Port:  $Port"
 Write-Host "============================================"

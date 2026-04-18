@@ -114,7 +114,7 @@ inline String serialize(JsonDocument& doc) {
 /**
  * Create standard health check response
  */
-inline String healthOk(const char* service = "ESP32 LoRa Sniffer") {
+inline String healthOk(const char* service = "LoRecon") {
     JsonDocument doc;
     doc["status"] = "ok";
     doc["service"] = service;

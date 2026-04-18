@@ -5,7 +5,7 @@
 # Example: ./tools/make_release.sh v2.3.0
 #
 # Outputs: releases/<version>/   (per-board subdirs + flash scripts)
-#          releases/esp32-lora-sniffer-<version>-binaries.zip
+#          releases/lorecon-<version>-binaries.zip
 
 set -euo pipefail
 
@@ -71,7 +71,7 @@ declare -A BOARD_CFG=(
 BOARDS=(heltec_v3 heltec_v4 t3_s3 tbeam_supreme)
 
 echo "========================================"
-echo "  ESP32 LoRa Sniffer Release Builder"
+echo "  LoRecon Release Builder"
 echo "  Version: $VERSION"
 echo "========================================"
 echo ""
@@ -125,7 +125,7 @@ done
 # ---- flash.sh ---------------------------------------------------------------
 cat > "$RELEASE_DIR/flash.sh" << 'FLASH_SH'
 #!/usr/bin/env bash
-# ESP32 LoRa Sniffer — Flash Script (Linux / macOS / Windows git-bash)
+# LoRecon — Flash Script (Linux / macOS / Windows git-bash)
 # Usage: ./flash.sh <board> [port]
 #
 # Boards: heltec_v3 | t3_s3 | tbeam_supreme
@@ -204,7 +204,7 @@ fi
 
 echo ""
 echo "============================================"
-echo "  ESP32 LoRa Sniffer Flasher"
+echo "  LoRecon Flasher"
 echo "  Board: $LABEL"
 echo "  Port:  $PORT"
 echo "============================================"
@@ -232,7 +232,7 @@ chmod +x "$RELEASE_DIR/flash.sh"
 # ---- flash.bat --------------------------------------------------------------
 cat > "$RELEASE_DIR/flash.bat" << 'FLASH_BAT'
 @echo off
-REM ESP32 LoRa Sniffer — Flash Script (Windows CMD)
+REM LoRecon — Flash Script (Windows CMD)
 REM Usage: flash.bat <board> [port]
 REM
 REM Boards: heltec_v3 | t3_s3 | tbeam_supreme
@@ -300,7 +300,7 @@ if "%PORT%"=="" (
 
 echo.
 echo ============================================
-echo   ESP32 LoRa Sniffer Flasher
+echo   LoRecon Flasher
 echo   Board: %LABEL%
 echo   Port:  %PORT%
 echo ============================================
@@ -335,7 +335,7 @@ FLASH_BAT
 
 # ---- flash.ps1 --------------------------------------------------------------
 cat > "$RELEASE_DIR/flash.ps1" << 'FLASH_PS1'
-# ESP32 LoRa Sniffer — Flash Script (Windows PowerShell)
+# LoRecon — Flash Script (Windows PowerShell)
 # Usage: .\flash.ps1 <board> [port]
 #
 # Boards: heltec_v3 | heltec_v4 | t3_s3 | tbeam_supreme
@@ -405,7 +405,7 @@ if ($Port -eq "") {
 
 Write-Host ""
 Write-Host "============================================"
-Write-Host "  ESP32 LoRa Sniffer Flasher"
+Write-Host "  LoRecon Flasher"
 Write-Host "  Board: $label"
 Write-Host "  Port:  $Port"
 Write-Host "============================================"
@@ -441,7 +441,7 @@ FLASH_PS1
 
 # ---- FLASH_INSTRUCTIONS.md --------------------------------------------------
 cat > "$RELEASE_DIR/FLASH_INSTRUCTIONS.md" << INSTRUCTIONS
-# ESP32 LoRa Sniffer $VERSION — Flash Instructions
+# LoRecon $VERSION — Flash Instructions
 
 Pre-compiled binaries for **four boards**: Heltec WiFi LoRa 32 V3, Heltec WiFi LoRa 32 V4 (GPS), LilyGO T3-S3, and LilyGO T-Beam Supreme.
 
@@ -588,13 +588,13 @@ Addresses for manual multi-file flash:
 ## Support
 
 - Documentation: \`GETTING_STARTED.md\` in main repo
-- Issues: https://github.com/tiarno/esp32-sniffer/issues
+- Issues: https://github.com/haksht/lorecon/issues
 INSTRUCTIONS
 
 # ---- Zip -------------------------------------------------------------------
 echo ""
 echo "Creating zip archive..."
-ZIP_NAME="esp32-lora-sniffer-${VERSION}-binaries.zip"
+ZIP_NAME="lorecon-${VERSION}-binaries.zip"
 ZIP_PATH="$REPO_ROOT/releases/$ZIP_NAME"
 
 cd "$REPO_ROOT/releases"
@@ -636,10 +636,10 @@ if [ -n "$GH" ]; then
     cd "$REPO_ROOT"
     "$GH" release create "$VERSION" \
         "$ZIP_PATH#$ZIP_NAME" \
-        --title "$VERSION — ESP32 LoRa Sniffer Multi-board Release" \
+        --title "$VERSION — LoRecon Multi-board Release" \
         --notes "See FLASH_INSTRUCTIONS.md inside the zip. Boards: Heltec V3, T3-S3, T-Beam Supreme." \
         2>&1 && echo "  Published: $(\"$GH\" release view \"$VERSION\" --json url -q .url)"
 else
     echo "  (gh CLI not found — upload $ZIP_NAME to GitHub Releases manually)"
-    echo "  https://github.com/tiarno/esp32-sniffer/releases/new?tag=$VERSION"
+    echo "  https://github.com/haksht/lorecon/releases/new?tag=$VERSION"
 fi

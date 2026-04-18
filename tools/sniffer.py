@@ -41,7 +41,7 @@ def _invoked_as():
 
 def print_help():
     name = _invoked_as()
-    print("ESP32 LoRa Sniffer - Unified CLI")
+    print("LoRecon - Unified CLI")
     print()
     print(f"Usage:  {name} <map|topology|report> <capture.csv> [-o OUT]")
     print(f"        {name} dev <cmd> [options]")

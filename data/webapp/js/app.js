@@ -1,4 +1,4 @@
-/* ESP32 LoRa Recon - Modular Client
+/* ESP32 LoRecon - Modular Client
  * Refactored for maintainability with:
  * - Debug flag for conditional logging
  * - Shared table/card rendering utilities
@@ -1213,7 +1213,7 @@ class ReconApp {
 
             html += '<div class="table-wrapper">';
             html += '<table class="table freq-table"><thead><tr>';
-            html += '<th>Protocol</th><th>Frequency</th><th>SF</th><th>BW</th><th>Packets</th><th>Avg RSSI</th><th>Peak RSSI</th><th>Actions</th>';
+            html += '<th>Actions</th><th>Protocol</th><th>Frequency</th><th>SF</th><th>BW</th><th>Packets</th><th>Avg RSSI</th><th>Peak RSSI</th>';
             html += '</tr></thead><tbody>';
 
             allConfigs.forEach(act => {
@@ -1222,6 +1222,11 @@ class ReconApp {
                 const rssiClass = formatRSSI(act.avgRSSI, false);
                 const rowClass = isLocked ? 'locked-row' : (isActive ? '' : 'inactive-row');
                 html += `<tr class="${rowClass}">`;
+                if (isLocked) {
+                    html += `<td><span class="locked-badge">🔒 Locked</span></td>`;
+                } else {
+                    html += `<td><button data-action="target-frequency" data-value="${act.configIndex}" class="btn btn-primary btn-small">🎯 Target</button></td>`;
+                }
                 html += `<td><strong>${act.protocol}</strong> <span class="badge config-badge">#${act.configIndex + 1}</span></td>`;
                 html += `<td>${act.frequencyMHz.toFixed(3)} MHz</td>`;
                 html += `<td>SF${act.spreadingFactor}</td>`;
@@ -1234,11 +1239,6 @@ class ReconApp {
                     html += '<td class="text-muted">—</td>';
                     html += '<td class="text-muted">—</td>';
                     html += '<td class="text-muted">—</td>';
-                }
-                if (isLocked) {
-                    html += `<td><span class="locked-badge">🔒 Locked</span></td>`;
-                } else {
-                    html += `<td><button data-action="target-frequency" data-value="${act.configIndex}" class="btn btn-primary btn-small">🎯 Target</button></td>`;
                 }
                 html += '</tr>';
             });
@@ -2165,7 +2165,7 @@ class ReconApp {
     async actionDownloadReport() {
         showToast('Downloading consolidated report...', 'info');
         try {
-            const r = await this._fetchAndDownload('/api/export/report', `lora-recon-report-${Date.now()}.json`);
+            const r = await this._fetchAndDownload('/api/export/report', `lorecon-report-${Date.now()}.json`);
             if (!r.ok) { showToast('Failed to generate report: HTTP ' + r.status, 'error'); return; }
             showToast('Report downloaded successfully', 'success');
         } catch (err) {

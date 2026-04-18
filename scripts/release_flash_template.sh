@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# ESP32 LoRa Sniffer - Flash Script (Linux / macOS / Windows git-bash)
+# LoRecon - Flash Script (Linux / macOS / Windows git-bash)
 # Usage: ./flash.sh <board> [port]
 #
 # Boards: heltec_v3 | heltec_v4 | t3_s3 | tbeam_supreme
@@ -82,7 +82,7 @@ fi
 
 echo ""
 echo "============================================"
-echo "  ESP32 LoRa Sniffer Flasher"
+echo "  LoRecon Flasher"
 echo "  Board: $LABEL"
 echo "  Port:  $PORT"
 echo "============================================"

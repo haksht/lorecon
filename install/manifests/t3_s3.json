@@ -1,0 +1,13 @@
+{
+  "name": "LoRecon — LilyGO T3-S3",
+  "version": "2.4.1",
+  "new_install_prompt_erase": true,
+  "builds": [
+    {
+      "chipFamily": "ESP32-S3",
+      "parts": [
+        { "path": "https://github.com/haksht/lorecon/releases/download/v2.4.1/t3_s3-full.bin", "offset": 0 }
+      ]
+    }
+  ]
+}

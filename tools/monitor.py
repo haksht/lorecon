@@ -528,7 +528,7 @@ def _run_tui(args):
             f"elapsed=[white]{elapsed}s[/white]  pkts=[green]{total}[/green]  "
             f"rate=[white]{rate:.1f}/s[/white]  nodes=[cyan]{len(state['talkers'])}[/cyan]  "
             f"decrypt=[magenta]{succ}/{atts} ({dec_pct:.0f}%)[/magenta]",
-            title="ESP32 LoRa Sniffer — Live Dashboard",
+            title="LoRecon — Live Dashboard",
             border_style="blue")
 
         t_table = Table(title="Top Talkers", expand=True, header_style="bold cyan")
@@ -616,7 +616,7 @@ def _run_tui(args):
 
 def main():
     parser = argparse.ArgumentParser(
-        description='ESP32 LoRa Sniffer WebSocket Monitor (Headless)',
+        description='LoRecon WebSocket Monitor (Headless)',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:

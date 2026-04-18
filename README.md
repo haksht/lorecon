@@ -1,4 +1,4 @@
-# ESP32 LoRa Packet Sniffer & Reconnaissance Tool
+# LoRecon — ESP32 LoRa Packet Sniffer & Reconnaissance Tool
 
 Passive LoRa reconnaissance firmware for ESP32-S3 + SX1262 hardware. Scans 29 frequency configurations, captures and replays packets, tests 23 default Meshtastic PSKs, decrypts MeshCore public channels and hashtag rooms, extracts GPS coordinates, and serves a phone-accessible web UI — all from a low-cost board.
 
@@ -19,8 +19,11 @@ See [docs/HARDWARE.md](docs/HARDWARE.md) for specs, pin maps, and purchase links
 
 ## Getting started
 
-**Just want to use it** (flash + web UI + tools):
-→ [docs/SETUP.md](docs/SETUP.md) — download binary, flash, connect
+**One-click flash from your browser** (Chrome/Edge, no downloads):
+→ <https://haksht.github.io/lorecon/install/>
+
+**Full setup** (flash + WiFi + Python analysis tools):
+→ [docs/SETUP.md](docs/SETUP.md) — three install paths, picks the one that fits
 
 **Want to build or modify the firmware:**
 → [docs/developers/BUILDING.md](docs/developers/BUILDING.md) — PlatformIO, serial monitor, OTA

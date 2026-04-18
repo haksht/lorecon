@@ -381,7 +381,7 @@ String buildKml(GeoIntelligence& geoIntel) {
     kml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n";
     kml += "<kml xmlns=\"http://www.opengis.net/kml/2.2\">\n";
     kml += "  <Document>\n";
-    kml += "    <name>ESP32 LoRa Sniffer - Device Positions</name>\n";
+    kml += "    <name>LoRecon - Device Positions</name>\n";
     kml += "    <description>Discovered device GPS positions</description>\n";
 
     for (uint8_t i = 0; i < pointCount; i++) {

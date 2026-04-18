@@ -2,13 +2,13 @@
 
 **Document Version:** 1.1
 **Last Updated:** March 2026
-**Applies to:** ESP32 LoRa Sniffer v2.4.x
+**Applies to:** LoRecon v2.4.x
 
 ---
 
 ## 1. System Overview
 
-The ESP32 LoRa Sniffer is a **passive reconnaissance tool** for LoRa network security research. It captures, analyzes, and optionally replays LoRa packets across Meshtastic, LoRaWAN, and Helium networks.
+LoRecon is a **passive reconnaissance tool** for LoRa network security research. It captures, analyzes, and optionally replays LoRa packets across Meshtastic, LoRaWAN, and Helium networks.
 
 ### Components
 

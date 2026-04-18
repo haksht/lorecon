@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "lorecon"
 version = "0.1.0"
-description = "ESP32 LoRa Sniffer analysis toolkit"
+description = "LoRecon — ESP32 LoRa packet sniffer & reconnaissance analysis toolkit"
 requires-python = ">=3.10"
 dependencies = [
     "esptool>=4.0.0",

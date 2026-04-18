@@ -873,7 +873,7 @@ def _render_html(a: Assessment, output: str):
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>LoRa Sniffer Security Report — {now}</title>
+<title>LoRecon Security Report — {now}</title>
 <style>
   body {{ font-family: 'Segoe UI', sans-serif; background:#0d1117; color:#c9d1d9;
          margin:0; padding:20px; }}
@@ -953,7 +953,7 @@ def _render_html(a: Assessment, output: str):
 
 <hr style="border-color:#30363d;margin-top:40px">
 <p style="color:#8b949e;font-size:12px">
-  ESP32 LoRa Sniffer &nbsp;|&nbsp; {now}
+  LoRecon &nbsp;|&nbsp; {now}
 </p>
 </body>
 </html>

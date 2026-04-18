@@ -1,6 +1,6 @@
 {
-  "name": "ESP32 LoRa Sniffer",
-  "short_name": "LoRa Sniffer",
+  "name": "LoRecon",
+  "short_name": "LoRecon",
   "start_url": ".",
   "display": "standalone",
   "background_color": "#000000",

@@ -5,7 +5,7 @@ REM Usage:   make_release.bat <version>
 REM Example: make_release.bat v2.3.0
 REM
 REM Outputs: releases\<version>\   (per-board subdirs + flash scripts)
-REM          releases\esp32-lora-sniffer-<version>-binaries.zip
+REM          releases\lorecon-<version>-binaries.zip
 REM
 REM Prerequisites: pip install esptool
 
@@ -29,7 +29,7 @@ if not exist "%PIO%" (
 )
 
 echo ========================================
-echo   ESP32 LoRa Sniffer Release Builder
+echo   LoRecon Release Builder
 echo   Version: %VERSION%
 echo ========================================
 echo.
@@ -126,7 +126,7 @@ copy "%~dp0\release_flash_template.ps1" "%RELEASE_DIR%\flash.ps1" >nul 2>nul || 
 REM ---- Zip -------------------------------------------------------------------
 echo.
 echo Creating zip archive...
-set ZIP_NAME=esp32-lora-sniffer-%VERSION%-binaries.zip
+set ZIP_NAME=lorecon-%VERSION%-binaries.zip
 cd "%REPO_ROOT%\releases"
 powershell -Command "Compress-Archive -Path '%VERSION%' -DestinationPath '%ZIP_NAME%' -Force"
 if %ERRORLEVEL% NEQ 0 ( echo Zip failed. & exit /b 1 )

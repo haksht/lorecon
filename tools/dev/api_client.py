@@ -225,7 +225,7 @@ def format_uptime(seconds):
 
 def print_status(data):
     """Pretty-print status data"""
-    print("\n📡 ESP32 LoRa Sniffer Status")
+    print("\n📡 LoRecon Status")
     print("=" * 40)
     print(f"  Mode:        {data.get('mode', 'Unknown')}")
     print(f"  Uptime:      {format_uptime(data.get('uptime', 0))}")
@@ -289,7 +289,7 @@ def print_replay_slots(data):
 
 def main():
     parser = argparse.ArgumentParser(
-        description='ESP32 LoRa Sniffer REST API Client',
+        description='LoRecon REST API Client',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
