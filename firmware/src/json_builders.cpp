@@ -737,7 +737,7 @@ String buildReplaySlotsJson(ReconState& reconState) {
         // Include flag information
         if (packet.wantAck) slot["wantAck"] = true;
         if (packet.viaMqtt) slot["viaMqtt"] = true;
-        if (packet.priority > 0) slot["priority"] = packet.priority;
+        if (packet.hopStart > 0) slot["hopStart"] = packet.hopStart;
         
         // Include decrypted text if available
         if (packet.decryptedText[0] != '\0') {

@@ -1070,7 +1070,7 @@ class ReconApp {
             
             let html = '<div class="table-wrapper">';
             html += '<table class="table"><thead><tr>';
-            html += '<th>Protocol</th><th>From</th><th>To</th><th title="Meshtastic: remaining hops allowed (set by originator, max 7). MeshCore: hops already traversed.">Hops</th><th>Ch</th><th>Flags</th><th>Packet ID</th><th>Size</th><th>RSSI</th><th>SNR</th><th>Frequency</th><th>Captured</th><th>Message</th><th>Actions</th>';
+            html += '<th>Protocol</th><th>From</th><th>To</th><th title="Meshtastic: remaining hops allowed (set by originator, max 7). MeshCore: hops already traversed.">Hops</th><th>Ch</th><th title="Meshtastic flags: ACK=want_ack, MQTT=via_mqtt, S#=hop_start (originator\'s initial hop_limit)">Flags</th><th>Packet ID</th><th>Size</th><th>RSSI</th><th>SNR</th><th>Frequency</th><th>Captured</th><th>Message</th><th>Actions</th>';
             html += '</tr></thead><tbody>';
 
             grouped.forEach(group => {
@@ -1083,7 +1083,7 @@ class ReconApp {
                     let flags = [];
                     if (pkt.wantAck) flags.push('ACK');
                     if (pkt.viaMqtt) flags.push('MQTT');
-                    if (pkt.priority > 0) flags.push('P' + pkt.priority);
+                    if (pkt.hopStart > 0) flags.push('S' + pkt.hopStart);
                     const flagsStr = flags.length > 0 ? flags.join(' ') : '—';
 
                     // Destination display (broadcast or specific node)

@@ -826,24 +826,25 @@ void IRAM_ATTR radioISR() {
 ### **Meshtastic Packet Structure**
 
 ```
-Meshtastic Packet (before encryption):
+Meshtastic Packet (on-air format):
 ┌──────────────────────────────────────────────────────┐
 │ Byte 0-3:   To Node ID (uint32, little-endian)      │
 │ Byte 4-7:   From Node ID (uint32, little-endian)    │
 │ Byte 8-11:  Packet ID (uint32, little-endian)       │
 │ Byte 12:    Flags byte                              │
-│ Byte 13:    Channel index                           │
-│ Byte 14+:   Encrypted payload (if encrypted=1)      │
-│             OR plaintext payload (if encrypted=0)    │
+│ Byte 13:    Channel hash (1-byte derivative of PSK) │
+│ Byte 14:    Next hop (router hint; 0 = flood)       │
+│ Byte 15:    Relay node (last relay's node hash)     │
+│ Byte 16+:   AES-CTR encrypted payload (protobuf)    │
 └──────────────────────────────────────────────────────┘
 
-Flags byte (bit 0 = LSB):
-  Bit 0: hopStart (unused in v2.0+)
-  Bit 1: wantAck (request acknowledgment)
-  Bit 2: viaMqtt (relayed via MQTT)
-  Bit 3: hopLimit (3 bits: 0-7 hops allowed)
-  Bit 6: encrypted (1 = encrypted, 0 = plaintext)
-  Bit 7: priority (1 = high priority)
+Flags byte (bit 0 = LSB; per Meshtastic firmware src/mesh/RadioInterface.h, v2.3.0+):
+  Bits 0-2: hop_limit (0-7, remaining hops; decremented by each relay)
+  Bit 3:    want_ack (1 = sender requests ACK)
+  Bit 4:    via_mqtt (1 = packet came via MQTT gateway)
+  Bits 5-7: hop_start (0-7, originator's initial hop_limit; zero on pre-2.3 firmware)
+
+  hops_traversed = hop_start - hop_limit
 ```
 
 ### **ProtocolAnalyzer**

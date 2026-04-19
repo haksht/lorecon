@@ -31,7 +31,7 @@ public:
                        uint32_t nodeId, uint32_t packetId,
                        uint8_t hopCount, uint32_t destId = 0xFFFFFFFF,
                        uint8_t channel = 0, bool wantAck = false,
-                       bool viaMqtt = false, uint8_t priority = 0,
+                       bool viaMqtt = false, uint8_t hopStart = 0,
                        const char* protocol = nullptr,
                        const char* decryptedText = nullptr,
                        const char* meshCoreChannel = nullptr);

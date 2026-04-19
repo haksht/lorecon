@@ -22,7 +22,7 @@ bool PacketStore::capturePacket(const uint8_t* data, size_t length,
                                  uint32_t nodeId, uint32_t packetId,
                                  uint8_t hopCount, uint32_t destId,
                                  uint8_t channel, bool wantAck,
-                                 bool viaMqtt, uint8_t priority,
+                                 bool viaMqtt, uint8_t hopStart,
                                  const char* protocol,
                                  const char* decryptedText,
                                  const char* meshCoreChannel) {
@@ -75,7 +75,7 @@ bool PacketStore::capturePacket(const uint8_t* data, size_t length,
     slot.channel = channel;
     slot.wantAck = wantAck;
     slot.viaMqtt = viaMqtt;
-    slot.priority = priority;
+    slot.hopStart = hopStart;
     
     // Copy protocol string safely
     if (protocol != nullptr) {

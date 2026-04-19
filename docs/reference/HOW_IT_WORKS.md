@@ -55,8 +55,8 @@ this flag mostly means "we have not seen much from this device yet."
 
 ## Router Detection
 
-**Source**: `firmware/src/repositories/device_repository.cpp:167–191`,
-`firmware/src/protocol_analyzer.cpp:208–218`
+**Source**: `firmware/src/repositories/device_repository.cpp`,
+`firmware/src/protocol_analyzer.cpp` (`extractHopCount`)
 
 Router detection and originated/relayed packet tracking depend on the protocol's hop count semantics.
 
@@ -92,7 +92,7 @@ a router. The device_repository then refines this as more packets arrive.
 
 ## LoRaWAN Confirmed Up / Confirmed Down / Unconfirmed Up / Unconfirmed Down
 
-**Source**: `firmware/src/protocol_analyzer.cpp:182–195`
+**Source**: `firmware/src/protocol_analyzer.cpp` (`identifyDeviceType`, LoRaWAN branch)
 
 These are the **message type (MType)** values from the LoRaWAN MAC header. The first byte of
 every LoRaWAN frame is the MHDR, and bits 7–5 of MHDR encode the MType:
@@ -132,10 +132,13 @@ It prepends a 4-byte MAC header to every packet:
 | 0 | TO | Destination address (0–254, 255 = broadcast) |
 | 1 | FROM | Source address (used as node ID) |
 | 2 | ID | Auto-incrementing message ID |
-| 3 | FLAGS | Bit 7 = ACK required, bit 6 = ACK reply, bit 5 = retry; bits 0–4 reserved (always 0) |
+| 3 | FLAGS | Bit 7 = ACK (RH_FLAGS_ACK, set on ACK reply); bit 6 = RETRY in some forks, reserved upstream; bits 4–5 reserved; bits 0–3 application-specific |
 
-**Detection**: packets 5–251 bytes where `FLAGS & 0x1F == 0` (reserved bits are zero) and not
-matching Meshtastic or LoRaWAN structure.
+**Detection**: packets 5–251 bytes where `FLAGS & 0x1F == 0` and not matching Meshtastic or
+LoRaWAN structure. This is stricter than the RadioHead spec (the spec only reserves bits 4–7,
+leaving 0–3 application-specific), but matches observed RadioHead traffic where apps rarely
+set the application bits — and it's a strong signal for disambiguating from MeshCore, which
+shares sync word `0x12`.
 
 RadioHead uses sync word `0x12` (RadioLib private default), so RadioHead devices appear on the
 Meshtastic 0x12 configs, not the LoRaWAN 0x34 configs.
@@ -144,7 +147,7 @@ Meshtastic 0x12 configs, not the LoRaWAN 0x34 configs.
 
 **Device types**:
 - **RadioHead Broadcast** — TO = 0xFF
-- **RadioHead ACK** — FLAGS bit 6 set (reply to a confirmed message)
+- **RadioHead ACK** — FLAGS bit 7 set (`RH_FLAGS_ACK`; reply to a confirmed message)
 - **RadioHead Node** — standard point-to-point
 
 ---
@@ -173,7 +176,7 @@ cannot be LoRaWAN.
 
 ## Firmware Version Estimation
 
-**Source**: `firmware/src/protocol_analyzer.cpp:221–270`
+**Source**: `firmware/src/protocol_analyzer.cpp` (`estimateFirmwareVersion`)
 
 Firmware versions displayed for Meshtastic and LoRaWAN devices are **heuristic estimates**, not
 definitive values. Meshtastic does not broadcast its version over the air. The sniffer infers a
@@ -183,11 +186,14 @@ version range from observable packet structure:
 
 | Observed pattern | Estimated version |
 |---|---|
-| Byte 12, bit 7 is set (encryption flag) | `~v2.2+ (est: encryption flag)` |
+| Flags byte 12, bits 5–7 (`hop_start`) are non-zero | `~v2.3+ (est: hop_start set)` |
 | Packet length > 50 bytes (extended routing headers) | `~v2.1+ (est: extended headers)` |
-| Hop count ≤ 3 and upper nibble of byte 13 is zero | `~v2.0.x (est: flag pattern)` |
 | Packet length ≤ 16 bytes | `~v1.x or beacon (est)` |
 | None of the above | `~v2.0-2.2 (est)` |
+
+Meshtastic v2.3.0 repurposed the upper 3 bits of the flags byte as `hop_start` (the originator's
+initial `hop_limit`). Earlier firmware left those bits zero, so a non-zero value strongly implies
+v2.3+ firmware on the originating node.
 
 All Meshtastic firmware strings include `(est)` to indicate they are estimates. They should not
 be treated as confirmed version numbers.
@@ -196,10 +202,9 @@ be treated as confirmed version numbers.
 `strstr()` to look for the substrings `v1.x` or `v2.0` in the firmware version field.
 
 - `~v1.x or beacon (est)` — contains `v1.x` → −20 penalty
-- `~v2.0.x (est: flag pattern)` — contains `v2.0` as a prefix → −20 penalty
 - `~v2.0-2.2 (est)` — contains `v2.0` as a prefix → −20 penalty
 - `~v2.1+ (est: extended headers)` — no match → no penalty
-- `~v2.2+ (est: encryption flag)` — no match → no penalty
+- `~v2.3+ (est: hop_start set)` — no match → no penalty
 
 The effective threshold is: anything estimated as v2.0.x or below loses 20 points.
 

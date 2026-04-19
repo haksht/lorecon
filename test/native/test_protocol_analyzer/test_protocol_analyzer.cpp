@@ -117,18 +117,18 @@ void test_lorawan_random_12_byte_not_matched() {
 // estimateFirmwareVersion() — Heuristic version detection
 // ==========================================================================
 
-void test_firmware_meshtastic_encryption_flag() {
-    // Meshtastic v2.2+: encryption flag is bit 7 of data[12]
-    // Packet must be >= 13 bytes; bytes 0-3 = magic header
+void test_firmware_meshtastic_hop_start_set() {
+    // Meshtastic v2.3+: hop_start in flags byte 12, bits 5-7.
+    // bits 5-7 = 0b100 → hop_start = 4, byte 12 = 0x80 (other flag bits zero).
     uint8_t pkt[16] = {0xFF, 0xFF, 0xFF, 0xFF, 0, 0, 0, 0, 0, 0, 0, 0, 0x80};
     const char* result = analyzer.estimateFirmwareVersion(pkt, sizeof(pkt), "Meshtastic");
-    TEST_ASSERT_NOT_NULL(strstr(result, "v2.2+"));
+    TEST_ASSERT_NOT_NULL(strstr(result, "v2.3+"));
 }
 
 void test_firmware_meshtastic_extended_headers() {
-    // >50 bytes without encryption flag = v2.1+
+    // >50 bytes with hop_start = 0 falls through to length-based heuristic = v2.1+
     uint8_t pkt[60] = {0xFF, 0xFF, 0xFF, 0xFF};
-    pkt[12] = 0x00;  // No encryption flag at byte 12
+    pkt[12] = 0x00;  // hop_start = 0 (pre-v2.3 or originator set hop_limit = 0)
     const char* result = analyzer.estimateFirmwareVersion(pkt, sizeof(pkt), "Meshtastic");
     TEST_ASSERT_NOT_NULL(strstr(result, "v2.1+"));
 }
@@ -166,7 +166,7 @@ int main() {
     RUN_TEST(test_lorawan_random_12_byte_not_matched);
 
     // estimateFirmwareVersion
-    RUN_TEST(test_firmware_meshtastic_encryption_flag);
+    RUN_TEST(test_firmware_meshtastic_hop_start_set);
     RUN_TEST(test_firmware_meshtastic_extended_headers);
     RUN_TEST(test_firmware_lorawan);
     RUN_TEST(test_firmware_unknown_protocol);

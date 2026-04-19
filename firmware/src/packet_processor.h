@@ -124,7 +124,7 @@ private:
         uint8_t channel;
         bool wantAck;
         bool viaMqtt;
-        uint8_t priority;
+        uint8_t hopStart;
         bool found;                // True if Meshtastic header was located
     };
 

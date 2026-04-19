@@ -22,8 +22,8 @@ PacketInfo ProtocolAnalyzer::analyze(const uint8_t* data, size_t length, float r
     // Step 2d: Extract channel index
     info.channel = extractChannel(data, length, info.protocol);
     
-    // Step 2e: Extract flag bits (wantAck, viaMqtt, priority)
-    extractFlags(data, length, info.protocol, info.wantAck, info.viaMqtt, info.priority);
+    // Step 2e: Extract flag bits (wantAck, viaMqtt, hopStart)
+    extractFlags(data, length, info.protocol, info.wantAck, info.viaMqtt, info.hopStart);
     
     // Step 3: Classify device type
     info.deviceType = identifyDeviceType(data, length, info.protocol, rssi);
@@ -101,11 +101,17 @@ const char* ProtocolAnalyzer::identifyProtocol(const uint8_t* data, size_t lengt
     // Short packets might be beacons or keep-alives
     if (length <= 8) return "Beacon";
 
-    // RadioHead RH_RF95: 4-byte header [TO][FROM][ID][FLAGS] + payload
-    // FLAGS lower 5 bits are reserved and always 0 in valid frames.
+    // RadioHead RH_RF95: 4-byte header [TO][FROM][ID][FLAGS] + payload.
+    // FLAGS layout per RadioHead spec:
+    //   bit 7 = ACK (RH_FLAGS_ACK, set on reply to a confirmed msg)
+    //   bit 6 = RETRY (some forks; reserved in upstream)
+    //   bits 4-5 = reserved
+    //   bits 0-3 = application-specific
+    // Detection uses (FLAGS & 0x1F) == 0, which is stricter than spec: it requires
+    // bits 0-4 to be zero. This matches observed RadioHead traffic where apps
+    // rarely set the application-specific bits, and is a strong heuristic to
+    // disambiguate from MeshCore (both share sync word 0x12).
     // Max RH_RF95 payload is 251 bytes (255 - 4 header bytes).
-    // Checked BEFORE MeshCore: both use sync word 0x12, and RadioHead's FLAGS
-    // constraint is a stronger structural test than MeshCore's header bit check.
     if (syncWord == 0x12 && length >= 5 && length <= 251) {
         if ((data[3] & 0x1F) == 0) {
             return "RadioHead";
@@ -241,19 +247,24 @@ uint8_t ProtocolAnalyzer::extractChannel(const uint8_t* data, size_t length, con
     return 0;
 }
 
-// Extract flag bits from Meshtastic header
-// Byte 12 structure: bits 0-2 = hop limit, bit 3 = want_ack, bit 4 = via_mqtt, bits 5-6 = priority
+// Extract flag bits from Meshtastic header.
+// Byte 12 layout (per Meshtastic firmware src/mesh/RadioInterface.h, since v2.3.0):
+//   bits 0-2 = hop_limit (remaining hops; decremented by each relay)
+//   bit 3    = want_ack
+//   bit 4    = via_mqtt
+//   bits 5-7 = hop_start (initial hop_limit set by the originator; 0 on pre-2.3.0 firmware)
+// hops_traversed = hop_start - hop_limit (both known, both visible to a passive sniffer).
 void ProtocolAnalyzer::extractFlags(const uint8_t* data, size_t length, const char* protocol,
-                                     bool& wantAck, bool& viaMqtt, uint8_t& priority) {
+                                     bool& wantAck, bool& viaMqtt, uint8_t& hopStart) {
     wantAck = false;
     viaMqtt = false;
-    priority = 0;
-    
+    hopStart = 0;
+
     if (strcmp(protocol, "Meshtastic") == 0 && length >= 13) {
         uint8_t flags = data[12];
-        wantAck = (flags >> 3) & 0x01;   // Bit 3
-        viaMqtt = (flags >> 4) & 0x01;   // Bit 4
-        priority = (flags >> 5) & 0x03;  // Bits 5-6 (0-3)
+        wantAck  = (flags >> 3) & 0x01;   // Bit 3
+        viaMqtt  = (flags >> 4) & 0x01;   // Bit 4
+        hopStart = (flags >> 5) & 0x07;   // Bits 5-7 (0-7)
     }
 }
 
@@ -287,11 +298,12 @@ const char* ProtocolAnalyzer::identifyDeviceType(const uint8_t* data, size_t len
         }
     }
     
-    // RadioHead RH_RF95 device classification
+    // RadioHead RH_RF95 device classification.
+    // Bit 7 (0x80) is RH_FLAGS_ACK — set when this frame is an ACK reply to a confirmed msg.
     if (strcmp(protocol, "RadioHead") == 0) {
         uint8_t toAddr = data[0];
         uint8_t flags  = data[3];
-        bool isAckReply = (flags >> 6) & 0x01;
+        bool isAckReply = (flags & 0x80) != 0;
         if (toAddr == 0xFF) return "RadioHead Broadcast";
         if (isAckReply)     return "RadioHead ACK";
         return "RadioHead Node";
@@ -340,30 +352,25 @@ bool ProtocolAnalyzer::isRoutingDevice(const uint8_t* data, size_t length, const
 // Packet length and flag patterns correlate with firmware versions but are not proof.
 const char* ProtocolAnalyzer::estimateFirmwareVersion(const uint8_t* data, size_t length, const char* protocol) {
     if (strcmp(protocol, "Meshtastic") == 0 && length >= 12) {
-        // Analyze packet structure for version clues
-
-        // Firmware 2.2+ uses encryption flag in byte 12, bit 7
-        if (length >= 13 && (data[12] & 0x80)) {
-            return "~v2.2+ (est: encryption flag)";
+        // Heuristic version estimation — no version number is sent over the air.
+        //
+        // v2.3.0+ repurposed the upper 3 bits of the flags byte (byte 12) as hop_start.
+        // A non-zero hop_start strongly implies v2.3+ firmware on the originator, because
+        // earlier firmware left those bits zero.
+        if (length >= 13) {
+            uint8_t hopStart = (data[12] >> 5) & 0x07;
+            if (hopStart > 0) {
+                return "~v2.3+ (est: hop_start set)";
+            }
         }
 
-        // Firmware 2.1+ typically has longer packets (extended routing headers)
+        // Extended routing headers (next_hop + relay_node) are 2 extra bytes after the
+        // 14-byte header, present in 2.5+ routing builds. A rough length heuristic.
         if (length > 50) {
             return "~v2.1+ (est: extended headers)";
         }
 
-        // Firmware 2.0.x has specific hop count patterns
-        if (length >= 14) {
-            uint8_t hopCount = data[12] & 0x07;
-            uint8_t flags = data[13];
-
-            // v2.0 uses specific flag patterns
-            if (hopCount <= 3 && (flags & 0xF0) == 0) {
-                return "~v2.0.x (est: flag pattern)";
-            }
-        }
-
-        // Check for very short packets (older firmware or beacons)
+        // Very short packets are most likely older firmware or partial beacons.
         if (length <= 16) {
             return "~v1.x or beacon (est)";
         }

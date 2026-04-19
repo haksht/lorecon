@@ -14,7 +14,7 @@ struct PacketInfo {
     uint8_t channel;            // Channel index (byte 13)
     bool wantAck;               // Sender wants acknowledgment (flags bit 3)
     bool viaMqtt;               // Packet came via MQTT gateway (flags bit 4)
-    uint8_t priority;           // Packet priority 0-3 (flags bits 5-6)
+    uint8_t hopStart;           // Meshtastic: originator's initial hop_limit (flags bits 5-7, 0-7)
     uint8_t powerClass;         // 0=Low, 1=Medium, 2=High power
     bool isRouter;              // true if device appears to be routing traffic
     const char* firmwareVersion; // Estimated firmware version
@@ -31,7 +31,7 @@ struct PacketInfo {
         , channel(0)
         , wantAck(false)
         , viaMqtt(false)
-        , priority(0)
+        , hopStart(0)
         , powerClass(0)
         , isRouter(false)
         , firmwareVersion("Unknown")
@@ -58,7 +58,7 @@ public:
     uint8_t extractHopCount(const uint8_t* data, size_t length, const char* protocol);
     uint8_t extractChannel(const uint8_t* data, size_t length, const char* protocol);
     void extractFlags(const uint8_t* data, size_t length, const char* protocol,
-                      bool& wantAck, bool& viaMqtt, uint8_t& priority);
+                      bool& wantAck, bool& viaMqtt, uint8_t& hopStart);
     const char* identifyDeviceType(const uint8_t* data, size_t length, const char* protocol, float rssi);
     // estimatePowerClass moved to FormatUtils::estimatePowerClass()
     bool isRoutingDevice(const uint8_t* data, size_t length, const char* protocol);

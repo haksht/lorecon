@@ -339,7 +339,7 @@ bool ReconState::capturePacketForReplay(const uint8_t* data, size_t length, uint
                                         float rssi, float snr, const char* protocol, const char* decryptedText,
                                         uint32_t nodeId, uint32_t packetId, uint8_t hopCount,
                                         uint32_t destId, uint8_t channel, bool wantAck,
-                                        bool viaMqtt, uint8_t priority, const char* meshCoreChannel) {
+                                        bool viaMqtt, uint8_t hopStart, const char* meshCoreChannel) {
     if (!lock(50)) {  // 50ms timeout for capture operations
         Serial.println("[WARN] capturePacketForReplay: Failed to acquire lock, dropping packet");
         return false;
@@ -347,7 +347,7 @@ bool ReconState::capturePacketForReplay(const uint8_t* data, size_t length, uint
     bool result = packetStore_.capturePacket(data, length, configIndex,
                                        static_cast<int16_t>(rssi), snr,
                                        nodeId, packetId, hopCount,
-                                       destId, channel, wantAck, viaMqtt, priority,
+                                       destId, channel, wantAck, viaMqtt, hopStart,
                                        protocol, decryptedText, meshCoreChannel);
     unlock();
     return result;

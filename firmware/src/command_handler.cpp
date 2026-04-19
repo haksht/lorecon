@@ -345,7 +345,7 @@ void CommandHandler::cmdCapturePacket(IReconTool* tool) {
         uint8_t channel = 0;
         bool wantAck = false;
         bool viaMqtt = false;
-        uint8_t priority = 0;
+        uint8_t hopStart = 0;
         
         if (length >= 16 && data[0] == 0xFF && data[1] == 0xFF && 
             data[2] == 0xFF && data[3] == 0xFF) {
@@ -360,13 +360,13 @@ void CommandHandler::cmdCapturePacket(IReconTool* tool) {
                 packetId = ((uint32_t)data[8]) | ((uint32_t)data[9] << 8) |
                            ((uint32_t)data[10] << 16) | ((uint32_t)data[11] << 24);
             }
-            // Flags at byte 12
+            // Flags at byte 12 (Meshtastic firmware src/mesh/RadioInterface.h, v2.3.0+)
             if (length >= 13) {
                 uint8_t flags = data[12];
-                hopCount = flags & 0x07;           // Bits 0-2: hop count
-                wantAck = (flags >> 3) & 0x01;     // Bit 3: want acknowledgment
-                viaMqtt = (flags >> 4) & 0x01;     // Bit 4: via MQTT gateway
-                priority = (flags >> 5) & 0x03;   // Bits 5-6: priority (0-3)
+                hopCount = flags & 0x07;           // Bits 0-2: hop_limit (remaining)
+                wantAck = (flags >> 3) & 0x01;     // Bit 3: want_ack
+                viaMqtt = (flags >> 4) & 0x01;     // Bit 4: via_mqtt
+                hopStart = (flags >> 5) & 0x07;    // Bits 5-7: hop_start (originator's initial hop_limit)
             }
             // Channel at byte 13
             if (length >= 14) {
@@ -381,7 +381,7 @@ void CommandHandler::cmdCapturePacket(IReconTool* tool) {
 
         if (reconState.capturePacketForReplay(data, length, reconState.scanState.currentConfig,
                                                rssi, 0.0f, info.protocol, decryptedText, nodeId, packetId, hopCount,
-                                               destId, channel, wantAck, viaMqtt, priority)) {
+                                               destId, channel, wantAck, viaMqtt, hopStart)) {
             Serial.println("[OK] Packet saved to replay slot!");
             if (decryptedText) {
                 Serial.printf("    Decrypted text: \"%s\"\n", decryptedText);

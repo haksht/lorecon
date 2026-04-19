@@ -245,13 +245,13 @@ PacketProcessor::MeshtasticHeader PacketProcessor::findAndExtractMeshtasticHeade
             hdr.packetId = ((uint32_t)hdr.payload[8]) | ((uint32_t)hdr.payload[9] << 8) |
                            ((uint32_t)hdr.payload[10] << 16) | ((uint32_t)hdr.payload[11] << 24);
         }
-        // Flags at byte 12
+        // Flags at byte 12 (Meshtastic firmware src/mesh/RadioInterface.h, v2.3.0+)
         if (hdr.payloadLen >= 13) {
             uint8_t flags = hdr.payload[12];
-            hdr.hopCount = flags & 0x07;           // Bits 0-2: hop count
-            hdr.wantAck = (flags >> 3) & 0x01;     // Bit 3: want acknowledgment
-            hdr.viaMqtt = (flags >> 4) & 0x01;     // Bit 4: via MQTT gateway
-            hdr.priority = (flags >> 5) & 0x03;    // Bits 5-6: priority (0-3)
+            hdr.hopCount = flags & 0x07;           // Bits 0-2: hop_limit (remaining)
+            hdr.wantAck = (flags >> 3) & 0x01;     // Bit 3: want_ack
+            hdr.viaMqtt = (flags >> 4) & 0x01;     // Bit 4: via_mqtt
+            hdr.hopStart = (flags >> 5) & 0x07;    // Bits 5-7: hop_start (originator's initial hop_limit)
         }
         // Channel at byte 13
         if (hdr.payloadLen >= 14) {
@@ -296,7 +296,7 @@ void PacketProcessor::tryDecryptAndCapture(const uint8_t* data, size_t length, f
     if (reconState.capturePacketForReplay(data, length, reconState.scanState.currentConfig,
                                            rssi, snr, protocol, decryptedText,
                                            hdr.nodeId, hdr.packetId, hdr.hopCount,
-                                           hdr.destId, hdr.channel, hdr.wantAck, hdr.viaMqtt, hdr.priority)) {
+                                           hdr.destId, hdr.channel, hdr.wantAck, hdr.viaMqtt, hdr.hopStart)) {
         if (decrypted && decryptedText[0] != '\0') {
             Serial.printf("   [OK] Packet auto-captured with text: \"%s\"\n", decryptedText);
         } else if (decrypted) {

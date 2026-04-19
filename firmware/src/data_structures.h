@@ -46,7 +46,7 @@ struct CapturedPacket {
   uint8_t channel;      // Channel index (byte 13)
   bool wantAck;         // Sender wants acknowledgment (flags bit 3)
   bool viaMqtt;         // Packet came via MQTT gateway (flags bit 4)
-  uint8_t priority;     // Packet priority 0-3 (flags bits 5-6)
+  uint8_t hopStart;     // Meshtastic: originator's initial hop_limit (flags bits 5-7, 0-7)
   char protocol[16];
   char decryptedText[256];  // Stores decrypted message text if available
   char meshCoreChannel[24]; // MeshCore only: "public", "#general", etc. "" otherwise

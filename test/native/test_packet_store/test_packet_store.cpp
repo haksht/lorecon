@@ -32,7 +32,7 @@ static bool capture(PacketStore& s, uint32_t nodeId = 0x1234,
                            nodeId, packetId,
                            /*hopCount=*/3, /*destId=*/0xFFFFFFFF,
                            /*channel=*/0, /*wantAck=*/false,
-                           /*viaMqtt=*/false, /*priority=*/0,
+                           /*viaMqtt=*/false, /*hopStart=*/0,
                            protocol, decryptedText, meshCoreChannel);
 }
 
@@ -119,7 +119,7 @@ void test_header_fields_stored() {
                     /*nodeId=*/0xDEAD, /*packetId=*/0xBEEF,
                     /*hopCount=*/1, /*destId=*/0x12345678,
                     /*channel=*/3, /*wantAck=*/true,
-                    /*viaMqtt=*/false, /*priority=*/2,
+                    /*viaMqtt=*/false, /*hopStart=*/2,
                     "Meshtastic", nullptr, nullptr);
     const auto& p = s.getPacket(0);
     TEST_ASSERT_EQUAL_HEX32(0xDEAD,     p.nodeId);
@@ -129,7 +129,7 @@ void test_header_fields_stored() {
     TEST_ASSERT_EQUAL(3,                p.channel);
     TEST_ASSERT_TRUE(p.wantAck);
     TEST_ASSERT_FALSE(p.viaMqtt);
-    TEST_ASSERT_EQUAL(2,                p.priority);
+    TEST_ASSERT_EQUAL(2,                p.hopStart);
     TEST_ASSERT_EQUAL(2,                p.configIndex);
     TEST_ASSERT_FLOAT_WITHIN(0.01f, 7.5f, p.snr);
 }
