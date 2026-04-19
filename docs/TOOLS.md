@@ -7,7 +7,7 @@ run it, and what it produces.
 
 ## Install
 
-The `lorecon` toolkit lives in the source repo — **the release zip on GitHub (binaries only) does not include it**. If you only flashed from the binary release, come back here and grab the source to use these tools.
+The `lorecon` toolkit lives in the source repo — **the [release zip on GitHub](https://github.com/haksht/lorecon/releases/latest) (binaries only) does not include it**. If you only flashed from the binary release, come back here and grab the source to use these tools.
 
 ### 1. Get the source
 
@@ -38,15 +38,17 @@ pip install -e .              # installs the `lorecon` console script + deps
 
 Re-activate the venv in every new terminal (`./venv/bin/activate` or `.\venv\Scripts\activate.ps1`). `lorecon --help` confirms the install worked.
 
+Prerequisite: **Python 3.10+** ([python.org/downloads](https://www.python.org/downloads/)). Check with `python --version`.
+
 Dependencies installed by `pip install -e .`:
 
-- Python 3.10+
-- `cryptography` — PSK decryption (highly recommended; without it, all decryption-dependent findings are skipped)
+- `cryptography` — PSK decryption (required for all decryption-dependent findings)
 - `websocket-client` — live monitor
 - `rich` — `monitor --tui` dashboard
 - `folium` — `map` HTML output
 - `matplotlib`, `networkx` — `topology` graph rendering
 - `requests` — REST API client
+- `esptool` — also installed (used by flash scripts; not needed for analysis)
 
 ---
 

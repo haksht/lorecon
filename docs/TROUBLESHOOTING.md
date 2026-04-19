@@ -41,7 +41,10 @@ meshtastic --sendtext "Test"
 ### Step 2: Confirm the radio is receiving (Heltec V3 / T3-S3 / T-Beam)
 
 ```
-1. Open serial monitor: pio device monitor --port COM3 --baud 115200
+1. Open serial monitor: pio device monitor --port <YOUR_PORT> --baud 115200
+   (Port varies by board — Heltec V3 is typically COM3/ttyUSB0, T3-S3 ttyACM0, T-Beam ttyACM0.
+    See SETUP.md "Finding your COM port". No PlatformIO? Use Arduino IDE's Serial Monitor,
+    PuTTY, or the web UI Packets tab.)
 2. Wait for "[RECON] Started"
 3. Hold a Meshtastic device within 1 foot of the sniffer
 4. Send a message

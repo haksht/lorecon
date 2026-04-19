@@ -6,19 +6,19 @@ The sniffer scans **five LoRa network types** across 29 frequency configurations
 
 ### 1. **Meshtastic** (10 configs)
 **What it is**: Peer-to-peer mesh network for off-grid text messaging
-**Frequencies**: 902.125 MHz, 903.875 MHz, 904.375 MHz, 906.875 MHz
+**Frequencies**: US 902-906 MHz band (see the full config table below)
 **Why so common**: Exploded in popularity 2023-2024, cheap hardware ($30-40)
 **You'll find it**: Hiking trails, preppers, ham radio operators, off-grid communities
 
 ### 2. **The Things Network (TTN) / LoRaWAN** (7 configs)
 **What it is**: Global open-source IoT network with community-run gateways
-**Frequencies**: 903.9 MHz, 904.1 MHz, 904.3 MHz, 904.5 MHz
+**Frequencies**: US 903-911 MHz uplink channels (see the full config table below)
 **Why important**: Powers thousands of IoT sensors worldwide
 **You'll find it**: Cities with TTN gateways, universities, smart buildings
 
 ### 3. **Helium Network** (4 configs)
 **What it is**: Blockchain-based LoRaWAN network where people mine crypto by running hotspots
-**Frequencies**: 923.3 MHz, 923.9 MHz, 924.5 MHz, 925.1 MHz (downlink bands)
+**Frequencies**: 904 MHz uplink and 923-925 MHz downlink (see the full config table below)
 **Why to hunt**: Huge deployment (millions of hotspots), active in urban/suburban areas
 **You'll find it**: Residential neighborhoods, businesses with Helium miners
 
@@ -112,7 +112,7 @@ Before going to a location, check these maps:
 #### Events (Best Option!)
 - **Maker faires**: Everyone brings projects
 - **Ham radio Field Day**: Meshtastic is popular
-- **Hacker cons**: Target-rich environment (like CackalackyCon!)
+- **Hacker cons**: Target-rich environment
 - **Endurance races**: SAR teams may use Meshtastic
 
 ### Step 3: Field deployment
@@ -125,13 +125,13 @@ Before going to a location, check these maps:
 5. Check the web UI Devices tab for devices
 
 **What you'll see first**:
-- **Meshtastic**: Usually appears within 30 seconds (frequent beaconing)
-- **TTN/LoRaWAN sensors**: May take 5-30 minutes (infrequent transmissions)
+- **Meshtastic**: First packet usually within a few minutes if any nodes are in range — defaults are position every ~15 min and NodeInfo every ~10 min per node, so a single device can be slow. A busy mesh with routers relaying neighbors' traffic appears faster.
+- **TTN/LoRaWAN sensors**: May take 5-30 minutes (infrequent transmissions, battery-saving duty cycles)
 - **Helium**: Depends on local activity
 
 **Patience required**:
 - LoRaWAN sensors transmit every 5-60 minutes (battery saving)
-- If you see TTN configs with "" (activity detected), stake out that area longer
+- If you see activity on TTN configs, stake out that area longer
 
 ### Step 4: Focus on active frequencies
 
@@ -162,7 +162,7 @@ lorecon dev wireshark capture.pcap
 ## What Each Network Type Looks Like
 
 ### Meshtastic Characteristics
-- **Frequent transmissions**: Every 15-30 seconds (position beacons)
+- **Periodic transmissions**: Position every ~15 min and NodeInfo every ~10 min per node (configurable). A mesh with active routers produces steady traffic from many neighbors even when any single node is quiet.
 - **Strong signals**: Typically -40 to -90 dBm (handheld devices nearby)
 - **Multiple devices**: Mesh networks have 3-20 nodes
 - **Encrypted**: AES-256 with PSK (default key often used)
@@ -181,24 +181,26 @@ lorecon dev wireshark capture.pcap
 
 ---
 
-## Ethical & Legal Considerations
+## Ethical & legal considerations
 
-### Legal to Monitor
-- **Passive reception**: Listening to unencrypted broadcasts
-- **Signal analysis**: RSSI, frequency, timing patterns
-- **Protocol identification**: What type of device is transmitting
+Laws vary by jurisdiction. This is a general orientation, not legal advice — check your local regulations (in the US, the relevant statutes include the ECPA and Wiretap Act) before you act on any of it.
 
-### Gray Area
-- **Attempting decryption**: Legal if using publicly known default keys for research
-- **Content inspection**: OK for research, not for interception
+**Generally lower risk:**
+- Passive reception of the RF spectrum
+- Signal analysis (RSSI, frequency, timing, protocol identification)
+- Decrypting with publicly known default keys for your own research, on packets you have a legitimate reason to examine
 
-### Illegal
-- **Transmitting interference**: Jamming or disrupting networks
-- **Unauthorized access**: Decrypting private communications
-- **Identifying individuals**: Tracking specific people without consent
-- **Commercial exploitation**: Selling intercepted data
+**Risky regardless of technical feasibility:**
+- Attempting to decrypt communications you have no relationship to or authorization for
+- Reading, storing, or sharing the contents of private messages
+- Tracking specific individuals without consent
+- Any commercial use of intercepted data
 
-**Best practice**: Treat it like packet sniffing WiFi - observe, analyze, learn, but don't intercept content or disrupt service.
+**Prohibited anywhere:**
+- Transmitting interference or jamming
+- Unauthorized access to systems protected by access controls
+
+**Best practice:** treat it like passive WiFi monitoring — observe, analyze, learn. Decrypted content is for understanding protocol behavior, not for interception. If you're doing a paid assessment or public demo, get written scope and authorization first.
 
 ---
 

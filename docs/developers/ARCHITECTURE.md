@@ -1,6 +1,6 @@
 # Architecture Guide - ESP32 LoRa Reconnaissance Tool
 
-Deep dive into the v2.0+ architecture — from hardware fundamentals to the clean component design. Use this as a reference when contributing or extending the tool.
+Deep dive into the architecture — from hardware fundamentals to the component design. Use this as a reference when contributing or extending the tool.
 
 **Version:** 2.4.1 (March 2026)
 **Architecture:** RadioController, PacketProcessor, IReconTool interface pattern
@@ -10,7 +10,7 @@ Deep dive into the v2.0+ architecture — from hardware fundamentals to the clea
 ## Table of Contents
 
 ### Part 1: Architecture Overview
-1. [The Big Picture: v2.0 Component Design](#1-the-big-picture-v20-component-design)
+1. [The Big Picture: Component Design](#1-the-big-picture-component-design)
 2. [What Happens When You Power It On](#2-what-happens-when-you-power-it-on)
 3. [Hardware & Radio Fundamentals](#3-hardware--radio-fundamentals)
 4. [The Main Loop: Following the Execution Flow](#4-the-main-loop)
@@ -26,6 +26,7 @@ Deep dive into the v2.0+ architecture — from hardware fundamentals to the clea
 10. [Interrupt-Driven Packet Reception](#10-interrupt-driven-packet-reception)
 11. [Protocol Analysis Pipeline](#11-protocol-analysis-pipeline)
 12. [PSK Decryption System](#12-psk-decryption-system)
+12.5. [LoRaWAN Key Testing System](#125-lorawan-key-testing-system)
 13. [SD Card Logging Integration](#13-sd-card-logging-integration)
 
 ### Part 4: Advanced Topics
@@ -33,20 +34,17 @@ Deep dive into the v2.0+ architecture — from hardware fundamentals to the clea
 15. [Error Handling and Recovery](#15-error-handling-and-recovery)
 16. [Testing and Debugging](#16-testing-and-debugging)
 17. [Performance Optimization](#17-performance-optimization)
+18. [API Security](#18-api-security)
+
+### Part 5: Reference
+- [Shared Utilities (`firmware/src/utils/`)](#shared-utilities-firmwaresrcutils)
+- [Porting to Other Boards](#porting-to-other-boards)
 
 ---
 
-## **1. The Big Picture: v2.0 Component Design**
+## **1. The Big Picture: Component Design**
 
-### **Why the v2.0 Refactoring?**
-
-The original v1.x codebase had everything in one big `LoRaReconTool` class (~1,000 lines). This made it hard to:
-- Test individual components
-- Understand dependencies
-- Modify one part without breaking others
-- Reuse code in different contexts
-
-### **v2.0 Architecture Philosophy**
+### **Design Philosophy**
 
 **"Do one thing well, and compose into larger systems"**
 
@@ -149,7 +147,7 @@ int main() {
 }
 ```
 
-### **The Initialize Sequence (v2.0)**
+### **The Initialize Sequence**
 
 ```cpp
 bool LoRaReconTool::initialize() {
@@ -255,10 +253,9 @@ SX1262 Specifications:
 └────────────────────────────────────┘
 ```
 
-### **How They Connect (v2.0 Abstraction)**
+### **How They Connect**
 
-**Before v2.0**: Radio hardware mixed with application logic
-**After v2.0**: Clean `RadioController` abstraction
+`RadioController` abstracts the hardware from application logic:
 
 ```cpp
 // Application code (simple, high-level)
@@ -329,7 +326,7 @@ void LoRaReconTool::update() {
 
 ## **5. RadioController: Hardware Abstraction**
 
-`RadioController` is the v2.0's biggest improvement - it hides all radio complexity.
+`RadioController` hides all radio complexity behind a clean interface.
 
 ### **Interface Design**
 
@@ -524,24 +521,16 @@ void PacketProcessor::processSinglePacket(const QueuedPacket& qp,
 
 ### **The Problem: Circular Dependency**
 
-**Before v2.0:**
-```
-LoRaReconTool needs CommandHandler (to process commands)
-       ↓
-CommandHandler needs LoRaReconTool (to execute commands)
-       ↓
-Circular dependency! Hard to test, hard to modify.
-```
+A naive design has `LoRaReconTool` and `CommandHandler` depending on each other — hard to test, hard to modify. The fix is an interface:
 
-**After v2.0:**
 ```
 IReconTool (interface) ←──── CommandHandler depends on interface
     ↑
     |
 LoRaReconTool implements interface
-
-No circular dependency! Easy to mock for testing.
 ```
+
+No circular dependency, and `CommandHandler` can be tested with a mock.
 
 ### **Interface Definition**
 
@@ -636,7 +625,7 @@ handler.handleCommand('f');  // Test without ESP32!
 
 ## **8. LoRaReconTool: Application Orchestrator**
 
-`LoRaReconTool` is now much simpler (~800 lines vs 1000+) - it just coordinates components.
+`LoRaReconTool` is a thin coordinator (~800 lines) — it wires the components together and owns the main loop, nothing more.
 
 ### **Responsibilities**
 
@@ -692,32 +681,7 @@ void LoRaReconTool::startTargetedCapture(uint8_t deviceIndex) {
 
 ## **9. CommandHandler: Dispatch Pattern**
 
-### **The Old Way (Anti-Pattern)**
-
-```cpp
-// BEFORE: 200+ lines of nested if/else
-void handleCommand(char cmd) {
-    if (cmd == 'm' || cmd == 'M') {
-        showMenu();
-    } else if (cmd == 'f' || cmd == 'F') {
-        showFrequencyMenu();
-    } else if (cmd == 'd' || cmd == 'D') {
-        showDeviceTypes();
-    } else if (cmd == 'a' || cmd == 'A') {
-        showActivity();
-    } else if (cmd == 'p' || cmd == 'P') {
-        // ...
-    } // ... 20 more else-ifs
-}
-```
-
-**Problems:**
-- O(n) lookup time
-- Hard to add commands
-- Hard to test
-- Hard to read
-
-### **The New Way (Command Pattern)**
+Command keys are dispatched through a compile-time table rather than a long if/else chain — easier to extend, easier to test, easier to list programmatically.
 
 ```cpp
 // Command function signature
@@ -1134,7 +1098,7 @@ SD Card:
    Optional (not always present)
 ```
 
-### **Hybrid Approach (v2.0)**
+### **Hybrid Approach**
 
 ```cpp
 // In PacketProcessor::processSinglePacket()
@@ -1215,7 +1179,7 @@ void recursiveFunction() {
 }  // CRASH: Stack overflow
 ```
 
-### **v2.0 Memory Strategy**
+### **Memory Strategy**
 
 ```cpp
 // 1. Fixed-size buffers (no fragmentation)
@@ -1553,7 +1517,7 @@ SecurityScorer::Assessment assessment = SecurityScorer::assess(device);
 ```
 
 Score thresholds: >= 80 = secure, >= 60 = moderate, < 60 = vulnerable.
-See `docs/HOW_IT_WORKS.md` for full scoring rubric.
+See [../reference/HOW_IT_WORKS.md](../reference/HOW_IT_WORKS.md) for full scoring rubric.
 
 **Used by:** `user_interface.cpp`, `api_handlers.cpp`
 

@@ -43,7 +43,7 @@ All V4 boards use the `heltec_v4` binary — it includes a required USB configur
 
 **No serial monitor.** The V4 uses native USB (no CP210x bridge). Enabling USB CDC kills radio reception due to shared silicon noise, so serial output is permanently disabled. Use the web UI for all monitoring and commands.
 
-**Hotspot setup is required on V4.** On other boards you can read the API token from the serial output at boot and authenticate via the device AP. On V4 there is no serial output, so there is no way to retrieve the token while connected to the device AP. You must configure a hotspot first:
+**Hotspot required for admin actions on V4.** AP mode works fine for read-only browsing — connect to `LoRa-XXYYZZ` and you can view devices, packets, and status without any setup. But admin actions (reboot, clear devices, replay, WiFi config, power off) require the API token, and V4 has no serial output to print it. To enable admin actions, configure a hotspot first:
 
 1. Connect to `LoRa-XXXXXX` AP (password `recon-XXXXXX`)
 2. Open `http://192.168.4.1` → Settings → Configure Hotspot
@@ -104,7 +104,7 @@ Never power on the radio without an antenna connected.
 | Item | Purpose | Notes |
 |------|---------|-------|
 | 18650 Li-Ion battery | Portable operation, 4-8 hours | Protected cells recommended |
-| MicroSD card (≤4 GB) | PCAP/CSV logging | FAT32, Class 10 |
+| MicroSD card | PCAP/CSV logging (T3-S3, T-Beam) | FAT32, Class 10; ≤4 GB for T3-S3, ≤32 GB for T-Beam |
 | 3D printed enclosure | Protection | Search "Heltec V3 case" on Printables |
 | USB power bank | Extended field operation | Avoids battery swaps |
 

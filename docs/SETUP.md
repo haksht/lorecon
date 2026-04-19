@@ -9,55 +9,47 @@ Flash the firmware, boot the device, connect to WiFi. This guide covers the full
 - One of the [supported boards](HARDWARE.md)
 - USB-C data cable (not charge-only)
 - 902-928 MHz antenna — usually ships with the board
-- [Python 3.10+](https://www.python.org/downloads/) — needed for `esptool` flashing and the `lorecon` analysis toolkit. Skip if you only want to flash from the browser (see [Flash from your browser](#flash-from-your-browser-no-python-needed) below)
+- [Python 3.10+](https://www.python.org/downloads/) — only if you pick the Full install below
 
 ---
 
 ## Pick a path
 
-Three options. Easiest first — pick one.
+Two options. Both give you a working device.
 
-### Path A — Web installer (one click, no downloads, no Python)
+### 1. Browser flash — fastest, no tools
 
-Open **<https://haksht.github.io/lorecon/install/>** in Chrome or Edge, plug your board in, and click the button for your board. The installer flashes the same firmware as the binary release, straight from the browser.
+Open **<https://haksht.github.io/lorecon/install/>** in Chrome or Edge, plug in your board, and click the button for your board. That's it — no downloads, no Python, no terminal.
 
-This is the fastest start. You do **not** get the Python analysis tools. If you want those later, do Path C as well — it's additive, no re-flashing.
+You get a flashed device and nothing else. If you later want the Python analysis tools, do the Full install below — it's additive, no re-flashing.
 
 After flashing, skip ahead to [First boot](#first-boot).
 
-### Path B — Binary release (offline, no analysis tools)
+### 2. Full install — flash + Python analysis tools
 
-Download `lorecon-vX.X.X-binaries.zip` from [Releases](https://github.com/haksht/lorecon/releases/latest) and extract it anywhere. The zip contains `flash.sh`, `flash.bat`, and `flash.ps1` at the top level, plus one folder per board — each folder has a `full.bin` merged image that flashes at offset `0x0`.
-
-Then `cd` into the extracted folder and continue at [Flash the firmware](#flash-the-firmware).
-
-### Path C — Clone or download the repo (firmware + Python tools)
-
-Get the source. Three options:
-
-| How | Command or link | When |
-|-----|---|---|
-| **git clone** (recommended) | `git clone https://github.com/haksht/lorecon.git` | You have git and want easy updates (`git pull`) |
-| **Download ZIP** | [Download main.zip](https://github.com/haksht/lorecon/archive/refs/heads/main.zip) | No git installed — just unzip and go |
-| **Fork, then clone your fork** | "Fork" button on the [GitHub page](https://github.com/haksht/lorecon) | You plan to contribute or modify |
-
-Don't have git? Install [Git for Windows](https://git-scm.com/download/win) (Linux/macOS usually have it; check with `git --version`).
-
-Now `cd` into the repo root — the directory containing `README.md`, `pyproject.toml`, and the `firmware/`, `tools/`, and `releases/` folders. Every command in the rest of this guide runs from here.
+This gets you the firmware *and* the `lorecon` CLI (`lorecon report`, `lorecon map`, etc.).
 
 ```bash
-cd lorecon            # if you cloned
-cd lorecon-main       # if you downloaded the ZIP (GitHub adds "-main")
-```
-
-Install the Python toolkit:
-```bash
+git clone https://github.com/haksht/lorecon.git
+cd lorecon
 python -m venv venv
-.\venv\Scripts\activate.ps1   # Windows PowerShell (or ./venv/bin/activate on Linux/macOS)
-pip install -e .              # installs the lorecon CLI + esptool + all deps
+.\venv\Scripts\activate.ps1   # Windows PowerShell (or source venv/bin/activate on Linux/macOS)
+pip install -e .              # installs lorecon CLI + esptool + all deps
 ```
 
-The pre-built binaries are already in the repo under `releases/vX.X.X/` — the same flash scripts work from there. No separate download needed.
+**Windows PowerShell note:** if `activate.ps1` fails with "running scripts is disabled on this system", either run `Set-ExecutionPolicy -Scope Process RemoteSigned` in that terminal first, or use `.\venv\Scripts\activate.bat` instead.
+
+No git? Download [main.zip](https://github.com/haksht/lorecon/archive/refs/heads/main.zip), extract, and `cd lorecon-main` instead. To contribute, fork on GitHub first and clone your fork.
+
+The pre-built binaries are already in the repo under `releases/vX.X.X/` — the flash scripts pick them up directly. No separate download needed.
+
+Then continue at [Flash the firmware](#flash-the-firmware).
+
+### Advanced: offline binary zip
+
+For air-gapped installs or when you can't clone the repo: download `lorecon-vX.X.X-binaries.zip` from [Releases](https://github.com/haksht/lorecon/releases/latest), extract it, and run `pip install esptool` once (needs Python 3.10+). The zip contains `flash.sh`, `flash.bat`, `flash.ps1`, and one folder per board — each with a `full.bin` merged image.
+
+`cd` into the extracted folder and continue at [Flash the firmware](#flash-the-firmware). You do **not** get the Python analysis tools this way.
 
 ---
 
@@ -76,9 +68,11 @@ All V4 boards use the `heltec_v4` binary — it includes a required USB configur
 
 ## Flash the firmware
 
-The flash scripts need `esptool`. If you followed Path B, `pip install -e .` already installed it — just activate the venv first. If you're on Path A, run `pip install esptool` once.
+The flash scripts need `esptool`:
+- **Full install:** `pip install -e .` already installed it. Activate the venv first (`.\venv\Scripts\activate.ps1` on Windows, `source venv/bin/activate` on Linux/macOS).
+- **Offline zip:** run `pip install esptool` once.
 
-Open a terminal where the flash scripts live (the extracted release folder for Path A, or `releases/vX.X.X/` inside the repo for Path B) and run the script for your OS. Port is auto-detected if you omit it.
+Open a terminal where the flash scripts live — `releases/vX.X.X/` inside the repo for Full install, or the extracted release folder for Offline zip — and run the script for your OS. Port is auto-detected if you omit it.
 
 **Windows PowerShell:**
 ```powershell
@@ -188,6 +182,8 @@ This keeps your phone on cellular while you use the sniffer.
 ### Alternative: use the device as AP (no setup required)
 
 Skip provisioning entirely. Connect to `LoRa-XXYYZZ` and browse to `http://192.168.4.1`. You lose internet access on that device while connected, but there's no setup step.
+
+**Heltec V4 caveat:** AP mode gives you read-only access (view devices, packets, status). Admin actions (reboot, clear, replay, WiFi config) need the API token, and V4 can't print it to serial — so for admin actions you must do hotspot provisioning first. See [HARDWARE.md → V4](HARDWARE.md#heltec-wifi-lora-32-v4) for the full one-time setup.
 
 ---
 

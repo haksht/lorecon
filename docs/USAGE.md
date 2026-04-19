@@ -78,7 +78,7 @@ The `tools/` directory has a Python toolkit for live monitoring and offline anal
 
 **Reconnaissance mode** (default): scans all 29 configurations in a ~6-minute cycle, discovers new devices automatically. Mode persists across reboots via NVS.
 
-**Targeted mode**: lock to a specific device or frequency. Press `f` in serial or click a configuration in the Frequencies tab. Also persists across reboots.
+**Targeted mode**: lock to a specific device or frequency. Press `f` in serial, or click a configuration in the Frequencies tab (the web UI is the only option on Heltec V4 — no serial). Also persists across reboots.
 
 ### Monitoring remotely
 
