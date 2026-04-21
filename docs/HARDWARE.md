@@ -37,7 +37,7 @@ A reliable and easy-to-source board that works well with this firmware, but lack
 
 ## Heltec WiFi LoRa 32 V4
 
-Hardware is nearly identical to the V3. The V4 has a header for an optional L76K GPS module.
+Hardware is nearly identical to the V3. The V4 has a header for an optional L76K GPS module but it is not currently supported in the firmware.
 
 All V4 boards use the `heltec_v4` binary — it includes a required USB configuration fix that the V3 binary lacks. Do not flash `heltec_v3` onto a V4.
 
