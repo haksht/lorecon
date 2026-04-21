@@ -57,7 +57,7 @@ After this one-time setup, the token is stored in your browser's localStorage an
 
 ---
 
-## LilyGO T3-S3 V1.2/V1.3
+## LilyGO T3-S3 V1.3
 
 Best choice if you want native SD card logging without GPS.
 
