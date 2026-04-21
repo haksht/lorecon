@@ -6,15 +6,19 @@ Supported boards, specifications, purchase links, and antenna selection.
 
 ## Board comparison
 
+## Board comparison
+
 | | Heltec V3 | Heltec V4 | T3-S3 | T-Beam Supreme |
 |---|---|---|---|---|
-| **MCU** | ESP32-S3 (8 MB flash) | ESP32-S3 (8 MB flash) | ESP32-S3FH4R2 (4 MB flash, 2 MB PSRAM) | ESP32-S3FN8 (8 MB flash, 8 MB PSRAM) |
+| **MCU** | ESP32-S3 (8 MB flash) | ESP32-S3 (8 MB flash) | ESP32-S3 (4 MB flash, 2 MB PSRAM) | ESP32-S3 (8 MB flash, 8 MB PSRAM) |
 | **LoRa** | SX1262 | SX1262 | SX1262 | SX1262 |
 | **Display** | 0.96" SSD1306 OLED | 0.96" SSD1306 OLED | 0.96" SSD1306 OLED | 1.3" SH1106 OLED |
-| **SD card** | No | No | Native MicroSD slot | Native MicroSD slot |
-| **GPS** | No | Optional L76K module | No | Quectel L76K or MAX-M10S (built in) |
+| **SD card** | No | No | MicroSD (board variant dependent) | Native MicroSD slot |
+| **GPS** | No | Optional L76K module* | No | Built-in (L76K or MAX-M10S) |
 | **PMIC** | No | No | No | AXP2101 |
-| **Price** | ~$22-32 | ~$25-35 | ~$23-30 | ~$45-55 |
+| **Price** | ~$22–32 | ~$25–35 | ~$23–30 | ~$45–55 |
+
+*Note: Heltec V4 hardware supports an optional GPS module, but it is not currently supported in this firmware for the Heltec V4.
 
 **Which to buy:**
 - Cheapest path to start: **Heltec V3**
@@ -25,11 +29,9 @@ Supported boards, specifications, purchase links, and antenna selection.
 
 ## Heltec WiFi LoRa 32 V3
 
-The most proven board for this firmware.
+A reliable and easy-to-source board that works well with this firmware, but lacks advanced features like SD card support and GPS.
 
 **Purchase:** [Amazon](https://www.amazon.com/dp/B0B697NLJ5) · [Heltec Store](https://heltec.org/project/wifi-lora-32-v3/) · [AliExpress](https://www.aliexpress.com/item/1005005967763162.html)
-
-**Antenna connector:** RP-SMA
 
 ---
 
@@ -59,11 +61,11 @@ After this one-time setup, the token is stored in your browser's localStorage an
 
 Best choice if you want native SD card logging without GPS.
 
-**Purchase:** [Official Store](https://lilygo.cc/products/t3s3-v1-0) ($23.65) · [Amazon](https://www.amazon.com/dp/B0BW5W9QXZ)
+**Purchase:** [Official Store](https://lilygo.cc/products/t3-s3-v1-3?variant=45367157883061)
 
-**SD card:** MicroSD slot, push-to-insert. Use ≤4 GB cards formatted FAT32.
+**SD card:** MicroSD slot. Supports up to 32 GB (FAT32).
 
-**What to order:** SX1262 variant (not SX1276 or SX1280). For US, order 915 MHz (SKU H598).
+**What to order:** SX1262 variant (not SX1276 or SX1280). For US, order 915 MHz.
 
 ---
 
@@ -92,10 +94,13 @@ For better range:
 - Match your region: **915 MHz** (US), **868 MHz** (EU), **433 MHz** (Asia)
 
 **Connector types:**
-- Heltec V3/V4: RP-SMA
-- T3-S3, T-Beam: U.FL (pigtail often included)
+- Heltec V3/V4: U.FL (requires a U.FL → SMA/RP-SMA pigtail)
+- T3-S3: U.FL (requires a U.FL → SMA/RP-SMA pigtail)
+- T-Beam Supreme: SMA
 
-Never power on the radio without an antenna connected.
+**Important:** SMA and RP-SMA are not interchangeable, verify connector type before ordering antennas or adapters.
+
+**WARNING: Never power on the radio without an antenna connected.**
 
 ---
 
@@ -103,10 +108,13 @@ Never power on the radio without an antenna connected.
 
 | Item | Purpose | Notes |
 |------|---------|-------|
-| 18650 Li-Ion battery | Portable operation, 4-8 hours | Protected cells recommended |
-| MicroSD card | PCAP/CSV logging (T3-S3, T-Beam) | FAT32, Class 10; ≤4 GB for T3-S3, ≤32 GB for T-Beam |
-| 3D printed enclosure | Protection | Search "Heltec V3 case" on Printables |
-| USB power bank | Extended field operation | Avoids battery swaps |
+| Battery (board-dependent) | Portable operation | Heltec V3/V4: LiPo via JST; T3-S3: LiPo; T-Beam Supreme: 18650 supported |
+| MicroSD card (≤32 GB) | PCAP/CSV logging | Use FAT32; cards >32 GB may require reformatting |
+| U.FL pigtail (to SMA/RP-SMA) | External antenna connection | Required for Heltec V3/V4 and T3-S3 |
+| 3D printed enclosure | Protection | Search for board-specific cases (e.g., Heltec V3, T3-S3, T-Beam Supreme) |
+| USB power bank | Extended field operation | Useful for long sessions without battery swaps |
+
+**Note:** Accessory requirements vary by board. Heltec and T3-S3 setups typically require additional components (pigtails, LiPo batteries), while the T-Beam Supreme is more self-contained and field-ready.
 
 ---
 
