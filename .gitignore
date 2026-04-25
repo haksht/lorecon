@@ -15,6 +15,9 @@ data/wifi_creds.json
 
 # ESP32 / Arduino
 *.bin
+# Web installer payload — released binaries served same-origin via GitHub Pages
+# to bypass CORS on release-assets.githubusercontent.com (no ACAO header).
+!install/firmware/*.bin
 *.elf
 *.hex
 *.map

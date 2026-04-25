@@ -6,7 +6,7 @@
     {
       "chipFamily": "ESP32-S3",
       "parts": [
-        { "path": "https://github.com/haksht/lorecon/releases/download/v2.4.1/t3_s3-full.bin", "offset": 0 }
+        { "path": "../firmware/t3_s3-full.bin", "offset": 0 }
       ]
     }
   ]
