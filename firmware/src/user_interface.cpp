@@ -424,6 +424,7 @@ void showReconResults() {
   Serial.println("b   : Reboot device (clears all data)");
   Serial.println("s   : Show summary again");
   Serial.println("v   : Security vulnerability assessment");
+  Serial.println("i   : Reset reason & health info");
   Serial.print("\nSelect target (1-" + String(reconState.getNumTargetableDevices()) + ") or command: ");
 }
 
