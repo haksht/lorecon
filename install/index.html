@@ -33,11 +33,11 @@
   .card h2 { margin:0 0 6px; font-size:18px; color:var(--fg); }
   .card .desc { color:var(--muted); font-size:13px; margin:0 0 16px; min-height:36px; }
   .row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
-  esp-web-install-button { --esp-tools-button-color:#fff; }
-  esp-web-install-button button {
+  .install-btn {
     background:var(--accent); color:#fff; border:0; border-radius:6px;
-    padding:8px 16px; font-size:14px; cursor:pointer;
+    padding:8px 16px; font-size:14px; font-family:inherit; cursor:pointer;
   }
+  .install-btn:hover { filter:brightness(1.1); }
   .pill {
     display:inline-block; background:#21262d; border:1px solid var(--line);
     border-radius:999px; padding:2px 10px; font-size:12px; color:var(--muted);
@@ -83,7 +83,9 @@
     <h2>Heltec WiFi LoRa 32 V3</h2>
     <p class="desc">Lowest cost, CP210x serial. Most common starter board.</p>
     <div class="row">
-      <esp-web-install-button manifest="manifests/heltec_v3.json"></esp-web-install-button>
+      <esp-web-install-button manifest="manifests/heltec_v3.json">
+        <button slot="activate" class="install-btn">Connect &amp; Install</button>
+      </esp-web-install-button>
       <span class="pill">ESP32-S3 · 8 MB</span>
     </div>
   </div>
@@ -92,7 +94,9 @@
     <h2>Heltec WiFi LoRa 32 V4</h2>
     <p class="desc">Adds optional L76K GPS. Native USB (no serial monitor).</p>
     <div class="row">
-      <esp-web-install-button manifest="manifests/heltec_v4.json"></esp-web-install-button>
+      <esp-web-install-button manifest="manifests/heltec_v4.json">
+        <button slot="activate" class="install-btn">Connect &amp; Install</button>
+      </esp-web-install-button>
       <span class="pill">ESP32-S3 · 8 MB</span>
     </div>
   </div>
@@ -101,7 +105,9 @@
     <h2>LilyGO T3-S3 V1.2/V1.3</h2>
     <p class="desc">Native SD card slot for PCAP/CSV logging.</p>
     <div class="row">
-      <esp-web-install-button manifest="manifests/t3_s3.json"></esp-web-install-button>
+      <esp-web-install-button manifest="manifests/t3_s3.json">
+        <button slot="activate" class="install-btn">Connect &amp; Install</button>
+      </esp-web-install-button>
       <span class="pill">ESP32-S3 · 4 MB</span>
     </div>
   </div>
@@ -110,7 +116,9 @@
     <h2>LilyGO T-Beam Supreme</h2>
     <p class="desc">SD + built-in GPS + AXP2101 PMIC + battery management.</p>
     <div class="row">
-      <esp-web-install-button manifest="manifests/tbeam_supreme.json"></esp-web-install-button>
+      <esp-web-install-button manifest="manifests/tbeam_supreme.json">
+        <button slot="activate" class="install-btn">Connect &amp; Install</button>
+      </esp-web-install-button>
       <span class="pill">ESP32-S3 · 8 MB</span>
     </div>
   </div>
@@ -130,5 +138,25 @@
 </footer>
 
 </div>
+
+<script>
+  // Auto-dismiss the ESP Web Tools dialog after a successful flash.
+  // Native USB-JTAG boards (e.g. Heltec V4) hang on the post-install
+  // Improv/Configure-WiFi reconnect since they don't expose USB-CDC after
+  // reboot. The flash itself is already done at FINISHED — close the dialog
+  // so the user isn't left staring at a "Connecting…" spinner.
+  document.querySelectorAll('esp-web-install-button').forEach(function(btn) {
+    btn.addEventListener('state-changed', function(ev) {
+      if (ev.detail && ev.detail.state === 'FINISHED') {
+        setTimeout(function() {
+          document.querySelectorAll('ewt-install-dialog').forEach(function(d) {
+            d.remove();
+          });
+        }, 2500);
+      }
+    });
+  });
+</script>
+
 </body>
 </html>
