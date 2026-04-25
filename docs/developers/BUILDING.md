@@ -219,3 +219,58 @@ pio run
 - FEM (external front-end module) must be enabled: GPIO 2 HIGH (chip enable), GPIO 5 LOW (RX mode)
 - `setDio2AsRfSwitch(true)` must be set for V4
 - Verify `USB_CDC_ON_BOOT=0` — USB PHY noise kills radio reception on V4
+
+---
+
+## Releasing a new version
+
+Cutting a release has two destinations: the GitHub release (zip + per-board assets) and the web installer at `https://haksht.github.io/lorecon/install/`. The web installer serves binaries **same-origin from the Pages site**, not from the GitHub release CDN — `release-assets.githubusercontent.com` doesn't send `Access-Control-Allow-Origin`, so cross-origin fetches from the install page get blocked. Until that changes upstream, every release must commit fresh binaries under `install/firmware/`.
+
+### Per-release checklist
+
+1. **Build all four boards** (clean state):
+   ```bash
+   pio run --target clean
+   pio run -e heltec_v3 -e heltec_v4 -e t3_s3 -e tbeam_supreme
+   ```
+
+2. **Run the release script** to produce merged `full.bin` per board, the offline `flash.{sh,bat,ps1}` scripts, and the zip:
+   ```bash
+   scripts\make_release.bat 2.4.2     # Windows
+   scripts/make_release.sh 2.4.2      # Linux/macOS
+   ```
+   Output lands in `releases/v2.4.2/`.
+
+3. **Copy the merged binaries to the web installer** (same-origin payload — required, or browser flash 404s/CORS-fails):
+   ```bash
+   cp releases/v2.4.2/heltec_v3/full.bin      install/firmware/heltec_v3-full.bin
+   cp releases/v2.4.2/heltec_v4/full.bin      install/firmware/heltec_v4-full.bin
+   cp releases/v2.4.2/t3_s3/full.bin          install/firmware/t3_s3-full.bin
+   cp releases/v2.4.2/tbeam_supreme/full.bin  install/firmware/tbeam_supreme-full.bin
+   ```
+   The `.gitignore` has an explicit exception for `install/firmware/*.bin` to override the global `*.bin` rule — git will pick them up.
+
+4. **Bump the version string** in five files (purely informational, but should match the tag):
+   - `install/index.html` — the `<div class="tag">…· vX.X.X</div>` line
+   - `install/manifests/heltec_v3.json` — `"version": "X.X.X"`
+   - `install/manifests/heltec_v4.json`
+   - `install/manifests/t3_s3.json`
+   - `install/manifests/tbeam_supreme.json`
+
+5. **Commit, tag, push:**
+   ```bash
+   git add install/firmware/ install/manifests/ install/index.html releases/v2.4.2/
+   git commit -m "release: v2.4.2"
+   git tag v2.4.2
+   git push origin main --tags
+   ```
+
+6. **Create the GitHub release** and upload the per-board binaries + zip from `releases/v2.4.2/` as assets. The release is what `docs/SETUP.md` points users at for the offline path; the web installer doesn't depend on it but parity is good.
+
+7. **Smoke-test the web installer:** hard-refresh `https://haksht.github.io/lorecon/install/` in Chrome, plug a board in, click Connect & Install, confirm the dialog reaches "Done!" without `_installState.state === "error"`.
+
+### Why install/firmware/ instead of release CDN
+
+`https://github.com/.../releases/download/...` 302-redirects to `release-assets.githubusercontent.com`, which is Azure blob storage fronted by Fastly. The redirect target serves binaries with no `Access-Control-Allow-Origin` header. ESP Web Tools' fetch from `haksht.github.io` thus fails the browser CORS check with `Failed to fetch` (visible in the dialog as `_installState.state === "error"`, `error: "failed_firmware_download"`). Same-origin paths under `install/firmware/` skip the CORS check entirely.
+
+If GitHub ever ships CORS on release assets, the manifests can be repointed at the release URLs and `install/firmware/` deleted — the rest of the install page stays as-is.
