@@ -141,21 +141,42 @@
 
 <script>
   // Auto-dismiss the ESP Web Tools dialog after a successful flash.
-  // Native USB-JTAG boards (e.g. Heltec V4) hang on the post-install
-  // Improv/Configure-WiFi reconnect since they don't expose USB-CDC after
-  // reboot. The flash itself is already done at FINISHED — close the dialog
-  // so the user isn't left staring at a "Connecting…" spinner.
-  document.querySelectorAll('esp-web-install-button').forEach(function(btn) {
-    btn.addEventListener('state-changed', function(ev) {
-      if (ev.detail && ev.detail.state === 'FINISHED') {
-        setTimeout(function() {
-          document.querySelectorAll('ewt-install-dialog').forEach(function(d) {
-            d.remove();
-          });
-        }, 2500);
+  // The dialog is created on demand and appended to <body>; it does not
+  // dispatch state events outward (only "closed" when it's already torn
+  // down). Native USB-JTAG boards (e.g. Heltec V4) cannot speak Improv
+  // Serial after reboot, so the dialog gets stuck on a "Connecting"
+  // spinner waiting for an Improv handshake that never arrives. We poll
+  // the dialog's internal _installState (Lit @state) and close it once
+  // the flash itself reaches state "finished".
+  (function() {
+    const obs = new MutationObserver(function(mutations) {
+      for (const m of mutations) {
+        for (const node of m.addedNodes) {
+          if (!node.tagName) continue;
+          if (node.tagName.toLowerCase() !== 'ewt-install-dialog') continue;
+          const dialog = node;
+          const poll = setInterval(function() {
+            const s = dialog._installState;
+            if (s && s.state === 'finished') {
+              clearInterval(poll);
+              setTimeout(function() {
+                if (!dialog.isConnected) return;
+                if (typeof dialog._closeDialog === 'function') {
+                  dialog._closeDialog();
+                } else {
+                  dialog.remove();
+                }
+              }, 2500);
+            }
+          }, 250);
+          dialog.addEventListener('closed', function() {
+            clearInterval(poll);
+          }, { once: true });
+        }
       }
     });
-  });
+    obs.observe(document.body, { childList: true });
+  })();
 </script>
 
 </body>
