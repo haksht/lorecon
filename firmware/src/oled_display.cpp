@@ -443,11 +443,10 @@ void OLEDDisplay::drawFooter(const char* text) {
 
 void OLEDDisplay::renderWelcome() {
     display.setFont(u8g2_font_9x15_tf);
-    display.drawStr(10, 20, "ESP32 LoRa");
-    display.drawStr(5, 38, "Recon Tool");
-    
+    display.drawStr(32, 26, "LoRecon");
+
     display.setFont(u8g2_font_6x10_tf);
-    display.drawStr(15, 55, "Initializing...");
+    display.drawStr(28, 46, "Initializing");
     
     // Show button instructions at bottom
     display.setFont(u8g2_font_5x7_tf);
