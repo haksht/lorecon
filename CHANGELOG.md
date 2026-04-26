@@ -2,9 +2,21 @@
 
 All notable changes to the LoRecon project (ESP32 LoRa packet sniffer & reconnaissance tool).
 
-## [Unreleased] - 2026-04-09
+## [2.4.2] - 2026-04-26
+
+### Added
+- **Web installer** (`install/`): One-click ESP Web Tools page at `https://haksht.github.io/lorecon/install/`. Same-origin binaries under `install/firmware/` (release-asset CDN doesn't send CORS headers, so cross-origin fetches were getting blocked).
+- **MeshCore channel name in Packets tab**: Decrypted MeshCore channel name now shown per-packet. Added `meshCoreChannel[24]` field to `CapturedPacket` through the full stack: `data_structures.h` → `packet_store` → `recon_state` → `packet_processor` → `json_builders`.
+- **Interactive menu — `i` key**: Lists reset reason and device health info from serial, alongside the other live-debug menu options.
+
+### Changed
+- **Project rebrand to LoRecon**: Repo, manifests, install page, OLED welcome screen, generated report filenames (`lorecon-report.json`), and webapp branding all updated. Repo now lives at `haksht/lorecon`.
+- **OLED welcome screen**: `renderWelcome()` now displays "LoRecon" (9x15) over "Initializing" (6x10) — replaces the prior three-line "ESP32 LoRa / Recon Tool / Initializing..." layout. V3, T3-S3, T-Beam Supreme.
+- **Frequency tab — Target button moved to the left**: Action column reordered so Target sits before Frequency / Bandwidth / SF — matches the "actions-first" pattern in the Devices tab.
 
 ### Fixed
+- **Install dialog — "Failed to fetch" / stuck on "Installing"**: Repointed manifests at relative paths under `install/firmware/` and added an `_installState` observer that auto-closes the ESP Web Tools dialog when state transitions to `done` or `error`.
+- **Session CSV — sniffer GPS vs node GPS conflated** (#16): Added explicit columns disambiguating the sniffer's own GPS fix from any GPS coordinates carried in captured packets.
 - **RadioHead ACK detection reading wrong bit**: `protocol_analyzer.cpp` was checking bit 6 of the FLAGS byte and labeling the result "RadioHead ACK", but the RadioHead spec puts `RH_FLAGS_ACK` at bit 7 (0x80). Every "RadioHead ACK" badge in device lists was misattributed.
 - **Meshtastic flag parser — "priority" field never existed**: `extractFlags` read bits 5–6 of byte 12 as "priority" and bit 7 as an "encryption flag". Per Meshtastic firmware (`src/mesh/RadioInterface.h`, v2.3.0+), bits 5–7 are `hop_start` (the originator's initial `hop_limit`, 0–7). Renamed `priority` → `hopStart` through `PacketInfo`, `CapturedPacket`, `MeshtasticHeader`, `PacketStore`, `ReconState`, JSON key, and webapp. Bogus `~v2.2+ (est: encryption flag)` firmware heuristic replaced with `~v2.3+ (est: hop_start set)`, which is the actual meaning of a non-zero upper nibble.
 - **Originated/relayed packet counts wrong for LoRaWAN/ISM/RadioHead**: `device_repository.cpp` was skipping both counters when `hopCount == 0xFF` (sentinel for "no hop field"), leaving every non-Meshtastic/non-MeshCore device at 0/0 regardless of packet count. All packets from these protocols now count as originated, which is the correct interpretation (no relay evidence available).
@@ -15,11 +27,12 @@ All notable changes to the LoRecon project (ESP32 LoRa packet sniffer & reconnai
 - **Packet table — Broadcast display**: `isBroadcast === undefined` was treated as broadcast, showing 📢 for protocols that don't set this field. Now requires explicit `true`.
 - **Traffic histogram label**: Renamed to "Traffic by Hour of Day — UTC" to reflect that the firmware uses NTP without timezone configuration (hours are UTC, not local time).
 
-### Added
-- **MeshCore channel name in Packets tab**: Decrypted MeshCore channel name now shown per-packet. Added `meshCoreChannel[24]` field to `CapturedPacket` through the full stack: `data_structures.h` → `packet_store` → `recon_state` → `packet_processor` → `json_builders`.
-
 ### Removed
 - **Channel column from Devices tab**: MeshCore channel is a per-packet property (a device can use different channels for different messages). The per-device field only stored the last decrypted channel, which was misleading. Channel is now shown correctly in the Packets tab only.
+
+### Documentation
+- Added a per-release checklist to `docs/developers/BUILDING.md` covering the `install/firmware/` same-origin copy step required by ESP Web Tools.
+- Hardware notes consolidated in `docs/developers/HARDWARE_NOTES.md`.
 
 ## [2.4.1] - 2026-03-29
 
