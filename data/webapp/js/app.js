@@ -1744,9 +1744,28 @@ class ReconApp {
             }
             
             const config = response.config;
-            
+
             let html = '<div class="p-md">';
-            
+
+            // Device Health — boot reason from this session, color-coded so a
+            // crash/WDT/brownout stands out vs. a clean Power-on.
+            const status = this.currentStatus || {};
+            const reason = status.resetReason || 'unknown';
+            const reasonClass = (reason === 'Power-on') ? 'text-success'
+                : (reason === 'Software reset (esp_restart)') ? 'text-warning'
+                : (reason === 'Unknown' || reason === 'unknown') ? ''
+                : 'text-danger';  // Panic, WDT, Brownout, etc. — all bad
+            const minHeap = (typeof status.minFreeHeap === 'number')
+                ? this.formatBytes(status.minFreeHeap) : '—';
+            html += '<div class="info-section"><h3>🩺 Device Health</h3><div class="content-area">';
+            html += '<div class="status-row" title="Reason this device booted. Anything other than Power-on means the chip reset (panic, watchdog, brownout, or intentional restart).">';
+            html += '<span>Last Reset Reason</span>';
+            html += '<span class="status-value ' + reasonClass + '">' + escapeHtml(reason) + '</span></div>';
+            html += '<div class="status-row" title="Lowest free heap seen since boot. Below ~30KB, heavy endpoints will start failing with 503s.">';
+            html += '<span>Min Free Heap (since boot)</span>';
+            html += '<span class="status-value">' + minHeap + '</span></div>';
+            html += '</div></div>';
+
             // System Configuration
             html += '<div class="info-section"><h3>⚙️ System Configuration</h3><div class="content-area">';
             html += '<div class="status-row"><span>Scan Dwell Time</span><span class="status-value">' + config.scanDwellTime + ' ms</span></div>';
