@@ -25,6 +25,7 @@
 #include "radio_controller.h"
 #include "utils/sd_utils.h"
 #include "packet_logger.h"
+#include "crash_context.h"
 
 namespace JsonBuilders {
 
@@ -137,12 +138,14 @@ String buildStatusJson(ReconState& reconState) {
     JsonDocument doc = JsonUtils::successDoc();
     doc["mode"] = Internal::modeToString(reconState.scanState.mode);
     doc["uptime"] = millis() / 1000;
+    doc["resetReason"] = CrashContext::getBootResetReasonStr();
     doc["devices"] = reconState.getNumTargetableDevices();
     doc["totalPackets"] = reconState.scanState.totalPackets.load();
     doc["droppedPackets"] = reconState.scanState.droppedPackets.load();
     doc["peakQueueSize"] = reconState.scanState.peakQueueSize.load();
     doc["capturedPackets"] = reconState.getNumCapturedPackets();
     doc["freeHeap"] = ESP.getFreeHeap();
+    doc["minFreeHeap"] = ESP.getMinFreeHeap();
     doc["heapSize"] = ESP.getHeapSize();
     if (g_radioController) {
         doc["isrCount"] = g_radioController->getISRCount();

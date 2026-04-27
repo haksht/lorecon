@@ -468,6 +468,7 @@ class ReconApp {
             infoPackets: document.getElementById('info-packets'),
             infoDevices: document.getElementById('info-devices'),
             infoHeap: document.getElementById('info-heap'),
+            infoMinHeap: document.getElementById('info-min-heap'),
             infoDroppedRow: document.getElementById('info-dropped-row'),
             infoDropped: document.getElementById('info-dropped'),
             infoGpsRow: document.getElementById('info-gps-row'),
@@ -494,6 +495,10 @@ class ReconApp {
         // War room event tracking (detect mode/device-count changes)
         this.lastStatusMode = undefined;
         this.lastStatusDevices = undefined;
+
+        // Silent-reboot detection: a drop in uptime between polls means
+        // the device reset (uptime is millis()/1000 firmware-side).
+        this.lastUptime = undefined;
 
         this.init();
     }
@@ -584,6 +589,20 @@ class ReconApp {
         this.currentStatus = data;
         const isTargeted = isTargetedMode(data.mode);
 
+        // Silent-reboot detection: uptime is millis()/1000, so a drop between
+        // polls means the device reset between them. Surface the reason from
+        // /api/status so the user knows it rebooted instead of silently
+        // attributing it to a data wipe.
+        const uptime = data.uptime;
+        if (typeof uptime === 'number') {
+            if (this.lastUptime !== undefined && uptime < this.lastUptime - 2) {
+                const reason = data.resetReason || 'unknown';
+                showToast(`Device rebooted — reason: ${reason}`, 'error', 8000);
+                DEBUG.warn(`Reboot detected: uptime ${this.lastUptime}s → ${uptime}s, reason=${reason}`);
+            }
+            this.lastUptime = uptime;
+        }
+
         // Check for queue drops and show warning if significant
         if (data.droppedPackets > 0 && data.totalPackets > 0) {
             const totalReceived = data.totalPackets + data.droppedPackets;
@@ -654,6 +673,16 @@ class ReconApp {
             if (this.el.infoPackets) this.el.infoPackets.textContent = data.totalPackets || 0;
             if (this.el.infoDevices) this.el.infoDevices.textContent = data.devices || 0;
             if (this.el.infoHeap) this.el.infoHeap.textContent = this.formatBytes(data.freeHeap || 0);
+            if (this.el.infoMinHeap) {
+                const minHeap = data.minFreeHeap;
+                if (typeof minHeap === 'number') {
+                    this.el.infoMinHeap.textContent = this.formatBytes(minHeap);
+                    // Color-code: <30KB is danger, <60KB is warning, else neutral
+                    this.el.infoMinHeap.className = 'status-value ' +
+                        (minHeap < 30000 ? 'text-danger' :
+                         minHeap < 60000 ? 'text-warning' : '');
+                }
+            }
             if (this.el.infoDroppedRow && this.el.infoDropped) {
                 const dropped = data.droppedPackets || 0;
                 const total = (data.totalPackets || 0) + dropped;
@@ -795,8 +824,12 @@ class ReconApp {
                 await this.showFrequency();
                 break;
             case 'network':
-                // Dashboard tab: load network map, stats, and GPS positions in parallel
-                await Promise.all([this.showNetwork(), this.showStats(), this.showGPS()]);
+                // Dashboard tab: load network map, stats, GPS sequentially.
+                // Parallel fan-out (3 calls × ~7 endpoints) was a heap/AsyncTCP
+                // pressure spike on T-Beam Supreme — see HANDOFF.md silent-reboot notes.
+                await this.showNetwork();
+                await this.showStats();
+                await this.showGPS();
                 break;
             case 'settings':
                 await this.showSettings();

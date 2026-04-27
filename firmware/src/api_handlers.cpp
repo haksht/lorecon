@@ -13,12 +13,29 @@
 #include "lora_recon_tool.h"
 #include "logger.h"
 #include "config.h"
+#include "crash_context.h"
 #include "utils/json_utils.h"
 #include <SD.h>
 #include <ArduinoJson.h>
 #include <esp_system.h>
 
 namespace APIHandlers {
+
+// Heap headroom required before building a heavy JSON response. AsyncTCP needs
+// its own send buffer on top of the JsonDocument we serialize, so we reject
+// early with 503 rather than letting AsyncTCP panic mid-allocation.
+// Threshold is conservative; most heavy endpoints peak around 30-50KB.
+static constexpr uint32_t HEAVY_ENDPOINT_MIN_HEAP = 50000;
+
+static bool checkHeavyEndpointHeap(AsyncWebServerRequest* request, const char* name) {
+    uint32_t freeHeap = ESP.getFreeHeap();
+    if (freeHeap < HEAVY_ENDPOINT_MIN_HEAP) {
+        LOG_WARN("%s: low heap (%lu bytes) - sending 503", name, freeHeap);
+        request->send(503, "application/json", JsonUtils::error("Low memory - try again"));
+        return false;
+    }
+    return true;
+}
 
 // =============================================================================
 // LOCAL HELPERS
@@ -98,9 +115,10 @@ static bool requireActiveSession(AsyncWebServerRequest* request, String& outFile
 // =============================================================================
 
 void handleGetDevices(AsyncWebServerRequest* request) {
+    CrashContext::setLastAction("api:devices");
     uint32_t heapBefore = ESP.getFreeHeap();
     LOG_INFO("API /devices called (heap: %lu bytes)", heapBefore);
-    
+
     // Check if we have enough heap to build response safely.
     // /devices JSON is ~31KB; ESPAsyncWebServer needs its own send buffer on top.
     // Require 90KB headroom so both allocations succeed.
@@ -235,18 +253,22 @@ void handleExportCSV(AsyncWebServerRequest* request) {
 // =============================================================================
 
 void handleGetStatus(AsyncWebServerRequest* request) {
+    CrashContext::setLastAction("api:status");
     request->send(200, "application/json", APIController::getStatus());
 }
 
 void handleGetDashboard(AsyncWebServerRequest* request) {
+    CrashContext::setLastAction("api:dashboard");
     request->send(200, "application/json", APIController::getDashboard());
 }
 
 void handleGetStatistics(AsyncWebServerRequest* request) {
+    CrashContext::setLastAction("api:statistics");
     request->send(200, "application/json", APIController::getStatistics());
 }
 
 void handleGetActivity(AsyncWebServerRequest* request) {
+    CrashContext::setLastAction("api:activity");
     request->send(200, "application/json", APIController::getRFActivity());
 }
 
@@ -275,14 +297,19 @@ void handleStopScan(AsyncWebServerRequest* request) {
 // =============================================================================
 
 void handleGetReconSummary(AsyncWebServerRequest* request) {
+    CrashContext::setLastAction("api:recon/summary");
+    if (!checkHeavyEndpointHeap(request, "/api/recon/summary")) return;
     request->send(200, "application/json", APIController::getReconSummary());
 }
 
 void handleGetDeviceTypeSummary(AsyncWebServerRequest* request) {
+    CrashContext::setLastAction("api:recon/device-types");
     request->send(200, "application/json", APIController::getDeviceTypeSummary());
 }
 
 void handleGetSecurityAssessment(AsyncWebServerRequest* request) {
+    CrashContext::setLastAction("api:recon/security");
+    if (!checkHeavyEndpointHeap(request, "/api/recon/security")) return;
     request->send(200, "application/json", APIController::getSecurityAssessment());
 }
 
@@ -291,12 +318,15 @@ void handleGetSecurityAssessment(AsyncWebServerRequest* request) {
 // =============================================================================
 
 void handleGetAnomalies(AsyncWebServerRequest* request) {
+    CrashContext::setLastAction("api:anomalies");
+    if (!checkHeavyEndpointHeap(request, "/api/anomalies")) return;
+
     bool unacknowledgedOnly = false;
     if (request->hasParam("unacknowledged")) {
         String val = request->getParam("unacknowledged")->value();
         unacknowledgedOnly = (val == "true" || val == "1");
     }
-    
+
     request->send(200, "application/json", APIController::getAnomalies(unacknowledgedOnly));
 }
 
@@ -316,6 +346,8 @@ void handleAcknowledgeAnomaly(AsyncWebServerRequest* request) {
 }
 
 void handleGetTemporalData(AsyncWebServerRequest* request) {
+    CrashContext::setLastAction("api:temporal");
+    if (!checkHeavyEndpointHeap(request, "/api/temporal")) return;
     request->send(200, "application/json", APIController::getTemporalData());
 }
 
@@ -332,6 +364,8 @@ void handleGetPSKStats(AsyncWebServerRequest* request) {
 // =============================================================================
 
 void handleGetReplaySlots(AsyncWebServerRequest* request) {
+    CrashContext::setLastAction("api:replay/slots");
+    if (!checkHeavyEndpointHeap(request, "/api/replay/slots")) return;
     String response = APIController::getReplaySlots();
     request->send(200, "application/json", response);
 }

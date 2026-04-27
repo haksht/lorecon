@@ -17,4 +17,5 @@ namespace CrashContext {
     void saveResetReason(esp_reset_reason_t reason, const char* reasonStr);
     void loadAndReport();
     void printResetInfo();
+    const char* getBootResetReasonStr();
 }
