@@ -21,15 +21,28 @@
 
 namespace APIHandlers {
 
-// Heap headroom required before building a heavy JSON response. AsyncTCP needs
-// its own send buffer on top of the JsonDocument we serialize, so we reject
-// early with 503 rather than letting AsyncTCP panic mid-allocation.
-// Threshold is conservative; most heavy endpoints peak around 30-50KB.
-static constexpr uint32_t HEAVY_ENDPOINT_MIN_HEAP = 50000;
+// Heap headroom required before building a JSON response. AsyncTCP needs its
+// own send buffer on top of the JsonDocument we serialize, so we reject early
+// with 503 rather than letting AsyncTCP panic mid-allocation.
+// Heavy endpoints (security scoring, temporal, anomalies, replay slots): 65KB.
+// Medium endpoints (activity, statistics, positions): 40KB.
+// /api/devices has its own inline 90KB guard (builds ~31KB JSON).
+static constexpr uint32_t HEAVY_ENDPOINT_MIN_HEAP = 65000;
+static constexpr uint32_t MEDIUM_ENDPOINT_MIN_HEAP = 40000;
 
 static bool checkHeavyEndpointHeap(AsyncWebServerRequest* request, const char* name) {
     uint32_t freeHeap = ESP.getFreeHeap();
     if (freeHeap < HEAVY_ENDPOINT_MIN_HEAP) {
+        LOG_WARN("%s: low heap (%lu bytes) - sending 503", name, freeHeap);
+        request->send(503, "application/json", JsonUtils::error("Low memory - try again"));
+        return false;
+    }
+    return true;
+}
+
+static bool checkMediumEndpointHeap(AsyncWebServerRequest* request, const char* name) {
+    uint32_t freeHeap = ESP.getFreeHeap();
+    if (freeHeap < MEDIUM_ENDPOINT_MIN_HEAP) {
         LOG_WARN("%s: low heap (%lu bytes) - sending 503", name, freeHeap);
         request->send(503, "application/json", JsonUtils::error("Low memory - try again"));
         return false;
@@ -176,6 +189,8 @@ void handleStopCapture(AsyncWebServerRequest* request) {
 // =============================================================================
 
 void handleGetPositions(AsyncWebServerRequest* request) {
+    CrashContext::setLastAction("api:positions");
+    if (!checkMediumEndpointHeap(request, "/api/positions")) return;
     request->send(200, "application/json", APIController::getPositions());
 }
 
@@ -259,16 +274,19 @@ void handleGetStatus(AsyncWebServerRequest* request) {
 
 void handleGetDashboard(AsyncWebServerRequest* request) {
     CrashContext::setLastAction("api:dashboard");
+    if (!checkHeavyEndpointHeap(request, "/api/dashboard")) return;
     request->send(200, "application/json", APIController::getDashboard());
 }
 
 void handleGetStatistics(AsyncWebServerRequest* request) {
     CrashContext::setLastAction("api:statistics");
+    if (!checkMediumEndpointHeap(request, "/api/statistics")) return;
     request->send(200, "application/json", APIController::getStatistics());
 }
 
 void handleGetActivity(AsyncWebServerRequest* request) {
     CrashContext::setLastAction("api:activity");
+    if (!checkMediumEndpointHeap(request, "/api/activity")) return;
     request->send(200, "application/json", APIController::getRFActivity());
 }
 

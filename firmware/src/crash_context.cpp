@@ -24,6 +24,11 @@ namespace CrashContext {
     static esp_reset_reason_t bootResetReason = ESP_RST_UNKNOWN;
     static const char* bootResetReasonStr = "Unknown";
 
+    // Snapshot of the RTC last-action captured during loadAndReport().
+    // Frozen at boot so subsequent setLastAction() calls don't overwrite the
+    // pre-crash context before the webapp has a chance to read it.
+    static char bootLastAction[32] = "";
+
     void setLastAction(const char* action) {
         lastAction = action;
         if (action) {
@@ -46,6 +51,10 @@ namespace CrashContext {
 
     const char* getBootResetReasonStr() {
         return bootResetReasonStr;
+    }
+
+    const char* getBootLastActionStr() {
+        return bootLastAction[0] != '\0' ? bootLastAction : nullptr;
     }
 
     // Save the reset reason to NVS so it survives across subsequent resets.
@@ -85,6 +94,13 @@ namespace CrashContext {
         // (survives panic/WDT/brownout, lost on cold power). NVS lastAction is
         // up to 5 minutes stale because saveState only commits every 300s.
         const char* rtcAction = getRtcLastAction();
+        if (rtcAction) {
+            strncpy(bootLastAction, rtcAction, sizeof(bootLastAction) - 1);
+            bootLastAction[sizeof(bootLastAction) - 1] = '\0';
+        } else if (!lastActionStr.isEmpty() && lastActionStr != "unknown") {
+            strncpy(bootLastAction, lastActionStr.c_str(), sizeof(bootLastAction) - 1);
+            bootLastAction[sizeof(bootLastAction) - 1] = '\0';
+        }
 
         if (lastMode != 255 && lastUptime > 0) {
             const char* modeStr = (lastMode == 0) ? "RECON" :

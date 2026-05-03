@@ -1764,6 +1764,11 @@ class ReconApp {
             html += '<div class="status-row" title="Lowest free heap seen since boot. Below ~30KB, heavy endpoints will start failing with 503s.">';
             html += '<span>Min Free Heap (since boot)</span>';
             html += '<span class="status-value">' + minHeap + '</span></div>';
+            if (status.lastAction) {
+                html += '<div class="status-row" title="Which API endpoint was running when the previous crash occurred (from RTC memory — survives panic/WDT/brownout).">';
+                html += '<span>Last Action at Crash</span>';
+                html += '<span class="status-value text-danger">' + escapeHtml(status.lastAction) + '</span></div>';
+            }
             html += '</div></div>';
 
             // System Configuration

@@ -139,6 +139,8 @@ String buildStatusJson(ReconState& reconState) {
     doc["mode"] = Internal::modeToString(reconState.scanState.mode);
     doc["uptime"] = millis() / 1000;
     doc["resetReason"] = CrashContext::getBootResetReasonStr();
+    const char* lastAction = CrashContext::getBootLastActionStr();
+    if (lastAction) doc["lastAction"] = lastAction;
     doc["devices"] = reconState.getNumTargetableDevices();
     doc["totalPackets"] = reconState.scanState.totalPackets.load();
     doc["droppedPackets"] = reconState.scanState.droppedPackets.load();

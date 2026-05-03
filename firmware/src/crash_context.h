@@ -18,4 +18,5 @@ namespace CrashContext {
     void loadAndReport();
     void printResetInfo();
     const char* getBootResetReasonStr();
+    const char* getBootLastActionStr();  // RTC last-action snapshot from pre-crash boot
 }
