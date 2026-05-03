@@ -104,6 +104,25 @@ const char* modeToString(uint8_t mode);
  */
 void fillDevice(JsonObject& obj, const TargetableDevice& dev, uint8_t index, ReconState& reconState);
 
+/**
+ * Write all status fields into obj (equivalent to the top-level fields in buildStatusJson).
+ * Used by getDashboard() to avoid the serialize→deserialize round-trip.
+ */
+void fillStatusObject(ReconState& reconState, JsonObject obj);
+
+/**
+ * Populate arr with all device objects under a held lock.
+ * outCount receives the number of devices written.
+ * Returns false if the lock could not be acquired (arr is left empty).
+ */
+bool fillDevicesArray(ReconState& reconState, JsonArray arr, uint32_t& outCount);
+
+/**
+ * Populate arr with per-config RF activity entries.
+ * Used by getDashboard() to avoid the serialize→deserialize round-trip.
+ */
+void fillActivityArray(ReconState& reconState, JsonArray arr);
+
 } // namespace Internal
 
 } // namespace JsonBuilders

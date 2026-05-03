@@ -89,6 +89,144 @@ void fillDevice(ArduinoJson::JsonObject& obj, const TargetableDevice& dev, uint8
     obj["powerDescriptor"] = descriptor;
 }
 
+void fillStatusObject(ReconState& reconState, JsonObject obj) {
+    obj["status"] = "success";
+    obj["mode"] = modeToString(reconState.scanState.mode);
+    obj["uptime"] = millis() / 1000;
+    obj["resetReason"] = CrashContext::getBootResetReasonStr();
+    const char* lastAction = CrashContext::getBootLastActionStr();
+    if (lastAction) obj["lastAction"] = lastAction;
+    obj["devices"] = reconState.getNumTargetableDevices();
+    obj["totalPackets"] = reconState.scanState.totalPackets.load();
+    obj["droppedPackets"] = reconState.scanState.droppedPackets.load();
+    obj["peakQueueSize"] = reconState.scanState.peakQueueSize.load();
+    obj["capturedPackets"] = reconState.getNumCapturedPackets();
+    obj["freeHeap"] = ESP.getFreeHeap();
+    obj["minFreeHeap"] = ESP.getMinFreeHeap();
+    obj["heapSize"] = ESP.getHeapSize();
+    if (g_radioController) {
+        obj["isrCount"] = g_radioController->getISRCount();
+        obj["irqPollCount"] = g_radioController->getIrqPollCount();
+        obj["lastRxError"] = g_radioController->getLastRxError();
+    }
+
+    ModeManager modeManager;
+    obj["modeChangeCount"] = modeManager.getModeChangeCount();
+
+    float batteryVoltage;
+    int batteryPercent;
+#ifdef HAS_AXP2101
+    batteryVoltage = PMUController::getBatteryVoltage();
+    batteryPercent = PMUController::getBatteryPercent();
+#else
+    if (Config::Hardware::VBAT_CTRL_PIN != Config::Hardware::PIN_UNUSED) {
+        pinMode(Config::Hardware::VBAT_CTRL_PIN, OUTPUT);
+        digitalWrite(Config::Hardware::VBAT_CTRL_PIN, HIGH);
+    }
+    analogReadResolution(12);
+    batteryVoltage = (analogReadMilliVolts(Config::Hardware::VBAT_ADC_PIN) * Config::Hardware::VBAT_SCALE) / 1000.0f;
+    batteryPercent = constrain((int)((batteryVoltage - 3.2f) / (4.2f - 3.2f) * 100.0f), 0, 100);
+#endif
+    obj["batteryVoltage"] = serialized(String(batteryVoltage, 2));
+    obj["batteryPercent"] = batteryPercent;
+
+#ifdef HAS_GPS
+    if (g_gpsController) {
+        JsonObject gps = obj["gps"].to<JsonObject>();
+        bool fix = g_gpsController->hasFix();
+        gps["hasFix"] = fix;
+        gps["satellites"] = g_gpsController->getSatellites();
+        if (fix) {
+            gps["lat"] = serialized(String(g_gpsController->getLatitude(), 6));
+            gps["lon"] = serialized(String(g_gpsController->getLongitude(), 6));
+            gps["alt"] = serialized(String(g_gpsController->getAltitude(), 1));
+        }
+    }
+#endif
+
+    {
+        JsonObject storage = obj["storage"].to<JsonObject>();
+        storage["available"] = SDUtils::isAvailable();
+        if (SDUtils::isAvailable()) {
+            storage["totalMB"] = SDUtils::getCardSizeMB();
+            storage["usedMB"] = SDUtils::getUsedMB();
+            storage["freeMB"] = SDUtils::getFreeMB();
+            storage["type"] = SDUtils::getCardTypeString();
+            storage["lowSpace"] = packetLogger.isLowSpace();
+            storage["loggingStopped"] = !packetLogger.isAvailable();
+        }
+    }
+
+    if (g_webServer) {
+        obj["clientCount"] = g_webServer->getClientCount();
+    }
+
+    if (reconState.scanState.mode == MODE_RECONNAISSANCE) {
+        JsonObject scan = obj["scan"].to<JsonObject>();
+        scan["currentConfig"] = reconState.scanState.currentConfig.load();
+        scan["totalConfigs"] = reconState.getNumConfigs();
+        uint32_t elapsed = millis() - reconState.scanState.reconStartTime;
+        scan["cyclesCompleted"] = elapsed / (reconState.getNumConfigs() * Config::Scanning::DWELL_TIME_MS);
+    } else if (reconState.scanState.mode == MODE_TARGETED_CAPTURE) {
+        JsonObject target = obj["target"].to<JsonObject>();
+        target["targetedByDevice"] = reconState.scanState.targetedByDevice.load();
+        const ScanConfig& cfg = reconState.getScanConfig(reconState.scanState.targetConfig);
+        target["configIndex"] = reconState.scanState.targetConfig.load();
+        target["frequency"] = cfg.frequency;
+        target["protocol"] = cfg.protocol;
+        target["bandwidth"] = cfg.bandwidth;
+        target["spreadingFactor"] = cfg.spreadingFactor;
+        for (uint8_t i = 0; i < reconState.getNumTargetableDevices(); i++) {
+            TargetableDevice device = reconState.getTargetableDevice(i);
+            if (device.configIndex == reconState.scanState.targetConfig) {
+                target["nodeId"] = FormatUtils::formatNodeIdJson(device.nodeId);
+                target["deviceType"] = device.deviceType;
+                target["rssi"] = device.bestRSSI;
+                target["packetCount"] = device.packetCount;
+                break;
+            }
+        }
+    }
+}
+
+bool fillDevicesArray(ReconState& reconState, JsonArray arr, uint32_t& outCount) {
+    ReconState::ScopedLock lock(reconState);
+    if (!lock) { outCount = 0; return false; }
+    uint8_t n = reconState.getNumTargetableDevices();
+    for (uint8_t i = 0; i < n; i++) {
+        JsonObject deviceObj = arr.add<JsonObject>();
+        const TargetableDevice& dev = reconState.getDeviceRepository().getByIndex(i);
+        fillDevice(deviceObj, dev, i, reconState);
+    }
+    outCount = n;
+    return true;
+}
+
+void fillActivityArray(ReconState& reconState, JsonArray arr) {
+    for (uint8_t i = 0; i < reconState.getNumConfigs(); i++) {
+        const RFActivity& activity = reconState.getRFActivity(i);
+        const ScanConfig& cfg = reconState.getScanConfig(i);
+        JsonObject obj = arr.add<JsonObject>();
+        obj["configIndex"] = i;
+        obj["frequencyMHz"] = cfg.frequency;
+        obj["spreadingFactor"] = cfg.spreadingFactor;
+        obj["bandwidthKHz"] = cfg.bandwidth;
+        obj["syncWord"] = cfg.syncWord;
+        obj["protocol"] = cfg.protocol;
+        if (activity.activityCount > 0) {
+            obj["packets"] = activity.activityCount;
+            obj["peakRSSI"] = activity.peakRSSI;
+            obj["avgRSSI"] = activity.avgRSSI;
+            obj["lastActivity"] = activity.lastActivity;
+            obj["activityLevel"] = activity.activityLevel ? activity.activityLevel : "UNKNOWN";
+        } else {
+            obj["packets"] = 0;
+            obj["avgRSSI"] = 0;
+            obj["activityLevel"] = "NONE";
+        }
+    }
+}
+
 } // namespace Internal
 
 // =============================================================================
@@ -97,23 +235,11 @@ void fillDevice(ArduinoJson::JsonObject& obj, const TargetableDevice& dev, uint8
 
 String buildDevicesJson(ReconState& reconState) {
     JsonDocument doc = JsonUtils::successDoc();
-
-    // Use scoped lock to ensure consistent view during iteration
-    ReconState::ScopedLock lock(reconState);
-    if (!lock) {
+    uint32_t count = 0;
+    if (!Internal::fillDevicesArray(reconState, doc["devices"].to<JsonArray>(), count)) {
         return JsonUtils::errorResponse("Failed to acquire lock");
     }
-
-    doc["count"] = reconState.getNumTargetableDevices();
-
-    JsonArray devices = doc["devices"].to<JsonArray>();
-    for (uint8_t i = 0; i < reconState.getNumTargetableDevices(); i++) {
-        JsonObject deviceObj = devices.add<JsonObject>();
-        // Use direct repository access since we hold the lock
-        const TargetableDevice& dev = reconState.getDeviceRepository().getByIndex(i);
-        Internal::fillDevice(deviceObj, dev, i, reconState);
-    }
-
+    doc["count"] = count;
     return JsonUtils::serialize(doc);
 }
 
@@ -135,115 +261,8 @@ String buildDeviceJson(ReconState& reconState, uint8_t deviceIndex) {
 // =============================================================================
 
 String buildStatusJson(ReconState& reconState) {
-    JsonDocument doc = JsonUtils::successDoc();
-    doc["mode"] = Internal::modeToString(reconState.scanState.mode);
-    doc["uptime"] = millis() / 1000;
-    doc["resetReason"] = CrashContext::getBootResetReasonStr();
-    const char* lastAction = CrashContext::getBootLastActionStr();
-    if (lastAction) doc["lastAction"] = lastAction;
-    doc["devices"] = reconState.getNumTargetableDevices();
-    doc["totalPackets"] = reconState.scanState.totalPackets.load();
-    doc["droppedPackets"] = reconState.scanState.droppedPackets.load();
-    doc["peakQueueSize"] = reconState.scanState.peakQueueSize.load();
-    doc["capturedPackets"] = reconState.getNumCapturedPackets();
-    doc["freeHeap"] = ESP.getFreeHeap();
-    doc["minFreeHeap"] = ESP.getMinFreeHeap();
-    doc["heapSize"] = ESP.getHeapSize();
-    if (g_radioController) {
-        doc["isrCount"] = g_radioController->getISRCount();
-        doc["irqPollCount"] = g_radioController->getIrqPollCount();
-        doc["lastRxError"] = g_radioController->getLastRxError();
-    }
-    
-    // Mode change counter for debugging long-duration tests
-    ModeManager modeManager;
-    doc["modeChangeCount"] = modeManager.getModeChangeCount();
-
-    // Battery reading: AXP2101 boards use PMIC coulomb counter; others use ADC
-    float batteryVoltage;
-    int batteryPercent;
-#ifdef HAS_AXP2101
-    batteryVoltage = PMUController::getBatteryVoltage();
-    batteryPercent = PMUController::getBatteryPercent();
-#else
-    if (Config::Hardware::VBAT_CTRL_PIN != Config::Hardware::PIN_UNUSED) {
-        pinMode(Config::Hardware::VBAT_CTRL_PIN, OUTPUT);
-        digitalWrite(Config::Hardware::VBAT_CTRL_PIN, HIGH);
-    }
-    analogReadResolution(12);
-    batteryVoltage = (analogReadMilliVolts(Config::Hardware::VBAT_ADC_PIN) * Config::Hardware::VBAT_SCALE) / 1000.0f;
-    // Map 3.2V (empty) to 4.2V (full) -> 0-100%
-    batteryPercent = constrain((int)((batteryVoltage - 3.2f) / (4.2f - 3.2f) * 100.0f), 0, 100);
-#endif
-    doc["batteryVoltage"] = serialized(String(batteryVoltage, 2));
-    doc["batteryPercent"] = batteryPercent;
-
-    // Sniffer GPS position (only when HAS_GPS board has a valid fix)
-#ifdef HAS_GPS
-    if (g_gpsController) {
-        JsonObject gps = doc["gps"].to<JsonObject>();
-        bool fix = g_gpsController->hasFix();
-        gps["hasFix"] = fix;
-        gps["satellites"] = g_gpsController->getSatellites();
-        if (fix) {
-            gps["lat"] = serialized(String(g_gpsController->getLatitude(), 6));
-            gps["lon"] = serialized(String(g_gpsController->getLongitude(), 6));
-            gps["alt"] = serialized(String(g_gpsController->getAltitude(), 1));
-        }
-    }
-#endif
-
-    // SD card storage
-    {
-        JsonObject storage = doc["storage"].to<JsonObject>();
-        storage["available"] = SDUtils::isAvailable();
-        if (SDUtils::isAvailable()) {
-            storage["totalMB"] = SDUtils::getCardSizeMB();
-            storage["usedMB"] = SDUtils::getUsedMB();
-            storage["freeMB"] = SDUtils::getFreeMB();
-            storage["type"] = SDUtils::getCardTypeString();
-            storage["lowSpace"] = packetLogger.isLowSpace();
-            storage["loggingStopped"] = !packetLogger.isAvailable();
-        }
-    }
-
-    if (g_webServer) {
-        doc["clientCount"] = g_webServer->getClientCount();
-    }
-
-    // Scan info when in reconnaissance mode
-    if (reconState.scanState.mode == MODE_RECONNAISSANCE) {
-        JsonObject scan = doc["scan"].to<JsonObject>();
-        scan["currentConfig"] = reconState.scanState.currentConfig.load();
-        scan["totalConfigs"] = reconState.getNumConfigs();
-        uint32_t elapsed = millis() - reconState.scanState.reconStartTime;
-        scan["cyclesCompleted"] = elapsed / (reconState.getNumConfigs() * Config::Scanning::DWELL_TIME_MS);
-    } else if (reconState.scanState.mode == MODE_TARGETED_CAPTURE) {
-        // Add target information when in targeted mode
-        JsonObject target = doc["target"].to<JsonObject>();
-        target["targetedByDevice"] = reconState.scanState.targetedByDevice.load();
-
-        // Add config information
-        const ScanConfig& cfg = reconState.getScanConfig(reconState.scanState.targetConfig);
-        target["configIndex"] = reconState.scanState.targetConfig.load();
-        target["frequency"] = cfg.frequency;
-        target["protocol"] = cfg.protocol;
-        target["bandwidth"] = cfg.bandwidth;
-        target["spreadingFactor"] = cfg.spreadingFactor;
-
-        // Try to find the targetable device to get node ID
-        for (uint8_t i = 0; i < reconState.getNumTargetableDevices(); i++) {
-            TargetableDevice device = reconState.getTargetableDevice(i);  // Copy for thread safety
-            if (device.configIndex == reconState.scanState.targetConfig) {
-                target["nodeId"] = FormatUtils::formatNodeIdJson(device.nodeId);
-                target["deviceType"] = device.deviceType;
-                target["rssi"] = device.bestRSSI;
-                target["packetCount"] = device.packetCount;
-                break;
-            }
-        }
-    }
-
+    JsonDocument doc;
+    Internal::fillStatusObject(reconState, doc.to<JsonObject>());
     return JsonUtils::serialize(doc);
 }
 
@@ -284,35 +303,9 @@ String buildStatisticsJson(ReconState& reconState) {
 
 String buildActivityJson(ReconState& reconState) {
     JsonDocument doc = JsonUtils::successDoc();
-
     JsonArray activities = doc["activities"].to<JsonArray>();
-    for (uint8_t i = 0; i < reconState.getNumConfigs(); i++) {
-        const RFActivity& activity = reconState.getRFActivity(i);
-        const ScanConfig& cfg = reconState.getScanConfig(i);
-        
-        JsonObject obj = activities.add<JsonObject>();
-        obj["configIndex"] = i;
-        obj["frequencyMHz"] = cfg.frequency;
-        obj["spreadingFactor"] = cfg.spreadingFactor;
-        obj["bandwidthKHz"] = cfg.bandwidth;
-        obj["syncWord"] = cfg.syncWord;
-        obj["protocol"] = cfg.protocol;
-        
-        if (activity.activityCount > 0) {
-            obj["packets"] = activity.activityCount;
-            obj["peakRSSI"] = activity.peakRSSI;
-            obj["avgRSSI"] = activity.avgRSSI;
-            obj["lastActivity"] = activity.lastActivity;
-            obj["activityLevel"] = activity.activityLevel ? activity.activityLevel : "UNKNOWN";
-        } else {
-            obj["packets"] = 0;
-            obj["avgRSSI"] = 0;
-            obj["activityLevel"] = "NONE";
-        }
-    }
-
+    Internal::fillActivityArray(reconState, activities);
     doc["totalConfigs"] = activities.size();
-
     return JsonUtils::serialize(doc);
 }
 

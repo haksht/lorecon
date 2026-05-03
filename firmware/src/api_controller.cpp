@@ -215,40 +215,23 @@ String APIController::stopScan() {
  */
 String APIController::getDashboard() {
     JsonDocument doc = JsonUtils::successDoc();
-    
-    // Status data
-    JsonDocument statusDoc;
-    deserializeJson(statusDoc, JsonBuilders::buildStatusJson(reconState));
-    if (statusDoc["status"].is<const char*>() && statusDoc["status"] == "success") {
-        doc["systemStatus"] = statusDoc;
-    }
-    
-    // Devices list
-    JsonDocument devicesDoc;
-    deserializeJson(devicesDoc, JsonBuilders::buildDevicesJson(reconState));
-    if (devicesDoc["devices"].is<JsonArray>()) {
-        doc["devices"] = devicesDoc["devices"];
-        doc["deviceCount"] = devicesDoc["devices"].size();
-    } else {
-        doc["devices"] = JsonArray();
-        doc["deviceCount"] = 0;
-    }
-    
-    // RF Activity
-    JsonDocument activityDoc;
-    deserializeJson(activityDoc, JsonBuilders::buildActivityJson(reconState));
-    if (activityDoc["activities"].is<JsonArray>()) {
-        doc["activities"] = activityDoc["activities"];
-    }
-    
-    // Stats
-    doc["replaySlots"] = reconState.getNumCapturedPackets();
+
+    JsonBuilders::Internal::fillStatusObject(reconState, doc["systemStatus"].to<JsonObject>());
+
+    JsonArray devArr = doc["devices"].to<JsonArray>();
+    uint32_t devCount = 0;
+    JsonBuilders::Internal::fillDevicesArray(reconState, devArr, devCount);
+    doc["deviceCount"] = devCount;
+
+    JsonBuilders::Internal::fillActivityArray(reconState, doc["activities"].to<JsonArray>());
+
+    doc["replaySlots"]    = reconState.getNumCapturedPackets();
     doc["maxReplaySlots"] = Config::Replay::MAX_SLOTS;
-    doc["totalPackets"] = reconState.scanState.totalPackets.load();
-    doc["uptime"] = millis() / 1000;
-    doc["mode"] = (int)reconState.scanState.mode.load();
-    doc["currentConfig"] = reconState.scanState.currentConfig.load();
-    
+    doc["totalPackets"]   = reconState.scanState.totalPackets.load();
+    doc["uptime"]         = millis() / 1000;
+    doc["mode"]           = (int)reconState.scanState.mode.load();
+    doc["currentConfig"]  = reconState.scanState.currentConfig.load();
+
     return JsonUtils::serialize(doc);
 }
 

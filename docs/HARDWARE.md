@@ -6,8 +6,6 @@ Supported boards, specifications, purchase links, and antenna selection.
 
 ## Board comparison
 
-## Board comparison
-
 | | Heltec V3 | Heltec V4 | T3-S3 | T-Beam Supreme |
 |---|---|---|---|---|
 | **MCU** | ESP32-S3 (8 MB flash) | ESP32-S3 (8 MB flash) | ESP32-S3 (4 MB flash, 2 MB PSRAM) | ESP32-S3 (8 MB flash, 8 MB PSRAM) |
