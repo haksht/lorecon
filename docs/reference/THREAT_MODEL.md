@@ -2,7 +2,7 @@
 
 **Document Version:** 1.1
 **Last Updated:** March 2026
-**Applies to:** LoRecon v2.4.x
+**Applies to:** LoRecon v2.5.x
 
 ---
 

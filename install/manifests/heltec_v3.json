@@ -1,6 +1,6 @@
 {
   "name": "LoRecon — Heltec WiFi LoRa 32 V3",
-  "version": "2.4.2",
+  "version": "2.5.0",
   "new_install_prompt_erase": true,
   "builds": [
     {
