@@ -9,10 +9,6 @@ import sys
 sys.stdout.reconfigure(encoding='utf-8', errors='replace')
 sys.stderr.reconfigure(encoding='utf-8', errors='replace')
 import subprocess
-from pathlib import Path
-
-TOOLS_DIR = Path(__file__).parent
-REPO_ROOT = TOOLS_DIR.parent
 
 # Headline outputs — the three things this toolkit produces.
 OUTPUTS = {
@@ -68,7 +64,6 @@ def print_help():
 def run_module(module, argv):
     result = subprocess.run(
         [sys.executable, '-m', module] + argv,
-        cwd=str(REPO_ROOT),
     )
     return result.returncode
 
