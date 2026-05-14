@@ -9,6 +9,7 @@ import sys
 sys.stdout.reconfigure(encoding='utf-8', errors='replace')
 sys.stderr.reconfigure(encoding='utf-8', errors='replace')
 import subprocess
+from pathlib import Path
 
 # Headline outputs — the three things this toolkit produces.
 OUTPUTS = {
