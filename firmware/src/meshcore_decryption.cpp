@@ -73,7 +73,7 @@ void MeshCoreDecryption::initialize() {
  *
  * Packet layout:
  *   [header 1B]
- *   [transport_codes 4B] -- only for route type 2 (TRANSPORT_FLOOD) or 3 (TRANSPORT_DIRECT)
+ *   [transport_codes 4B] -- only for route type 0 (TRANSPORT_FLOOD) or 3 (TRANSPORT_DIRECT)
  *   [path_length 1B]     -- bits 0-5 = hop count, bits 6-7 = hash_size - 1
  *   [path N bytes]       -- hop_count * hash_size bytes
  *   [payload ...]
@@ -83,8 +83,8 @@ int MeshCoreDecryption::getPayloadOffset(const uint8_t* data, size_t length) {
 
     uint8_t routeType = data[0] & 0x03;
 
-    // Route types 2 (TRANSPORT_FLOOD) and 3 (TRANSPORT_DIRECT) carry 4-byte transport codes
-    int pathLenOffset = (routeType == 2 || routeType == 3) ? 5 : 1;
+    // Route types 0 (TRANSPORT_FLOOD) and 3 (TRANSPORT_DIRECT) carry 4-byte transport codes
+    int pathLenOffset = (routeType == 0 || routeType == 3) ? 5 : 1;
 
     if ((size_t)(pathLenOffset + 1) > length) return -1;
 

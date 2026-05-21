@@ -15,7 +15,7 @@
  * Algorithm: AES-128-ECB decrypt, HMAC-SHA256 MAC verification (2 bytes).
  * Channel hash (1 byte) used for fast key selection before HMAC check.
  *
- * Packet payload format (group message):
+ * Packet payload format (GRP_TXT / GRP_DATA, payload type 5 or 6):
  *   [channel_hash 1B][mac 2B][ciphertext N*16B]
  * Plaintext format after decryption:
  *   [timestamp 4B LE][flags 1B][message text...]

@@ -276,12 +276,11 @@ String buildStatisticsJson(ReconState& reconState) {
     JsonObject protocols = stats["protocolDistribution"].to<JsonObject>();
     JsonObject freqDist = stats["frequencyDistribution"].to<JsonObject>();
 
-    int meshtastic = 0, lorawan = 0, helium = 0, generic = 0;
+    int meshtastic = 0, lorawan = 0, generic = 0;
     for (uint8_t i = 0; i < reconState.getNumTargetableDevices(); i++) {
         TargetableDevice device = reconState.getTargetableDevice(i);  // Copy for thread safety
         if (strcmp(device.protocol, "Meshtastic") == 0) meshtastic++;
         else if (strcmp(device.protocol, "LoRaWAN") == 0) lorawan++;
-        else if (strcmp(device.protocol, "Helium") == 0) helium++;
         else generic++;
 
         const ScanConfig& cfg = reconState.getScanConfig(device.configIndex);
@@ -292,7 +291,6 @@ String buildStatisticsJson(ReconState& reconState) {
 
     protocols["Meshtastic"] = meshtastic;
     protocols["LoRaWAN"] = lorawan;
-    protocols["Helium"] = helium;
     protocols["Other"] = generic;
 
     JsonObject capture = stats["captureRate"].to<JsonObject>();
@@ -914,17 +912,15 @@ String buildConsolidatedReportJson(ReconState& reconState, GeoIntelligence& geoI
     
     // Protocol distribution
     JsonObject protocols = statistics["protocolDistribution"].to<JsonObject>();
-    int meshtastic = 0, lorawan = 0, helium = 0, generic = 0;
+    int meshtastic = 0, lorawan = 0, generic = 0;
     for (uint8_t i = 0; i < numDevices; i++) {
         const TargetableDevice& dev = reconState.getDeviceRepository().getByIndex(i);
         if (strcmp(dev.protocol, "Meshtastic") == 0) meshtastic++;
         else if (strcmp(dev.protocol, "LoRaWAN") == 0) lorawan++;
-        else if (strcmp(dev.protocol, "Helium") == 0) helium++;
         else generic++;
     }
     protocols["Meshtastic"] = meshtastic;
     protocols["LoRaWAN"] = lorawan;
-    protocols["Helium"] = helium;
     protocols["Other"] = generic;
     
     // =========================================================================

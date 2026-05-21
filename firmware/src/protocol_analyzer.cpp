@@ -79,6 +79,12 @@ const char* ProtocolAnalyzer::identifyProtocol(const uint8_t* data, size_t lengt
                     return "LoRaWAN";
                 }
             }
+            // RejoinReq (LoRaWAN 1.1, mtype=0x06):
+            //   type 0/2: MHDR+Type(1)+NetID(3)+DevEUI(8)+RJcount(2)+MIC(4) = 19 bytes
+            //   type 1:   MHDR+Type(1)+JoinEUI(8)+DevEUI(8)+RJcount(2)+MIC(4) = 24 bytes
+            if (mtype == 0x06 && (length == 19 || length == 24)) {
+                return "LoRaWAN";
+            }
         }
     }
 
@@ -104,7 +110,7 @@ const char* ProtocolAnalyzer::identifyProtocol(const uint8_t* data, size_t lengt
     // RadioHead RH_RF95: 4-byte header [TO][FROM][ID][FLAGS] + payload.
     // FLAGS layout per RadioHead spec:
     //   bit 7 = ACK (RH_FLAGS_ACK, set on reply to a confirmed msg)
-    //   bit 6 = RETRY (some forks; reserved in upstream)
+    //   bit 6 = RETRY (RH_FLAGS_RETRY in RHReliableDatagram.h, set on retransmission)
     //   bits 4-5 = reserved
     //   bits 0-3 = application-specific
     // Detection uses (FLAGS & 0x1F) == 0, which is stricter than spec: it requires
@@ -119,18 +125,23 @@ const char* ProtocolAnalyzer::identifyProtocol(const uint8_t* data, size_t lengt
     }
 
     // MeshCore: sync word 0x12 + valid header bits + structural validity.
-    // Header format: 0bVVPPPPRR — VV=version (0-1), PPPP=payload type (0-11), RR=route type (0-3).
+    // Header format: 0bVVPPPPRR — VV=version (0-1), PPPP=payload type (0-11 or 15), RR=route type (0-3).
     // Structural check: path_length byte must resolve to a payload offset within the packet,
     // ensuring the packet is actually parseable as MeshCore and not a RadioHead false positive
     // that slipped through the FLAGS check above.
+    // Route types with transport_codes (4 bytes at bytes 1-4):
+    //   ROUTE_TYPE_TRANSPORT_FLOOD = 0x00, ROUTE_TYPE_TRANSPORT_DIRECT = 0x03
+    // Route types without transport_codes:
+    //   ROUTE_TYPE_FLOOD = 0x01, ROUTE_TYPE_DIRECT = 0x02
     if (syncWord == 0x12 && length >= 4) {
         uint8_t hdr        = data[0];
         uint8_t version    = (hdr >> 6) & 0x03;
         uint8_t payloadType = (hdr >> 2) & 0x0F;
-        if (version <= 1 && payloadType <= 11) {
+        // Valid payload types: 0x00-0x0B (REQ through CONTROL) and 0x0F (RAW_CUSTOM)
+        if (version <= 1 && (payloadType <= 11 || payloadType == 15)) {
             // Validate packet structure: compute payload offset and verify it lands within bounds.
             uint8_t routeType     = hdr & 0x03;
-            size_t pathLenOffset  = (routeType == 2 || routeType == 3) ? 5 : 1;
+            size_t pathLenOffset  = (routeType == 0 || routeType == 3) ? 5 : 1;
             if (pathLenOffset + 1 <= length) {
                 uint8_t pathLenByte = data[pathLenOffset];
                 uint8_t hopCount    = pathLenByte & 0x3F;
@@ -154,10 +165,16 @@ uint32_t ProtocolAnalyzer::extractNodeId(const uint8_t* data, size_t length, con
                ((uint32_t)data[6] << 16) | ((uint32_t)data[7] << 24);
     }
     
-    if (strcmp(protocol, "LoRaWAN") == 0 && length >= 8) {
-        // LoRaWAN DevAddr at offset 1-4 (little endian)
-        return uint32_t(data[1]) | (uint32_t(data[2]) << 8) |
-               (uint32_t(data[3]) << 16) | (uint32_t(data[4]) << 24);
+    if (strcmp(protocol, "LoRaWAN") == 0 && length >= 5) {
+        uint8_t mtype = (data[0] >> 5) & 0x07;
+        // DevAddr at bytes 1-4 (LE) only in data frames (mtype 2-5).
+        // Join Request has JoinEUI there; Join Accept payload is AES-encrypted;
+        // RejoinReq has Type+NetID/JoinEUI there. None carry a readable DevAddr.
+        if (mtype >= 0x02 && mtype <= 0x05) {
+            return uint32_t(data[1]) | (uint32_t(data[2]) << 8) |
+                   (uint32_t(data[3]) << 16) | (uint32_t(data[4]) << 24);
+        }
+        return 0;
     }
 
     if (strcmp(protocol, "RadioHead") == 0 && length >= 2) {
@@ -168,14 +185,14 @@ uint32_t ProtocolAnalyzer::extractNodeId(const uint8_t* data, size_t length, con
     if (strcmp(protocol, "MeshCore") == 0) {
         uint8_t routeType = data[0] & 0x03;
 
-        // Route types 2/3 (TRANSPORT_FLOOD/DIRECT) carry 4-byte transport_codes at bytes 1-4
-        // set by the originator — stable per sender across all relay copies.
-        if ((routeType == 2 || routeType == 3) && length >= 5) {
+        // Route types 0 (TRANSPORT_FLOOD) and 3 (TRANSPORT_DIRECT) carry 4-byte transport_codes
+        // at bytes 1-4, set by the originator — stable per sender across all relay copies.
+        if ((routeType == 0 || routeType == 3) && length >= 5) {
             return ((uint32_t)data[1]) | ((uint32_t)data[2] << 8) |
                    ((uint32_t)data[3] << 16) | ((uint32_t)data[4] << 24);
         }
 
-        // Route types 0/1: no transport_codes. Path starts at byte 1.
+        // Route types 1 (FLOOD) and 2 (DIRECT): no transport_codes. Path starts at byte 1.
         // path_length byte: bits 0-5 = hop_count, bits 6-7 = hash_size - 1.
         // path[0] is the originator's node hash — stable per sender.
         // Build a uint32 from up to 4 bytes of the originator hash (zero-padded).
@@ -206,8 +223,13 @@ uint32_t ProtocolAnalyzer::extractPacketId(const uint8_t* data, size_t length, c
     }
     
     if (strcmp(protocol, "LoRaWAN") == 0 && length >= 8) {
-        // LoRaWAN frame counter at offset 6-7 (little endian, 16-bit)
-        return ((uint32_t)data[6]) | ((uint32_t)data[7] << 8);
+        uint8_t mtype = (data[0] >> 5) & 0x07;
+        // FCnt at bytes 6-7 (LE) only in data frames (mtype 2-5).
+        // Join/Accept/RejoinReq carry different fields at those offsets.
+        if (mtype >= 0x02 && mtype <= 0x05) {
+            return ((uint32_t)data[6]) | ((uint32_t)data[7] << 8);
+        }
+        return 0;
     }
     
     return 0;
@@ -222,7 +244,7 @@ uint8_t ProtocolAnalyzer::extractHopCount(const uint8_t* data, size_t length, co
     if (strcmp(protocol, "MeshCore") == 0 && length >= 2) {
         // path_length byte: bits 0-5 = hop_count (number of nodes this packet has traversed)
         uint8_t routeType = data[0] & 0x03;
-        size_t pathLenOffset = (routeType == 2 || routeType == 3) ? 5 : 1;
+        size_t pathLenOffset = (routeType == 0 || routeType == 3) ? 5 : 1;
         if (pathLenOffset < length) {
             return data[pathLenOffset] & 0x3F;
         }
@@ -311,17 +333,22 @@ const char* ProtocolAnalyzer::identifyDeviceType(const uint8_t* data, size_t len
 
     if (strcmp(protocol, "MeshCore") == 0 && length >= 1) {
         // Header byte: 0bVVPPPPRR — PPPP = payload type (bits 2-5)
+        // Values from MeshCore/src/Packet.h (meshcore-dev/MeshCore, confirmed via curl)
         uint8_t payloadType = (data[0] >> 2) & 0x0F;
         switch (payloadType) {
-            case 0:  return "MeshCore Msg";
-            case 1:  return "MeshCore ACK";
-            case 2:  return "MeshCore Signed Msg";
-            case 3:  return "MeshCore Trace";
+            case 0:  return "MeshCore Req";
+            case 1:  return "MeshCore Response";
+            case 2:  return "MeshCore Text";
+            case 3:  return "MeshCore ACK";
             case 4:  return "MeshCore Advert";
-            case 5:  return "MeshCore Direct";
-            case 6:  return "MeshCore Ping";
-            case 7:  return "MeshCore Pong";
-            case 8:  return "MeshCore Position";
+            case 5:  return "MeshCore Group Text";
+            case 6:  return "MeshCore Group Data";
+            case 7:  return "MeshCore Anon Req";
+            case 8:  return "MeshCore Path";
+            case 9:  return "MeshCore Trace";
+            case 10: return "MeshCore Multipart";
+            case 11: return "MeshCore Control";
+            case 15: return "MeshCore Raw";
             default: return "MeshCore Node";
         }
     }
@@ -364,10 +391,11 @@ const char* ProtocolAnalyzer::estimateFirmwareVersion(const uint8_t* data, size_
             }
         }
 
-        // Extended routing headers (next_hop + relay_node) are 2 extra bytes after the
-        // 14-byte header, present in 2.5+ routing builds. A rough length heuristic.
+        // Longer packets suggest encrypted mesh payload; rough version heuristic only.
+        // (next_hop + relay_node are bytes 14-15 of the 16-byte PacketHeader and are
+        // always present on the wire — they're zeroed by firmware older than v2.3.)
         if (length > 50) {
-            return "~v2.1+ (est: extended headers)";
+            return "~v2.1+ (est: has payload)";
         }
 
         // Very short packets are most likely older firmware or partial beacons.
