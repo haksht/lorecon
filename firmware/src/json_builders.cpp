@@ -243,6 +243,27 @@ String buildDevicesJson(ReconState& reconState) {
     return JsonUtils::serialize(doc);
 }
 
+void streamDevicesJson(ReconState& reconState, Print& out) {
+    ReconState::ScopedLock lock(reconState);
+    if (!lock) {
+        out.print("{\"status\":\"error\",\"message\":\"Failed to acquire lock\"}");
+        return;
+    }
+    uint8_t n = reconState.getNumTargetableDevices();
+    out.print("{\"status\":\"success\",\"count\":");
+    out.print(n);
+    out.print(",\"devices\":[");
+    for (uint8_t i = 0; i < n; i++) {
+        if (i > 0) out.print(',');
+        JsonDocument doc;
+        JsonObject obj = doc.to<JsonObject>();
+        const TargetableDevice& dev = reconState.getDeviceRepository().getByIndex(i);
+        Internal::fillDevice(obj, dev, i, reconState);
+        serializeJson(doc, out);
+    }
+    out.print("]}");
+}
+
 String buildDeviceJson(ReconState& reconState, uint8_t deviceIndex) {
     if (deviceIndex >= reconState.getNumTargetableDevices()) {
         return "";

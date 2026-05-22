@@ -201,9 +201,9 @@ namespace Scanning {
 // ============================================================================
 namespace PacketProcessing {
     // Maximum queued packets before dropping
-    // Balance: Memory usage vs. handling burst traffic
-    // Increased to 100 to handle busy ISM bands without silent drops
-    constexpr size_t QUEUE_SIZE = 100;
+    // Each QueuedPacket is ~280 bytes; 50 slots = ~14KB heap (PacketProcessor is heap-allocated).
+    // Was 100 for the 2026-05 conference; restored to 50 post-conference.
+    constexpr size_t QUEUE_SIZE = 50;
     
     // Maximum packet size (LoRa protocol limit)
     constexpr size_t MAX_PACKET_SIZE = 255;
@@ -227,8 +227,7 @@ namespace Replay {
 // ============================================================================
 namespace Tracking {
     // Maximum targetable devices to track
-    // Each device ~100 bytes, so 50 devices = ~5KB RAM
-    // Increased from 20 to handle busy environments (conferences, urban areas)
+    // sizeof(TargetableDevice) ~296 bytes; 50 devices = ~14.8KB in .bss.
     constexpr uint8_t MAX_DEVICES = 50;
     
     // Maximum RF activity entries (non-device signals)

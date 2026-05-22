@@ -25,6 +25,14 @@ namespace JsonBuilders {
 String buildDevicesJson(ReconState& reconState);
 
 /**
+ * Stream JSON array of all targetable devices directly to out, one device at a
+ * time. Peak heap is one per-device JsonDocument (~1KB) rather than the full
+ * serialized response as a String (~31KB). Use with AsyncResponseStream to
+ * avoid the double-buffer that triggers OOM on GPS boards.
+ */
+void streamDevicesJson(ReconState& reconState, Print& out);
+
+/**
  * Build JSON for a single device by index
  * @return Empty string if device not found
  */

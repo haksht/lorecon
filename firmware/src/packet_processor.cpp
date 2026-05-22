@@ -22,7 +22,7 @@ PacketProcessor::PacketProcessor() : lastPacketLength(0) {
 // Queue a packet for processing
 // 
 // QUEUE OVERFLOW BEHAVIOR:
-// When queue is full (100 packets), incoming packets are DROPPED and counted.
+// When queue is full, incoming packets are DROPPED and counted.
 // This occurs in high-traffic environments (e.g., conferences with 50+ devices).
 // 
 // Drop rate calculation: droppedPackets / (totalPackets + droppedPackets) * 100%
@@ -36,7 +36,8 @@ bool PacketProcessor::queuePacket(const uint8_t* data, size_t length, float rssi
                                   uint8_t configIndex, float frequencyMHz) {
     if (isQueueFull()) {
         reconState.scanState.droppedPackets++;
-        LOG_WARN("Queue full (100 packets) - dropping! Total drops: %u",
+        LOG_WARN("Queue full (%u packets) - dropping! Total drops: %u",
+                 (unsigned)Config::PacketProcessing::QUEUE_SIZE,
                  reconState.scanState.droppedPackets.load());
         return false;
     }

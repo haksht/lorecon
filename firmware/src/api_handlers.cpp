@@ -26,7 +26,7 @@ namespace APIHandlers {
 // with 503 rather than letting AsyncTCP panic mid-allocation.
 // Heavy endpoints (security scoring, temporal, anomalies, replay slots): 65KB.
 // Medium endpoints (activity, statistics, positions): 40KB.
-// /api/devices has its own inline 90KB guard (builds ~31KB JSON).
+// /api/devices has its own inline 40KB guard (streams JSON device-by-device).
 static constexpr uint32_t HEAVY_ENDPOINT_MIN_HEAP = 65000;
 static constexpr uint32_t MEDIUM_ENDPOINT_MIN_HEAP = 40000;
 
@@ -132,22 +132,22 @@ void handleGetDevices(AsyncWebServerRequest* request) {
     uint32_t heapBefore = ESP.getFreeHeap();
     LOG_INFO("API /devices called (heap: %lu bytes)", heapBefore);
 
-    // Check if we have enough heap to build response safely.
-    // /devices JSON is ~31KB; ESPAsyncWebServer needs its own send buffer on top.
-    // Require 90KB headroom so both allocations succeed.
-    if (heapBefore < 90000) {
+    // Streaming serializes one device at a time into AsyncResponseStream's
+    // cbuf. Peak is one per-device JsonDocument (~1KB) + the growing cbuf,
+    // never the full 31KB String + JsonDocument simultaneously.
+    if (heapBefore < 40000) {
         LOG_WARN("Low heap (%lu bytes) - sending minimal response", heapBefore);
         request->send(503, "application/json", JsonUtils::error("Low memory - try again"));
         return;
     }
 
-    String response = APIController::getDevices();
-    uint32_t heapAfter = ESP.getFreeHeap();
-    LOG_INFO("API /devices response ready (%u bytes, heap: %lu->%lu)",
-             response.length(), heapBefore, heapAfter);
+    AsyncResponseStream* response = request->beginResponseStream("application/json");
+    APIController::streamDevices(*response);
 
-    // Copy length before move so we can log it; send() takes ownership of the String.
-    request->send(200, "application/json", std::move(response));
+    uint32_t heapAfter = ESP.getFreeHeap();
+    LOG_INFO("API /devices streamed (heap: %lu->%lu)", heapBefore, heapAfter);
+
+    request->send(response);
 }
 
 void handleGetDevice(AsyncWebServerRequest* request) {

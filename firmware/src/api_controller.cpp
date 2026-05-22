@@ -33,6 +33,7 @@ void APIController::setReconTool(IReconTool* tool) {
 // ============================================================================
 
 String APIController::getDevices() { return JsonBuilders::buildDevicesJson(reconState); }
+void APIController::streamDevices(Print& out) { JsonBuilders::streamDevicesJson(reconState, out); }
 
 String APIController::getDevice(uint32_t nodeId) { 
     // Find device index by nodeId
