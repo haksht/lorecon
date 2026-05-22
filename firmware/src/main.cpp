@@ -44,9 +44,13 @@ WiFiManager wifiManager;
 WebServer webServer;
 
 void setup() {
-    // Disable brownout detector to prevent reboot during USB disconnect
-    // The Heltec V3 battery circuit causes a brief voltage dip when switching power sources
+    // Heltec V3/V4 only: disable brownout detector to prevent reboot during USB disconnect.
+    // Their battery circuit causes a brief voltage dip when switching power sources that trips
+    // the ESP32-S3 brownout threshold (~2.45V). T-Beam Supreme (AXP2101 PMIC) and T3-S3 do
+    // not have this problem and should retain brownout protection.
+#if defined(BOARD_HELTEC_V3) || defined(BOARD_HELTEC_V4)
     WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0);
+#endif
     
     // Initialize Serial FIRST so reset reason logging works
     Serial.begin(Config::UI::SERIAL_BAUD);
