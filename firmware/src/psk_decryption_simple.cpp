@@ -24,6 +24,8 @@ float PSKDecryption::lastBatteryVoltage = 0.0f;
 char PSKDecryption::lastFirmwareVersion[32] = {0};
 char PSKDecryption::lastHwModel[24] = {0};
 
+bool PSKDecryption::lastPositionExtracted_ = false;
+
 // Thread-safe setter for lastMessage
 void PSKDecryption::setLastMessage(const char* msg) {
     if (!messageMutex) return;
@@ -436,6 +438,7 @@ bool PSKDecryption::testDefaultPSKs(const uint8_t* data, size_t length) {
     clearLastMessage();
     clearLastBattery();
     clearLastFirmware();
+    lastPositionExtracted_ = false;
     
     // Validate minimum packet structure
     if (length < 20) {
@@ -548,7 +551,7 @@ bool PSKDecryption::testDefaultPSKs(const uint8_t* data, size_t length) {
         // Check if this is a position packet and extract GPS
         if (secondByte == 0x03) {  // POSITION_APP
             Serial.println("[PSK]  Unencrypted position packet - extracting GPS...");
-            geoIntel.extractPositionFromDecrypted(encryptedData, encryptedLen, nodeId);
+            if (geoIntel.extractPositionFromDecrypted(encryptedData, encryptedLen, nodeId)) lastPositionExtracted_ = true;
         }
         
         return true;
@@ -692,7 +695,7 @@ bool PSKDecryption::testDefaultPSKs(const uint8_t* data, size_t length) {
             if (firstByte == 0x08 && encryptedLen > 1) {
                 uint8_t portnum = decrypted[1];
                 if (portnum == 0x03) {  // POSITION_APP
-                    geoIntel.extractPositionFromDecrypted(decrypted, encryptedLen, nodeId);
+                    if (geoIntel.extractPositionFromDecrypted(decrypted, encryptedLen, nodeId)) lastPositionExtracted_ = true;
                 } else if (portnum == 0x08) {  // TELEMETRY_APP (device metrics)
                     // Scan for telemetry fields
                     int16_t parsedBattery = -1;

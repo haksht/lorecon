@@ -27,6 +27,9 @@ public:
   // Legacy accessor (for compatibility - prefer getLastMessageSafe)
   static const char* getLastMessage() { return lastMessage; }
 
+  // Whether the last testDefaultPSKs() call extracted a GPS position packet
+  static bool wasLastDecryptionPosition() { return lastPositionExtracted_; }
+
   // Battery telemetry from last successful DeviceMetrics decryption
   // batteryLevel: 0-100 (%), or -1 if not present in last packet
   // batteryVoltage: >0.0 if present, 0.0 if not
@@ -60,6 +63,8 @@ private:
   static char lastHwModel[24];          // "" = not present
 
   static void setLastFirmware(const char* fw, const char* hw);
+
+  static bool lastPositionExtracted_;
 
   // Protobuf inner-payload parsers
   static void parseMAPReport(const uint8_t* data, size_t len,

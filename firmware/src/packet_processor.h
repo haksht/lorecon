@@ -131,13 +131,15 @@ private:
     // Find Meshtastic header in packet and extract all fields
     MeshtasticHeader findAndExtractMeshtasticHeader(const uint8_t* data, size_t length);
 
-    // Common logic: attempt PSK decryption and auto-capture for replay
-    void tryDecryptAndCapture(const uint8_t* data, size_t length, float rssi, float snr,
+    // Common logic: attempt PSK decryption and auto-capture for replay.
+    // Returns true if a GPS position was successfully extracted from the packet.
+    bool tryDecryptAndCapture(const uint8_t* data, size_t length, float rssi, float snr,
                               const char* protocol, const MeshtasticHeader& hdr);
 
-    // Processing helpers
+    // Processing helpers.
+    // handlePacket returns true if a GPS position was extracted from the Meshtastic payload.
     void processSinglePacket(const QueuedPacket& qp, OLEDDisplay* display);
-    void handlePacket(PacketInfo& info, const uint8_t* data, size_t length,
+    bool handlePacket(PacketInfo& info, const uint8_t* data, size_t length,
                      float rssi, float snr, OLEDDisplay* display);
 };
 

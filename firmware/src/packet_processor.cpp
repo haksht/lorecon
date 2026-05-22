@@ -108,16 +108,6 @@ void PacketProcessor::processSinglePacket(const QueuedPacket& qp, OLEDDisplay* d
     PacketInfo info = protocolAnalyzer.analyze(qp.data, qp.length, qp.rssi,
         reconState.getScanConfig(qp.configIndex).syncWord);
     
-    // Enhanced packet analysis for Meshtastic (extract GPS position silently)
-    bool positionExtracted = false;
-    const GeoPoint* loggedPoint = nullptr;
-    if (strcmp(info.protocol, "Meshtastic") == 0) {
-        positionExtracted = geoIntel.extractPosition(qp.data, qp.length, info.nodeId);
-        if (positionExtracted && info.nodeId != 0) {
-            loggedPoint = geoIntel.findNodePosition(info.nodeId);
-        }
-    }
-    
     // Update temporal metrics BEFORE updating device (needs old lastSeen for interval calc)
     if (info.nodeId != 0) {
         reconState.updateTrafficHistogram();
@@ -134,8 +124,13 @@ void PacketProcessor::processSinglePacket(const QueuedPacket& qp, OLEDDisplay* d
         reconState.checkForAnomalies(qp.data, qp.length, info.nodeId, qp.rssi);
     }
     
-    // Process packet (same pipeline regardless of mode)
-    handlePacket(info, qp.data, qp.length, qp.rssi, qp.snr, display);
+    // Process packet (same pipeline regardless of mode).
+    // Returns true when a GPS position was extracted from the Meshtastic payload and
+    // stored in the global geoIntel — which is what the API and SD logger read.
+    bool positionExtracted = handlePacket(info, qp.data, qp.length, qp.rssi, qp.snr, display);
+    const GeoPoint* loggedPoint = (positionExtracted && info.nodeId != 0)
+                                      ? ::geoIntel.findNodePosition(info.nodeId)
+                                      : nullptr;
     
     // Capture sniffer GPS fix once  -  used for both SD log and PacketEvent below.
     // On boards without GPS (Heltec V3, T3-S3) this is always false.
@@ -263,8 +258,9 @@ PacketProcessor::MeshtasticHeader PacketProcessor::findAndExtractMeshtasticHeade
     return hdr;
 }
 
-// Common: attempt PSK decryption and auto-capture for replay
-void PacketProcessor::tryDecryptAndCapture(const uint8_t* data, size_t length, float rssi, float snr,
+// Common: attempt PSK decryption and auto-capture for replay.
+// Returns true if the decrypted payload contained a GPS position packet.
+bool PacketProcessor::tryDecryptAndCapture(const uint8_t* data, size_t length, float rssi, float snr,
                                             const char* protocol, const MeshtasticHeader& hdr) {
     // Attempt decryption
     bool decrypted = PSKDecryption::testDefaultPSKs(hdr.payload, hdr.payloadLen);
@@ -306,10 +302,12 @@ void PacketProcessor::tryDecryptAndCapture(const uint8_t* data, size_t length, f
             Serial.println("   [OK] Packet auto-captured (encrypted)");
         }
     }
+    return PSKDecryption::wasLastDecryptionPosition();
 }
 
-// Handle a captured packet (same pipeline for recon and targeted modes)
-void PacketProcessor::handlePacket(PacketInfo& info, const uint8_t* data, size_t length,
+// Handle a captured packet (same pipeline for recon and targeted modes).
+// Returns true if a GPS position was extracted from the Meshtastic payload.
+bool PacketProcessor::handlePacket(PacketInfo& info, const uint8_t* data, size_t length,
                                    float rssi, float snr, OLEDDisplay* display) {
     const char* modeTag = (reconState.scanState.mode == MODE_TARGETED_CAPTURE) ? "CAPTURE" : "RECON";
     Serial.printf("\n[%s] Packet #%d: %s, 0x%08X, %d bytes, %.1f dBm, %.1f dB SNR\n",
@@ -361,8 +359,10 @@ void PacketProcessor::handlePacket(PacketInfo& info, const uint8_t* data, size_t
                                            rssi, snr, "MeshCore", decryptedTextBuf,
                                            info.nodeId, 0, info.hopCount, 0, 0, false, false, 0,
                                            decrypted ? channelBuf : nullptr);
+        return false;  // MeshCore does not extract node GPS positions
     } else if (length >= 20) {
         MeshtasticHeader hdr = findAndExtractMeshtasticHeader(data, length);
-        tryDecryptAndCapture(data, length, rssi, snr, info.protocol, hdr);
+        return tryDecryptAndCapture(data, length, rssi, snr, info.protocol, hdr);
     }
+    return false;
 }
