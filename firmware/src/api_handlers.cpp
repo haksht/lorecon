@@ -130,13 +130,16 @@ static bool requireActiveSession(AsyncWebServerRequest* request, String& outFile
 void handleGetDevices(AsyncWebServerRequest* request) {
     CrashContext::setLastAction("api:devices");
     uint32_t heapBefore = ESP.getFreeHeap();
-    LOG_INFO("API /devices called (heap: %lu bytes)", heapBefore);
+    uint32_t maxAlloc   = ESP.getMaxAllocHeap();
+    LOG_INFO("API /devices called (heap: %lu, maxAlloc: %lu)", heapBefore, maxAlloc);
 
-    // Streaming serializes one device at a time into AsyncResponseStream's
-    // cbuf. Peak is one per-device JsonDocument (~1KB) + the growing cbuf,
-    // never the full 31KB String + JsonDocument simultaneously.
-    if (heapBefore < 40000) {
-        LOG_WARN("Low heap (%lu bytes) - sending minimal response", heapBefore);
+    // AsyncResponseStream uses a cbuf that grows via realloc() — it needs a
+    // single contiguous block. With 50 devices at ~700 bytes each the cbuf can
+    // reach ~35KB. getFreeHeap() alone misses fragmentation (total free can be
+    // 85KB while the largest contiguous block is only 20KB). Check both.
+    if (heapBefore < 40000 || maxAlloc < 35000) {
+        LOG_WARN("Low heap or fragmentation (free=%lu, maxAlloc=%lu) - sending 503",
+                 heapBefore, maxAlloc);
         request->send(503, "application/json", JsonUtils::error("Low memory - try again"));
         return;
     }
@@ -145,7 +148,7 @@ void handleGetDevices(AsyncWebServerRequest* request) {
     APIController::streamDevices(*response);
 
     uint32_t heapAfter = ESP.getFreeHeap();
-    LOG_INFO("API /devices streamed (heap: %lu->%lu)", heapBefore, heapAfter);
+    LOG_INFO("API /devices streamed (heap: %lu->%lu, maxAlloc was %lu)", heapBefore, heapAfter, maxAlloc);
 
     request->send(response);
 }
