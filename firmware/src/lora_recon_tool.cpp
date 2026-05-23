@@ -75,6 +75,14 @@ bool LoRaReconTool::initialize() {
         return false;
     }
 
+    // Heltec V4: enable peripheral power rail (OLED, GPS LDO, LoRa antenna boost).
+    // GPIO 36 drives an active-LOW load switch; must be asserted before any peripheral init.
+#if defined(BOARD_HELTEC_V4)
+    pinMode(36, OUTPUT);
+    digitalWrite(36, LOW);
+    delay(10);
+#endif
+
     // Initialize AXP2101 PMIC (T-Beam Supreme only  -  no-op on other boards).
     // MUST run before radio, display, SD, and GPS: the PMIC controls all power rails.
     // See docs/developers/HARDWARE_NOTES.md (T-Beam Supreme init order).

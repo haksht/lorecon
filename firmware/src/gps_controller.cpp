@@ -29,14 +29,22 @@ bool GpsController::initialize() {
     pinMode(Config::Hardware::GPS_EN, OUTPUT);
     digitalWrite(Config::Hardware::GPS_EN, Config::Hardware::GPS_EN_LEVEL);
 
-    // Brief settle time for GPS module power-on
+    // Brief settle time after power-on before UART init
     delay(100);
 
-    // Initialize hardware UART (Serial2) for GPS NMEA output
-    // L76K and MAX-M10S both default to 9600 baud, 8N1
-    Serial2.begin(9600, SERIAL_8N1,
+    // Initialize UART before the RESET pulse so any post-reset NMEA output is captured.
+    // Meshtastic follows the same order: begin() → reset → PCAS commands.
+    // Use Serial1 (UART1) matching Meshtastic's GPS serial assignment on ESP32.
+    Serial1.begin(9600, SERIAL_8N1,
                   Config::Hardware::GPS_RX,
                   Config::Hardware::GPS_TX);
+
+#if defined(BOARD_HELTEC_V4)
+    // Diagnostic: leave STANDBY (GPIO 40) untouched — PCB pull-down holds it LOW.
+    // L76K datasheet: HIGH = enters standby. If our previous STANDBY=HIGH was silencing
+    // the GPS, leaving it LOW (via pull-down) should let it output NMEA by default.
+    delay(3000);
+#endif
 
     _initialized = true;
     LOG_INFO("GPS initialized (UART RX:%d TX:%d EN:%d, waiting for fix...)",
@@ -51,8 +59,13 @@ void GpsController::update() {
     if (!_initialized) return;
 
     // Drain all available bytes into TinyGPS++ (non-blocking)
-    while (Serial2.available() > 0) {
-        _gps.encode(Serial2.read());
+    while (Serial1.available() > 0) {
+        uint8_t b = Serial1.read();
+        if (_rawBytesReceived == 0) {
+            snprintf(_firstByteHex, sizeof(_firstByteHex), "%02X", b);
+        }
+        _gps.encode(b);
+        _rawBytesReceived++;
     }
 }
 

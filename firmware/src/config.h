@@ -157,15 +157,21 @@ namespace Hardware {
 
         // GPS UART  -  V4 only (dedicated SH1.25-8P connector; not present on V3)
         // Enable this block by building with the heltec_v4 environment.
-        constexpr uint8_t GPS_RX = 38;       // GPS TX -> ESP32 RX
-        constexpr uint8_t GPS_TX = 39;       // ESP32 TX -> GPS RX
-        constexpr uint8_t GPS_EN = 34;       // Pull LOW to enable L76K module (active low)
-        constexpr uint8_t GPS_EN_LEVEL = LOW; // Active LOW on Heltec V4
+        constexpr uint8_t GPS_RX = 38;          // GPS TX -> ESP32 RX
+        constexpr uint8_t GPS_TX = 39;          // ESP32 TX -> GPS RX
+        constexpr uint8_t GPS_EN = 34;          // Pull LOW to enable L76K (active low)
+        constexpr uint8_t GPS_EN_LEVEL = LOW;   // Active LOW on Heltec V4
+        constexpr uint8_t GPS_STANDBY = 40;     // L76K STANDBY: LOW = sleep, HIGH = active
+        constexpr uint8_t GPS_RESET = 42;       // L76K RESET: active LOW, hold HIGH for normal op
 
         // Battery Monitoring
         constexpr uint8_t VBAT_ADC_PIN = 1;  // GPIO 1 - battery voltage ADC
         constexpr uint8_t VBAT_CTRL_PIN = 37; // GPIO 37 - ADC control (set HIGH to enable)
         constexpr float VBAT_SCALE = 4.9f;   // Voltage divider scaling factor
+
+        // Heltec V4 peripheral power rail (OLED, GPS LDO, LoRa antenna boost)
+        // Pull LOW to enable. Must be asserted before any peripheral initialization.
+        constexpr uint8_t VEXT_EN = 36;
 
         // Heltec V4 external FEM (GC1109 on V4.2, KCT8103L on V4.3)
         // V4_FEM_EN:     chip enable, HIGH = on (both variants)

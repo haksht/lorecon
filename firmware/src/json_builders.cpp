@@ -136,6 +136,8 @@ void fillStatusObject(ReconState& reconState, JsonObject obj) {
         bool fix = g_gpsController->hasFix();
         gps["hasFix"] = fix;
         gps["satellites"] = g_gpsController->getSatellites();
+        gps["rawBytesReceived"] = g_gpsController->getRawBytesReceived();
+        gps["firstByteHex"] = g_gpsController->getFirstByteHex();
         if (fix) {
             gps["lat"] = serialized(String(g_gpsController->getLatitude(), 6));
             gps["lon"] = serialized(String(g_gpsController->getLongitude(), 6));

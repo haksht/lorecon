@@ -67,11 +67,19 @@ public:
      */
     bool hasGoodFix();
 
+    /** Total raw bytes received from GPS UART since boot (diagnostic) */
+    uint32_t getRawBytesReceived() const { return _rawBytesReceived; }
+
+    /** First byte received from GPS UART as hex string, e.g. "24" for '$' (diagnostic) */
+    const char* getFirstByteHex() const { return _firstByteHex; }
+
 private:
     TinyGPSPlus _gps;
     bool _initialized;
+    uint32_t _rawBytesReceived = 0;
+    char _firstByteHex[3] = "--"; // "--" = nothing received yet; "24" = '$' (valid NMEA start)
 
-    // Serial2 is used for GPS (hardware UART on ESP32-S3)
+    // Serial1 (UART1) is used for GPS, matching Meshtastic's ESP32 serial assignment.
     // Baud rate: 9600 (L76K default), pins from Config::Hardware
 };
 
