@@ -130,26 +130,34 @@ static bool requireActiveSession(AsyncWebServerRequest* request, String& outFile
 void handleGetDevices(AsyncWebServerRequest* request) {
     CrashContext::setLastAction("api:devices");
     uint32_t heapBefore = ESP.getFreeHeap();
-    uint32_t maxAlloc   = ESP.getMaxAllocHeap();
-    LOG_INFO("API /devices called (heap: %lu, maxAlloc: %lu)", heapBefore, maxAlloc);
+    LOG_INFO("API /devices called (heap: %lu, maxAlloc: %lu)", heapBefore, ESP.getMaxAllocHeap());
 
-    // AsyncResponseStream uses a cbuf that grows via realloc() — it needs a
-    // single contiguous block. With 50 devices at ~700 bytes each the cbuf can
-    // reach ~35KB. getFreeHeap() alone misses fragmentation (total free can be
-    // 85KB while the largest contiguous block is only 20KB). Check both.
-    if (heapBefore < 40000 || maxAlloc < 35000) {
-        LOG_WARN("Low heap or fragmentation (free=%lu, maxAlloc=%lu) - sending 503",
-                 heapBefore, maxAlloc);
+    if (heapBefore < 40000) {
+        LOG_WARN("/devices: low heap (%lu) - sending 503", heapBefore);
         request->send(503, "application/json", JsonUtils::error("Low memory - try again"));
         return;
     }
 
+    // Probe-malloc: attempt to allocate the expected response size before starting
+    // the stream. If it succeeds, the freed block is immediately available for
+    // AsyncResponseStream's cbuf realloc chain — closing the TOCTOU gap between
+    // the heap check and the actual allocation. Sized by actual device count so
+    // we don't over-guard at low device counts or under-guard at high counts.
+    uint8_t n = APIController::getDeviceCount();
+    uint32_t estimatedBytes = (uint32_t)n * 900 + 256;
+    void* probe = malloc(estimatedBytes);
+    if (!probe) {
+        LOG_WARN("/devices: probe malloc failed (%lu bytes, n=%u, heap=%lu, maxAlloc=%lu)",
+                 estimatedBytes, n, heapBefore, ESP.getMaxAllocHeap());
+        request->send(503, "application/json", JsonUtils::error("Low memory - try again"));
+        return;
+    }
+    free(probe);
+
     AsyncResponseStream* response = request->beginResponseStream("application/json");
     APIController::streamDevices(*response);
 
-    uint32_t heapAfter = ESP.getFreeHeap();
-    LOG_INFO("API /devices streamed (heap: %lu->%lu, maxAlloc was %lu)", heapBefore, heapAfter, maxAlloc);
-
+    LOG_INFO("API /devices streamed (heap: %lu->%lu, n=%u)", heapBefore, ESP.getFreeHeap(), n);
     request->send(response);
 }
 
