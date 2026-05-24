@@ -32,19 +32,22 @@ bool GpsController::initialize() {
     // Brief settle time after power-on before UART init
     delay(100);
 
-    // Initialize UART before the RESET pulse so any post-reset NMEA output is captured.
-    // Meshtastic follows the same order: begin() → reset → PCAS commands.
-    // Use Serial1 (UART1) matching Meshtastic's GPS serial assignment on ESP32.
+#if defined(BOARD_HELTEC_V4)
+    // STANDBY (GPIO 40) HIGH = operating. On the Heltec V4 the pin is wired
+    // such that HIGH wakes the L76K, matching Meshtastic's polarity.
+    pinMode(Config::Hardware::GPS_STANDBY, OUTPUT);
+    digitalWrite(Config::Hardware::GPS_STANDBY, HIGH);
+    // Pulse RESET LOW briefly to clear any state left over from another firmware.
+    pinMode(Config::Hardware::GPS_RESET, OUTPUT);
+    digitalWrite(Config::Hardware::GPS_RESET, LOW);
+    delay(20);
+    digitalWrite(Config::Hardware::GPS_RESET, HIGH);
+    delay(500);  // L76K cold-boot settle
+#endif
+
     Serial1.begin(9600, SERIAL_8N1,
                   Config::Hardware::GPS_RX,
                   Config::Hardware::GPS_TX);
-
-#if defined(BOARD_HELTEC_V4)
-    // Diagnostic: leave STANDBY (GPIO 40) untouched — PCB pull-down holds it LOW.
-    // L76K datasheet: HIGH = enters standby. If our previous STANDBY=HIGH was silencing
-    // the GPS, leaving it LOW (via pull-down) should let it output NMEA by default.
-    delay(3000);
-#endif
 
     _initialized = true;
     LOG_INFO("GPS initialized (UART RX:%d TX:%d EN:%d, waiting for fix...)",

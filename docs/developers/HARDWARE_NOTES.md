@@ -32,6 +32,8 @@ Pin-compatible with V3 (same `BOARD_HELTEC_V3` macro defines the pin map) but wi
 
 **Upload port.** COM12 on the dev machine (USB Serial/JTAG, no CP210x). `uploadfs` required after code upload to install the webapp.
 
+**L76K GPS pin mapping — trust the `Serial1.begin()` call, not the variant.h comments.** Meshtastic's `variants/esp32s3/heltec_v4/variant.h` defines `GPS_TX_PIN (38)` with comment "bits going TOWARDS the CPU" and `GPS_RX_PIN (39)` with "bits going TOWARDS the GPS" — but the actual `_serial_gps->begin(baud, config, rx_gpio, tx_gpio)` call passes `rx_gpio = GPS_RX_PIN = 39` and `tx_gpio = GPS_TX_PIN = 38`, which Arduino's `HardwareSerial::begin(baud, config, rxPin, txPin)` interprets as **ESP32 RX = GPIO 39, ESP32 TX = GPIO 38**. That's the empirically working mapping; our `config.h` matches it. Setting ESP32 RX = 38 (the "obvious" reading of the comments) produces total UART silence — you're listening on the L76K's RX input and transmitting into its TX output. STANDBY polarity: drive GPIO 40 **HIGH** to wake (Meshtastic polarity), even though the Quectel L76K datasheet describes a STANDBY pin where LOW = active — the Heltec V4 wires the pin such that HIGH is the operating level.
+
 ---
 
 ## LilyGO T3-S3 V1.2 / V1.3

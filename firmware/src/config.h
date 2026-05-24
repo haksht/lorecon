@@ -157,8 +157,12 @@ namespace Hardware {
 
         // GPS UART  -  V4 only (dedicated SH1.25-8P connector; not present on V3)
         // Enable this block by building with the heltec_v4 environment.
-        constexpr uint8_t GPS_RX = 38;          // GPS TX -> ESP32 RX
-        constexpr uint8_t GPS_TX = 39;          // ESP32 TX -> GPS RX
+        // Pin mapping verified against Meshtastic's working Serial1.begin() call
+        // (variants/esp32s3/heltec_v4): L76K TX -> GPIO 39 (ESP32 RX),
+        // L76K RX -> GPIO 38 (ESP32 TX). The variant.h comments are misleading;
+        // trust the begin() call, not the GPS_RX_PIN/GPS_TX_PIN macro names.
+        constexpr uint8_t GPS_RX = 39;          // L76K TX -> ESP32 RX
+        constexpr uint8_t GPS_TX = 38;          // ESP32 TX -> L76K RX
         constexpr uint8_t GPS_EN = 34;          // Pull LOW to enable L76K (active low)
         constexpr uint8_t GPS_EN_LEVEL = LOW;   // Active LOW on Heltec V4
         constexpr uint8_t GPS_STANDBY = 40;     // L76K STANDBY: LOW = sleep, HIGH = active
