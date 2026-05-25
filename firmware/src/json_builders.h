@@ -33,6 +33,13 @@ String buildDevicesJson(ReconState& reconState);
 void streamDevicesJson(ReconState& reconState, Print& out);
 
 /**
+ * Serialize a single device object (bare JSON, no wrapper) for device at idx.
+ * Acquires reconState lock internally. Writes "{}" if idx is out of range.
+ * Used by the chunked /api/devices fill callback.
+ */
+void serializeDeviceAt(ReconState& reconState, uint8_t idx, Print& out);
+
+/**
  * Build JSON for a single device by index
  * @return Empty string if device not found
  */

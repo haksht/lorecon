@@ -127,38 +127,102 @@ static bool requireActiveSession(AsyncWebServerRequest* request, String& outFile
 // DEVICE MANAGEMENT
 // =============================================================================
 
+// Chunked /api/devices fill state. Static is safe: only one devices request
+// at a time on a single-user device, and ESPAsyncWebServer won't call the
+// fill callback again after it returns 0.
+namespace {
+    // Minimal Print subclass that writes into a fixed char buffer.
+    class BufPrint : public Print {
+    public:
+        char* _buf;
+        size_t _cap;
+        size_t _len = 0;
+        BufPrint(char* buf, size_t cap) : _buf(buf), _cap(cap) {}
+        size_t write(uint8_t c) override {
+            if (_len < _cap) _buf[_len++] = (char)c;
+            return 1;
+        }
+        size_t write(const uint8_t* buf, size_t n) override {
+            size_t w = n < (_cap - _len) ? n : (_cap - _len);
+            memcpy(_buf + _len, buf, w);
+            _len += w;
+            return n;
+        }
+    };
+
+    struct DevChunk {
+        uint8_t idx;
+        uint8_t total;
+        enum Phase : uint8_t { Header, Device, Footer, Done } phase;
+        char scratch[1200];
+        uint16_t scratchLen;
+        uint16_t scratchOff;
+    } s_devChunk;
+
+    size_t fillDeviceChunk(uint8_t* buf, size_t maxLen, size_t /*index*/) {
+        auto& s = s_devChunk;
+        size_t pos = 0;
+
+        while (pos < maxLen) {
+            if (s.scratchOff >= s.scratchLen) {
+                s.scratchLen = 0;
+                s.scratchOff = 0;
+
+                if (s.phase == DevChunk::Header) {
+                    s.scratchLen = (uint16_t)snprintf(s.scratch, sizeof(s.scratch),
+                        "{\"status\":\"success\",\"count\":%u,\"devices\":[", s.total);
+                    s.phase = (s.total > 0) ? DevChunk::Device : DevChunk::Footer;
+
+                } else if (s.phase == DevChunk::Device) {
+                    uint16_t offset = 0;
+                    if (s.idx > 0) { s.scratch[offset++] = ','; }
+                    BufPrint bp(s.scratch + offset, sizeof(s.scratch) - offset);
+                    APIController::serializeDeviceAt(s.idx, bp);
+                    s.scratchLen = offset + (uint16_t)bp._len;
+                    s.idx++;
+                    if (s.idx >= s.total) s.phase = DevChunk::Footer;
+
+                } else if (s.phase == DevChunk::Footer) {
+                    s.scratch[0] = ']'; s.scratch[1] = '}';
+                    s.scratchLen = 2;
+                    s.phase = DevChunk::Done;
+
+                } else {
+                    break; // Done — return pos (0 if nothing written this call)
+                }
+            }
+
+            uint16_t avail = s.scratchLen - s.scratchOff;
+            size_t toWrite = avail < (maxLen - pos) ? avail : (maxLen - pos);
+            memcpy(buf + pos, s.scratch + s.scratchOff, toWrite);
+            s.scratchOff += (uint16_t)toWrite;
+            pos += toWrite;
+        }
+
+        return pos;
+    }
+} // namespace
+
 void handleGetDevices(AsyncWebServerRequest* request) {
     CrashContext::setLastAction("api:devices");
-    uint32_t heapBefore = ESP.getFreeHeap();
-    LOG_INFO("API /devices called (heap: %lu, maxAlloc: %lu)", heapBefore, ESP.getMaxAllocHeap());
+    uint32_t heap = ESP.getFreeHeap();
 
-    if (heapBefore < 40000) {
-        LOG_WARN("/devices: low heap (%lu) - sending 503", heapBefore);
+    // Chunked transfer: peak heap is one device's JsonDocument (~2KB) rather
+    // than the full response buffer. Guard only needs room for that plus stack.
+    if (heap < 16000) {
+        LOG_WARN("/devices: low heap (%lu) - sending 503", heap);
         request->send(503, "application/json", JsonUtils::error("Low memory - try again"));
         return;
     }
 
-    // Probe-malloc: attempt to allocate the expected response size before starting
-    // the stream. If it succeeds, the freed block is immediately available for
-    // AsyncResponseStream's cbuf realloc chain — closing the TOCTOU gap between
-    // the heap check and the actual allocation. Sized by actual device count so
-    // we don't over-guard at low device counts or under-guard at high counts.
-    uint8_t n = APIController::getDeviceCount();
-    uint32_t estimatedBytes = (uint32_t)n * 900 + 256;
-    void* probe = malloc(estimatedBytes);
-    if (!probe) {
-        LOG_WARN("/devices: probe malloc failed (%lu bytes, n=%u, heap=%lu, maxAlloc=%lu)",
-                 estimatedBytes, n, heapBefore, ESP.getMaxAllocHeap());
-        request->send(503, "application/json", JsonUtils::error("Low memory - try again"));
-        return;
-    }
-    free(probe);
+    s_devChunk.idx        = 0;
+    s_devChunk.total      = APIController::getDeviceCount();
+    s_devChunk.phase      = DevChunk::Header;
+    s_devChunk.scratchLen = 0;
+    s_devChunk.scratchOff = 0;
 
-    AsyncResponseStream* response = request->beginResponseStream("application/json");
-    APIController::streamDevices(*response);
-
-    LOG_INFO("API /devices streamed (heap: %lu->%lu, n=%u)", heapBefore, ESP.getFreeHeap(), n);
-    request->send(response);
+    LOG_INFO("API /devices chunked (n=%u, heap=%lu)", s_devChunk.total, heap);
+    request->send(request->beginChunkedResponse("application/json", fillDeviceChunk));
 }
 
 void handleGetDevice(AsyncWebServerRequest* request) {

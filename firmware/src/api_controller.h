@@ -33,6 +33,7 @@ public:
     static String getDevices();
     static void streamDevices(Print& out);
     static uint8_t getDeviceCount();
+    static void serializeDeviceAt(uint8_t idx, Print& out);
     static String getDevice(uint32_t nodeId);
     static String startTargetedCapture(uint32_t nodeId);
     static String stopCapture();

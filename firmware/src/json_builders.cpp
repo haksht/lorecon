@@ -266,6 +266,20 @@ void streamDevicesJson(ReconState& reconState, Print& out) {
     out.print("]}");
 }
 
+void serializeDeviceAt(ReconState& reconState, uint8_t idx, Print& out) {
+    JsonDocument doc;
+    {
+        ReconState::ScopedLock lock(reconState);
+        if (!lock || idx >= reconState.getNumTargetableDevices()) {
+            out.print("{}");
+            return;
+        }
+        JsonObject obj = doc.to<JsonObject>();
+        Internal::fillDevice(obj, reconState.getDeviceRepository().getByIndex(idx), idx, reconState);
+    }
+    serializeJson(doc, out);
+}
+
 String buildDeviceJson(ReconState& reconState, uint8_t deviceIndex) {
     if (deviceIndex >= reconState.getNumTargetableDevices()) {
         return "";
