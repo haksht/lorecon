@@ -1764,6 +1764,14 @@ class ReconApp {
             html += '<div class="status-row" title="Lowest free heap seen since boot. Below ~30KB, heavy endpoints will start failing with 503s.">';
             html += '<span>Min Free Heap (since boot)</span>';
             html += '<span class="status-value">' + minHeap + '</span></div>';
+            if (typeof status.psramSize === 'number') {
+                const psramTotal = this.formatBytes(status.psramSize);
+                const psramFree = this.formatBytes(status.freePsram || 0);
+                const psramClass = status.psramSize > 0 ? 'text-success' : 'text-warning';
+                html += '<div class="status-row" title="PSRAM extends the malloc heap so SRAM fragmentation does not cause crashes at long uptime.">';
+                html += '<span>PSRAM (free / total)</span>';
+                html += '<span class="status-value ' + psramClass + '">' + (status.psramSize > 0 ? psramFree + ' / ' + psramTotal : 'not active') + '</span></div>';
+            }
             if (status.lastAction) {
                 html += '<div class="status-row" title="Which API endpoint was running when the previous crash occurred (from RTC memory — survives panic/WDT/brownout).">';
                 html += '<span>Last Action at Crash</span>';

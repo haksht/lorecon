@@ -104,6 +104,8 @@ void fillStatusObject(ReconState& reconState, JsonObject obj) {
     obj["freeHeap"] = ESP.getFreeHeap();
     obj["minFreeHeap"] = ESP.getMinFreeHeap();
     obj["heapSize"] = ESP.getHeapSize();
+    obj["freePsram"] = ESP.getFreePsram();
+    obj["psramSize"] = ESP.getPsramSize();
     if (g_radioController) {
         obj["isrCount"] = g_radioController->getISRCount();
         obj["irqPollCount"] = g_radioController->getIrqPollCount();
