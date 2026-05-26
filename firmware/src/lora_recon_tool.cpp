@@ -46,9 +46,9 @@ bool LoRaReconTool::initialize() {
     LOG_INFO("ESP32 LoRa Reconnaissance Tool %s", Config::VERSION);
 
 #if defined(BOARD_TBEAM_SUPREME) || defined(BOARD_HELTEC_V4)
-    // Add PSRAM to the malloc heap before any library allocations (WiFi, server,
-    // AsyncTCP). board_build.arduino.memory_type doesn't always take effect with
-    // esp32-s3-devkitc-1; calling psramInit() here is the reliable fallback.
+    // board_build.arduino.memory_type=qio_qspi makes IDF SPIRAM support available.
+    // psramInit() actually initializes the hardware and adds PSRAM to the heap.
+    // Both are required; psramInit() alone without qio_qspi returns false.
     if (psramInit()) {
         LOG_INFO("PSRAM: %lu bytes added to heap", ESP.getPsramSize());
     } else {
