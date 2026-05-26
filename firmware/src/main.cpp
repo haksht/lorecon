@@ -285,8 +285,8 @@ void loop() {
         uint32_t freeHeap = ESP.getFreeHeap();
         uint32_t minFreeHeap = ESP.getMinFreeHeap();
         uint32_t uptimeMin = now / 60000;
-        LOG_INFO(" Heap status @ %lu min: free=%lu bytes, min=%lu bytes", 
-                 uptimeMin, freeHeap, minFreeHeap);
+        LOG_INFO(" Heap status @ %lu min: free=%lu bytes, min=%lu bytes, psram=%lu bytes",
+                 uptimeMin, freeHeap, minFreeHeap, ESP.getFreePsram());
         lastHeapLog = now;
     }
     
