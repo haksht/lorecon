@@ -290,6 +290,8 @@ String APIController::getSystemConfig() {
     system["watchdogTimeoutSec"] = Config::System::WATCHDOG_TIMEOUT_SEC;
     system["freeHeap"] = ESP.getFreeHeap();
     system["minFreeHeap"] = ESP.getMinFreeHeap();
+    system["freePsram"] = ESP.getFreePsram();
+    system["psramSize"] = ESP.getPsramSize();
     system["uptimeMs"] = millis();
     
     // Hardware capabilities
