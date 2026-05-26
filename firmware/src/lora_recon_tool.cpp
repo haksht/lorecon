@@ -44,7 +44,18 @@ bool LoRaReconTool::initialize() {
     // Serial already initialized in main.cpp for reset reason logging
     
     LOG_INFO("ESP32 LoRa Reconnaissance Tool %s", Config::VERSION);
-    
+
+#if defined(BOARD_TBEAM_SUPREME) || defined(BOARD_HELTEC_V4)
+    // Add PSRAM to the malloc heap before any library allocations (WiFi, server,
+    // AsyncTCP). board_build.arduino.memory_type doesn't always take effect with
+    // esp32-s3-devkitc-1; calling psramInit() here is the reliable fallback.
+    if (psramInit()) {
+        LOG_INFO("PSRAM: %lu bytes added to heap", ESP.getPsramSize());
+    } else {
+        LOG_WARN("PSRAM init failed -- running without extended heap");
+    }
+#endif
+
     // Initialize error handler first
     ErrorHandler::initialize();
     
