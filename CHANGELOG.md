@@ -2,6 +2,38 @@
 
 All notable changes to the LoRecon project (ESP32 LoRa packet sniffer & reconnaissance tool).
 
+## [2.6.0] - 2026-05-27
+
+### Added
+- **T-Beam Supreme PSRAM** (8 MB): `board_build.arduino.memory_type=qio_qspi` selects the SPIRAM-enabled IDF library variant; `psramInit()` called at boot registers the full 8 MB with the heap allocator. At 20 h / 50 devices min-free SRAM is ~130 KB (was ~53 KB without PSRAM). Confirmed 7.9/8.0 MB PSRAM available at runtime.
+- **PSRAM row in Device Health**: Settings → Device Health now shows "PSRAM (free / total)" when PSRAM is active; shows "not active" otherwise. `/api/status` exposes `freePsram` and `psramSize` fields.
+- **Windows GCC build workaround** (`include/psram_sdkconfig_patch.h`): qio_qspi's `sdkconfig.h` defines `CONFIG_SPIRAM_TRY_ALLOCATE_WIFI_LWIP`, which expands the lwip header tree enough to OOM 32-bit `cc1plus.exe` on Windows. A force-included patch file sets the sdkconfig guard first, then undefs the bloat macros — so our source files see a lean lwip while the pre-compiled IDF `.a` files retain full PSRAM support.
+
+### Fixed
+- **T-Beam / V4 24-hour panic on `/api/devices`**: `AsyncResponseStream` cbuf uses `realloc()` for a single contiguous buffer. After 24 h of heap fragmentation the realloc fails and calls `abort()`. Replaced with `beginChunkedResponse` fill callback — one `JsonDocument` per device per TCP chunk. Peak SRAM per device dropped from ~89 KB to ~2 KB; heap guard lowered to 16 KB.
+- **V4 GPS silent** (#12): `config.h` had `GPS_RX=38, GPS_TX=39` matching Meshtastic variant.h comments; the working Meshtastic `begin()` call uses ESP32 RX=39, TX=38. Swapped → 7-satellite fix in seconds.
+- **Brownout disable unconditional**: `WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0)` was running on all boards. Wrapped in `#if defined(BOARD_HELTEC_V3) || defined(BOARD_HELTEC_V4)` — T-Beam Supreme (AXP2101 PMIC) and T3-S3 now retain brownout protection.
+- **Meshtastic position extraction for SD logging**: `extractPosition()` always returned false (read source node ID byte as portnum). Removed the broken call; `PSKDecryption::lastPositionExtracted_` now tracks when `extractPositionFromDecrypted()` succeeds; position packets are now correctly tagged in SD CSV logs.
+- **MeshCore / LoRaWAN / Meshtastic protocol parsing**: Several field misidentifications corrected — Meshtastic `hopStart` field was mislabeled `priority`; LoRaWAN originated/relayed counters were zeroed for non-Meshtastic protocols; MeshCore device type was overwritten on every packet.
+- **CLI tools**: Missing `Path` import in `sniffer.py`; hardcoded `cwd=REPO_ROOT` removed from `run_module`.
+
+### Removed
+- Dead `streamDevicesJson` / `APIController::streamDevices` (intermediate AsyncResponseStream approach superseded by chunked fill callback).
+
+---
+
+## [2.5.0] - 2026-05-03
+
+### Added
+- **Device Health panel** (Settings tab): Shows last reset reason, min-free heap since boot, and `lastAction` (the API endpoint active when the device last panicked). Survives reboot via RTC NOINIT memory.
+- **`/api/status` crash context fields**: `resetReason`, `minFreeHeap`, `lastAction` — read by the Device Health panel.
+
+### Fixed
+- **`/api/dashboard` OOM**: Double-deserialization eliminated; peak heap ~50 KB (was 80–100 KB). Prime suspect for V4 panics at the time.
+- **Heap guards raised** on heavy endpoints to 65 KB; medium endpoints to 40 KB. Returns HTTP 503 rather than panicking when heap is too fragmented.
+
+---
+
 ## [2.4.2] - 2026-04-26
 
 ### Added

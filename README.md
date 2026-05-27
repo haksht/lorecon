@@ -2,7 +2,7 @@
 
 Passive LoRa reconnaissance firmware for ESP32-S3 + SX1262 hardware. Scans 29 frequency configurations, captures and replays packets, tests 23 default Meshtastic PSKs, decrypts MeshCore public channels and hashtag rooms, extracts GPS coordinates, and serves a phone-accessible web UI — all from a low-cost board.
 
-**Version:** 2.4.1 | **Status:** Production
+**Version:** 2.6.0 | **Status:** Production
 
 ---
 
@@ -41,7 +41,7 @@ This project delivers low-cost, stand-alone LoRa reconnaissance with a phone-fri
 | Area | What it does |
 |------|-------------|
 | Reconnaissance | Cycles 29 LoRa configs (Meshtastic, LoRaWAN/TTN, Helium, ISM, MeshCore) on a ~6-minute scan |
-| Packet capture | Interrupt-driven, <50 ms latency, 100-packet queue |
+| Packet capture | Interrupt-driven, <50 ms latency, 50-packet queue |
 | PSK decryption | Tests 23 Meshtastic default keys; decrypts MeshCore public channel and common hashtag rooms |
 | LoRaWAN testing | Verifies 16 default AppKeys against captured Join Requests |
 | GPS extraction | Extracts coordinates from Meshtastic POSITION_APP packets |
@@ -49,6 +49,7 @@ This project delivers low-cost, stand-alone LoRa reconnaissance with a phone-fri
 | Export | CSV, PCAP (Wireshark), KML, GeoJSON — wireless download from web UI |
 | Web UI | 6-tab interface (Info, Devices, Packets, Frequencies, Dashboard, Settings); live stats sidebar always visible on desktop, hamburger popup on mobile |
 | Security | Token-based API auth, device-unique AP password, NVS credential storage |
+| Stability | Device Health panel (Settings) — last reset reason, min-free heap, crash context surviving reboot via RTC memory; T-Beam Supreme PSRAM extends heap by 8 MB |
 
 ---
 

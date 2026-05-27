@@ -88,6 +88,11 @@ Chip: ESP32-S3FN8 (8 MB QIO flash, 8 MB Quad PSRAM — GPIO 33–37 safe). AXP21
 
 **Partition table.** `firmware/partitions_8MB.csv` — ~3 MB app + ~5 MB LittleFS. Required because the default 4 MB-flash layout wastes the extra space.
 
+**PSRAM enablement.** Two pieces are both required:
+1. `board_build.arduino.memory_type=qio_qspi` in `platformio.ini` — selects the SPIRAM-enabled IDF `.a` library variant (without this, `psramInit()` is a stub that always returns false).
+2. `psramInit()` called at the start of `LoRaReconTool::initialize()` — registers the 8 MB with the heap allocator so `malloc()` can overflow into it.
+**Windows build note:** `qio_qspi`'s `sdkconfig.h` defines `CONFIG_SPIRAM_TRY_ALLOCATE_WIFI_LWIP` which expands the lwip header tree enough to OOM 32-bit `cc1plus.exe`. `include/psram_sdkconfig_patch.h` is force-included via `build_src_flags -include` to strip that macro from our source-file compilation (the pre-compiled `.a` files are unaffected).
+
 **Upload ports.** Running mode: COM10 (303A:1001). Download mode re-enumerates to COM11. First flash: hold BOOT + tap RST while upload is running; after that, auto-reset works normally and the device stays on COM11.
 
 ---
