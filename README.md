@@ -32,7 +32,7 @@ See [docs/HARDWARE.md](docs/HARDWARE.md) for specs, pin maps, and purchase links
 
 ## Why this project
 
-One afternoon in a hotel, one $20 board, receive-only: **3,630 packets, 266 devices, 57 readable messages** — every readable one on a public channel or an unchanged default key. That's the whole point of LoRecon. Not that the crypto is broken, but that almost nobody rotates the key their mesh shipped with, and there was no cheap, self-contained way to see which side of that line your own network is on.
+One afternoon in a hotel, one $20 board, receive-only: **3,630 packets, 266 devices, 57 readable messages** — every readable one on a public channel or an unchanged default key. That's the whole point of LoRecon: almost nobody rotates the key their mesh shipped with, and there was no cheap, self-contained way to see which side of that line your own network is on.
 
 So this is it: low-cost, stand-alone LoRa reconnaissance with a phone-friendly web UI, default-key testing, and built-in export — passive, and honest about its limits (a default-key hit opens broadcasts; direct messages stay behind Curve25519). Point it at a mesh you own and a six-minute sweep tells you whether you're a readable blip or noise.
 
