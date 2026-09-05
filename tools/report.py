@@ -118,6 +118,10 @@ class DeviceRecord:
         self.texts:        List[str]  = []
         self.has_gps       = False
         self.positions:    List[Tuple[float, float]] = []  # (lat, lon)
+        # Parallel to positions; None where precision is unknown (firmware-CSV
+        # positions, or a position sent without the field) -- unknown is
+        # treated as "could be full precision", not as "already reduced".
+        self.position_precisions: List[Optional[int]] = []
         self.timestamps:   List[float] = []                 # packet unix ts (s)
         # NodeInfo identity (populated when a NODEINFO packet decrypts)
         self.short_name:   Optional[str] = None
@@ -217,14 +221,23 @@ class Assessment:
         if ts:
             dev.timestamps.append(ts)
 
-        # Only count as a node location when firmware tagged it as such.
-        # `sniffer`-sourced positions are where WE were, not the node — they
-        # would otherwise pin every heard node onto our own track.
+        # Only count as a node location when the CSV explicitly tagged it
+        # 'node'. Rejecting just 'sniffer' isn't enough: legacy CSVs (this
+        # repo's own example capture included) have no position_source
+        # column at all, so `!= 'sniffer'` was true for every row and
+        # attributed the sniffer's own fixed RX position to every device
+        # that heard it — inflating "devices broadcasting GPS" to nearly
+        # the full device count. map.py's aggregate_nodes() has a real
+        # legacy-CSV fallback (cluster check + decrypt); report.py doesn't,
+        # so for legacy CSVs this only trusts the decrypted POSITION_APP
+        # path below, which is unaffected by this column being absent.
         if (p.lat_deg is not None and p.lon_deg is not None
                 and (p.lat_deg != 0.0 or p.lon_deg != 0.0)
-                and p.position_source != 'sniffer'):
+                and p.position_source == 'node'):
             dev.has_gps = True
             dev.positions.append((p.lat_deg, p.lon_deg))
+            # Firmware-precomputed CSV columns carry no precision field.
+            dev.position_precisions.append(None)
 
         # PSK result from firmware CSV (already cracked by firmware)
         if p.psk_result and p.psk_result not in ('none', 'failed'):
@@ -268,6 +281,7 @@ class Assessment:
                             if pos:
                                 dev.has_gps = True
                                 dev.positions.append((pos[0], pos[1]))
+                                dev.position_precisions.append(pos[3])
                     # Text intercepts
                     if portnum == decode.PORT_TEXT_MESSAGE:
                         inner = decode.extract_inner(pt)
@@ -364,7 +378,13 @@ class Assessment:
                 'cwe': 'CWE-1392',
             })
 
-        # --- Intercepted text messages ---
+        # --- Recovered channel messages ---
+        # These are channel/group messages, not direct messages — DMs are
+        # Curve25519-protected post-2.5.0 and this tool cannot touch them.
+        # A default/known PSK on a channel is often the intended public
+        # setup, not a misconfiguration, so this isn't scored as a compromise
+        # by default the way a cracked admin key or a leaked precise
+        # position is.
         if self.text_messages:
             preview = self.text_messages[:3]
             samples = ''.join(
@@ -372,15 +392,15 @@ class Assessment:
                 for m in preview
             )
             self.findings.append({
-                'severity': 'CRITICAL',
-                'title': f'{len(self.text_messages)} Private Messages Intercepted',
+                'severity': 'MEDIUM',
+                'title': f'{len(self.text_messages)} Channel Messages Recovered (Default/Known PSK)',
                 'desc': (
-                    f'Decrypted with default PSKs — plaintext message content recovered:<ul>'
-                    f'{samples}</ul>'
+                    f'Decrypted with a known channel PSK — plaintext channel message content '
+                    f'recovered:<ul>{samples}</ul>'
                     + (f'({len(self.text_messages) - 3} more not shown)' if len(self.text_messages) > 3 else '')
                 ),
-                'rec': 'Deploy unique PSKs. Treat all default-key traffic as compromised.',
-                'cwe': 'CWE-311',
+                'rec': 'Confirm this is your intended public channel. Rotate to a unique PSK if it should be private.',
+                'cwe': 'CWE-321',
             })
 
         # --- Legacy admin key ---
@@ -583,26 +603,64 @@ class Assessment:
                 d.bbox_m = 0.0
                 d.is_mobile = False
 
-        leak_devs = [d for d in self.devices.values()
-                     if d.positions and d.psk_risk in ('CRITICAL', 'HIGH')]
+        # Meshtastic's own precision setting (protobuf field 23) already
+        # reduces most position broadcasts to a coarse grid cell by design --
+        # that's not a leak, it's the feature working. Only escalate devices
+        # where the precision is unknown (can't rule out a full fix) or
+        # confirmed high, rather than flagging every position broadcast the
+        # same way regardless of how coarse it is.
+        PRECISE_THRESHOLD = 24  # observed reduced settings top out at 19; full is 32
+
+        def _confirmed_reduced(d: DeviceRecord) -> bool:
+            precisions = d.position_precisions
+            return bool(precisions) and all(
+                p is not None and p < PRECISE_THRESHOLD for p in precisions
+            )
+
+        gps_devs = [d for d in self.devices.values()
+                    if d.positions and d.psk_risk in ('CRITICAL', 'HIGH')]
+        leak_devs = [d for d in gps_devs if not _confirmed_reduced(d)]
+        reduced_devs = [d for d in gps_devs if _confirmed_reduced(d)]
+
         if leak_devs:
             sample = sorted(leak_devs, key=lambda d: -len(d.positions))[:8]
+
+            def _prec_label(d: DeviceRecord) -> str:
+                known = [p for p in d.position_precisions if p is not None]
+                if not known:
+                    return 'precision unknown'
+                return 'full precision' if min(known) >= PRECISE_THRESHOLD else f'precision {min(known)}'
+
             rows = ''.join(
                 f'<li><code>{d.node_id}</code>'
                 + (f' <b>{_html_esc(d.short_name)}</b>' if d.short_name else '')
                 + f' — {len(d.positions)} fixes, '
                 + ('mobile' if getattr(d, "is_mobile", False) else 'stationary')
-                + f' ({d.psk_risk})</li>'
+                + f', {_prec_label(d)} ({d.psk_risk})</li>'
                 for d in sample
             )
             self.findings.append({
                 'severity': 'HIGH',
-                'title': f'Plaintext GPS Position Disclosure ({len(leak_devs)} devices)',
+                'title': f'Full or Unverified-Precision GPS Disclosure ({len(leak_devs)} devices)',
                 'desc': (
-                    f'Devices are broadcasting lat/lon on channels encrypted with a known-weak '
-                    f'PSK. Anyone with the default key can track their location in real time:<ul>{rows}</ul>'
+                    f'Devices broadcasting lat/lon on a known-weak PSK, at full precision or with '
+                    f'precision unconfirmed (older firmware, or a position sent without the field). '
+                    f'Anyone with the key can track these in real time:<ul>{rows}</ul>'
                 ),
                 'rec': 'Disable position broadcast on public channels, or move to a unique PSK.',
+                'cwe': 'CWE-200',
+            })
+
+        if reduced_devs:
+            self.findings.append({
+                'severity': 'INFO',
+                'title': f'{len(reduced_devs)} devices at confirmed reduced GPS precision',
+                'desc': (
+                    f'These broadcast position on a known-weak PSK too, but every fix carried a '
+                    f'confirmed precision setting below full — Meshtastic\'s own coarsening is '
+                    f'doing its job for these devices, not a gap in this capture.'
+                ),
+                'rec': 'No action needed on precision grounds alone.',
                 'cwe': 'CWE-200',
             })
 

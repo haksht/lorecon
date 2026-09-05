@@ -63,10 +63,14 @@ def _ingest(cap: Capture, records: Dict[str, NodeRecord]) -> None:
             rec.protocols.add(p.protocol)
         if p.psk_result and p.psk_result not in ('none', 'failed'):
             rec.psk_names.add(p.psk_result)
-        # Skip sniffer-sourced positions — they're our RX location, not the node's.
+        # Only trust a position explicitly tagged 'node' -- see the same
+        # fix and full explanation in report.py's identical guard. Legacy
+        # CSVs with no position_source column have none of their rows
+        # attributed here now; they still get real positions via the
+        # decrypt path below.
         if (p.lat_deg is not None and p.lon_deg is not None
                 and (p.lat_deg != 0.0 or p.lon_deg != 0.0)
-                and p.position_source != 'sniffer'):
+                and p.position_source == 'node'):
             rec.positions.append((p.lat_deg, p.lon_deg))
         # Try NodeInfo / Text / Position decrypt for identity
         if p.encrypted and decode.CRYPTO_AVAILABLE and p.raw_hex:

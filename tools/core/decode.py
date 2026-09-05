@@ -160,8 +160,11 @@ def extract_inner(payload: bytes) -> Optional[bytes]:
     return None
 
 
-def parse_position(inner: bytes) -> Optional[Tuple[float, float, float]]:
-    lat_i = lon_i = alt = None
+def parse_position(inner: bytes) -> Optional[Tuple[float, float, float, Optional[int]]]:
+    """Returns (lat, lon, alt, precision_bits). precision_bits is None when
+    the field is absent (older firmware, or a position sent without it) --
+    callers should treat that as unknown precision, not as full precision."""
+    lat_i = lon_i = alt = precision_bits = None
     offset = 0
     while offset < len(inner):
         tag, c = decode_varint(inner, offset); offset += c
@@ -172,6 +175,8 @@ def parse_position(inner: bytes) -> Optional[Tuple[float, float, float]]:
             lon_i = struct.unpack('<i', inner[offset:offset+4])[0]; offset += 4
         elif fn == 3 and wt == 0:
             alt, c = decode_varint(inner, offset); offset += c
+        elif fn == 23 and wt == 0:
+            precision_bits, c = decode_varint(inner, offset); offset += c
         elif wt == 0:
             _, c = decode_varint(inner, offset); offset += c
         elif wt == 2:
@@ -182,7 +187,7 @@ def parse_position(inner: bytes) -> Optional[Tuple[float, float, float]]:
     if lat_i is not None and lon_i is not None:
         lat, lon = lat_i / 1e7, lon_i / 1e7
         if lat != 0.0 or lon != 0.0:
-            return (lat, lon, float(alt or 0))
+            return (lat, lon, float(alt or 0), precision_bits)
     return None
 
 

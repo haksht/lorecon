@@ -79,7 +79,7 @@ lorecon report new.csv --baseline old.csv                # diff mode
 Findings currently emitted (when supporting data is present):
 
 - **Default PSK cracked** — packets decrypted with known keys
-- **Private messages intercepted** — plaintext TEXT_MESSAGE recovered
+- **Channel messages recovered** — plaintext TEXT_MESSAGE decrypted with a default/known PSK (channel messages, not DMs — direct messages are Curve25519-protected post-2.5.0 and out of reach)
 - **Legacy admin key** — pre-2.5 admin channel → remote-config attack surface
 - **Cross-channel bridging** — one node uses 2+ PSKs (critical if admin is one)
 - **AES-CTR nonce reuse** — same (node, packet_id) with different ciphertexts
