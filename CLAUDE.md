@@ -22,15 +22,16 @@ Before suggesting any fixes, analyze all peripherals for potential conflicts: li
 
 ## File Operations
 
-For generated filenames on Windows, avoid colons (:) and unicode characters like em-dashes (--). Use underscores or hyphens instead.
+For generated filenames, avoid colons (:) and unicode characters like em-dashes (--). Use underscores or hyphens instead.
 
 ## Build
 
 - Default board: Heltec V3 (`pio run -e heltec_v3`)
 - T3-S3 board: `pio run -e t3_s3`
-- Upload T3-S3: `pio run -e t3_s3 -t upload --upload-port COMx`
+- Upload T3-S3: `pio run -e t3_s3 -t upload --upload-port /dev/ttyACM0`
 - T-Beam Supreme: `pio run -e tbeam_supreme`
 - Heltec V4 (with GPS): `pio run -e heltec_v4`
-- Monitor: `pio device monitor --port COMx --baud 115200`
+- Monitor: `pio device monitor --port /dev/ttyACM0 --baud 115200`
+- Serial ports (Linux): native-USB boards enumerate as `/dev/ttyACM*`, USB-UART bridge boards as `/dev/ttyUSB*` — check `ls /dev/ttyACM* /dev/ttyUSB*`. User must be in the `dialout` group.
 - Source is C++ (Arduino framework) in `firmware/src/`
 - Board configs in `firmware/src/config.h` under `Config::Hardware` namespace
